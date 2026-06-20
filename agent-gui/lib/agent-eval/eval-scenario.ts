@@ -6,6 +6,12 @@ import {
   resolveBenchmarkTaskIds,
   type AgentEvalBenchmarkTask,
 } from "@/lib/agent-eval/benchmark-catalog";
+import {
+  loadQuickerBenchTask,
+  resolveQuickerBenchTaskIds,
+  type QuickerBenchTask,
+} from "@/lib/quickerbench/catalog";
+import { quickerBenchTaskToEvalScenario } from "@/lib/quickerbench/eval-scenario";
 import type { LauncherEvalExpect } from "@/lib/agent-eval/launcher-expect";
 
 export type AgentEvalScenarioExpect = {
@@ -29,7 +35,7 @@ export type AgentEvalScenario = {
   /** Subdirectory under benchmarks/fixtures/ */
   fixture?: string;
   expect?: AgentEvalScenarioExpect;
-  source: "authoring" | "agent-gui";
+  source: "authoring" | "agent-gui" | "quickerbench";
 };
 
 export type AgentGuiScenarioCatalog = {
@@ -67,7 +73,11 @@ export const GUI_SMOKE_SCENARIO_IDS = [
 
 export const GUI_AGENT_DEFS_SCENARIO_IDS = [
   "slash-list-actions",
+  "slash-author-bundled",
+  "slash-verify-bundled",
   "task-readonly-explore",
+  "task-step-runner-lookup",
+  "task-action-library-search",
 ] as const;
 
 export function defaultWorkspaceRoot(): string {
@@ -140,14 +150,24 @@ export function authoringTaskToScenario(
   };
 }
 
+export function quickerBenchTaskToScenario(
+  task: QuickerBenchTask,
+): AgentEvalScenario {
+  return quickerBenchTaskToEvalScenario(task);
+}
+
 export function loadEvalScenario(id: string): AgentEvalScenario {
   try {
     return loadGuiScenario(id);
   } catch (guiErr) {
     try {
-      return authoringTaskToScenario(loadBenchmarkTask(id));
+      return quickerBenchTaskToScenario(loadQuickerBenchTask(id));
     } catch {
-      throw guiErr;
+      try {
+        return authoringTaskToScenario(loadBenchmarkTask(id));
+      } catch {
+        throw guiErr;
+      }
     }
   }
 }
@@ -188,6 +208,13 @@ export function resolveEvalScenarioIds(options: {
     ids = [...GUI_AGENT_DEFS_SCENARIO_IDS];
   } else if (options.preset === "gui-all") {
     ids = loadGuiScenarioCatalog().scenarios.map((s) => s.id);
+  } else if (options.preset === "quickerbench-core") {
+    return resolveQuickerBenchTaskIds({
+      ids: options.ids,
+      tier: options.tier,
+      preset: options.preset,
+      limit: options.limit,
+    });
   } else {
     return resolveBenchmarkTaskIds({
       ids: options.ids,

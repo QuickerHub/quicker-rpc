@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console.Mcp;
@@ -126,11 +127,18 @@ internal static class QkrpcMcpActionExecutor
         string? description,
         string? icon,
         string? profileId,
+        string? dataJson,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(title))
         {
             return ValidationError("title is required");
+        }
+
+        if (!string.IsNullOrWhiteSpace(dataJson)
+            && !QuickerProjectFiles.TryParseDataRoot(dataJson, out _, out var dataError))
+        {
+            return ValidationError(dataError ?? "Invalid dataJson.");
         }
 
         var createJson = await runtime.InvokeOpAsync(
@@ -144,8 +152,16 @@ internal static class QkrpcMcpActionExecutor
             }),
             cancellationToken).ConfigureAwait(false);
 
-        return await QkrpcMcpWorkspaceSync.AugmentActionCreateAsync(runtime, createJson, cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            return await QkrpcMcpWorkspaceSync.AugmentActionCreateAsync(
+                    runtime, createJson, dataJson, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ValidationError(ex.Message);
+        }
     }
 
     internal static Task<string> EditAsync(QkrpcMcpRuntime runtime, string id, CancellationToken cancellationToken)
@@ -258,6 +274,13 @@ internal static class QkrpcMcpActionExecutor
             return Task.FromResult(ValidationError("id is required"));
         }
 
+        if (!string.IsNullOrWhiteSpace(note))
+        {
+            return Task.FromResult(ValidationError(
+                "DEPRECATED_SHARE_NOTE: The getquicker 「备注」 field is deprecated. "
+                + "Do not pass note. Use html for Detail HTML, or qkagent apply."));
+        }
+
         return runtime.InvokeOpAsync(
             "action.publish",
             QkrpcMcpJson.ToElement(new
@@ -265,7 +288,6 @@ internal static class QkrpcMcpActionExecutor
                 id = id.Trim(),
                 title,
                 description,
-                shareNote = note,
                 html,
                 tags,
                 keywords,

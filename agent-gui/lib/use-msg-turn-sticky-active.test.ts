@@ -18,3 +18,8 @@ test("shouldActivateMsgTurnSticky stays active with hysteresis when height dips 
   assert.equal(shouldActivateMsgTurnSticky(2000, 551, 490, 80, true), true);
   assert.equal(shouldActivateMsgTurnSticky(2000, 551, 490, 80, false), false);
 });
+
+test("shouldActivateMsgTurnSticky deactivates only after larger height dip", () => {
+  assert.equal(shouldActivateMsgTurnSticky(2000, 551, 450, 80, true), true);
+  assert.equal(shouldActivateMsgTurnSticky(2000, 551, 430, 80, true), false);
+});

@@ -7,7 +7,15 @@ import {
   PRELOADED_SKILL_SCOPES,
 } from "@/lib/agent-skills/paths";
 
-/** agentskills.io tier 1 — name + description catalog for on-demand skills. */
+export {
+  formatPreloadedSkillsCatalogForPrompt,
+  formatPreloadedSkillsEssentialsForPrompt,
+  isPreloadedSkillBodyInPromptEnabled,
+} from "@/lib/agent-skills/prompt-catalog";
+
+const SKILL_CATALOG_DESC_MAX = 72;
+
+/** agentskills.io tier 1 — compact name + description catalog for on-demand skills. */
 export async function formatSkillCatalogForPrompt(): Promise<string> {
   const skills = await discoverAgentSkills();
   const onDemand = skills.filter(
@@ -19,20 +27,18 @@ export async function formatSkillCatalogForPrompt(): Promise<string> {
   if (onDemand.length === 0) return "";
 
   const lines = [
-    "## Available skills (on demand)",
-    "Match task to description; workflows via docs get, references/ via docs search when needed.",
+    "## On-demand skills",
+    "Match task → name; load via docs search/get or Read `.cursor/skills/<name>/SKILL.md`.",
     "",
-    "<available_skills>",
   ];
   for (const skill of onDemand) {
-    lines.push(
-      `<skill>`,
-      `<name>${skill.name}</name>`,
-      `<description>${skill.description}</description>`,
-      `</skill>`,
-    );
+    const desc = skill.description?.trim() ?? "";
+    const short =
+      desc.length > SKILL_CATALOG_DESC_MAX
+        ? `${desc.slice(0, SKILL_CATALOG_DESC_MAX - 1)}…`
+        : desc;
+    lines.push(`- \`${skill.name}\`: ${short}`);
   }
-  lines.push("</available_skills>");
   return lines.join("\n");
 }
 

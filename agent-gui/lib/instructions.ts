@@ -44,17 +44,12 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   WORKBENCH_AGENT_PROMPT,
   "",
   "## Capabilities",
-  "**Run**: qkrpc_action_run; **debug**: qkrpc_action_debug. **Sync**: qkrpc_action_get (skip after create). **Edit body**: workspace_program → patch.",
-  "**Create**: qkrpc_action_create → workspace_program. **Layout**: qkrpc_profile_* / qkrpc_action_move.",
-  "**Settings**: quicker_settings list/get/set/apply; action=open preset for UI panels.",
-  "**Triggers**: quicker_trigger events (query=意图关键词) / list — pick eventType; docs get trigger-workflow.",
-  "**Local disk**: Read/Write/StrReplace/Grep (plain files, `.local/` scratch); workspace_program (`.quicker` program bodies); Shell (build/test/git); user reviews in workbench 已改动.",
-  "**Web**: web_search for discovery; browser — evaluate(script, url) for background scrape/extract; navigate+search for interactive refs; click/type via ref. After browser prototyping, **browser_to_action** → workspace_program for sys:chromecontrol steps. **LLM**: llm_settings.",
-  "**Safety**: delete only on user ask (UI Confirm); ask_question for 2–5 preferences not deletes.",
-  "**Dev UI**: dev_frontend_check after agent-gui edits until ok=true (agent-gui/AGENTS.md).",
+  "**Core** (full schema every turn): docs; Read/Write/StrReplace/Grep/Shell; web_search; qkrpc_action_query/run/debug; quicker_settings; qkrpc_wait; ask_question; list_tools.",
+  "**Auto-loaded packs** (full schema when intent matches): action_authoring (write/patch/@ pin); browser (web); settings; runtime_extras.",
+  "**On-demand packs** (slim stub until list_tools bundle/get): action_layout, destructive, dev — like loading a skill before use.",
   "",
   "## Skills",
-  "Preloaded tier-2 instructions below (agentskills.io). On-demand skills in catalog; authoring via docs search (snippet), docs get for full workflow only.",
+  "Preloaded skill essentials below (hard rules + P4 pick); full text via docs search/get or Read skill path. On-demand skills listed in ## On-demand skills. Tool packs via list_tools action=bundles.",
 );
 
 const ASK_SYSTEM_INSTRUCTIONS = prompt(
@@ -108,7 +103,7 @@ export const LAUNCHER_SYSTEM_INSTRUCTIONS = prompt(
   LAUNCHER_SYSTEM_INSTRUCTIONS_CORE,
   "",
   "## Out of scope → main QuickerAgent",
-  "workspace_program, qkrpc_step_runner_*, dev_frontend_check, llm_settings; multi-step disk authoring.",
+  "workspace_program, qkrpc_step_runner_*, llm_settings; multi-step disk authoring.",
   "On qkrpc fail: brief error + check Quicker/plugin/serve. NO Shell connectivity workarounds.",
   "",
   ACTION_LINK_SUMMARY_PROMPT,
@@ -129,15 +124,25 @@ export async function buildSystemInstructions(
   const parts = [base];
 
   if (mode !== CHAT_MODE_LAUNCHER) {
-    const [{ formatAuthoringSkillForPrompt }, { formatSkillCatalogForPrompt }] =
+    const [{ formatAuthoringSkillForPrompt }, catalogMod, promptMod] =
       await Promise.all([
         import("@/lib/action-authoring-docs"),
+        import("@/lib/agent-skills/prompt-catalog"),
         import("@/lib/agent-skills/prompt"),
       ]);
-    const skillBlock = await formatAuthoringSkillForPrompt();
+    const {
+      formatPreloadedSkillsEssentialsForPrompt,
+      isPreloadedSkillBodyInPromptEnabled,
+    } = catalogMod;
+    const { formatSkillCatalogForPrompt } = promptMod;
+    const skillBlock = isPreloadedSkillBodyInPromptEnabled()
+      ? await formatAuthoringSkillForPrompt()
+      : await formatPreloadedSkillsEssentialsForPrompt(cwd);
     if (skillBlock) {
       parts.push("", skillBlock);
-      parts.push("", "### Post-patch summary", ACTION_LINK_SUMMARY_PROMPT);
+      if (isPreloadedSkillBodyInPromptEnabled()) {
+        parts.push("", "### Post-patch summary", ACTION_LINK_SUMMARY_PROMPT);
+      }
     }
     const catalog = await formatSkillCatalogForPrompt();
     if (catalog) {
@@ -149,7 +154,7 @@ export async function buildSystemInstructions(
     const {
       discoverAgentDefs,
       formatSubagentsCatalogBlock,
-      formatWorkspaceInstructionsBlock,
+      formatWorkspaceInstructionsForPrompt,
       loadWorkspaceInstructions,
     } = await import("@/lib/agent-defs");
     const [workspaceInstructions, agentDefs] = await Promise.all([
@@ -157,11 +162,16 @@ export async function buildSystemInstructions(
       discoverAgentDefs(cwd),
     ]);
     if (workspaceInstructions) {
-      parts.push("", formatWorkspaceInstructionsBlock(workspaceInstructions));
+      parts.push(
+        "",
+        formatWorkspaceInstructionsForPrompt(workspaceInstructions, { cwd }),
+      );
     }
-    const subagentBlock = formatSubagentsCatalogBlock(agentDefs.agents);
-    if (subagentBlock) {
-      parts.push("", subagentBlock);
+    if (mode !== CHAT_MODE_ASK) {
+      const subagentBlock = formatSubagentsCatalogBlock(agentDefs.agents);
+      if (subagentBlock) {
+        parts.push("", subagentBlock);
+      }
     }
   }
 

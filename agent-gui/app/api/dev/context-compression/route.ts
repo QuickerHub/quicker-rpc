@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
-  prepareCompressedContext,
+  prepareContextPipeline,
   previewContextCompression,
   type ContextCompressionPreview,
 } from "@/lib/context-compression";
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   const cwd = resolveEffectiveWorkingDirectory(body.workingDirectory);
 
   const prepared = await runWithAgentRequestContextAsync({ cwd }, async () =>
-    prepareCompressedContext({
+    prepareContextPipeline({
       messages,
       model,
       contextLimit,
@@ -124,5 +124,7 @@ export async function POST(req: Request) {
     contextCompression: prepared.contextCompression ?? null,
     reusedSummary,
     summarizeCalled: summarizeCalled && !reusedSummary,
+    slidingWindowApplied: prepared.slidingWindowApplied,
+    historyArtifactPath: prepared.contextCompression?.historyArtifactPath,
   });
 }

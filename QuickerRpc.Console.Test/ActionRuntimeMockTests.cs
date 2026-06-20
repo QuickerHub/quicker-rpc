@@ -296,4 +296,16 @@ public sealed class ActionRuntimeMockTests
 
         Assert.AreEqual(ExitCodes.Success, exitCode);
     }
+
+    [TestMethod]
+    public void MockProfile_UserActionLikesTotal_LoadsHttpContentFiles()
+    {
+        var profile = MockProfileLoader.Load("user-action-likes-total", profileFile: null);
+        Assert.IsNotNull(profile.Mocks?.Http);
+        var page1 = profile.Mocks!.Http!["https://getquicker.net/User/Actions/113342-Cea"];
+        Assert.IsNotNull(page1);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(page1.Content));
+        StringAssert.Contains(page1.Content, "共 117 个动作");
+        Assert.IsTrue(profile.Mocks.Http.ContainsKey("https://getquicker.net/User/Actions/113342-Cea?p=5"));
+    }
 }

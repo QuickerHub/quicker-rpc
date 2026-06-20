@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { buildWaitCliArgs, executeRobustQkrpcWait } from "@/lib/qkrpc-wait-core";
+import { clearQkrpcConnectivityBlockedThisTurn } from "@/lib/qkrpc-connectivity-gate";
 import type { QkrpcWaitToolInput as QkrpcWaitInput } from "@/lib/qkrpc-wait-core";
 
 export const QKRPC_WAIT_TOOL = "qkrpc_wait";
@@ -31,7 +32,11 @@ export type QkrpcWaitToolInput = QkrpcWaitInput;
 export async function executeQkrpcWaitTool(
   input: QkrpcWaitToolInput,
 ): Promise<Record<string, unknown>> {
-  return executeRobustQkrpcWait(input);
+  const result = await executeRobustQkrpcWait(input);
+  if (result.ok === true) {
+    clearQkrpcConnectivityBlockedThisTurn();
+  }
+  return result;
 }
 
 export const QKRPC_WAIT_TOOL_DEF = tool({

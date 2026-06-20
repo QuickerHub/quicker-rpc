@@ -34,6 +34,21 @@ export const RECOMMENDED_SKILL_NAMES = [
   "quicker-run",
 ] as const;
 
+/** Bundled slash commands boosted on empty composer query. */
+export const RECOMMENDED_COMMAND_NAMES = [
+  "author",
+  "verify",
+  "explain-action",
+] as const;
+
+/** Bundled subagents boosted on empty composer query. */
+export const RECOMMENDED_AGENT_NAMES = [
+  "step-runner-lookup",
+  "readonly-explore",
+  "authoring-verify",
+  "action-library-search",
+] as const;
+
 const SCOPE_SCORE: Record<string, number> = {
   workspace: 40,
   user: 28,
@@ -64,6 +79,24 @@ function recommendedSkillBoost(name: string, query: string): number {
   );
   if (idx < 0) return 0;
   return 50 - idx * 4;
+}
+
+function recommendedCommandBoost(name: string, query: string): number {
+  if (query.trim()) return 0;
+  const idx = RECOMMENDED_COMMAND_NAMES.findIndex(
+    (n) => n.toLowerCase() === name.toLowerCase(),
+  );
+  if (idx < 0) return 0;
+  return 46 - idx * 4;
+}
+
+function recommendedAgentBoost(name: string, query: string): number {
+  if (query.trim()) return 0;
+  const idx = RECOMMENDED_AGENT_NAMES.findIndex(
+    (n) => n.toLowerCase() === name.toLowerCase(),
+  );
+  if (idx < 0) return 0;
+  return 42 - idx * 4;
 }
 
 function usageScore(kind: SlashItemKind, name: string): number {
@@ -107,6 +140,8 @@ function scoreItem(
     + usageScore(item.kind, item.name)
     + recentBoost(key, recentKeys)
     + recommendedSkillBoost(item.name, query)
+    + (item.kind === "command" ? recommendedCommandBoost(item.name, query) : 0)
+    + (item.kind === "agent" ? recommendedAgentBoost(item.name, query) : 0)
   );
 }
 

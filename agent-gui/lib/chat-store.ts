@@ -14,6 +14,7 @@ import {
   inheritThreadWorkingDirectory,
   migrateThreadWorkingDirectories,
   remapThreadsToKnownWorkspaces,
+  resolveThreadWorkingDirectory,
   syncLegacyWorkingDirectory,
   threadsForWorkspace,
   type ChatWorkspace,
@@ -23,6 +24,7 @@ import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
 import { deriveNextForkThreadTitle } from "@/lib/thread-fork-title";
 import { finalizeStreamingReasoningParts } from "@/lib/repair-interrupted-tool-calls";
 import { chatMessagesEqual } from "@/lib/chat-message-signature";
+import { normalizeCwdKey } from "@/lib/thread-cwd-groups";
 
 export type { ChatWorkspace } from "@/lib/chat-workspace";
 export {
@@ -979,6 +981,20 @@ export function updateThreadMessages(
   return next;
 }
 
+/** Main QuickerAgent: drop designer-only thread tags persisted from embed sessions. */
+export function stripActionDesignerTagsFromStore(data: ChatStoreData): ChatStoreData {
+  let changed = false;
+  const threads = data.threads.map((thread) => {
+    if (!thread.actionDesigner?.entityId?.trim()) {
+      return thread;
+    }
+    changed = true;
+    const { actionDesigner: _removed, ...rest } = thread;
+    return rest;
+  });
+  return changed ? { ...data, threads } : data;
+}
+
 export function addThread(
   data: ChatStoreData,
   options?: {
@@ -991,11 +1007,11 @@ export function addThread(
   const workingDirectory =
     options?.workingDirectory?.trim()
     ?? inheritThreadWorkingDirectory(data);
-  const active = data.threads.find((item) => item.id === data.activeThreadId);
-  const actionDesigner =
-    options?.actionDesigner
-    ?? active?.actionDesigner;
-  const thread = createThread({ workspaceId, workingDirectory, actionDesigner });
+  const thread = createThread({
+    workspaceId,
+    workingDirectory,
+    actionDesigner: options?.actionDesigner,
+  });
   const activeIndex = data.threads.findIndex((t) => t.id === data.activeThreadId);
   const insertAt = activeIndex >= 0 ? activeIndex + 1 : data.threads.length;
   const threads = [...data.threads];
@@ -1176,6 +1192,29 @@ export function deleteThread(data: ChatStoreData, threadId: string): ChatStoreDa
   }
 
   return compactEmptyThreads({ ...data, threads, openTabIds, activeThreadId });
+}
+
+/** Delete every thread whose effective cwd matches (dev temp-workspace cleanup). */
+export function deleteThreadsByWorkingDirectory(
+  data: ChatStoreData,
+  workingDirectory: string,
+  defaultCwd = "",
+): ChatStoreData {
+  const targetKey = normalizeCwdKey(workingDirectory);
+  if (!targetKey) return data;
+
+  const threadIds = data.threads
+    .filter((thread) => {
+      const cwd = resolveThreadWorkingDirectory(thread, data, defaultCwd);
+      return normalizeCwdKey(cwd) === targetKey;
+    })
+    .map((thread) => thread.id);
+
+  let next = data;
+  for (const threadId of threadIds) {
+    next = deleteThread(next, threadId);
+  }
+  return next;
 }
 
 export function renameThread(

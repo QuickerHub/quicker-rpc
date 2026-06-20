@@ -34,7 +34,14 @@ import {
   executeQkrpcActionTool,
   type QkrpcActionToolInput,
 } from "@/lib/qkrpc-action-tool.server";
-import { QKRPC_ACTION_MANAGE_TOOL, QKRPC_ACTION_TOOL } from "@/lib/qkrpc-action-tool";
+import { QKRPC_ACTION_EDIT_TOOL, QKRPC_ACTION_MANAGE_TOOL, QKRPC_ACTION_TOOL } from "@/lib/qkrpc-action-tool";
+import { executeQkrpcDesignerOpenTool } from "@/lib/qkrpc-designer-open-tool.server";
+import { executeQkrpcSubprogramTransferTool } from "@/lib/qkrpc-subprogram-transfer-tool.server";
+import {
+  QKRPC_SUBPROGRAM_EDIT_TOOL,
+  QKRPC_SUBPROGRAM_EXPORT_TOOL,
+  QKRPC_SUBPROGRAM_IMPORT_TOOL,
+} from "@/lib/qkrpc-subprogram-tool";
 import {
   QKRPC_SUBPROGRAM_MANAGE_TOOL_DEF,
   QKRPC_SUBPROGRAM_TOOL_DEF,
@@ -67,11 +74,14 @@ const workspaceReadSliceSchema = {
 
 /**
  * Deprecated tool ids kept for tool-test replay, direct execute API, and old chat threads.
- * Not registered in QKRPC_TOOL_REGISTRY — new sessions use consolidated tools only.
+ * Not registered in QKRPC_TOOL_REGISTRY — new sessions use split/merged tools only.
+ *
+ * Retirement: remove aliases only after telemetry shows zero replay hits for 2+ releases.
+ * Mapped replacements live in tool-registry LEGACY_TOOL_ID_MAP / LEGACY_MERGED_TOOL_EXPAND.
  */
 export const legacyQuickerToolAliases = {
   [DOCS_GET_TOOL]: tool({
-    description: "Deprecated: use docs({ action: \"get\", topic }) for full workflow topic",
+    description: "Deprecated: use docs({ action: \"get\", topic }) for known topic (workflow or schema)",
     inputSchema: z.object({ topic: z.string() }),
     execute: async ({ topic }) => executeDocsTool({ action: "get", topic }),
   }),
@@ -173,6 +183,12 @@ export const legacyQuickerToolAliases = {
   [QKRPC_ACTION_MANAGE_TOOL]: QKRPC_ACTION_MANAGE_TOOL_DEF,
   qkrpc_action_run_consolidated: QKRPC_ACTION_RUN_CONSOLIDATED_TOOL_DEF,
 
+  [QKRPC_ACTION_EDIT_TOOL]: tool({
+    description: "Deprecated: use qkrpc_designer_open({ target: \"action\", id })",
+    inputSchema: z.object({ id: z.string().uuid() }),
+    execute: async ({ id }) => executeQkrpcDesignerOpenTool({ target: "action", id }),
+  }),
+
   qkrpc_action_update: tool({
     description: "Deprecated: use qkrpc_action_publish({ changelog })",
     inputSchema: z.object({
@@ -251,6 +267,42 @@ export const legacyQuickerToolAliases = {
       limit: z.number().int().min(1).max(100).optional(),
     }),
     execute: async (input) => executeQkrpcSubprogramQueryTool(input),
+  }),
+
+  [QKRPC_SUBPROGRAM_EDIT_TOOL]: tool({
+    description:
+      "Deprecated: use qkrpc_designer_open({ target: \"global_subprogram\", id })",
+    inputSchema: z.object({ id: z.string() }),
+    execute: async ({ id }) =>
+      executeQkrpcDesignerOpenTool({ target: "global_subprogram", id }),
+  }),
+
+  [QKRPC_SUBPROGRAM_EXPORT_TOOL]: tool({
+    description:
+      "Deprecated: use qkrpc_subprogram_transfer({ direction: \"export\", id, dir })",
+    inputSchema: z.object({
+      id: z.string(),
+      dir: z.string(),
+    }),
+    execute: async ({ id, dir }) =>
+      executeQkrpcSubprogramTransferTool({ direction: "export", id, dir }),
+  }),
+
+  [QKRPC_SUBPROGRAM_IMPORT_TOOL]: tool({
+    description:
+      "Deprecated: use qkrpc_subprogram_transfer({ direction: \"import\", dir })",
+    inputSchema: z.object({
+      dir: z.string(),
+      expectedEditVersion: z.number().int().optional(),
+      force: z.boolean().optional(),
+    }),
+    execute: async ({ dir, expectedEditVersion, force }) =>
+      executeQkrpcSubprogramTransferTool({
+        direction: "import",
+        dir,
+        expectedEditVersion,
+        force,
+      }),
   }),
 
   qkrpc_subprogram_edit_var: tool({

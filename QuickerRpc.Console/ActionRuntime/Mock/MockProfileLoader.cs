@@ -61,7 +61,7 @@ internal static class MockProfileLoader
                 throw new FileNotFoundException($"Mock profile file not found: {path}", path);
             }
 
-            return Deserialize(File.ReadAllText(path));
+            return LoadFromPath(path);
         }
 
         if (string.IsNullOrWhiteSpace(profileId))
@@ -78,7 +78,43 @@ internal static class MockProfileLoader
                 byId);
         }
 
-        return Deserialize(File.ReadAllText(byId));
+        return LoadFromPath(byId);
+    }
+
+    private static MockProfileDocument LoadFromPath(string path)
+    {
+        var profile = Deserialize(File.ReadAllText(path));
+        profile.SourceDirectory = Path.GetDirectoryName(path);
+        ResolveHttpContentFiles(profile);
+        return profile;
+    }
+
+    private static void ResolveHttpContentFiles(MockProfileDocument profile)
+    {
+        if (string.IsNullOrWhiteSpace(profile.SourceDirectory)
+            || profile.Mocks?.Http == null)
+        {
+            return;
+        }
+
+        foreach (var response in profile.Mocks.Http.Values)
+        {
+            if (string.IsNullOrWhiteSpace(response.ContentFile))
+            {
+                continue;
+            }
+
+            var contentPath = Path.GetFullPath(
+                Path.Combine(profile.SourceDirectory, response.ContentFile.Trim()));
+            if (!File.Exists(contentPath))
+            {
+                throw new FileNotFoundException(
+                    $"Mock HTTP contentFile not found: {contentPath}",
+                    contentPath);
+            }
+
+            response.Content = File.ReadAllText(contentPath);
+        }
     }
 
     internal static IReadOnlyList<string> ListProfileIds()

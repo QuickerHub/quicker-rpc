@@ -8,6 +8,8 @@ import {
 import { buildShellInvocation } from "@/lib/shell-runner";
 
 describe("shell-policy", () => {
+  const workspaceRoot = "D:\\bench\\ws-f0aebfc8";
+
   it("allows read-only git status", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",
@@ -124,30 +126,67 @@ describe("shell-policy", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",
       command: "Remove-Item -Recurse .\\publish",
-    });
+    }, { workspaceRoot });
     assert.equal(verdict.allowed, true);
     assert.equal(verdict.requiresApproval, true);
   });
 
-  it("requires approval for file writes", () => {
+  it("auto-trusts workspace-local file writes", () => {
     assert.equal(
       evaluateShellPolicy({
         mode: "command",
         command: "Set-Content .\\out.txt 'hello'",
-      }).requiresApproval,
-      true,
+      }, { workspaceRoot }).requiresApproval,
+      false,
     );
     assert.equal(
       evaluateShellPolicy({
         mode: "command",
         command: "Move-Item .\\a .\\b",
-      }).requiresApproval,
-      true,
+      }, { workspaceRoot }).requiresApproval,
+      false,
     );
     assert.equal(
       evaluateShellPolicy({
         mode: "command",
         command: "git commit -m test",
+      }, { workspaceRoot }).requiresApproval,
+      false,
+    );
+  });
+
+  it("requires approval for workspace writes without workspace root", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Set-Content D:\\outside\\out.txt 'hello'",
+      }).requiresApproval,
+      true,
+    );
+  });
+
+  it("auto-trusts workspace-local mild delete", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Remove-Item .\\tmp.txt",
+      }, { workspaceRoot }).requiresApproval,
+      false,
+    );
+  });
+
+  it("requires approval for file writes outside workspace scope", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Set-Content C:\\Windows\\Temp\\out.txt 'hello'",
+      }, { workspaceRoot }).requiresApproval,
+      true,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Set-Content C:\\Windows\\Temp\\out.txt 'hello'",
       }).requiresApproval,
       true,
     );
@@ -157,7 +196,7 @@ describe("shell-policy", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",
       command: 'pwsh -Command "Remove-Item .\\tmp -Recurse -Force"',
-    });
+    }, { workspaceRoot });
     assert.equal(verdict.requiresApproval, true);
   });
 

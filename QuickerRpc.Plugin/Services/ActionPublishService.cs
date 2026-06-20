@@ -291,7 +291,7 @@ public sealed class ActionPublishService
             var doc = await _actionDocService
                 .SubmitForReviewAsync(
                     sharedId,
-                    NullIfEmpty(ActionPublishIntro.ResolveDetailHtml(request.DetailHtml, request.Note)))
+                    NullIfEmpty(ActionPublishIntro.ResolveDetailHtml(request.DetailHtml)))
                 .ConfigureAwait(true);
             return doc.Ok
                 ? (true, "已自动提交动作库审核。")
@@ -340,7 +340,7 @@ public sealed class ActionPublishService
             Icon = action.Icon,
             Tags = normalizedTags ?? string.Empty,
             Keywords = request.Keywords ?? string.Empty,
-            Note = request.Note ?? string.Empty,
+            Note = string.Empty,
             IsPublic = isPublic,
             ChangeLog = request.ChangeLog ?? string.Empty,
             SubmitReview = request.SubmitReview,

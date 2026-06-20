@@ -11,18 +11,29 @@ import {
 } from "@/lib/action-authoring-docs";
 import { buildSearchSnippet } from "@/lib/action-authoring-docs-search";
 import {
+  DOCS_AGENT_ROUTING_HINT,
   DOCS_SEARCH_SCOPES,
   groupTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
-import { formatLocalToolResult } from "@/lib/tool-result";
+import {
+  attachToolFeedback,
+  formatLocalToolResult,
+} from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { DOCS_TOOL } from "@/lib/docs-tool";
+import { buildAgentTurnState } from "@/lib/agent-turn-state";
+import {
+  rankPatternSkills,
+  rankPatternSkillsScored,
+  shouldBlockDocsForPreloadedSkills,
+} from "@/lib/agent-skills/skill-intent-preload";
+import { incrementDocsCallCountThisTurn } from "@/lib/program-turn-context";
+import { getRequestLastUserText } from "@/lib/qkrpc-request-context";
 
 /** Public actions for the consolidated docs tool. */
 const docsActionSchema = z.enum(["search", "get", "index"]);
 
-const DOCS_SEARCH_HINT =
-  "Read items[].snippet (topic + hit context). get(topic) only for full workflow guide.";
+const DOCS_SEARCH_HINT = DOCS_AGENT_ROUTING_HINT;
 
 export type DocsToolInput = {
   action: z.infer<typeof docsActionSchema> | "grep";
@@ -42,7 +53,78 @@ function normalizeDocsAction(
   return action;
 }
 
+function maybeBlockDocsForAuthoring(): Record<string, unknown> | null {
+  const userText = getRequestLastUserText()?.trim();
+  if (!userText) {
+    return null;
+  }
+  const turnState = buildAgentTurnState({
+    actionScope: { pinnedLatestAll: [] },
+    chatMode: "agent",
+    enabledToolIds: ["docs"],
+    userText,
+  });
+  if (turnState.intent !== "action_authoring") {
+    return null;
+  }
+  const scored = rankPatternSkillsScored({
+    userText,
+    intent: turnState.intent,
+  });
+  if (!shouldBlockDocsForPreloadedSkills(scored)) {
+    return null;
+  }
+  const matchedSkills = rankPatternSkills({
+    userText,
+    intent: turnState.intent,
+  });
+  incrementDocsCallCountThisTurn();
+  const message =
+    "docs blocked — intent-matched pattern skills and quicker-eval-expression are preloaded; use qkrpc_step_runner_get for step keys.";
+  return attachToolFeedback(
+    formatLocalToolResult(
+      {
+        action: "docs-blocked",
+        docsAction: "blocked",
+        success: false,
+        errorMessage: message,
+        matchedSkills,
+      },
+      false,
+      message,
+    ),
+    {
+      summary: message,
+      retryable: false,
+      nextActions: [
+        {
+          tool: "qkrpc_step_runner_get",
+          priority: "required",
+          reason: "Fetch step schemas from the first search — do not call docs again.",
+        },
+      ],
+    },
+  );
+}
+
+function applyDocsAuthoringTurnFeedback(
+  result: Record<string, unknown>,
+): Record<string, unknown> {
+  incrementDocsCallCountThisTurn();
+  return result;
+}
+
 export async function executeDocsTool(
+  input: DocsToolInput,
+): Promise<Record<string, unknown>> {
+  const blocked = maybeBlockDocsForAuthoring();
+  if (blocked) {
+    return blocked;
+  }
+  return applyDocsAuthoringTurnFeedback(await executeDocsToolInner(input));
+}
+
+async function executeDocsToolInner(
   input: DocsToolInput,
 ): Promise<Record<string, unknown>> {
   const action = normalizeDocsAction(input.action);
@@ -193,7 +275,7 @@ export async function executeDocsTool(
         description: result.doc.description,
         markdown: result.doc.markdown,
         ...(result.doc.schema ? { schema: result.doc.schema } : {}),
-        hint: "Full topic markdown. Prefer docs search for partial reads.",
+        hint: "Full topic markdown/schema. Prefer docs get for known topic ids.",
       });
     }
     default: {
@@ -210,9 +292,10 @@ export async function executeDocsTool(
 export const DOCS_TOOL_DEF = tool({
   description: [
     "Quicker action authoring guides (indexed).",
-    "search(query, scope?, limit?) → items[].snippet — primary; read snippet, no follow-up get.",
-    "get(topic) → full workflow/schema markdown when snippet is not enough.",
-    "index() → topic catalog.",
+    DOCS_AGENT_ROUTING_HINT,
+    "search(query, scope?, limit?) → items[].snippet when topic id is unknown.",
+    "get(topic) → full topic (workflow guide or schema e.g. action-data-schema returns schema + markdown).",
+    "index() → topic catalog by layer.",
     "scope: references (step-modules) | workflows | all.",
     "NOT qkrpc_action_query, NOT web_search.",
   ].join(" "),

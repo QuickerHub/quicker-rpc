@@ -26,6 +26,10 @@ import {
   QKRPC_TRANSIENT_FAILURE_GUIDANCE,
 } from "@/lib/qkrpc-connectivity";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
+import {
+  isQkrpcConnectivityBlockedThisTurn,
+  markQkrpcConnectivityBlockedThisTurn,
+} from "@/lib/qkrpc-connectivity-gate";
 
 const require = createRequire(import.meta.url);
 const {
@@ -474,6 +478,27 @@ export async function runQkrpcForTool(
   args: string[],
   options?: { stdin?: string; timeoutMs?: number; json?: boolean },
 ): Promise<QkrpcRunResult> {
+  const op = args[0]?.trim().toLowerCase();
+  if (
+    isQkrpcConnectivityBlockedThisTurn()
+    && op !== "wait"
+    && op !== "health"
+    && op !== "ping"
+  ) {
+    return {
+      ok: false,
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        "qkrpc connectivity blocked this turn — call qkrpc_wait once, then retry the original tool.",
+      parsed: {
+        status: "connectivity_blocked",
+        message: QKRPC_CONNECTIVITY_FAILURE_GUIDANCE,
+      },
+      truncated: false,
+    };
+  }
+
   const baseTimeout = options?.timeoutMs ?? 120_000;
   let last: QkrpcRunResult | null = null;
 
@@ -482,6 +507,10 @@ export async function runQkrpcForTool(
     const result = await runQkrpc(args, { ...options, timeoutMs });
     if (result.ok) return result;
     last = result;
+    if (isQkrpcConnectivityFailure(result)) {
+      markQkrpcConnectivityBlockedThisTurn();
+      break;
+    }
     if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
       break;
     }

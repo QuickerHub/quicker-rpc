@@ -354,6 +354,24 @@ public sealed class ProgramSyntaxLintRuleMatrixTests
         Assert.IsTrue(result.Success, result.Message);
     }
 
+    [TestMethod]
+    public void UnwrapExceptionMessage_flattens_target_invocation_exception()
+    {
+        var inner = new InvalidOperationException("inner compile detail");
+        var wrapped = new TargetInvocationException("调用的目标发生了异常。", inner);
+
+        var message = CodeSyntaxCheckService.UnwrapExceptionMessage(wrapped);
+
+        Assert.AreEqual("inner compile detail", message);
+    }
+
+    [TestMethod]
+    public void IsOpaqueReflectionFailureMessage_detects_chinese_wrapper()
+    {
+        Assert.IsTrue(CodeSyntaxCheckService.IsOpaqueReflectionFailureMessage("调用的目标发生了异常。"));
+        Assert.IsFalse(CodeSyntaxCheckService.IsOpaqueReflectionFailureMessage("(12,3): error CS1002: ; expected"));
+    }
+
     private static void AssertIssue(
         IEnumerable<ProgramSyntaxIssue> issues,
         string code,

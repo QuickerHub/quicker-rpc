@@ -43,7 +43,7 @@ public sealed class ActionPublishReadinessTests
     }
 
     [TestMethod]
-    public void Evaluate_public_publish_accepts_share_note_as_detail_intro()
+    public void Evaluate_public_publish_rejects_share_note()
     {
         var result = ActionPublishReadiness.Evaluate(new ActionPublishReadiness.Context
         {
@@ -57,7 +57,8 @@ public sealed class ActionPublishReadinessTests
             RequestNote = "Simple intro line",
         });
 
-        Assert.IsTrue(result.Ready, result.Message);
+        Assert.IsFalse(result.Ready);
+        Assert.IsTrue(result.Issues.Any(i => i.Code == "DEPRECATED_SHARE_NOTE"));
     }
 
     [TestMethod]

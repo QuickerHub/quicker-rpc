@@ -13,6 +13,7 @@ import {
   programHasBodyFromGetPayload,
   syncActionToWorkspace,
 } from "@/lib/action-project-workflow";
+import { programDataHasBody, programDataSchema } from "@/lib/program-data-input";
 import {
   QKRPC_ACTION_CREATE_TOOL,
   QKRPC_ACTION_DEBUG_TOOL,
@@ -40,9 +41,11 @@ import {
   runQkrpcForTool,
   runQkrpcWithXactionForTool,
 } from "@/lib/qkrpc";
+import { attachActionTraceArtifactToDebugResult } from "@/lib/action-trace-artifact.server";
 import { enrichDebugResultWithDataJsonLocation } from "@/lib/action-trace-data-json-location.server";
 import { runActionTraceForAgentTool } from "@/lib/action-trace-stream.server";
-import { formatLocalToolResult } from "@/lib/tool-result";
+import { attachToolFeedback, formatLocalToolResult } from "@/lib/tool-result";
+import { markActionCreatedThisTurn, markProgramDataEditedThisTurn, mustWriteDataAfterCreateThisTurn, wasActionCreatedThisTurn, getCreatedActionIdThisTurn } from "@/lib/program-turn-context";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import {
   checkLauncherActionRunAllowed,
@@ -54,6 +57,7 @@ import {
   getRequestChatMode,
   getRequestLastUserText,
 } from "@/lib/qkrpc-request-context";
+import { rejectBenchModeTool } from "@/lib/bench-mode.server";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 
@@ -151,7 +155,7 @@ const actionIdInputSchema = z.discriminatedUnion("action", [
     id: z.string().uuid(),
     title: z.string().optional(),
     description: z.string().optional(),
-    note: z.string().optional(),
+    html: z.string().optional(),
     tags: z.string().optional(),
     keywords: z.string().optional(),
     changelog: z.string().optional(),
@@ -200,7 +204,7 @@ const actionIdSchema = z.object({
     .enum(["ask", "cancel", "swap"])
     .optional()
     .describe("move: occupied slot handling; default ask — never swap silently"),
-  note: z.string().optional().describe("publish: release note"),
+  html: z.string().optional().describe("publish: action page intro HTML (Detail)"),
   tags: z.string().optional().describe("publish: tags"),
   keywords: z.string().optional().describe("publish: keywords"),
   changelog: z.string().optional().describe("publish: changelog"),
@@ -216,6 +220,7 @@ const actionManageInputSchema = z.discriminatedUnion("action", [
     description: z.string().optional(),
     icon: z.string().optional(),
     profileId: z.string().uuid().optional(),
+    programData: programDataSchema.optional(),
   }),
   z.object({
     action: z.literal("profile_create"),
@@ -400,6 +405,10 @@ function annotateLauncherActionQueryResult(
 export async function executeQkrpcActionQueryTool(
   input: QkrpcActionQueryToolInput,
 ): Promise<Record<string, unknown>> {
+  const rejected = rejectBenchModeTool(QKRPC_ACTION_QUERY_TOOL);
+  if (rejected) {
+    return formatToolResultForAgent(QKRPC_ACTION_QUERY_TOOL, input, rejected);
+  }
   const args = ["action", "list"];
   const serialized = serializeActionQuery(input.query);
   if (serialized) args.push("--query", serialized);
@@ -475,18 +484,23 @@ export async function executeQkrpcActionRunTool(
         await runQkrpcForTool(["action", "float", "--id", input.id]),
       );
     case "debug":
+      const enriched = await enrichDebugResultWithDataJsonLocation(
+        input.id,
+        formatQkrpcResultForAgent(
+          await runActionTraceForAgentTool({
+            id: input.id,
+            param: input.param,
+          }),
+        ),
+      );
+      const withArtifact = await attachActionTraceArtifactToDebugResult(enriched, {
+        actionId: input.id,
+        param: input.param,
+      });
       return formatToolResultForAgent(
         QKRPC_ACTION_DEBUG_TOOL,
         input,
-        await enrichDebugResultWithDataJsonLocation(
-          input.id,
-          formatQkrpcResultForAgent(
-            await runActionTraceForAgentTool({
-              id: input.id,
-              param: input.param,
-            }),
-          ),
-        ),
+        withArtifact,
       );
     case "run": {
       const args = ["action", "run", "--id", input.id];
@@ -506,6 +520,12 @@ export async function executeQkrpcActionRunTool(
 export async function executeQkrpcActionIdTool(
   input: QkrpcActionIdToolInput,
 ): Promise<Record<string, unknown>> {
+  if (input.action === "get") {
+    const rejected = rejectBenchModeTool(QKRPC_ACTION_GET_TOOL);
+    if (rejected) {
+      return formatToolResultForAgent(QKRPC_ACTION_GET_TOOL, input, rejected);
+    }
+  }
   switch (input.action) {
     case "get": {
       const args = ["action", "get", "--id", input.id];
@@ -533,7 +553,7 @@ export async function executeQkrpcActionIdTool(
       const args = ["action", "publish", "--id", input.id];
       if (input.title) args.push("--title", input.title);
       if (input.description) args.push("--description", input.description);
-      if (input.note) args.push("--share-note", input.note);
+      if (input.html) args.push("--html", input.html);
       if (input.tags) args.push("--tags", input.tags);
       if (input.keywords) args.push("--keywords", input.keywords);
       if (input.changelog) args.push("--changelog", input.changelog);
@@ -601,31 +621,105 @@ export async function executeQkrpcActionCreateTool(
   return executeQkrpcActionManageTool(parsed.data);
 }
 
+function readCreateFailureMessage(
+  createResult: { stderr?: string; parsed?: unknown | null },
+  payload: Record<string, unknown> | null,
+): string {
+  const fromPayload =
+    (typeof payload?.message === "string" && payload.message.trim())
+    || (typeof payload?.errorMessage === "string" && payload.errorMessage.trim());
+  if (fromPayload) return fromPayload;
+  return createResult.stderr?.trim() ?? "";
+}
+
+function formatCreateIconFailureFeedback(
+  createResult: Parameters<typeof formatQkrpcResultForAgent>[0],
+  payload: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  const message = readCreateFailureMessage(createResult, payload);
+  if (!/unknown icon/i.test(message)) {
+    return null;
+  }
+  return attachToolFeedback(formatQkrpcResultForAgent(createResult), {
+    summary: "Invalid icon — run qkrpc_fa search before qkrpc_action_create; do not retry create with the same icon.",
+    retryable: false,
+    nextActions: [
+      {
+        tool: "qkrpc_fa",
+        priority: "required",
+        reason: "Pick a valid fa:Light_* name from names[].",
+        input: { action: "search", query: "clipboard list" },
+      },
+    ],
+  });
+}
+
 export async function executeQkrpcActionManageTool(
   input: QkrpcActionManageToolInput,
 ): Promise<Record<string, unknown>> {
   switch (input.action) {
     case "create": {
+      if (wasActionCreatedThisTurn()) {
+        const existingId = getCreatedActionIdThisTurn();
+        const message =
+          "Only one qkrpc_action_create per turn — reuse the action created earlier.";
+        return attachToolFeedback(
+          formatLocalToolResult(
+            {
+              action: "create",
+              success: false,
+              errorMessage: message,
+              actionId: existingId,
+            },
+            false,
+            message,
+          ),
+          {
+            summary: message,
+            retryable: false,
+            nextActions: [
+              {
+                tool: "workspace_program",
+                priority: "required",
+                reason: "Continue editing the action created this turn.",
+                input: {
+                  action: mustWriteDataAfterCreateThisTurn() ? "write_data" : "patch",
+                  target: "action",
+                  id: existingId,
+                },
+              },
+            ],
+          },
+        );
+      }
       const args = ["action", "create"];
       if (input.title) args.push("--title", input.title);
       if (input.description) args.push("--description", input.description);
       if (input.icon) args.push("--icon", input.icon);
       if (input.profileId) args.push("--profile-id", input.profileId);
       const createResult = await runQkrpcForTool(args);
+      const payload = parseQkrpcPayload(createResult);
+      const iconFailure = formatCreateIconFailureFeedback(createResult, payload);
+      if (iconFailure) {
+        return iconFailure;
+      }
       if (!createResult.ok) {
         return formatQkrpcResultForAgent(createResult);
       }
-      const payload = parseQkrpcPayload(createResult);
       const actionId =
         typeof payload?.actionId === "string" ? payload.actionId : undefined;
       if (!actionId) {
+        const retryIconFailure = formatCreateIconFailureFeedback(createResult, payload);
+        if (retryIconFailure) {
+          return retryIconFailure;
+        }
         return formatQkrpcResultForAgent(createResult);
       }
       const sync = await bootstrapActionProjectForCreate(payload ?? {}, {
         title: input.title,
         description: input.description,
         icon: input.icon,
-      });
+      }, input.programData);
       const editVersion =
         sync.ok && sync.manifest.editVersion != null
           ? sync.manifest.editVersion
@@ -656,13 +750,51 @@ export async function executeQkrpcActionManageTool(
           true,
         );
       }
-      return formatLocalToolResult({
-        ...base,
-        workspaceSynced: true,
-        workspaceProject: buildWorkspaceProjectSummary(sync.manifest),
-        workspaceNote:
-          "已用 create 返回值写入 info.json 与空 data.json。下一步在编辑器或 workspace_program({ action: \"edit_data\" }) 添加步骤，再 workspace_program({ action: \"patch\" })；勿再对 Agent 调用 get。",
-      });
+      const hasBody = input.programData && programDataHasBody(input.programData);
+      markActionCreatedThisTurn(actionId);
+      if (hasBody) {
+        markProgramDataEditedThisTurn();
+      }
+      return attachToolFeedback(
+        formatLocalToolResult({
+          ...base,
+          workspaceSynced: true,
+          workspaceProject: buildWorkspaceProjectSummary(sync.manifest),
+          workspaceNote: hasBody
+            ? "已写入 info.json 与 data.json。下一步 workspace_program({ action: \"patch\" })；勿再调用 get 或 read_data。"
+            : input.programData
+              ? "已写入 info.json 与 data.json（空程序体）。下一步 workspace_program write_data 添加步骤再 patch；勿 read_data。"
+              : "已写入 info.json 与空 data.json。下一步 workspace_program write_data 添加步骤再 patch；勿 read_data。",
+        }),
+        {
+          summary: hasBody
+            ? "Action created with program body on disk — patch next; skip read_data."
+            : "Action created on disk — edit data.json via write_data, not read_data.",
+          nextActions: [
+            hasBody
+              ? {
+                  tool: "workspace_program",
+                  priority: "required",
+                  reason: "Save created program body to Quicker.",
+                  input: {
+                    action: "patch",
+                    target: "action",
+                    id: actionId,
+                  },
+                }
+              : {
+                  tool: "workspace_program",
+                  priority: "required",
+                  reason: "Write steps into empty data.json before patch.",
+                  input: {
+                    action: "write_data",
+                    target: "action",
+                    id: actionId,
+                  },
+                },
+          ],
+        },
+      );
     }
     case "profile_create": {
       const args = ["profile", "create", "--scope", "global"];
@@ -842,7 +974,7 @@ export const QKRPC_ACTION_GET_TOOL_DEF = tool({
 });
 
 export const QKRPC_ACTION_EDIT_TOOL_DEF = tool({
-  description: "Open one action in Quicker desktop designer UI.",
+  description: "Deprecated: use qkrpc_designer_open({ target: \"action\", id }).",
   inputSchema: z.object({
     id: z.string().uuid().describe("Action GUID"),
   }),
@@ -901,7 +1033,7 @@ export const QKRPC_ACTION_PUBLISH_TOOL_DEF = tool({
     id: z.string().uuid().describe("Action GUID"),
     title: z.string().optional(),
     description: z.string().optional(),
-    note: z.string().optional().describe("Release note"),
+    html: z.string().optional().describe("Action page intro HTML (Detail)"),
     tags: z.string().optional(),
     keywords: z.string().optional(),
     changelog: z.string().optional(),
@@ -928,6 +1060,8 @@ export const QKRPC_ACTION_RUN_TOOL_DEF = tool({
 export const QKRPC_ACTION_DEBUG_TOOL_DEF = tool({
   description:
     "Debug one action with step trace in side panel — use when step output is needed. "
+    + "Returns a compact summary plus traceRef (path to full trace JSON under .local/action-trace/). "
+    + "Use Read/Grep on traceRef.path for full events; do not invent per-step timings. "
     + "On failure, returns failureLocation (data.json nodePath, pointer, line range) for workspace_program patch.",
   inputSchema: z.object({
     id: z.string().describe("Action GUID"),
@@ -974,10 +1108,12 @@ export const QKRPC_ACTION_TOOL_DEF = tool({
 
 export const QKRPC_ACTION_CREATE_TOOL_DEF = tool({
   description:
-    "Create a new Quicker action and bootstrap .quicker/actions/{id}/ with info.json + empty data.json. "
-    + "Pass only info.json fields in info: { title (required), description?, icon? }. "
-    + "Program body schema: qkrpc guide get --topic action-data-schema --json. "
-    + "Do not pass layout/profile/process fields. After create, edit steps via workspace_program — do not qkrpc_action_get.",
+    "Create a new Quicker action and bootstrap .quicker/actions/{id}/ with info.json + data.json. "
+    + "Pass info as a JSON object: { title (required), description?, icon? } — never JSON.stringify the object into a string. "
+    + "Optional data: { steps, variables } writes program body directly (skip empty data.json + write_data). "
+    + "Example: { info: { title: \"条件HTTP请求\" }, data: { steps: [...], variables: [] } }. "
+    + "Then workspace_program patch — skip qkrpc_action_get and skip read_data. "
+    + "Schema: docs get action-data-schema. Do not pass layout/profile/process fields.",
   inputSchema: actionCreateSchema,
   execute: async (input) => executeQkrpcActionCreateTool(input),
 });

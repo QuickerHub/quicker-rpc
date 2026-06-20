@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Quicker.Public;
@@ -44,7 +45,7 @@ public sealed class CodeSyntaxCheckService
         }
         catch (Exception ex)
         {
-            return Fail("expression", "COMPILE_ERROR", ex.Message);
+            return Fail("expression", "COMPILE_ERROR", UnwrapExceptionMessage(ex));
         }
     }
 
@@ -74,8 +75,47 @@ public sealed class CodeSyntaxCheckService
         }
         catch (Exception ex)
         {
-            return Fail("csharp", "COMPILE_ERROR", ex.Message);
+            return Fail("csharp", "COMPILE_ERROR", UnwrapExceptionMessage(ex));
         }
+    }
+
+    internal static string UnwrapExceptionMessage(Exception ex)
+    {
+        if (ex is TargetInvocationException tie && tie.InnerException is not null)
+        {
+            return UnwrapExceptionMessage(tie.InnerException);
+        }
+
+        if (ex is AggregateException aggregate)
+        {
+            if (aggregate.InnerExceptions.Count == 1)
+            {
+                return UnwrapExceptionMessage(aggregate.InnerExceptions[0]);
+            }
+
+            if (aggregate.InnerExceptions.Count > 1)
+            {
+                return string.Join(
+                    Environment.NewLine,
+                    aggregate.InnerExceptions.Select(UnwrapExceptionMessage));
+            }
+        }
+
+        return ex.Message;
+    }
+
+    internal static bool IsOpaqueReflectionFailureMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return true;
+        }
+
+        var trimmed = message.Trim();
+        return trimmed.Contains("调用的目标发生了异常", StringComparison.Ordinal)
+               || trimmed.Contains(
+                   "Exception has been thrown by the target of an invocation",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeExpression(string code)
@@ -239,7 +279,7 @@ public sealed class CodeSyntaxCheckService
             InvokeInstance(script, "AddAssembly", referencePath);
         }
 
-        var compiled = InvokeCompileAssemblyForExecuteMethod(script, code);
+        var compiled = InvokeCompileAssemblyForExecuteMethod(script, code, out var invokeError);
         if (compiled)
         {
             return true;
@@ -248,6 +288,18 @@ public sealed class CodeSyntaxCheckService
         errorMessage = ReadInstanceString(script, "ErrorMessage");
         errorType = ReadInstanceString(script, "ErrorType");
         var generated = ReadInstanceString(script, "GeneratedClassCodeWithLineNumbers");
+
+        if (IsOpaqueReflectionFailureMessage(errorMessage)
+            && !string.IsNullOrWhiteSpace(invokeError))
+        {
+            errorMessage = invokeError;
+        }
+        else if (string.IsNullOrWhiteSpace(errorMessage)
+                 && !string.IsNullOrWhiteSpace(invokeError))
+        {
+            errorMessage = invokeError;
+        }
+
         if (!string.IsNullOrWhiteSpace(generated))
         {
             errorMessage = string.IsNullOrWhiteSpace(errorMessage)
@@ -318,8 +370,12 @@ public sealed class CodeSyntaxCheckService
         method?.Invoke(target, args);
     }
 
-    private static bool InvokeCompileAssemblyForExecuteMethod(object script, string code)
+    private static bool InvokeCompileAssemblyForExecuteMethod(
+        object script,
+        string code,
+        out string? invokeError)
     {
+        invokeError = null;
         var method = script.GetType().GetMethod(
             "CompileAssemblyForExecuteMethod",
             new[] { typeof(string) });
@@ -328,7 +384,15 @@ public sealed class CodeSyntaxCheckService
             throw new MissingMethodException(script.GetType().FullName, "CompileAssemblyForExecuteMethod");
         }
 
-        return method.Invoke(script, new object[] { code }) is true;
+        try
+        {
+            return method.Invoke(script, new object[] { code }) is true;
+        }
+        catch (Exception ex)
+        {
+            invokeError = UnwrapExceptionMessage(ex);
+            return false;
+        }
     }
 
     private static string? ReadInstanceString(object target, string propertyName) =>

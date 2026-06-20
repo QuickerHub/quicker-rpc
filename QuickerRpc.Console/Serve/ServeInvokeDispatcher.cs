@@ -351,10 +351,13 @@ internal static class ServeInvokeDispatcher
         }
 
         var html = ServeJsonArgs.GetString(args, "html", "detailHtml");
-        if (string.IsNullOrWhiteSpace(html))
+        var deprecatedNote = ServeJsonArgs.GetString(args, "shareNote", "note");
+        if (!string.IsNullOrWhiteSpace(deprecatedNote))
         {
-            html = ServeJsonArgs.GetString(args, "shareNote", "note");
-            html = QuickerRpc.Contracts.Rpc.ActionPublishIntro.NoteToDetailHtml(html);
+            return Fail(
+                "DEPRECATED_SHARE_NOTE",
+                "The getquicker 「备注」 field is deprecated. Do not pass note/shareNote. "
+                + "Use html/detailHtml or qkagent apply.");
         }
 
         if (string.IsNullOrWhiteSpace(html) && args.TryGetProperty("htmlFile", out var htmlFileEl))
@@ -1427,12 +1430,25 @@ internal static class ServeInvokeDispatcher
         });
     }
 
+    private static ServeInvokeResponse? TryRejectDeprecatedShareNote(JsonElement args)
+    {
+        var note = ServeJsonArgs.GetString(args, "note", "shareNote");
+        if (string.IsNullOrWhiteSpace(note))
+        {
+            return null;
+        }
+
+        return Fail(
+            "DEPRECATED_SHARE_NOTE",
+            "The getquicker 「备注」 field is deprecated. Do not pass note/shareNote. "
+            + "Use detailHtml/html or qkagent apply.");
+    }
+
     private static QuickerRpcActionPublishRequest BuildActionPublishRequest(JsonElement args) =>
         new()
         {
             Title = ServeJsonArgs.GetString(args, "title"),
             Description = ServeJsonArgs.GetString(args, "description"),
-            Note = ServeJsonArgs.GetString(args, "note", "shareNote"),
             DetailHtml = ServeJsonArgs.GetString(args, "detailHtml", "html"),
             Tags = ServeJsonArgs.GetString(args, "tags"),
             Keywords = ServeJsonArgs.GetString(args, "keywords"),
@@ -1451,6 +1467,12 @@ internal static class ServeInvokeDispatcher
         if (string.IsNullOrWhiteSpace(id))
         {
             return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var rejected = TryRejectDeprecatedShareNote(args);
+        if (rejected is not null)
+        {
+            return rejected;
         }
 
         var request = BuildActionPublishRequest(args);
@@ -1480,6 +1502,12 @@ internal static class ServeInvokeDispatcher
         if (string.IsNullOrWhiteSpace(id))
         {
             return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var rejected = TryRejectDeprecatedShareNote(args);
+        if (rejected is not null)
+        {
+            return rejected;
         }
 
         var request = BuildActionPublishRequest(args);

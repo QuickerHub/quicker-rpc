@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   formatStepRunnerGetMetaLine,
   formatStepRunnerSearchMetaLine,
+  formatStepRunnerSearchItemHitLine,
   parseStepRunnerGetFromQkrpcData,
   parseStepRunnerGetInput,
   parseStepRunnerSearchFromQkrpcData,
@@ -12,6 +13,9 @@ import {
 test("parseStepRunnerGetInput reads key and optional controlField", () => {
   assert.deepEqual(parseStepRunnerGetInput({ key: "sys:csscript" }), {
     key: "sys:csscript",
+  });
+  assert.deepEqual(parseStepRunnerGetInput({ runnerKey: "sys:getClipboardText" }), {
+    key: "sys:getClipboardText",
   });
   assert.deepEqual(
     parseStepRunnerGetInput({ key: "sys:windowOperations", controlField: "move" }),
@@ -137,9 +141,48 @@ test("parseStepRunnerSearchResult reads nested controlField on items", () => {
   assert.equal(parsed!.items[1]!.controlField, undefined);
   assert.equal(
     formatStepRunnerSearchMetaLine(parsed!, {
+      items: parsed!.items,
       controlFieldItemCount: parsed!.controlFieldItemCount,
     }),
-    "「移动」 · 2 个模块 · 1 含 controlField",
+    "「移动」 · 2 个模块 · sys:windowOperations · 窗口操作 · type=移动窗口(增强) (move_ex)",
+  );
+});
+
+test("formatStepRunnerSearchItemHitLine includes param key hints", () => {
+  const line = formatStepRunnerSearchItemHitLine({
+    key: "sys:evalexpression",
+    name: "表达式",
+    inputParamKeys: ["expression"],
+    outputParamKeys: ["output", "isSuccess"],
+  });
+  assert.ok(line.includes("in: expression"));
+  assert.ok(line.includes("out: output, isSuccess"));
+});
+
+test("formatStepRunnerSearchMetaLine shows key and controlField on unique hit", () => {
+  const parsed = parseStepRunnerSearchResult(
+    {
+      ok: true,
+      action: "step-runner-search",
+      payload: {
+        success: true,
+        keyword: "窗口标题",
+        matchCount: 1,
+        items: [
+          {
+            key: "sys:getWindowTitle",
+            name: "窗口标题",
+            controlField: { key: "type", value: "title", name: "标题" },
+          },
+        ],
+      },
+    },
+    { query: "getWindowTitle 窗口标题" },
+  );
+  assert.ok(parsed);
+  assert.equal(
+    formatStepRunnerSearchMetaLine(parsed!, { items: parsed!.items }),
+    "「getWindowTitle 窗口标题」 · sys:getWindowTitle · 窗口标题 · type=标题 (title)",
   );
 });
 

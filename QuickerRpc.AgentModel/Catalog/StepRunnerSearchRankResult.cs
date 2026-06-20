@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace QuickerRpc.AgentModel.Catalog;
 
@@ -31,4 +32,10 @@ public sealed class StepRunnerControlFieldMatch
     public string Value { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? VisibleInputKeys { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? VisibleOutputKeys { get; set; }
 }

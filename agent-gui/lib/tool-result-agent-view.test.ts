@@ -29,6 +29,8 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import { microcompactToolOutputs } from "@/lib/context-microcompact";
 
 describe("formatToolResultForAgent", () => {
+  process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION = "1";
+
   it("compresses large shell output and keeps displayData", () => {
     const raw = formatLocalToolResult({
       commandLine: "echo test",
@@ -41,7 +43,7 @@ describe("formatToolResultForAgent", () => {
     );
     assert.ok(isStructuredToolResult(result));
     assert.ok(result.displayData);
-    assert.ok(result.agentView?.agentSummary.includes("shell"));
+    assert.ok(result.summary?.includes("shell"));
     const data = result.data as Record<string, unknown>;
     assert.ok(typeof data.output === "string");
     assert.ok((data.output as string).length < AGENT_PAYLOAD_SOFT_CHARS);
@@ -78,8 +80,76 @@ describe("formatToolResultForAgent", () => {
     assert.ok(Array.isArray((data.traceWindow as { lines: string[] }).lines));
     assert.equal((data as { events?: unknown }).events, undefined);
     assert.ok(result.displayData);
-    assert.match(result.agentView?.agentSummary ?? "", /\/steps\/0/);
+    const display = result.displayData as Record<string, unknown>;
+    assert.equal((display as { events?: unknown }).events, undefined);
+    assert.match(result.summary ?? "", /\/steps\/0/);
     assert.ok(result.nextActions?.length);
+  });
+
+  it("compresses successful debug with traceRef without events in model payload", () => {
+    const events = [
+      { kind: "step_begin", stepRunnerName: "assign", elapsedMs: 50, stepPath: "0" },
+      { kind: "step_begin", note: "截图", elapsedMs: 4317, stepPath: "1" },
+    ];
+    const traceRef = {
+      path: ".local/action-trace/test/trace.json",
+      format: "action-trace-v1",
+    };
+    const raw = formatLocalToolResult({
+      ok: true,
+      eventCount: events.length,
+      durationMs: 5777,
+      events,
+      traceRef,
+      stepSummaries: [
+        { name: "assign", elapsedMs: 50, stepPath: "0" },
+        { name: "截图", elapsedMs: 4317, stepPath: "1" },
+      ],
+    });
+
+    const result = formatToolResultForAgent(
+      QKRPC_ACTION_DEBUG_TOOL,
+      { id: "00000000-0000-0000-0000-000000000002" },
+      raw,
+    );
+    assert.ok(isStructuredToolResult(result));
+    const data = result.data as Record<string, unknown>;
+    assert.equal(data.outcome, "success");
+    assert.equal((data as { events?: unknown }).events, undefined);
+    assert.deepEqual(data.traceRef, traceRef);
+    assert.ok(Array.isArray(data.stepSummaries));
+    assert.equal((data.stepSummaries as unknown[]).length, 2);
+    const display = result.displayData as Record<string, unknown>;
+    assert.equal((display as { events?: unknown }).events, undefined);
+    assert.deepEqual(display.traceRef, traceRef);
+    assert.match(result.summary ?? "", /trace\.json/);
+  });
+
+  it("skips full_trace refetch when traceRef is present on failure", () => {
+    const events = [
+      { kind: "step_begin", stepRunnerName: "assign", depth: 0 },
+      { kind: "error", message: "boom", depth: 1 },
+    ];
+    const traceRef = {
+      path: ".local/action-trace/test/fail.json",
+      format: "action-trace-v1",
+    };
+    const raw = formatLocalToolResult({
+      ok: false,
+      eventCount: events.length,
+      events,
+      traceRef,
+      failureLocation: { dataJsonPointer: "/steps/0" },
+    }, false);
+
+    const result = formatToolResultForAgent(
+      QKRPC_ACTION_DEBUG_TOOL,
+      { id: "00000000-0000-0000-0000-000000000003" },
+      raw,
+    );
+    assert.ok(isStructuredToolResult(result));
+    assert.equal(result.nextActions?.length ?? 0, 0);
+    assert.match(result.summary ?? "", /fail\.json/);
   });
 
   it("compresses large workspace_program read_data content", () => {
@@ -107,7 +177,7 @@ describe("formatToolResultForAgent", () => {
 
   it("compresses grep matches with long line content", () => {
     const matches = Array.from({ length: 30 }, (_, i) => ({
-      path: `file-${i}.ts`,
+      path: `file-${Math.floor(i / 3)}.ts`,
       line: i + 1,
       content: "match ".repeat(200),
     }));
@@ -128,6 +198,9 @@ describe("formatToolResultForAgent", () => {
     );
     assert.ok(isStructuredToolResult(result));
     assert.ok(result.displayData);
+    const agentMatches = (result.data as { matches: Array<{ path: string; hits: unknown[] }> }).matches;
+    assert.equal(agentMatches.length, 10);
+    assert.equal(agentMatches[0].hits.length, 3);
     assert.ok(
       estimateStructuredResultChars(result as StructuredToolResult)
       < estimateStructuredResultChars(raw),
@@ -288,7 +361,7 @@ describe("formatToolResultForAgent", () => {
     );
   });
 
-  it("compresses write tool content echo", () => {
+  it("omits write tool content echo from agent view", () => {
     const content = "z".repeat(AGENT_PAYLOAD_SOFT_CHARS + 300);
     const raw = formatLocalToolResult({
       action: "file-write",
@@ -305,9 +378,28 @@ describe("formatToolResultForAgent", () => {
     );
     assert.ok(isStructuredToolResult(result));
     assert.ok(result.displayData != null);
-    const agentContent = (result.data as Record<string, unknown>).content;
-    assert.ok(typeof agentContent === "string" && agentContent.length < content.length);
+    assert.ok(!("content" in (result.data as Record<string, unknown>)));
     assert.ok(estimateStructuredResultChars(result) < estimateStructuredResultChars(raw as StructuredToolResult));
+    assert.match(String(result.summary), /omitted from agent view/);
+  });
+
+  it("omits small write content from agent view", () => {
+    const content = "hello world";
+    const raw = formatLocalToolResult({
+      action: "file-write",
+      success: true,
+      path: ".local/out.txt",
+      bytesWritten: content.length,
+      content,
+    });
+    const result = formatToolResultForAgent(
+      WRITE_TOOL,
+      { path: ".local/out.txt", content },
+      raw,
+    );
+    assert.ok(isStructuredToolResult(result));
+    assert.ok(!("content" in (result.data as Record<string, unknown>)));
+    assert.equal((result.data as { bytesWritten: number }).bytesWritten, content.length);
   });
 
   it("compresses oversized generic qkrpc payloads", () => {
@@ -319,13 +411,65 @@ describe("formatToolResultForAgent", () => {
     }, true);
     raw.source = "qkrpc";
     const result = formatToolResultForAgent(
-      "qkrpc_step_runner_get",
-      { key: "sys:assign" },
+      "qkrpc_fa",
+      { query: "star" },
       raw,
     );
     assert.ok(isStructuredToolResult(result));
     assert.ok(result.displayData != null);
     assert.ok(estimateStructuredResultChars(result) < estimateStructuredResultChars(raw as StructuredToolResult));
+  });
+});
+
+describe("formatToolResultForAgent when compression disabled", () => {
+  it("still applies always-on grep grouping", () => {
+    const prev = process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION;
+    process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION = "0";
+    try {
+      const raw = formatLocalToolResult({
+        action: "grep",
+        success: true,
+        outputMode: "content",
+        pattern: "foo",
+        searchPath: ".",
+        matches: [
+          { path: "a.ts", line: 1, content: "one" },
+          { path: "a.ts", line: 2, content: "two" },
+        ],
+      });
+      const result = formatToolResultForAgent(GREP_TOOL, { pattern: "foo" }, raw);
+      const matches = (result.data as { matches: unknown[] }).matches;
+      assert.equal(matches.length, 1);
+    } finally {
+      if (prev === undefined) {
+        delete process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION;
+      } else {
+        process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION = prev;
+      }
+    }
+  });
+
+  it("passes through shell results without semantic compression", () => {
+    const prev = process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION;
+    process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION = "0";
+    try {
+      const raw = formatLocalToolResult({
+        commandLine: "echo test",
+        output: "x".repeat(AGENT_PAYLOAD_SOFT_CHARS + 500),
+      });
+      const result = formatToolResultForAgent(
+        SHELL_TOOL,
+        { description: "test", command: "echo test" },
+        raw,
+      );
+      assert.deepEqual(result, raw);
+    } finally {
+      if (prev === undefined) {
+        delete process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION;
+      } else {
+        process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION = prev;
+      }
+    }
   });
 });
 
@@ -354,8 +498,8 @@ describe("stripToolDisplayDataFromMessages", () => {
   });
 });
 
-describe("microcompact with agentView", () => {
-  it("preserves agentSummary in compact placeholder", () => {
+describe("microcompact with tool summary", () => {
+  it("preserves summary in compact placeholder", () => {
     const messages: AgentUIMessage[] = [
       { id: "u1", role: "user", parts: [{ type: "text", text: "go" }] },
       {
@@ -369,10 +513,9 @@ describe("microcompact with agentView", () => {
           output: {
             ok: false,
             exitCode: 1,
-            data: { eventCount: 3 },
-            agentView: {
-              agentSummary: "debug failed at /steps/0",
-              anchors: { dataJsonPointer: "/steps/0" },
+            data: {
+              eventCount: 3,
+              failureLocation: { dataJsonPointer: "/steps/0" },
             },
             summary: "debug failed at /steps/0",
           },

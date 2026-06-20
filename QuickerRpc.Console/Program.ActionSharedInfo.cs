@@ -115,7 +115,7 @@ internal static partial class Program
             return ExitCodes.Error;
         }
 
-        var (noteOk, note, noteErrorCode, noteErrorMessage) = ResolveShareNote(options);
+        var (noteOk, _, noteErrorCode, noteErrorMessage) = ResolveShareNote(options);
         if (!noteOk)
         {
             await EmitErrorAsync(options.Json, noteErrorCode!, noteErrorMessage!).ConfigureAwait(false);
@@ -130,7 +130,7 @@ internal static partial class Program
             return ExitCodes.Error;
         }
 
-        var introHtml = ActionPublishIntro.ResolveDetailHtml(detailHtml, note);
+        var introHtml = ActionPublishIntro.ResolveDetailHtml(detailHtml);
 
         try
         {

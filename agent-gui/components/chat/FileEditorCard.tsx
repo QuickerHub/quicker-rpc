@@ -174,15 +174,10 @@ function FileEditorCardInner({
   const streamingTailLines = compact && isCompactPreview
     ? FILE_SNAPSHOT_PREVIEW_LINES
     : 16;
-  const omittedPreviewLines = useStreamingPreview && compact && isCompactPreview
-    ? Math.max(0, previewLineCount - FILE_SNAPSHOT_PREVIEW_LINES)
-    : 0;
   const showPreviewFade =
     isCompactPreview
     && !useStreamingPreview
     && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES;
-  const showPreviewTailFade =
-    useStreamingPreview && compact && isCompactPreview && omittedPreviewLines > 0;
   const showToggle =
     !inlineDiffExpanded
     && showContent
@@ -255,7 +250,6 @@ function FileEditorCardInner({
         isCompactPreview ? "file-editor-card--preview" : "",
         useStreamingPreview && compact ? "file-editor-card--preview-tail" : "",
         showPreviewFade ? "file-editor-card--preview-fade" : "",
-        showPreviewTailFade ? "file-editor-card--preview-tail-fade" : "",
         fillAvailable ? "file-editor-card--fill" : "",
       ]
         .filter(Boolean)
@@ -322,11 +316,6 @@ function FileEditorCardInner({
 
       {showBody ? (
         <div className="file-editor-body">
-          {showPreviewTailFade ? (
-            <div className="file-snapshot-omitted" aria-hidden>
-              … {omittedPreviewLines} 行已省略 …
-            </div>
-          ) : null}
           {useStreamingPreview ? (
             <StreamingCodeTailPreview
               path={path}

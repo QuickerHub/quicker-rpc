@@ -16,6 +16,8 @@ export type StepRunnerSearchControlField = {
   key: string;
   value: string;
   name?: string;
+  visibleInputKeys?: string[];
+  visibleOutputKeys?: string[];
 };
 
 export type StepRunnerSearchItemRow = {
@@ -25,6 +27,8 @@ export type StepRunnerSearchItemRow = {
   controlField?: StepRunnerSearchControlField;
   /** OR (|) query: multiple matching control modes on one module. */
   controlFields?: StepRunnerSearchControlField[];
+  inputParamKeys?: string[];
+  outputParamKeys?: string[];
 };
 
 export type StepRunnerSearchResult = StepRunnerSearchMeta & {
@@ -56,6 +60,19 @@ function readString(obj: Record<string, unknown>, ...keys: string[]): string | u
       const trimmed = value.trim();
       if (trimmed) return trimmed;
     }
+  }
+  return undefined;
+}
+
+function readStringList(obj: Record<string, unknown>, ...keys: string[]): string[] | undefined {
+  for (const key of keys) {
+    const value = obj[key];
+    if (!Array.isArray(value)) continue;
+    const list = value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    if (list.length > 0) return list;
   }
   return undefined;
 }
@@ -143,11 +160,18 @@ export function parseStepRunnerGetInput(
     return null;
   }
   const obj = input as Record<string, unknown>;
-  const key = readString(obj, "key", "Key");
+  const key = readString(obj, "key", "Key", "runnerKey", "RunnerKey");
   if (!key) return null;
 
   const extraKeys = Object.keys(obj).filter(
-    (k) => obj[k] !== undefined && k !== "key" && k !== "Key" && k !== "controlField",
+    (k) =>
+      obj[k] !== undefined
+      && k !== "key"
+      && k !== "Key"
+      && k !== "runnerKey"
+      && k !== "RunnerKey"
+      && k !== "controlField"
+      && k !== "ControlField",
   );
   if (extraKeys.length > 0) return null;
 
@@ -203,7 +227,23 @@ function readSearchControlFieldFromObject(
   const value = readString(nested, "value", "Value");
   if (!key || !value) return undefined;
   const name = readString(nested, "name", "Name");
-  return name ? { key, value, name } : { key, value };
+  const visibleInputKeys = readStringList(
+    nested,
+    "visibleInputKeys",
+    "VisibleInputKeys",
+  );
+  const visibleOutputKeys = readStringList(
+    nested,
+    "visibleOutputKeys",
+    "VisibleOutputKeys",
+  );
+  return {
+    key,
+    value,
+    ...(name ? { name } : {}),
+    ...(visibleInputKeys ? { visibleInputKeys } : {}),
+    ...(visibleOutputKeys ? { visibleOutputKeys } : {}),
+  };
 }
 
 function readSearchControlFields(
@@ -260,22 +300,83 @@ function normalizeSearchItemRow(raw: unknown): StepRunnerSearchItemRow | null {
   );
   const controlFields = readSearchControlFields(row);
   const controlField = readSearchControlField(row);
+  const inputParamKeys = readStringList(row, "inputParamKeys", "InputParamKeys");
+  const outputParamKeys = readStringList(row, "outputParamKeys", "OutputParamKeys");
   const base: StepRunnerSearchItemRow = description
     ? { key, name, description }
     : { key, name };
+  const withKeys = {
+    ...base,
+    ...(inputParamKeys ? { inputParamKeys } : {}),
+    ...(outputParamKeys ? { outputParamKeys } : {}),
+  };
   if (controlFields) {
     return controlField
-      ? { ...base, controlField, controlFields }
-      : { ...base, controlFields };
+      ? { ...withKeys, controlField, controlFields }
+      : { ...withKeys, controlFields };
   }
-  return controlField ? { ...base, controlField } : base;
+  return controlField ? { ...withKeys, controlField } : withKeys;
 }
 
 export function formatStepRunnerSearchControlField(
   cf: StepRunnerSearchControlField,
 ): string {
   const label = cf.name ? `${cf.name} (${cf.value})` : cf.value;
-  return `${cf.key}=${label}`;
+  const parts = [`${cf.key}=${label}`];
+  if (cf.visibleInputKeys?.length) {
+    parts.push(`in: ${cf.visibleInputKeys.join(", ")}`);
+  }
+  if (cf.visibleOutputKeys?.length) {
+    parts.push(`out: ${cf.visibleOutputKeys.join(", ")}`);
+  }
+  return parts.join(" · ");
+}
+
+function formatParamKeyHint(row: StepRunnerSearchItemRow): string | undefined {
+  const inputKeys =
+    row.controlField?.visibleInputKeys
+    ?? row.inputParamKeys;
+  const outputKeys =
+    row.controlField?.visibleOutputKeys
+    ?? row.outputParamKeys;
+  const parts: string[] = [];
+  if (inputKeys?.length) parts.push(`in: ${inputKeys.join(", ")}`);
+  if (outputKeys?.length) parts.push(`out: ${outputKeys.join(", ")}`);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+/** Build qkrpc_step_runner_get input from a search hit. */
+export function buildStepRunnerGetInputFromSearchItem(
+  row: StepRunnerSearchItemRow,
+): { key: string; controlField?: string } {
+  const input: { key: string; controlField?: string } = { key: row.key };
+  if (row.controlField?.value) {
+    input.controlField = row.controlField.value;
+  }
+  return input;
+}
+
+/** One search hit: module key + optional controlField(s). */
+export function formatStepRunnerSearchItemHitLine(
+  row: StepRunnerSearchItemRow,
+): string {
+  const parts: string[] = [row.key];
+  if (row.name && row.name !== row.key) {
+    parts.push(row.name);
+  }
+  if (row.controlFields && row.controlFields.length > 1) {
+    parts.push(
+      row.controlFields
+        .map((cf) => formatStepRunnerSearchControlField(cf))
+        .join(", "),
+    );
+  } else if (row.controlField) {
+    parts.push(formatStepRunnerSearchControlField(row.controlField));
+  } else {
+    const keyHint = formatParamKeyHint(row);
+    if (keyHint) parts.push(keyHint);
+  }
+  return parts.join(" · ");
 }
 
 export function parseStepRunnerSearchResult(
@@ -338,17 +439,36 @@ export function parseStepRunnerSearchFromQkrpcData(
 export function formatStepRunnerSearchMetaLine(
   meta: StepRunnerSearchMeta,
   options?: {
+    items?: StepRunnerSearchItemRow[];
     controlFieldItemCount?: number;
     multiControlFieldCount?: number;
   },
 ): string {
   const parts: string[] = [];
   if (meta.query) parts.push(`「${meta.query}」`);
-  parts.push(`${meta.matchCount} 个模块`);
-  const cfCount = options?.controlFieldItemCount;
-  if (cfCount !== undefined && cfCount > 0) {
-    parts.push(`${cfCount} 含 controlField`);
+
+  const items = options?.items ?? [];
+  if (meta.matchCount === 1 && items.length === 1) {
+    parts.push(formatStepRunnerSearchItemHitLine(items[0]));
+    return parts.join(" · ");
   }
+
+  parts.push(`${meta.matchCount} 个模块`);
+
+  const withControl = items.filter(
+    (r) => r.controlField || (r.controlFields?.length ?? 0) > 0,
+  );
+  if (withControl.length > 0 && withControl.length <= 3) {
+    for (const row of withControl) {
+      parts.push(formatStepRunnerSearchItemHitLine(row));
+    }
+  } else {
+    const cfCount = options?.controlFieldItemCount;
+    if (cfCount !== undefined && cfCount > 0) {
+      parts.push(`${cfCount} 含 controlField`);
+    }
+  }
+
   const multi = options?.multiControlFieldCount;
   if (multi !== undefined && multi > 0) {
     parts.push(`${multi} 多 control`);

@@ -73,7 +73,7 @@ function useReasoningDuration(streaming: boolean): {
       };
 
       tick();
-      const timer = window.setInterval(tick, 100);
+      const timer = window.setInterval(tick, 200);
       return () => window.clearInterval(timer);
     }
 

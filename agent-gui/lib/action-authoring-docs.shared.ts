@@ -50,6 +50,10 @@ export const DOCS_SCHEMA_TOPIC_IDS = new Set([
   "form-spec",
 ]);
 
+/** Canonical agent routing — keep in sync with search-strategy-prompt, tool-routing, docs tool. */
+export const DOCS_AGENT_ROUTING_HINT =
+  "Known topic id (workflow or schema, e.g. action-data-schema, authoring-workflow) → docs get(topic). Unknown keyword → docs search → items[].snippet.";
+
 export function docViewerEntryKey(topic: string, reference?: string): string {
   return reference ? `${topic}/${reference}` : topic;
 }

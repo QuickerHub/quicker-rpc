@@ -15,6 +15,9 @@ internal sealed class MockProfileDocument
     public MockProfileMocks? Mocks { get; set; }
 
     public MockProfileAssertions? Assertions { get; set; }
+
+    /// <summary>Directory of the loaded profile JSON (not serialized).</summary>
+    internal string? SourceDirectory { get; set; }
 }
 
 internal sealed class MockProfileMocks
@@ -51,6 +54,9 @@ internal sealed class MockProfileHttpResponse
     public int StatusCode { get; set; } = 200;
 
     public string? Content { get; set; }
+
+    /// <summary>Relative to mock profile JSON directory.</summary>
+    public string? ContentFile { get; set; }
 }
 
 internal sealed class MockProfileTime

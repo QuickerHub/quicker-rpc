@@ -7,6 +7,9 @@ import {
 } from "@/lib/agent-defs/parse";
 import {
   resolveAgentsDir,
+  resolveBundledAgentDefsRoot,
+  resolveBundledAgentsRoot,
+  resolveBundledCommandsRoot,
   resolveBundledSkillsRoot,
   resolveCommandsDir,
   resolveSkillsDir,
@@ -58,6 +61,7 @@ async function computeDiscoveryMtime(cwd: string): Promise<number> {
     resolveWorkspaceAgentDefsRoot(cwd),
     resolveUserAgentDefsRoot(),
     resolveBundledSkillsRoot(),
+    resolveBundledAgentDefsRoot(),
   ];
   let max = 0;
   for (const root of roots) {
@@ -195,6 +199,7 @@ export async function discoverAgentDefs(cwd = ""): Promise<AgentDefsCatalog> {
     : "";
   const userRoot = resolveUserAgentDefsRoot();
   const bundledRoot = resolveBundledSkillsRoot();
+  const bundledAgentsRoot = resolveBundledAgentsRoot();
 
   const commandLayers: Array<{ scope: AgentDefScope; items: AgentCommandDef[] }> = [];
   const agentLayers: Array<{ scope: AgentDefScope; items: SubagentDef[] }> = [];
@@ -236,6 +241,16 @@ export async function discoverAgentDefs(cwd = ""): Promise<AgentDefsCatalog> {
     items: await discoverSkillsInRoot(bundledRoot, "bundled", {
       skillsDir: bundledRoot,
     }),
+  });
+
+  agentLayers.push({
+    scope: "bundled",
+    items: await discoverAgentsInRoot(bundledAgentsRoot, "bundled"),
+  });
+
+  commandLayers.push({
+    scope: "bundled",
+    items: await discoverCommandsInRoot(resolveBundledCommandsRoot(), "bundled"),
   });
 
   const catalog: AgentDefsCatalog = {

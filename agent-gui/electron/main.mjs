@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "./electron-api.mjs";
+import { app, BrowserWindow, dialog, ipcMain, Notification } from "./electron-api.mjs";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, basename } from "node:path";
@@ -35,6 +35,7 @@ import { createEmbeddedBrowserCommands } from "./commands/embedded-browser.mjs";
 import { createWebviewProfileCommands } from "./commands/webview-profile.mjs";
 import { createLegacyChatCommands } from "./commands/legacy-chat.mjs";
 import { createUpdaterCommands } from "./commands/updater.mjs";
+import { createShellCommands } from "./commands/shell.mjs";
 import { createAppNativeIcon } from "./app-icon.mjs";
 
 const electronRoot = dirname(fileURLToPath(import.meta.url));
@@ -86,6 +87,9 @@ function writeBootLog(message) {
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 
+/** @type {Map<string, import('electron').Notification>} */
+const threadNativeNotifications = new Map();
+
 /** @type {ReturnType<typeof createLauncherCommands> | null} */
 let launcher = null;
 
@@ -121,6 +125,9 @@ let legacyChatCommands = null;
 
 /** @type {ReturnType<typeof createUpdaterCommands> | null} */
 let updaterCommands = null;
+
+/** @type {ReturnType<typeof createShellCommands> | null} */
+let shellCommands = null;
 
 function ensureSingleInstance() {
   const gotLock = app.requestSingleInstanceLock();
@@ -179,7 +186,13 @@ function createMainWindow(loadUrl) {
     },
   });
 
-  win.once("ready-to-show", () => win.show());
+  mainWindow = win;
+
+  win.once("ready-to-show", () => {
+    win.show();
+    emitAppWindowFocus(win.isFocused());
+  });
+  wireMainWindowFocusEvents(win);
   win.on("close", (event) => {
     if (isDev() || isMainWindowClosePermitted()) return;
     event.preventDefault();
@@ -190,7 +203,6 @@ function createMainWindow(loadUrl) {
   });
 
   void win.loadURL(loadUrl);
-  mainWindow = win;
   return win;
 }
 
@@ -205,6 +217,62 @@ function lifecycleCtx() {
 function emitDesktopEvent(event, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send(`desktop:event:${event}`, payload);
+}
+
+function emitAppWindowFocus(focused) {
+  emitDesktopEvent("app-window-focus", { focused: Boolean(focused) });
+}
+
+function wireMainWindowFocusEvents(win) {
+  const sync = () => emitAppWindowFocus(win.isFocused() && win.isVisible());
+  win.on("focus", sync);
+  win.on("blur", sync);
+  win.on("show", sync);
+  win.on("hide", () => emitAppWindowFocus(false));
+  win.on("minimize", () => emitAppWindowFocus(false));
+  win.on("restore", sync);
+}
+
+function showNativeThreadNotification(args) {
+  if (!Notification.isSupported()) {
+    return { ok: false };
+  }
+  const threadId = typeof args?.threadId === "string" ? args.threadId.trim() : "";
+  const title =
+    typeof args?.title === "string" && args.title.trim()
+      ? args.title.trim()
+      : "QuickerAgent";
+  const body = typeof args?.body === "string" ? args.body.trim() : "";
+  if (!threadId) {
+    return { ok: false };
+  }
+
+  const previous = threadNativeNotifications.get(threadId);
+  if (previous) {
+    previous.close();
+    threadNativeNotifications.delete(threadId);
+  }
+
+  const notification = new Notification({
+    title,
+    body,
+  });
+  threadNativeNotifications.set(threadId, notification);
+
+  notification.on("click", () => {
+    threadNativeNotifications.delete(threadId);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      emitDesktopEvent("thread-notification-activate", { threadId });
+    }
+  });
+  notification.on("close", () => {
+    threadNativeNotifications.delete(threadId);
+  });
+  notification.show();
+  return { ok: true };
 }
 
 function getPluginCtx() {
@@ -247,6 +315,7 @@ async function initDesktopCommands() {
   webviewProfileCommands = createWebviewProfileCommands({ app });
   legacyChatCommands = createLegacyChatCommands();
   updaterCommands = createUpdaterCommands({ isDev: isDev() });
+  shellCommands = createShellCommands();
 
   globalShortcutCommands = createGlobalShortcutCommands({
     onLauncherShortcutPress: () => {
@@ -272,6 +341,9 @@ async function handleDesktopInvoke(command, args) {
   if (command === "prepare_for_update_install") {
     prepareForUpdateInstall(lifecycleCtx());
     return null;
+  }
+  if (command === "show_native_notification") {
+    return showNativeThreadNotification(args);
   }
   if (command === "set_titlebar_overlay") {
     if (!mainWindow || mainWindow.isDestroyed() || !usesWindowControlsOverlay()) {
@@ -348,6 +420,10 @@ async function handleDesktopInvoke(command, args) {
   }
   if (updaterCommands && command in updaterCommands) {
     const handler = updaterCommands[command];
+    return handler(args);
+  }
+  if (shellCommands && command in shellCommands) {
+    const handler = shellCommands[command];
     return handler(args);
   }
   throw new Error(`Unknown desktop command: ${command}`);

@@ -2,7 +2,10 @@ import {
   pushAppMessage,
   type AppMessageKind,
 } from "@/lib/app-messages";
+import { isAppWindowFocused } from "@/lib/app-window-focus";
+import { showThreadRunNativeNotification } from "@/lib/desktop-native-notification";
 import { plainTitleText } from "@/lib/plain-title-text";
+import { markThreadNeedsAttention } from "@/lib/thread-attention";
 
 export type ThreadRunCompleteNotifyInput = {
   threadId: string;
@@ -72,6 +75,12 @@ export function pushThreadRunCompleteToast(
   });
 }
 
+export function resolveThreadRunCompleteNotifyChannel(
+  appWindowFocused: boolean,
+): "in-app" | "native" {
+  return appWindowFocused ? "in-app" : "native";
+}
+
 /** Notify when a background tab finishes an agent run. */
 export function notifyBackgroundThreadRunComplete(
   input: ThreadRunCompleteNotifyInput & {
@@ -80,5 +89,23 @@ export function notifyBackgroundThreadRunComplete(
   },
 ): void {
   if (input.visible || input.ephemeral) return;
-  pushThreadRunCompleteToast(input);
+
+  markThreadNeedsAttention(input.threadId);
+  const toast = buildThreadRunCompleteToast(input);
+  const channel = resolveThreadRunCompleteNotifyChannel(isAppWindowFocused());
+
+  if (channel === "in-app") {
+    pushThreadRunCompleteToast(input);
+    return;
+  }
+
+  void showThreadRunNativeNotification({
+    threadId: input.threadId,
+    title: toast.title,
+    body: toast.body,
+  }).then((shown) => {
+    if (!shown) {
+      pushThreadRunCompleteToast(input);
+    }
+  });
 }

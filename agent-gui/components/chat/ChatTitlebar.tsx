@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { ActionDesignerThreadRef } from "@/lib/action-designer-thread";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
@@ -8,11 +8,16 @@ import {
   closeTab,
   getActiveThread,
   getOpenTabThreads,
-  selectThread,
 } from "@/lib/chat-store";
 import { activateThreadWithLazyHydration } from "@/lib/chat-thread-activation";
 import { getChatStoreSnapshotSync } from "@/lib/use-chat-store";
 import { plainTitleText } from "@/lib/plain-title-text";
+import {
+  clearThreadNeedsAttention,
+  getThreadAttentionVersion,
+  isThreadNeedsAttention,
+  subscribeThreadAttention,
+} from "@/lib/thread-attention";
 import { DesktopWindowControls } from "@/components/shell/DesktopWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
@@ -86,6 +91,11 @@ export function ChatTitlebar({
   const tabsRef = useRef<HTMLDivElement>(null);
   const activeThread = useMemo(() => getActiveThread(store), [store]);
   const tabThreads = useMemo(() => getOpenTabThreads(store), [store]);
+  useSyncExternalStore(
+    subscribeThreadAttention,
+    getThreadAttentionVersion,
+    () => 0,
+  );
 
   const commit = useCallback(
     (next: ChatStoreData) => {
@@ -96,6 +106,7 @@ export function ChatTitlebar({
 
   const handleSelectChat = (threadId: string) => {
     if (threadId === activeThread.id) return;
+    clearThreadNeedsAttention(threadId);
     activateThreadWithLazyHydration({
       threadId,
       mode: "select",
@@ -183,10 +194,12 @@ export function ChatTitlebar({
                 {tabThreads.map((thread) => {
                   const active = thread.id === activeThread.id;
                   const titleText = plainTitleText(thread.title);
+                  const needsAttention =
+                    !active && isThreadNeedsAttention(thread.id);
                   return (
                     <div
                       key={thread.id}
-                      className={`titlebar-tab${active ? " titlebar-tab--active" : ""}`}
+                      className={`titlebar-tab${active ? " titlebar-tab--active" : ""}${needsAttention ? " titlebar-tab--attention" : ""}`}
                       data-active={active ? "true" : undefined}
                     >
                       <button
@@ -200,6 +213,12 @@ export function ChatTitlebar({
                         <span className="titlebar-tab-icon">
                           <IconChatTab />
                         </span>
+                        {needsAttention ? (
+                          <span
+                            className="titlebar-tab-attention"
+                            aria-label="有新消息"
+                          />
+                        ) : null}
                         <span className="titlebar-tab-label">{titleText}</span>
                       </button>
                       <button

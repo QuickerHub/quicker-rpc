@@ -11,8 +11,13 @@ import {
 } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { formatTokenCount } from "@/lib/chat-types";
-import { buildApiContextUsageSnapshot } from "@/lib/context-length";
+import {
+  buildApiContextUsageSnapshot,
+  CONTEXT_REPORT_CATEGORY_STYLES,
+  getLatestContextReport,
+} from "@/lib/context-length";
 import { fetchLlmOptions } from "./ModelSelector";
+import { ArtifactPathOpenButton } from "./ArtifactPathOpenButton";
 
 const RING_SIZE = 14;
 const STROKE = 1.75;
@@ -70,6 +75,17 @@ export const ContextUsage = memo(function ContextUsage({
     () => buildApiContextUsageSnapshot(messages, limit),
     [messages, limit],
   );
+  const contextReport = useMemo(
+    () => getLatestContextReport(messages),
+    [messages],
+  );
+
+  const categoryStyles = useMemo(() => {
+    const map = new Map(CONTEXT_REPORT_CATEGORY_STYLES.map((item) => [item.id, item.color]));
+    return (id: string) => map.get(id) ?? "var(--muted-foreground)";
+  }, []);
+
+  const breakdownTotal = contextReport?.estimatedInputTokens ?? 0;
 
   const lastModel = useMemo(() => lastAssistantModel(messages), [messages]);
   const displayModel = lastModel ?? activeModelId;
@@ -182,6 +198,49 @@ export const ContextUsage = memo(function ContextUsage({
             />
           </div>
 
+          {contextReport && breakdownTotal > 0 ? (
+            <>
+              <div
+                className={`context-popup-segment-bar${warn ? " context-popup-segment-bar--warn" : ""}`}
+                aria-hidden
+              >
+                {contextReport.categories.map((category) => {
+                  const width = (category.tokens / breakdownTotal) * 100;
+                  if (width <= 0) return null;
+                  return (
+                    <div
+                      key={category.id}
+                      className="context-popup-segment-bar-part"
+                      style={{
+                        width: `${width}%`,
+                        background: categoryStyles(category.id),
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <ul className="context-popup-breakdown">
+                {contextReport.categories.map((category) => (
+                  <li key={category.id} className="context-popup-breakdown-row">
+                    <span
+                      className="context-popup-breakdown-swatch"
+                      style={{ background: categoryStyles(category.id) }}
+                      aria-hidden
+                    />
+                    <span className="context-popup-breakdown-label">{category.label}</span>
+                    <span className="context-popup-breakdown-value">
+                      {formatTokenCount(category.tokens)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="context-popup-breakdown-empty">
+              分类估算将在下一轮 assistant 开始后显示
+            </p>
+          )}
+
           <p className="context-popup-hint">
             {hasData
               ? "基于本轮最后一步模型调用的 prompt 用量（非多步累加）"
@@ -192,8 +251,24 @@ export const ContextUsage = memo(function ContextUsage({
           {compressionSummary && (
             <p className="context-popup-hint">
               已启用自动压缩：历史消息已摘要后参与后续推理。
+              {contextReport?.compression?.historyArtifactPath ? (
+                <>
+                  {" 归档："}
+                  <code>{contextReport.compression.historyArtifactPath}</code>
+                  {" "}
+                  <ArtifactPathOpenButton
+                    path={contextReport.compression.historyArtifactPath}
+                    label="打开"
+                  />
+                </>
+              ) : null}
             </p>
           )}
+          {contextReport?.slidingWindowApplied ? (
+            <p className="context-popup-hint">
+              本轮 send 前已对旧 turn 大 tool 输出做 sliding-window preview。
+            </p>
+          ) : null}
 
           {displayModel && (
             <p className="context-popup-model" title={displayModel}>

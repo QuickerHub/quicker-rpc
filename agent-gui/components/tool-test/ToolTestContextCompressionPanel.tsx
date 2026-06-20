@@ -1,9 +1,9 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
+import { createDevChatTransport } from "@/lib/agent-chat-transport";
 import {
   fetchLlmOptions,
   ModelSelector,
@@ -25,6 +25,8 @@ import { resolveLlmSelectionLabel } from "@/lib/tool-test-title-model-label";
 import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 import { loadStoredLlmSelectionRaw, storeLlmSelectionRaw } from "@/lib/llm-prefs";
 import { ToolTestAgentViewSection } from "@/components/tool-test/ToolTestAgentViewSection";
+import { ToolTestHarnessSection } from "@/components/tool-test/ToolTestHarnessSection";
+import { ToolTestSessionAnalysisSection } from "@/components/tool-test/ToolTestSessionAnalysisSection";
 
 type ToolTestContextCompressionPanelProps = {
   disabled?: boolean;
@@ -110,8 +112,7 @@ export function ToolTestContextCompressionPanel({
 
   const chatTransport = useMemo(
     () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
+      createDevChatTransport({
         body: () => {
           const scenario = getContextCompressionScenario(scenarioId);
           return {
@@ -229,6 +230,8 @@ export function ToolTestContextCompressionPanel({
           contextCompression?: ContextCompressionDryRunResult["contextCompression"];
           reusedSummary?: boolean;
           summarizeCalled?: boolean;
+          slidingWindowApplied?: boolean;
+          historyArtifactPath?: string;
         };
         if (!res.ok || !data.ok) {
           finishRun(run.id, {
@@ -246,6 +249,8 @@ export function ToolTestContextCompressionPanel({
           contextCompression: data.contextCompression ?? null,
           reusedSummary: data.reusedSummary === true,
           summarizeCalled: data.summarizeCalled === true,
+          slidingWindowApplied: data.slidingWindowApplied === true,
+          historyArtifactPath: data.historyArtifactPath,
         };
         finishRun(run.id, { status: "done", dryRun });
       } catch (err) {
@@ -386,11 +391,24 @@ export function ToolTestContextCompressionPanel({
           )}
         </button>
         <p className="autofix-panel__run-hint">
-          生产逻辑：usage ≥90% 或估算 ≥92% 时按 token 预算切分；microcompact → 摘要 → reinject；多步 tool 回合内 prepareStep 再压缩；context length 错误 reactive 重试 1 次
+          生产逻辑：L2 usage ≥90% 或估算 ≥92% 时切分摘要；send 前 sliding-window trim；microcompact → 摘要 → reinject；多步 tool 回合 prepareStep 再压缩；context length 错误 reactive 重试 1 次
         </p>
       </div>
 
-      <ToolTestAgentViewSection disabled={disabledAll} />
+      <ToolTestHarnessSection
+        disabled={disabled}
+        workingDirectory={workingDirectory}
+        onAppendRun={onAppendRun}
+        onPatchRun={onPatchRun}
+      />
+
+      <ToolTestSessionAnalysisSection disabled={disabled} />
+
+      <ToolTestAgentViewSection
+        disabled={disabled}
+        onAppendRun={onAppendRun}
+        onPatchRun={onPatchRun}
+      />
     </div>
   );
 }

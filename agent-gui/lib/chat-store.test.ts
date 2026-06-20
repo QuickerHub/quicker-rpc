@@ -8,6 +8,7 @@ import {
   CHAT_STORE_VERSION,
   countPersistedMessages,
   defaultChatStore,
+  deleteThreadsByWorkingDirectory,
   forkThread,
   getOpenTabThreads,
   isThreadEmpty,
@@ -16,6 +17,7 @@ import {
   saveChatStore,
   selectThread,
   shouldBackupChatStoreBeforeSave,
+  stripActionDesignerTagsFromStore,
   threadBackupStorageKey,
   threadStorageKey,
   tryRestoreLegacyChatStore,
@@ -204,6 +206,49 @@ test("migrates monolithic v2 blob to chunked v3 on load", () => {
   const index = JSON.parse(globalThis.localStorage!.getItem(CHAT_STORAGE_KEY)!);
   assert.equal(index.version, CHAT_STORE_VERSION);
   assert.ok(globalThis.localStorage!.getItem(threadStorageKey(threadId)));
+});
+
+test("stripActionDesignerTagsFromStore removes designer-only thread tags", () => {
+  const store = defaultChatStore();
+  store.threads[0]!.actionDesigner = {
+    entityId: "test2",
+    isSubProgram: false,
+  };
+  const stripped = stripActionDesignerTagsFromStore(store);
+  assert.equal(stripped.threads[0]!.actionDesigner, undefined);
+});
+
+test("addThread does not inherit actionDesigner from active thread", () => {
+  const store = {
+    ...defaultChatStore(),
+    threads: [
+      {
+        ...defaultChatStore().threads[0]!,
+        actionDesigner: { entityId: "test2", isSubProgram: false },
+      },
+    ],
+  };
+  const next = addThread(store);
+  const newThread = next.threads.find((thread) => thread.id === next.activeThreadId);
+  assert.equal(newThread?.actionDesigner, undefined);
+});
+
+test("deleteThreadsByWorkingDirectory removes all threads in cwd group", () => {
+  let store = defaultChatStore();
+  const tempCwd = "D:/scratch/temp-workspaces/ws-demo";
+  store = addThread(store, { workingDirectory: tempCwd });
+  const firstId = store.activeThreadId;
+  store = addThread(store, { workingDirectory: tempCwd });
+  assert.equal(
+    store.threads.filter((thread) => thread.workingDirectory === tempCwd).length,
+    2,
+  );
+  const next = deleteThreadsByWorkingDirectory(store, tempCwd);
+  assert.equal(
+    next.threads.filter((thread) => thread.workingDirectory === tempCwd).length,
+    0,
+  );
+  assert.notEqual(next.activeThreadId, firstId);
 });
 
 test("addThread opens a new tab when the active tab is empty", () => {

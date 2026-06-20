@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import { WorkingDirectoryDialog } from "@/components/chat/WorkingDirectoryDialog";
@@ -14,6 +15,7 @@ import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
   deleteThread,
+  deleteThreadsByWorkingDirectory,
   getActiveThread,
   renameThread,
   resolveThreadWorkingDirectory,
@@ -21,6 +23,22 @@ import {
   tryRestoreLegacyChatStore,
 } from "@/lib/chat-store";
 import { pushAppMessage } from "@/lib/app-messages";
+import {
+  createDevTempWorkspaceClient,
+  cleanupDevTempWorkspaceClient,
+} from "@/lib/dev-temp-workspace.client";
+import {
+  devTempWorkspaceSidebarLabel,
+  isDevTempWorkspacePath,
+  normalizePathForCompare,
+} from "@/lib/dev-temp-workspace.shared";
+import { formatDevTempWorkspaceCleanupSummary } from "@/lib/dev-temp-workspace-format";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
+import { useChatThreadExportDialog } from "@/lib/use-chat-thread-export-dialog";
+import {
+  ThreadSidebarContextMenu,
+  type ThreadSidebarContextMenuState,
+} from "@/components/chat/ThreadSidebarContextMenu";
 import { importChatStoreMergeViaApi } from "@/lib/chat-store-api.client";
 import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
 import { fetchLegacyChatStoreCandidatesFromDisk } from "@/lib/legacy-chat-restore-client";
@@ -67,6 +85,8 @@ type SidebarThreadGroup = {
   key: string;
   label: string;
   title: string;
+  path: string;
+  isTempWorkspace: boolean;
   threads: ChatStoreData["threads"];
 };
 
@@ -152,6 +172,41 @@ function ThreadRunIndicator({ running }: { running: boolean }) {
   );
 }
 
+type ThreadRowLeadingProps = {
+  running: boolean;
+  pinned: boolean;
+  disabled?: boolean;
+  onTogglePin: () => void;
+};
+
+/** Idle dot; on row hover swaps to pin toggle in the same slot. */
+function ThreadRowLeading({
+  running,
+  pinned,
+  disabled,
+  onTogglePin,
+}: ThreadRowLeadingProps) {
+  if (running) {
+    return <ThreadRunIndicator running />;
+  }
+
+  return (
+    <span className="ws-thread-leading">
+      <span className="ws-thread-leading-idle" aria-hidden>
+        <span className="ws-thread-status-dot" />
+      </span>
+      <RowAction
+        className="ws-icon-btn ws-row-action-btn ws-thread-leading-pin"
+        label={pinned ? "取消置顶" : "置顶对话"}
+        onClick={onTogglePin}
+        disabled={disabled}
+      >
+        <IconThumbtack active={pinned} />
+      </RowAction>
+    </span>
+  );
+}
+
 function IconHistory() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
@@ -214,19 +269,30 @@ function IconTrash() {
 }
 
 const DELETE_CONFIRM_MS = 1000;
+/** Temp workspace cleanup needs a visible second click — keep the window longer than thread delete. */
+const TEMP_WORKSPACE_CLEANUP_CONFIRM_MS = 6000;
+
+function isTempWorkspaceCleanupPending(
+  pendingPath: string | null,
+  groupPath: string,
+): boolean {
+  if (!pendingPath?.trim() || !groupPath.trim()) return false;
+  return normalizePathForCompare(pendingPath) === normalizePathForCompare(groupPath);
+}
 
 type RowActionProps = {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  className?: string;
   children: ReactNode;
 };
 
-function RowAction({ label, onClick, disabled, children }: RowActionProps) {
+function RowAction({ label, onClick, disabled, className, children }: RowActionProps) {
   return (
     <button
       type="button"
-      className="ws-icon-btn ws-row-action-btn"
+      className={className ?? "ws-icon-btn ws-row-action-btn"}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
@@ -273,6 +339,7 @@ type ThreadSidebarRowProps = {
   onActivate: () => void;
   onStartRename: () => void;
   onTogglePin: () => void;
+  onContextMenu: (event: MouseEvent) => void;
   onRequestDelete: () => void;
   onConfirmDelete: () => void;
   onRenameDraftChange: (value: string) => void;
@@ -293,6 +360,7 @@ function ThreadSidebarRow({
   onActivate,
   onStartRename,
   onTogglePin,
+  onContextMenu,
   onRequestDelete,
   onConfirmDelete,
   onRenameDraftChange,
@@ -331,7 +399,18 @@ function ThreadSidebarRow({
       ) : (
         <div
           className={`ws-item ws-thread-item${selected ? " ws-item--active" : ""}`}
+          onContextMenu={(event) => {
+            if (renaming || disabled) return;
+            event.preventDefault();
+            onContextMenu(event);
+          }}
         >
+          <ThreadRowLeading
+            running={running}
+            pinned={pinned}
+            disabled={disabled}
+            onTogglePin={onTogglePin}
+          />
           <button
             type="button"
             className="ws-thread-item-main"
@@ -343,7 +422,6 @@ function ThreadSidebarRow({
             disabled={disabled}
             aria-selected={selected}
           >
-            <ThreadRunIndicator running={running} />
             <span className="ws-item-label">{thread.title}</span>
           </button>
           <span
@@ -366,13 +444,6 @@ function ThreadSidebarRow({
                   {formatThreadRelativeTime(thread.updatedAt)}
                 </span>
                 <span className="ws-thread-trail-actions">
-                  <RowAction
-                    label={pinned ? "取消置顶" : "置顶对话"}
-                    onClick={onTogglePin}
-                    disabled={disabled}
-                  >
-                    <IconThumbtack active={pinned} />
-                  </RowAction>
                   <ThreadDeleteRowAction
                     disabled={disabled}
                     onRequestDelete={onRequestDelete}
@@ -397,6 +468,7 @@ export function ChatSidebar({
   disabled = false,
   groupBy = "cwd",
 }: ChatSidebarProps) {
+  const devExperienceEnabled = useDevExperienceEnabled();
   const activeThread = useMemo(() => getActiveThread(store), [store]);
   const cwdFallbackLabel = !defaultCwdReady
     ? "…"
@@ -418,6 +490,18 @@ export function ChatSidebar({
   const [pendingDeleteThreadId, setPendingDeleteThreadId] = useState<
     string | null
   >(null);
+  const [creatingTempWorkspace, setCreatingTempWorkspace] = useState(false);
+  const [cleaningTempWorkspacePath, setCleaningTempWorkspacePath] = useState<
+    string | null
+  >(null);
+  const [pendingTempCleanupPath, setPendingTempCleanupPath] = useState<
+    string | null
+  >(null);
+  const [contextMenu, setContextMenu] =
+    useState<ThreadSidebarContextMenuState | null>(null);
+  const { exporting, exportThread, exportDialog } = useChatThreadExportDialog({
+    disabled,
+  });
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -439,16 +523,22 @@ export function ChatSidebar({
           key: group.key,
           label: group.label,
           title: group.ref.entityId,
+          path: "",
+          isTempWorkspace: false,
           threads: group.threads,
         }),
       );
     }
     return groupThreadsByCwd(sourceThreads, cwdFallbackLabel).map((group) => ({
       key: group.key,
-      label: group.label,
+      path: group.path,
+      label: isDevTempWorkspacePath(group.path)
+        ? devTempWorkspaceSidebarLabel(group.path)
+        : group.label,
       title:
         group.path.trim()
         || resolveThreadWorkingDirectory(group.threads[0]!, store, defaultCwd),
+      isTempWorkspace: isDevTempWorkspacePath(group.path),
       threads: group.threads,
     }));
   }, [groupBy, store, defaultCwd, cwdFallbackLabel, pinnedThreadIdSet]);
@@ -483,6 +573,14 @@ export function ChatSidebar({
     }, DELETE_CONFIRM_MS);
     return () => window.clearTimeout(timer);
   }, [pendingDeleteThreadId]);
+
+  useEffect(() => {
+    if (!pendingTempCleanupPath) return;
+    const timer = window.setTimeout(() => {
+      setPendingTempCleanupPath(null);
+    }, TEMP_WORKSPACE_CLEANUP_CONFIRM_MS);
+    return () => window.clearTimeout(timer);
+  }, [pendingTempCleanupPath]);
 
   useEffect(() => {
     if (!renamingThreadId) return;
@@ -527,6 +625,86 @@ export function ChatSidebar({
   const handleNewThread = () => {
     commit(addThread(store));
   };
+
+  const handleCreateTempWorkspace = useCallback(() => {
+    if (creatingTempWorkspace || disabled) return;
+    setCreatingTempWorkspace(true);
+    void (async () => {
+      try {
+        const created = await createDevTempWorkspaceClient();
+        const next = addThread(store, { workingDirectory: created.path });
+        commit(next);
+        onActivateThread(next.activeThreadId);
+        pushAppMessage({
+          kind: "success",
+          title: "已创建临时工作区",
+          body: created.path,
+          autoDismissMs: 7000,
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        pushAppMessage({
+          kind: "error",
+          title: "创建临时工作区失败",
+          body: message,
+          autoDismissMs: 12000,
+        });
+      } finally {
+        setCreatingTempWorkspace(false);
+      }
+    })();
+  }, [
+    commit,
+    creatingTempWorkspace,
+    disabled,
+    onActivateThread,
+    store,
+  ]);
+
+  const handleRequestTempWorkspaceCleanup = useCallback((path: string) => {
+    if (!path.trim()) return;
+    setPendingTempCleanupPath(path.trim());
+  }, []);
+
+  const handleConfirmTempWorkspaceCleanup = useCallback(
+    (group: SidebarThreadGroup) => {
+      const path = group.path.trim();
+      if (!path || cleaningTempWorkspacePath) return;
+      setPendingTempCleanupPath(null);
+      setCleaningTempWorkspacePath(path);
+      void (async () => {
+        try {
+          const cleanup = await cleanupDevTempWorkspaceClient(path);
+          const next = deleteThreadsByWorkingDirectory(store, path, defaultCwd);
+          commit(next);
+          onActivateThread(next.activeThreadId);
+          pushAppMessage({
+            kind: cleanup.errors.length > 0 ? "warning" : "success",
+            title: "已清理临时工作区",
+            body: formatDevTempWorkspaceCleanupSummary(cleanup),
+            autoDismissMs: cleanup.errors.length > 0 ? 12000 : 7000,
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          pushAppMessage({
+            kind: "error",
+            title: "清理临时工作区失败",
+            body: message,
+            autoDismissMs: 12000,
+          });
+        } finally {
+          setCleaningTempWorkspacePath(null);
+        }
+      })();
+    },
+    [
+      cleaningTempWorkspacePath,
+      commit,
+      defaultCwd,
+      onActivateThread,
+      store,
+    ],
+  );
 
   const cancelRename = useCallback(() => {
     setRenamingThreadId(null);
@@ -590,6 +768,38 @@ export function ChatSidebar({
     });
   }, []);
 
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  const contextMenuThread = useMemo(
+    () =>
+      contextMenu
+        ? store.threads.find((thread) => thread.id === contextMenu.threadId) ?? null
+        : null,
+    [contextMenu, store.threads],
+  );
+
+  const handleThreadContextMenu = useCallback(
+    (threadId: string, event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setContextMenu({
+        threadId,
+        x: event.clientX,
+        y: event.clientY,
+      });
+    },
+    [],
+  );
+
+  const handleExportThread = useCallback(
+    (thread: ChatStoreData["threads"][number]) => {
+      void exportThread(thread);
+    },
+    [exportThread],
+  );
+
   const renderThreadRow = useCallback(
     (thread: ChatStoreData["threads"][number]) => {
       const selected = thread.id === store.activeThreadId;
@@ -611,6 +821,7 @@ export function ChatSidebar({
           onActivate={() => onActivateThread(thread.id)}
           onStartRename={() => handleStartRenameThread(thread.id, thread.title)}
           onTogglePin={() => handleTogglePinThread(thread.id)}
+          onContextMenu={(event) => handleThreadContextMenu(thread.id, event)}
           onRequestDelete={() => handleRequestDeleteThread(thread.id)}
           onConfirmDelete={() => handleConfirmDeleteThread(thread.id)}
           onRenameDraftChange={setRenameDraft}
@@ -635,9 +846,12 @@ export function ChatSidebar({
       cancelRename,
       commitRename,
       disabled,
+      exporting,
       handleConfirmDeleteThread,
+      handleExportThread,
       handleRequestDeleteThread,
       handleStartRenameThread,
+      handleThreadContextMenu,
       handleTogglePinThread,
       onActivateThread,
       pendingDeleteThreadId,
@@ -698,6 +912,17 @@ export function ChatSidebar({
               <IconPlus />
               <span>新对话</span>
             </button>
+            {devExperienceEnabled && groupBy === "cwd" ? (
+              <button
+                type="button"
+                className="ws-temp-workspace-btn"
+                onClick={handleCreateTempWorkspace}
+                disabled={disabled || creatingTempWorkspace}
+                title="创建临时工作区（独立目录，便于测试后一键清理）"
+              >
+                <span>{creatingTempWorkspace ? "创建中…" : "临时工作区"}</span>
+              </button>
+            ) : null}
             <TitlebarDragRegion className="ws-section-head-drag" />
           </div>
 
@@ -738,19 +963,63 @@ export function ChatSidebar({
                 ? group.threads
                 : group.threads.slice(0, SIDEBAR_THREADS_VISIBLE_PER_GROUP);
               const hiddenCount = group.threads.length - visibleThreads.length;
+              const showTempCleanup = devExperienceEnabled && group.isTempWorkspace;
+              const tempCleanupPending = showTempCleanup
+                && isTempWorkspaceCleanupPending(pendingTempCleanupPath, group.path);
+              const tempCleanupBusy = showTempCleanup
+                && cleaningTempWorkspacePath != null
+                && normalizePathForCompare(cleaningTempWorkspacePath)
+                  === normalizePathForCompare(group.path);
 
               return (
                 <div key={group.key} className="ws-cwd-group" role="treeitem" aria-expanded={!collapsed}>
-                  <button
-                    type="button"
-                    className="ws-cwd-group-head"
-                    onClick={() => toggleGroupCollapsed(group.key)}
-                    disabled={disabled}
-                    title={group.title}
-                  >
-                    <SidebarFolderIcon expanded={!collapsed} />
-                    <span className="ws-cwd-group-label">{group.label}</span>
-                  </button>
+                  <div className="ws-cwd-group-head-row">
+                    <button
+                      type="button"
+                      className="ws-cwd-group-head"
+                      onClick={() => toggleGroupCollapsed(group.key)}
+                      disabled={disabled}
+                      title={group.title}
+                    >
+                      <SidebarFolderIcon expanded={!collapsed} />
+                      <span className="ws-cwd-group-label">{group.label}</span>
+                    </button>
+                    {showTempCleanup ? (
+                      <button
+                        type="button"
+                        className={
+                          tempCleanupPending
+                            ? "ws-row-confirm-btn ws-temp-workspace-cleanup-confirm"
+                            : "ws-temp-workspace-cleanup-btn"
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (tempCleanupPending) {
+                            handleConfirmTempWorkspaceCleanup(group);
+                          } else {
+                            handleRequestTempWorkspaceCleanup(group.path);
+                          }
+                        }}
+                        disabled={disabled || tempCleanupBusy}
+                        title={
+                          tempCleanupPending
+                            ? "确认删除该临时工作区的全部对话、磁盘目录及测试中创建的动作"
+                            : "清理临时工作区（需再次点击确认）"
+                        }
+                        aria-label={
+                          tempCleanupPending ? "确认清理临时工作区" : "清理临时工作区"
+                        }
+                      >
+                        {tempCleanupBusy ? (
+                          <span className="ws-temp-workspace-cleanup-spinner" aria-hidden />
+                        ) : tempCleanupPending ? (
+                          "确认"
+                        ) : (
+                          <IconTrash />
+                        )}
+                      </button>
+                    ) : null}
+                  </div>
 
                   {!collapsed ? (
                     <ul className="ws-list ws-thread-group-list" role="group">
@@ -831,6 +1100,35 @@ export function ChatSidebar({
           setCwdDialogOpen(false);
         }}
       />
+
+      <ThreadSidebarContextMenu
+        open={contextMenu != null && contextMenuThread != null}
+        anchor={contextMenu}
+        thread={contextMenuThread}
+        pinned={
+          contextMenuThread
+            ? pinnedThreadIdSet.has(contextMenuThread.id)
+            : false
+        }
+        exportDisabled={exporting}
+        disabled={disabled}
+        onClose={closeContextMenu}
+        onExport={() => {
+          if (contextMenuThread) handleExportThread(contextMenuThread);
+        }}
+        onTogglePin={() => {
+          if (contextMenuThread) handleTogglePinThread(contextMenuThread.id);
+        }}
+        onStartRename={() => {
+          if (contextMenuThread) {
+            handleStartRenameThread(contextMenuThread.id, contextMenuThread.title);
+          }
+        }}
+        onRequestDelete={() => {
+          if (contextMenuThread) handleRequestDeleteThread(contextMenuThread.id);
+        }}
+      />
+      {exportDialog}
     </aside>
   );
 }

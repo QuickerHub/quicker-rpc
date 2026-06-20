@@ -15,6 +15,7 @@ import {
   readEditVersionFromGetPayload,
 } from "@/lib/action-project-info-from-get";
 import { bootstrapWorkspaceProjectOnCreate } from "@/lib/workspace-project-disk";
+import type { ProgramDataInput } from "@/lib/program-data-input";
 import { buildWorkspaceProjectSummary } from "@/lib/action-project-display";
 import {
   actionProjectDisplayTitle,
@@ -288,10 +289,11 @@ export async function syncSubprogramToWorkspace(
   return { ok: true, manifest };
 }
 
-/** After create: metadata get → info.json; empty data.json (no full export). */
+/** After create: metadata get → info.json; data.json (optional body on create). */
 export async function bootstrapSubprogramProjectForCreate(
   createPayload: Record<string, unknown>,
   hints?: SubProgramCreateHints,
+  programData?: ProgramDataInput,
 ): Promise<SubProgramSyncResult> {
   const createInfo = subprogramProjectInfoFromCreateResponse(createPayload, hints);
   if (!createInfo?.id?.trim()) {
@@ -324,6 +326,7 @@ export async function bootstrapSubprogramProjectForCreate(
   const written = await bootstrapWorkspaceProjectOnCreate(
     projectDir,
     formatSubProgramProjectInfo(info),
+    programData,
   );
   if (!written.ok) {
     return {

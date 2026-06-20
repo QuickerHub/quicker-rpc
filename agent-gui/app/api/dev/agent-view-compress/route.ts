@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import {
   estimateStructuredResultChars,
   formatToolResultForAgent,
+  isToolResultAgentViewCompressionEnabled,
 } from "@/lib/tool-result-agent-view";
-import { readAgentViewCompressStats } from "@/lib/tool-result-agent-view-display";
+import { readToolCompressStats } from "@/lib/tool-result-agent-view-display";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import {
   AGENT_VIEW_SCENARIOS,
@@ -29,6 +30,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
+    compressionEnabled: isToolResultAgentViewCompressionEnabled(),
     scenarios: AGENT_VIEW_SCENARIOS.map((scenario) => ({
       id: scenario.id,
       label: scenario.label,
@@ -63,16 +65,17 @@ export async function POST(req: Request) {
     raw,
   );
   const afterChars = estimatePayloadChars(compressed);
-  const stats = readAgentViewCompressStats(compressed);
+  const stats = readToolCompressStats(compressed);
 
   return NextResponse.json({
     scenarioId: scenario.id,
     toolName: scenario.toolName,
+    compressionEnabled: isToolResultAgentViewCompressionEnabled(),
     beforeChars,
     afterChars,
     savedChars: Math.max(0, beforeChars - afterChars),
     compressed: isStructuredToolResult(compressed) && compressed.displayData != null,
-    agentView: stats,
+    compressStats: stats,
     output: compressed,
   });
 }

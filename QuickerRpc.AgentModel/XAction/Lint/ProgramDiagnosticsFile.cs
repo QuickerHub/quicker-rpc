@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json;
@@ -29,16 +31,59 @@ public static class ProgramDiagnosticsFile
 
     public static string ComputeDataFingerprint(string projectDirectory)
     {
-        var dataPath = QuickerProjectLayout.GetDataPath(projectDirectory);
+        var projectDir = QuickerProjectLayout.ResolveProjectDirectory(projectDirectory);
+        var dataPath = QuickerProjectLayout.GetDataPath(projectDir);
         if (!File.Exists(dataPath))
         {
             return string.Empty;
         }
 
-        var bytes = File.ReadAllBytes(dataPath);
         using var sha = SHA256.Create();
-        var hash = sha.ComputeHash(bytes);
-        return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+        AppendFingerprintSegment(sha, "data.json", File.ReadAllBytes(dataPath));
+
+        var filesDir = Path.Combine(projectDir, QuickerProjectLayout.FilesDirName);
+        if (Directory.Exists(filesDir))
+        {
+            foreach (var filePath in EnumerateProjectFilesSorted(filesDir))
+            {
+                var relative = ToFilesRelativePath(filesDir, filePath);
+                AppendFingerprintSegment(sha, "files/" + relative, File.ReadAllBytes(filePath));
+            }
+        }
+
+        sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        return BitConverter.ToString(sha.Hash ?? Array.Empty<byte>())
+            .Replace("-", string.Empty)
+            .ToLowerInvariant();
+    }
+
+    private static IEnumerable<string> EnumerateProjectFilesSorted(string filesDir)
+    {
+        return Directory
+            .EnumerateFiles(filesDir, "*", SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string ToFilesRelativePath(string filesDir, string filePath)
+    {
+        var root = filesDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!filePath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            return Path.GetFileName(filePath);
+        }
+
+        var relative = filePath.Substring(root.Length)
+            .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return relative.Replace('\\', '/');
+    }
+
+    private static void AppendFingerprintSegment(SHA256 sha, string label, byte[] content)
+    {
+        var labelBytes = Utf8NoBom.GetBytes(label);
+        sha.TransformBlock(labelBytes, 0, labelBytes.Length, null, 0);
+        sha.TransformBlock(new byte[] { 0 }, 0, 1, null, 0);
+        sha.TransformBlock(content, 0, content.Length, null, 0);
+        sha.TransformBlock(new byte[] { 0 }, 0, 1, null, 0);
     }
 
     public static ProgramDiagnosticsDocument ReadOrDefault(string projectDirectory)

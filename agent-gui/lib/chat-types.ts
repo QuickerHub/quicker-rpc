@@ -29,6 +29,23 @@ export type ContextCompressionMetadata = {
   reactiveCompactAttempted?: boolean;
   /** Workspace file paths reinjected into system after compression. */
   reinjectPaths?: string[];
+  /** Pre-compression history snapshot on disk (.local/agent-history/). */
+  historyArtifactPath?: string;
+};
+
+export type TurnContextReportCategory = {
+  id: string;
+  label: string;
+  tokens: number;
+};
+
+/** Per-turn token breakdown (UI/debug only — not persisted to threads DB by default). */
+export type TurnContextReport = {
+  contextWindowTokens: number;
+  estimatedInputTokens: number;
+  categories: TurnContextReportCategory[];
+  compression?: ContextCompressionMetadata;
+  slidingWindowApplied?: boolean;
 };
 
 /** Token usage attached to assistant messages via messageMetadata. */
@@ -39,6 +56,7 @@ export type ChatUsageMetadata = {
   totalTokens?: number;
   reasoningTokens?: number;
   contextCompression?: ContextCompressionMetadata;
+  contextReport?: TurnContextReport;
   launcherCacheDirect?: boolean;
   launcherResolveDirect?: boolean;
   resolveQuery?: string;

@@ -23,6 +23,8 @@ import {
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { loadStoredLlmSelectionRaw, storeLlmSelectionRaw } from "@/lib/llm-prefs";
 import { cleanupToolTestChatSession, formatToolTestCleanupHint } from "@/lib/tool-test-chat-cleanup";
+import { ChatThreadExportDialog } from "@/components/chat/ChatThreadExportDialog";
+import { useToolTestChatExport } from "@/lib/tool-test-chat-export";
 import {
   getDefaultPromptChatExample,
   getPromptChatExampleGroups,
@@ -45,6 +47,10 @@ type ToolTestPromptChatContextValue = {
   cleanupHint: string | null;
   chatBusy: boolean;
   disabled: boolean;
+  exportConversation: () => Promise<void>;
+  exporting: boolean;
+  exportMeta: import("@/lib/tool-test-chat-export").ToolTestExportMeta | null;
+  exportResult: import("@/components/chat/ChatThreadExportDialog").ChatThreadExportResult | null;
 };
 
 const ToolTestPromptChatContext =
@@ -75,6 +81,13 @@ export function ToolTestPromptChatProvider({
   const [llmSelection, setLlmSelection] = useState("");
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupHint, setCleanupHint] = useState<string | null>(null);
+  const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
+  const {
+    exporting,
+    exportMessages,
+    exportResult,
+    clearExportResult,
+  } = useToolTestChatExport();
   const llmSelectionRef = useRef(llmSelection);
   llmSelectionRef.current = llmSelection;
   const workingDirectoryRef = useRef(workingDirectory);
@@ -131,6 +144,7 @@ export function ToolTestPromptChatProvider({
       const trimmed = text.trim();
       if (!trimmed || !llmSelection.trim() || disabledAll) return;
       setCleanupHint(null);
+      setSessionStartedAt((prev) => prev ?? Date.now());
       void sendMessage({ text: trimmed }).catch(() => {
         /* surfaced via useChat error */
       });
@@ -163,10 +177,26 @@ export function ToolTestPromptChatProvider({
       setCleanupHint(
         formatToolTestCleanupHint(result, "已清空对话"),
       );
+      setSessionStartedAt(null);
     } finally {
       setCleanupBusy(false);
     }
   }, [cleanupBusy, messages, setMessages, stop]);
+
+  const exportMeta = useMemo(() => {
+    if (!sessionStartedAt || messages.length === 0) return null;
+    return {
+      threadId: `tool-test-prompt-${sessionStartedAt}`,
+      title: "Prompt 对话",
+      workingDirectory: workingDirectoryRef.current,
+      startedAt: sessionStartedAt,
+    };
+  }, [messages.length, sessionStartedAt]);
+
+  const exportConversation = useCallback(async () => {
+    if (!exportMeta) return;
+    await exportMessages(exportMeta, messages);
+  }, [exportMeta, exportMessages, messages]);
 
   const value = useMemo(
     (): ToolTestPromptChatContextValue => ({
@@ -188,6 +218,10 @@ export function ToolTestPromptChatProvider({
       cleanupHint,
       chatBusy,
       disabled: disabledAll,
+      exportConversation,
+      exporting,
+      exportMeta,
+      exportResult,
     }),
     [
       messages,
@@ -203,12 +237,21 @@ export function ToolTestPromptChatProvider({
       cleanupHint,
       chatBusy,
       disabledAll,
+      exportConversation,
+      exporting,
+      exportMeta,
+      exportResult,
     ],
   );
 
   return (
     <ToolTestPromptChatContext.Provider value={value}>
       {children}
+      <ChatThreadExportDialog
+        open={exportResult != null}
+        result={exportResult}
+        onClose={clearExportResult}
+      />
     </ToolTestPromptChatContext.Provider>
   );
 }
@@ -354,6 +397,11 @@ export function ToolTestPromptChatPane({
     cleanupBusy,
     cleanupHint,
     chatBusy,
+    llmSelection,
+    exportConversation,
+    exporting,
+    exportMeta,
+    exportResult,
   } = useToolTestPromptChatContext();
   const endRef = useRef<HTMLDivElement>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
@@ -420,6 +468,11 @@ export function ToolTestPromptChatPane({
           messages={messages}
           workingDirectory={workingDirectory}
           streamTick={messages[messages.length - 1]?.parts.length ?? 0}
+          llmSelection={llmSelection}
+          exportMeta={exportMeta ?? undefined}
+          exportResult={exportResult}
+          exporting={exporting}
+          onExport={() => void exportConversation()}
         />
       ) : null}
     </ToolTestRunsPaneShell>

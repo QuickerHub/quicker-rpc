@@ -37,4 +37,5 @@ commands.allow = [
   "embedded_browser_profile_info",
   "embedded_browser_force_close",
   "legacy_chat_store_scan",
+  "reveal_path_in_file_manager",
 ]

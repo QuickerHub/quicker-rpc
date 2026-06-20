@@ -6,6 +6,7 @@ import {
   rankSlashCatalogItems,
   stripSlashDescriptionPreview,
 } from "@/lib/composer-slash-catalog";
+import { formatSubagentsCatalogBlock } from "@/lib/agent-defs/workspace-instructions.server";
 
 test("rankSlashCatalogItems shows recommended bundled skills on empty query", () => {
   const items = buildSlashCatalogItems({
@@ -74,6 +75,40 @@ test("buildSlashMenuModel groups sections and collapses long lists", () => {
   const expanded = buildSlashMenuModel(items, "", new Set(["skill"]));
   assert.equal(expanded.sections[0]?.hiddenCount, 0);
   assert.equal(expanded.flatVisible.length, 8);
+});
+
+test("rankSlashCatalogItems boosts bundled author command on empty query", () => {
+  const items = buildSlashCatalogItems({
+    commands: [
+      {
+        name: "author",
+        description: "Author action",
+        argumentHint: null,
+        scope: "bundled",
+      },
+      {
+        name: "z-other",
+        description: "Other",
+        argumentHint: null,
+        scope: "bundled",
+      },
+    ],
+    skills: [],
+    agents: [],
+  });
+  const ranked = rankSlashCatalogItems(items, "");
+  assert.equal(ranked[0]?.name, "author");
+});
+
+test("formatSubagentsCatalogBlock includes inherit hint", () => {
+  const block = formatSubagentsCatalogBlock([
+    {
+      name: "authoring-verify",
+      description: "Verify patch",
+      inherit: ["skills", "workspace"],
+    },
+  ]);
+  assert.ok(block.includes("inherit: skills, workspace"));
 });
 
 test("stripSlashDescriptionPreview removes markdown emphasis", () => {

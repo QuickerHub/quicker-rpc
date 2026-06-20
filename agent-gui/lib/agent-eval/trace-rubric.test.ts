@@ -139,6 +139,57 @@ describe("agent-eval trace-rubric", () => {
     assert.ok(result.violations.some((v) => v.includes("expected read")));
   });
 
+  it("passes read-only step discovery without action_authoring intent", () => {
+    const result = evaluateTraceRubric(
+      [
+        call("qkrpc_step_runner_search", { query: "clipboard" }),
+        call("qkrpc_step_runner_get", { key: "sys:getClipboardText" }),
+      ],
+      {
+        chatMode: "agent",
+        readOnly: true,
+        taskId: "discover-step-expr",
+        runtimeMetadata: [
+          runtime({
+            intent: "conversation",
+            recommendedToolIds: [
+              "qkrpc_step_runner_search",
+              "qkrpc_step_runner_get",
+              "qkrpc_wait",
+            ],
+            risk: "read",
+          }),
+        ],
+        source: "agent-gui",
+      },
+    );
+
+    assert.equal(result.passed, true);
+  });
+
+  it("passes patch followed by debug as post-patch verification", () => {
+    const result = evaluateTraceRubric(
+      [
+        call("qkrpc_step_runner_get", { key: "sys:evalexpression" }),
+        call("workspace_program", { action: "patch" }),
+        call("qkrpc_action_debug", { id: "00000000-0000-0000-0000-000000000001" }),
+      ],
+      {
+        taskId: "multi-var-assign",
+        runtimeMetadata: [
+          runtime({
+            intent: "action_authoring",
+            recommendedToolIds: ["workspace_program"],
+            risk: "write",
+          }),
+        ],
+        source: "authoring",
+      },
+    );
+
+    assert.equal(result.passed, true);
+  });
+
   it("allows patch without diagnostics when recovery recommends diagnostics", () => {
     const result = evaluateTraceRubric(
       [call("workspace_program", { action: "patch" })],

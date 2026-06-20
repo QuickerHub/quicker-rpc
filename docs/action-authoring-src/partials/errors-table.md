@@ -8,4 +8,4 @@
 | re-get after save | trust patch **editVersion** (authoring-workflow P7) |
 | publish without changelog on shared action | pass **changelog** — **action-publish-workflow** Pub4 |
 | public share icon rejected | custom fa:Light_* or image URL — **action-icons**, Pub1 |
-| user wants HTML 动作说明 | built-in publish automation — Agent STOP; draft Pub3 `note` only — **action-publish-workflow** Pub5 |
+| user wants HTML 动作说明 | qkagent `page.html` → `apply --dir` — **action-publish-workflow** Pub5; never `note` / 备注 |

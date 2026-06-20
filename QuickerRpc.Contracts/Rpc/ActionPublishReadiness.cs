@@ -44,7 +44,7 @@ public static class ActionPublishReadiness
         /// <summary>Action page intro HTML (SharedActionVm.Detail) from the publish request.</summary>
         public string? DetailHtml { get; set; }
 
-        /// <summary>Share note markdown/plain text; converted to Detail HTML when DetailHtml is empty.</summary>
+        /// <summary>Deprecated getquicker 「备注」 field; rejected when non-empty.</summary>
         public string? RequestNote { get; set; }
 
         /// <summary>Raw comma-separated tags from the publish request.</summary>
@@ -135,15 +135,24 @@ public static class ActionPublishReadiness
                     "Failed to embed global subprograms: " + context.EmbedSubProgramsError));
             }
 
-            var introHtml = ActionPublishIntro.ResolveDetailHtml(context.DetailHtml, context.RequestNote);
+            if (!string.IsNullOrWhiteSpace(context.RequestNote))
+            {
+                issues.Add(Issue(
+                    "DEPRECATED_SHARE_NOTE",
+                    "note",
+                    "The getquicker 「备注」 field is deprecated. Do not use --share-note, --note-file, "
+                    + "or MCP note/shareNote. Use --html/--html-file for Detail HTML, or qkagent apply "
+                    + "for styled action pages."));
+            }
+
+            var introHtml = ActionPublishIntro.ResolveDetailHtml(context.DetailHtml);
             if (context.IsPublic && context.SubmitReview && string.IsNullOrWhiteSpace(introHtml))
             {
                 issues.Add(Issue(
                     "MISSING_DETAIL",
                     "detailHtml",
-                    "Public publish submits the action for library review and requires a short action "
-                    + "page intro (--html/--html-file or --share-note/--note-file). "
-                    + "Use --no-submit-review to skip."));
+                    "Public publish submits the action for library review and requires action page "
+                    + "intro HTML (--html/--html-file). Use --no-submit-review to skip."));
             }
         }
 

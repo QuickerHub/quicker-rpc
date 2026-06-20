@@ -36,6 +36,14 @@ public sealed class StepRunnerSearchItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<StepRunnerControlFieldMatch>? ControlFields { get; set; }
 
+    /// <summary>Visible input param keys for the matched control mode (or all when no control).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? InputParamKeys { get; set; }
+
+    /// <summary>Visible output param keys for the matched control mode (or all when no control).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? OutputParamKeys { get; set; }
+
     /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }

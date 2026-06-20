@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   buildActivityBatchSummary,
   type ActivitySegmentItem,
+  type ReasoningSegmentItem,
+  type ToolUiPartAnalysis,
 } from "./tool-part-layout";
 import { ReasoningPart } from "./ReasoningPart";
 import { readToolCallId } from "@/lib/workspace-tool-auto-open";
@@ -16,6 +18,58 @@ type ActivityBatchGroupProps = {
   items: ActivitySegmentItem[];
 };
 
+type VisibleActivityRow =
+  | { kind: "reasoning-run"; items: ReasoningSegmentItem[] }
+  | { kind: "tool"; item: ToolUiPartAnalysis };
+
+const ACTIVITY_VIRTUAL_TAIL = 10;
+const ACTIVITY_VIRTUALIZE_AT = ACTIVITY_VIRTUAL_TAIL + 8;
+const ACTIVITY_DEVIRTUALIZE_AT = ACTIVITY_VIRTUAL_TAIL + 4;
+
+function groupVisibleActivityRows(
+  items: ActivitySegmentItem[],
+): VisibleActivityRow[] {
+  const rows: VisibleActivityRow[] = [];
+  let reasoningRun: ReasoningSegmentItem[] = [];
+
+  const flushReasoning = () => {
+    if (reasoningRun.length === 0) return;
+    rows.push({ kind: "reasoning-run", items: reasoningRun });
+    reasoningRun = [];
+  };
+
+  for (const item of items) {
+    if (item.kind === "reasoning") {
+      reasoningRun.push({ part: item.part, index: item.index });
+      continue;
+    }
+    flushReasoning();
+    rows.push({ kind: "tool", item });
+  }
+  flushReasoning();
+  return rows;
+}
+
+function buildActivityBatchScrollKey(items: ActivitySegmentItem[]): string {
+  const tail = items.slice(-ACTIVITY_VIRTUAL_TAIL - 2);
+  return tail
+    .map((item) => {
+      if (item.kind === "reasoning") {
+        const text =
+          "text" in item.part && typeof item.part.text === "string"
+            ? item.part.text.length
+            : 0;
+        const state =
+          "state" in item.part && typeof item.part.state === "string"
+            ? item.part.state
+            : "";
+        return `r:${item.index}:${state}:${text}`;
+      }
+      return `t:${item.index}:${item.state}:${item.isRunning ? 1 : 0}`;
+    })
+    .join("|");
+}
+
 export function ActivityBatchGroup({
   messageId,
   items,
@@ -23,19 +77,37 @@ export function ActivityBatchGroup({
   const summary = useMemo(() => buildActivityBatchSummary(items), [items]);
   const batchNeedsAttention = summary.needsAttention;
   const [userOpen, setUserOpen] = useState(true);
+  const virtualizedRef = useRef(false);
 
   const batchRunning = items.some(
     (item) => item.kind === "tool" && item.isRunning,
   );
-  const ACTIVITY_VIRTUAL_TAIL = 10;
   const shouldVirtualizeActivity =
-    batchRunning && items.length > ACTIVITY_VIRTUAL_TAIL + 4;
+    batchRunning
+    && (virtualizedRef.current
+      ? items.length > ACTIVITY_DEVIRTUALIZE_AT
+      : items.length > ACTIVITY_VIRTUALIZE_AT);
+  if (batchRunning) {
+    virtualizedRef.current = shouldVirtualizeActivity;
+  } else {
+    virtualizedRef.current = false;
+  }
+
   const omittedActivityCount = shouldVirtualizeActivity
     ? items.length - ACTIVITY_VIRTUAL_TAIL
     : 0;
   const visibleActivityItems = shouldVirtualizeActivity
     ? items.slice(-ACTIVITY_VIRTUAL_TAIL)
     : items;
+  const visibleRows = useMemo(
+    () => groupVisibleActivityRows(visibleActivityItems),
+    [visibleActivityItems],
+  );
+  const scrollTailKey = useMemo(
+    () => buildActivityBatchScrollKey(items),
+    [items],
+  );
+
   const batchErr = items.some(
     (item) => item.kind === "tool" && item.state === "output-error",
   );
@@ -57,7 +129,7 @@ export function ActivityBatchGroup({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [batchActive, items, visibleActivityItems]);
+  }, [batchActive, scrollTailKey]);
 
   useEffect(() => {
     if (forcedOpen) return;
@@ -98,24 +170,24 @@ export function ActivityBatchGroup({
             另有 {omittedActivityCount} 步已省略（流式加载中）
           </div>
         ) : null}
-        {visibleActivityItems.map((item) => {
-          if (item.kind === "reasoning") {
-            const key = `reasoning-${messageId}-${item.index}`;
+        {visibleRows.map((row) => {
+          if (row.kind === "reasoning-run") {
+            const key = row.items.map((item) => item.index).join("-");
             return (
               <ReasoningPart
-                key={key}
-                items={[{ part: item.part, index: item.index }]}
+                key={`reasoning-${messageId}-${key}`}
+                items={row.items}
               />
             );
           }
 
-          const toolCallId = readToolCallId(item.part);
+          const toolCallId = readToolCallId(row.item.part);
           return (
             <ToolPart
-              key={toolCallId ?? `tool-${messageId}-${item.index}`}
+              key={toolCallId ?? `tool-${messageId}-${row.item.index}`}
               messageId={messageId}
-              partIndex={item.index}
-              part={item.part}
+              partIndex={row.item.index}
+              part={row.item.part}
               inBatch
             />
           );

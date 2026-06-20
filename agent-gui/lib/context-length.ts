@@ -1,4 +1,7 @@
-import type { AgentUIMessage } from "@/lib/chat-types";
+import type { AgentUIMessage, TurnContextReport } from "@/lib/chat-types";
+import { reconcileTurnContextReportWithApiUsage } from "@/lib/agent-harness/context-report";
+
+export { reconcileTurnContextReportWithApiUsage };
 
 /** Model context window label from token catalog (e.g. 272K). */
 export function formatContextWindowLabel(tokenLimit: number): string {
@@ -38,6 +41,34 @@ export function getLatestContextUsage(
       meta.totalTokens ?? (inputTokens + outputTokens > 0 ? inputTokens + outputTokens : 0);
 
     return { inputTokens, outputTokens, totalTokens };
+  }
+  return null;
+}
+
+export type ContextReportCategoryStyle = {
+  id: string;
+  color: string;
+};
+
+export const CONTEXT_REPORT_CATEGORY_STYLES: ContextReportCategoryStyle[] = [
+  { id: "system", color: "var(--ad-accent-blue, #3b82f6)" },
+  { id: "tools", color: "var(--ad-accent-purple, #8b5cf6)" },
+  { id: "conversation", color: "var(--ad-accent-green, #22c55e)" },
+  { id: "summarized", color: "var(--ad-accent-amber, #f59e0b)" },
+];
+
+export function getLatestContextReport(
+  messages: AgentUIMessage[],
+): TurnContextReport | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    const report = message.metadata?.contextReport;
+    if (!report) continue;
+    return reconcileTurnContextReportWithApiUsage(
+      report,
+      message.metadata?.inputTokens,
+    );
   }
   return null;
 }

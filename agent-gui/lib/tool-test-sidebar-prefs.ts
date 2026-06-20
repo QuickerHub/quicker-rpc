@@ -10,6 +10,7 @@ const VALID_SIDEBAR_TABS = new Set<ToolTestSidebarTab>([
   "tools",
   "prompt",
   "prompt-chat",
+  "quickerbench",
   "auto-fix",
   "launcher",
   "action-trace",

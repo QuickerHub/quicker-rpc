@@ -64,6 +64,23 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
+function findPostPatchVerification(
+  trace: readonly AgentEvalToolCall[],
+): boolean {
+  return trace.some((call) => {
+    if (call.toolName === "workspace_program" && inputAction(call) === "diagnostics") {
+      return true;
+    }
+    if (
+      call.toolName === "qkrpc_action_debug"
+      || call.toolName === "qkrpc_action_run"
+    ) {
+      return true;
+    }
+    return false;
+  });
+}
+
 function recoveryActionInputAction(
   recoveryDecision?: Record<string, unknown>,
 ): string | undefined {
@@ -184,7 +201,7 @@ export function evaluateTraceRubric(
       const risk = typeof turnState.risk === "string" ? turnState.risk : "";
       const recommendedToolIds = stringArray(turnState.recommendedToolIds);
 
-      if (options.source === "authoring" && intent !== "action_authoring") {
+      if (options.source === "authoring" && !options.readOnly && intent !== "action_authoring") {
         violations.push(
           `E: runtime intent expected action_authoring, got ${intent || "(missing)"}`,
         );
@@ -193,6 +210,7 @@ export function evaluateTraceRubric(
       if (
         options.source === "authoring"
         && options.chatMode !== "launcher"
+        && !options.readOnly
         && !recommendedToolIds.includes("workspace_program")
       ) {
         violations.push("E: runtime recommended tools missing workspace_program");
@@ -215,16 +233,15 @@ export function evaluateTraceRubric(
 
     if (patchIdx >= 0) {
       const afterPatch = trace.slice(patchIdx + 1);
-      const sawDiagnostics = afterPatch.some(
-        (call) =>
-          call.toolName === "workspace_program"
-          && inputAction(call) === "diagnostics",
-      );
-      if (!sawDiagnostics) {
+      const sawVerification = findPostPatchVerification(afterPatch);
+      if (!sawVerification) {
         const recoveryAction = recoveryActionInputAction(recoveryDecision);
-        if (kind !== "next_action" || recoveryAction !== "diagnostics") {
+        if (
+          kind !== "next_action"
+          || (recoveryAction !== "diagnostics" && recoveryAction !== "debug")
+        ) {
           violations.push(
-            "E: runtime recovery should recommend diagnostics after workspace_program patch",
+            "E: runtime recovery should recommend diagnostics or debug after workspace_program patch",
           );
         }
       }

@@ -91,6 +91,20 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
     description: "browser status — needs browser-runtime",
   },
   {
+    toolName: "browser_to_action",
+    group: "network",
+    input: {
+      source: "recordings",
+      recordings: [
+        {
+          source: "browser",
+          input: { action: "navigate", url: "https://example.com" },
+        },
+      ],
+    },
+    description: "Convert explicit browser recording entries to action step draft",
+  },
+  {
     toolName: "dev_frontend_check",
     group: "runtime",
     input: { clearCaptured: false, paths: ["/tool-test"] },
@@ -156,6 +170,13 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
     input: { timeoutSeconds: 5, intervalSeconds: 1 },
   },
   {
+    toolName: "quicker_trigger",
+    group: "settings",
+    requiresQkrpc: true,
+    input: { action: "events", query: "url" },
+    description: "List trigger event types matching url keyword",
+  },
+  {
     toolName: "quicker_settings",
     group: "settings",
     requiresQkrpc: true,
@@ -170,6 +191,26 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
     },
   },
   {
+    toolName: "StrReplace",
+    group: "workspace",
+    writes: true,
+    input: {
+      path: ".local/tool-test-suite.txt",
+      oldString: "tool-test-suite-ok",
+      newString: "tool-test-suite-patched",
+    },
+    description: "Patch scratch file — run Write suite first or create .local/tool-test-suite.txt",
+  },
+  {
+    toolName: "task",
+    group: "runtime",
+    input: {
+      agent: "tool-test-echo",
+      prompt: "Reply with exactly: tool-test-ok",
+    },
+    description: "Bundled tool-test-echo subagent — text-only echo",
+  },
+  {
     toolName: "Grep",
     group: "workspace",
     input: {
@@ -178,6 +219,23 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
       path: "agent-gui/lib",
       head_limit: 5,
     },
+  },
+  {
+    toolName: "Read",
+    group: "workspace",
+    input: {
+      path: "agent-gui/package.json",
+      startLine: 1,
+      endLine: 12,
+    },
+  },
+  {
+    toolName: "user_browser",
+    group: "network",
+    requiresQkrpc: true,
+    optional: true,
+    input: { action: "tabs" },
+    description: "List user browser tabs — needs Quicker Connector extension",
   },
   {
     toolName: "web_search",

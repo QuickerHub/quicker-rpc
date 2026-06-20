@@ -1,0 +1,16 @@
+{
+  "id": "csv-text-sum",
+  "version": 1,
+  "initialVars": {
+    "csvText": "name,amount\na,10\nb,20\nc,5"
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "ok": "True",
+      "rowCount": "3",
+      "amountSum": "35",
+      "result": "3,35"
+    }
+  }
+}

@@ -6,8 +6,9 @@ using System.Text.RegularExpressions;
 namespace QuickerRpc.AgentModel.Catalog;
 
 /// <summary>
-/// Parsed step-runner search: legacy whitespace-AND, or advanced <c>|</c> (OR) and <c>*</c> (wildcard).
-/// Step-runner keyword parser: legacy AND, or | OR and * wildcards.
+/// Parsed step-runner search: whitespace-AND for legacy queries; when AND returns no hits,
+/// <see cref="StepRunnerCatalogMapper"/> retries tokens as OR. Explicit <c>|</c> (OR branches)
+/// and <c>*</c> wildcards use advanced syntax.
 /// </summary>
 public sealed class StepRunnerSearchQuery
 {
@@ -32,6 +33,26 @@ public sealed class StepRunnerSearchQuery
     {
         var raw = (keyword ?? string.Empty).Trim();
         return raw.Length > 0 && raw.All(static c => c == '*');
+    }
+
+    /// <summary>Whitespace-separated tokens from a keyword (lowercased).</summary>
+    public static string[] GetWhitespaceTokens(string? keyword) => SplitLegacyPatterns(keyword ?? string.Empty);
+
+    public static bool CanTryOrTokenFallback(string? keyword, StepRunnerSearchQuery query)
+    {
+        if (query.IsAdvanced || query.IsEmpty || query.LegacyPatterns.Length < 2)
+        {
+            return false;
+        }
+
+        var raw = (keyword ?? string.Empty).Trim();
+        return raw.Length > 0 && raw.IndexOf('|') < 0 && raw.IndexOf('*') < 0;
+    }
+
+    public static string ToOrTokenFallbackKeyword(string? keyword)
+    {
+        var tokens = SplitLegacyPatterns(keyword ?? string.Empty);
+        return tokens.Length == 0 ? string.Empty : string.Join("|", tokens);
     }
 
     public static StepRunnerSearchQuery Parse(string? keyword)

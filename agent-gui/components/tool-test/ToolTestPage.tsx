@@ -732,6 +732,13 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
     storeToolTestSidebarTab(tab);
   }, []);
 
+  const applyWorkingDirectory = useCallback(
+    (cwd: string) => {
+      updateStore(setWorkingDirectory(getChatStoreSnapshotSync(), cwd));
+    },
+    [updateStore],
+  );
+
   const sidebarTabs = (
     <ToolTestSidebarTabs
       activeTab={sidebarTab}

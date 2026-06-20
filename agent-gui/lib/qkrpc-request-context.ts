@@ -10,8 +10,30 @@ export type QkrpcRequestContext = {
   lastUserText?: string;
   /** Serialized LlmSelection for nested agents (task tool). */
   llmSelectionRaw?: string;
+  /** Chat thread id for artifact/history naming. */
+  threadId?: string;
+  /** Workspace-relative artifact root (default .local/agent-artifacts). */
+  artifactDir?: string;
   /** Set when launcher_resolve returns a direct-eligible next step. */
   launcherResolveDirectNext?: LauncherResolveAgentNext | null;
+  /** QuickerBench / isolated eval — block action library search. */
+  benchMode?: boolean;
+  /** workspace_program patch succeeded earlier in this turn. */
+  programPatchedThisTurn?: boolean;
+  /** qkrpc_action_create succeeded earlier in this turn. */
+  actionCreatedThisTurn?: boolean;
+  /** workspace_program write_data/edit_data succeeded after create this turn. */
+  programDataEditedThisTurn?: boolean;
+  /** docs tool calls this user turn. */
+  docsCallCountThisTurn?: number;
+  /** actionId from qkrpc_action_create this turn. */
+  createdActionIdThisTurn?: string;
+  /** qkrpc_step_runner_search calls this turn. */
+  stepRunnerSearchCountThisTurn?: number;
+  /** workspace_program data.json edits after latest patch this turn. */
+  editAfterPatchCountThisTurn?: number;
+  /** qkrpc connectivity failed — call qkrpc_wait before other qkrpc tools. */
+  qkrpcConnectivityBlockedThisTurn?: boolean;
 };
 
 export const qkrpcRequestContext = new AsyncLocalStorage<QkrpcRequestContext>();
@@ -34,6 +56,18 @@ export function getRequestLastUserText(): string | undefined {
 
 export function getRequestLlmSelectionRaw(): string | undefined {
   return qkrpcRequestContext.getStore()?.llmSelectionRaw;
+}
+
+export function getRequestThreadId(): string | undefined {
+  return qkrpcRequestContext.getStore()?.threadId;
+}
+
+export function getRequestArtifactDir(): string | undefined {
+  return qkrpcRequestContext.getStore()?.artifactDir;
+}
+
+export function getRequestBenchMode(): boolean {
+  return qkrpcRequestContext.getStore()?.benchMode === true;
 }
 
 export function getLauncherResolveDirectNext():
@@ -72,6 +106,9 @@ export type AgentRequestContext = {
   chatMode?: ChatMode;
   lastUserText?: string;
   llmSelectionRaw?: string;
+  threadId?: string;
+  artifactDir?: string;
+  benchMode?: boolean;
 };
 
 function buildRequestContext(ctx: AgentRequestContext): QkrpcRequestContext {
@@ -81,20 +118,39 @@ function buildRequestContext(ctx: AgentRequestContext): QkrpcRequestContext {
     chatMode: ctx.chatMode,
     lastUserText: ctx.lastUserText?.trim() || undefined,
     llmSelectionRaw: ctx.llmSelectionRaw?.trim() || undefined,
+    threadId: ctx.threadId?.trim() || undefined,
+    artifactDir: ctx.artifactDir?.trim() || undefined,
+    benchMode: ctx.benchMode === true,
     launcherResolveDirectNext: null,
   };
+}
+
+function mergeAgentRequestContext(ctx: AgentRequestContext): QkrpcRequestContext {
+  const parent = qkrpcRequestContext.getStore();
+  const next: QkrpcRequestContext = { ...parent, ...buildRequestContext(ctx) };
+  if (parent) {
+    next.programPatchedThisTurn = parent.programPatchedThisTurn;
+    next.actionCreatedThisTurn = parent.actionCreatedThisTurn;
+    next.programDataEditedThisTurn = parent.programDataEditedThisTurn;
+    next.docsCallCountThisTurn = parent.docsCallCountThisTurn;
+    next.createdActionIdThisTurn = parent.createdActionIdThisTurn;
+    next.stepRunnerSearchCountThisTurn = parent.stepRunnerSearchCountThisTurn;
+    next.editAfterPatchCountThisTurn = parent.editAfterPatchCountThisTurn;
+    next.qkrpcConnectivityBlockedThisTurn = parent.qkrpcConnectivityBlockedThisTurn;
+  }
+  return next;
 }
 
 export function runWithAgentRequestContext<T>(
   ctx: AgentRequestContext,
   fn: () => T,
 ): T {
-  return qkrpcRequestContext.run(buildRequestContext(ctx), fn);
+  return qkrpcRequestContext.run(mergeAgentRequestContext(ctx), fn);
 }
 
 export async function runWithAgentRequestContextAsync<T>(
   ctx: AgentRequestContext,
   fn: () => Promise<T>,
 ): Promise<T> {
-  return qkrpcRequestContext.run(buildRequestContext(ctx), fn);
+  return qkrpcRequestContext.run(mergeAgentRequestContext(ctx), fn);
 }

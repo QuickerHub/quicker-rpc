@@ -1,4 +1,4 @@
-# quicker-rpc — Agent Guidelines
+
 
 > 遵循 [AGENTS.md 开放格式](https://agents.md)：面向 coding agent 的操作说明；人类贡献者请读 [README.md](README.md)。
 

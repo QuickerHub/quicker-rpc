@@ -391,9 +391,9 @@ function WorkspaceFileEditorRowInner({
       />
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
-    {preview ? (
+    {preview && popup.open ? (
       <FileEditorPreviewPopup
-        open={popup.open}
+        open
         onClose={popup.closePopup}
         path={preview.path}
         content={preview.content}
@@ -407,9 +407,9 @@ function WorkspaceFileEditorRowInner({
         input={input}
         output={output}
       />
-    ) : (
+    ) : popup.open ? (
       <ToolResultPopup
-        open={popup.open}
+        open
         onClose={popup.closePopup}
         title={displayName}
         subtitle={meta}
@@ -419,7 +419,7 @@ function WorkspaceFileEditorRowInner({
         errorText={errorText}
         followTail={running}
       />
-    )}
+    ) : null}
     </>
   );
 }

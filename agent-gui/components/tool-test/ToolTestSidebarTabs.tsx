@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 export type ToolTestSidebarTab =
   | "tools"
   | "prompt"
   | "prompt-chat"
+  | "quickerbench"
   | "auto-fix"
   | "launcher"
   | "action-trace"
@@ -23,6 +25,7 @@ type TabDef = {
 
 const TABS: TabDef[] = [
   { id: "prompt-chat", label: "对话", title: "Prompt 与多轮对话" },
+  { id: "quickerbench", label: "Bench", title: "QuickerBench 隔离任务评测" },
   { id: "tools", label: "工具", title: "工具调用套件" },
   { id: "prompt", label: "标题", title: "set_thread_title 标题测试" },
   { id: "launcher", label: "启动器", title: "启动器：Agent / Resolve / Intent" },
@@ -90,6 +93,20 @@ export function ToolTestSidebarTabs({
     >
       {TABS.map((tab) => {
         const selected = activeTab === tab.id;
+        if (tab.id === "quickerbench") {
+          return (
+            <Link
+              key={tab.id}
+              href="/bench"
+              role="tab"
+              aria-selected={false}
+              className="tool-test-sidebar-tabs__btn"
+              title={tab.title}
+            >
+              {tab.label}
+            </Link>
+          );
+        }
         return (
           <button
             key={tab.id}

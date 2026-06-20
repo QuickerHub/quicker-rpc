@@ -1,3 +1,5 @@
+using QuickerRpc.AgentModel.XAction.Project;
+
 namespace QuickerRpc.Console.Mcp;
 
 internal static class QkrpcMcpSubprogramExecutor
@@ -46,22 +48,40 @@ internal static class QkrpcMcpSubprogramExecutor
             .ConfigureAwait(false);
     }
 
-    internal static Task<string> CreateAsync(
+    internal static async Task<string> CreateAsync(
         QkrpcMcpRuntime runtime,
         string name,
         string? description,
         string? icon,
+        string? dataJson,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return Task.FromResult(ValidationError("name is required"));
+            return ValidationError("name is required");
         }
 
-        return runtime.InvokeOpAsync(
+        if (!string.IsNullOrWhiteSpace(dataJson)
+            && !QuickerProjectFiles.TryParseDataRoot(dataJson, out _, out var dataError))
+        {
+            return ValidationError(dataError ?? "Invalid dataJson.");
+        }
+
+        var createJson = await runtime.InvokeOpAsync(
             "subprogram.create",
             QkrpcMcpJson.ToElement(new { name = name.Trim(), description, icon }),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            return await QkrpcMcpWorkspaceSync.AugmentSubprogramCreateAsync(
+                    runtime, createJson, dataJson, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ValidationError(ex.Message);
+        }
     }
 
     internal static Task<string> ExportAsync(

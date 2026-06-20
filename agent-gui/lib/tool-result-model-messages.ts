@@ -1,12 +1,17 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { isStructuredToolResult } from "@/lib/tool-result";
 
-function stripDisplayDataFromToolOutput(output: unknown): unknown {
+/** Tool result payload sent to the LLM (displayData stripped). Used by toModelOutput and history prep. */
+export function buildModelFacingToolOutput(output: unknown): unknown {
   if (!isStructuredToolResult(output) || output.displayData === undefined) {
     return output;
   }
   const { displayData: _display, ...modelFacing } = output;
   return modelFacing;
+}
+
+function stripDisplayDataFromToolOutput(output: unknown): unknown {
+  return buildModelFacingToolOutput(output);
 }
 
 /** Remove UI-only displayData before convertToModelMessages. */

@@ -2,6 +2,13 @@ import { tool } from "ai";
 import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
+import { buildAgentTurnState } from "@/lib/agent-turn-state";
+import { getRequestLastUserText } from "@/lib/qkrpc-request-context";
+import {
+  wasActionCreatedThisTurn,
+  wasProgramPatchedThisTurn,
+} from "@/lib/program-turn-context";
+import { groupMatchesByPath } from "@/lib/search-match-grouping";
 import {
   LEGACY_WORKSPACE_FILE_TOOL,
   READ_TOOL,
@@ -63,8 +70,8 @@ const actionSchema = z
     "read/write/edit/info/search/list under sidebar cwd; NOT Quicker program bodies (workspace_program).",
   );
 
-const PROGRAM_BODY_PATH_RE =
-  /^\.quicker\/(actions|subprograms)\/[^/]+\/(data\.json|files\/)/i;
+const QUICKER_PROGRAM_TREE_RE =
+  /^\.quicker\/(actions|subprograms)\//i;
 
 function validateGeneralWorkspacePath(
   inputPath: string,
@@ -74,12 +81,12 @@ function validateGeneralWorkspacePath(
   if (!trimmed) {
     return { ok: false, error: "path is required." };
   }
-  if (PROGRAM_BODY_PATH_RE.test(trimmed)) {
+  if (QUICKER_PROGRAM_TREE_RE.test(trimmed)) {
     return {
       ok: false,
       error:
-        "Quicker program bodies under .quicker/actions or .quicker/subprograms "
-        + "require workspace_program (read_data/file_*/patch), not workspace_file.",
+        "Quicker action/subprogram projects under .quicker/ require workspace_program "
+        + "(read_data/write_data/edit_data/file_*/patch), not Read/Write/StrReplace.",
     };
   }
   if (mode === "write" && trimmed.toLowerCase() === ".quicker") {
@@ -89,6 +96,37 @@ function validateGeneralWorkspacePath(
     };
   }
   return { ok: true };
+}
+
+function guardAuthoringHostRead(
+  path: string,
+): { ok: false; error: string } | null {
+  const userText = getRequestLastUserText()?.trim();
+  if (!userText) {
+    return null;
+  }
+  const turnState = buildAgentTurnState({
+    actionScope: { pinnedLatestAll: [] },
+    chatMode: "agent",
+    enabledToolIds: [READ_TOOL],
+    userText,
+  });
+  if (turnState.intent !== "action_authoring") {
+    return null;
+  }
+  if (!wasProgramPatchedThisTurn() && !wasActionCreatedThisTurn()) {
+    return null;
+  }
+  const normalized = path.trim().replace(/\\/g, "/");
+  if (normalized.startsWith(".local/")) {
+    return null;
+  }
+  return {
+    ok: false,
+    error:
+      "During action authoring after create/patch, use workspace_program and qkrpc_action_debug — "
+      + "Read is for .local/ scratch files only.",
+  };
 }
 
 type WorkspaceFileToolInput = {
@@ -142,6 +180,14 @@ async function executeWorkspaceFileTool(
           { action: "file-read", success: false, errorMessage: guard.error },
           false,
           guard.error,
+        );
+      }
+      const authoringGuard = guardAuthoringHostRead(path);
+      if (authoringGuard) {
+        return formatLocalToolResult(
+          { action: "file-read", success: false, errorMessage: authoringGuard.error },
+          false,
+          authoringGuard.error,
         );
       }
       const result = await readWorkspaceFile(path, {
@@ -342,7 +388,11 @@ async function executeWorkspaceFileTool(
         action: "file-search",
         success: true,
         path: result.path,
-        matches: result.matches,
+        matches: groupMatchesByPath(result.matches, (match) => ({
+          line: match.line,
+          column: match.column,
+          lineText: match.lineText,
+        })),
         truncated: result.truncated,
         filesScanned: result.filesScanned,
       });

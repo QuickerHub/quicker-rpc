@@ -1,5 +1,6 @@
 import "server-only";
 
+import { readWebSearchEnv } from "@/lib/web-search-config";
 import {
   clampWebSearchLimit,
   parseDuckDuckGoHtml,
@@ -22,9 +23,10 @@ const DEFAULT_USER_AGENT =
   + "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 function braveApiKey(): string | null {
+  const env = readWebSearchEnv();
   return (
-    process.env.BRAVE_SEARCH_API_KEY?.trim()
-    || process.env.WEB_SEARCH_API_KEY?.trim()
+    env.BRAVE_SEARCH_API_KEY?.trim()
+    || env.WEB_SEARCH_API_KEY?.trim()
     || null
   );
 }
@@ -107,7 +109,7 @@ async function searchTavily(
   query: string,
   limit: number,
 ): Promise<WebSearchResultItem[]> {
-  const apiKey = process.env.TAVILY_API_KEY?.trim();
+  const apiKey = readWebSearchEnv().TAVILY_API_KEY?.trim();
   if (!apiKey) {
     throw new Error("TAVILY_API_KEY is required for tavily provider");
   }
@@ -159,7 +161,7 @@ export async function runWebSearch(
   }
 
   const capped = clampWebSearchLimit(limit);
-  const provider = providerOverride ?? resolveWebSearchProvider();
+  const provider = providerOverride ?? resolveWebSearchProvider(readWebSearchEnv());
 
   let results: WebSearchResultItem[];
   switch (provider) {

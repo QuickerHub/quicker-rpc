@@ -6,8 +6,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { voicePluginRoot } from "../electron/quicker-agent-paths.mjs";
 import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "voice-runtime.json";
@@ -15,23 +15,7 @@ const DEFAULT_VOICE_PORT = 6016;
 
 /** @returns {string} */
 function resolveVoicePluginRoot() {
-  if (process.platform === "win32") {
-    const local = process.env.LOCALAPPDATA?.trim();
-    if (local) return join(local, "QuickerAgent", "plugins", "voice-asr");
-  }
-  if (process.platform === "darwin") {
-    return join(
-      homedir(),
-      "Library",
-      "Application Support",
-      "QuickerAgent",
-      "plugins",
-      "voice-asr",
-    );
-  }
-  const xdg = process.env.XDG_DATA_HOME?.trim();
-  const base = xdg ? xdg : join(homedir(), ".local", "share");
-  return join(base, "QuickerAgent", "plugins", "voice-asr");
+  return voicePluginRoot();
 }
 
 /** @returns {{ modelId: string, gpuAcceleration: boolean }} */

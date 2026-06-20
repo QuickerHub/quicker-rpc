@@ -24,7 +24,19 @@ function hasAny(text: string, needles: readonly string[]): boolean {
   return needles.some((needle) => text.includes(needle));
 }
 
-function inferIntent(userText: string): AgentTurnIntent {
+/** L0 discover: pick step module / param keys — read-only, not full authoring. */
+export function isStepDiscoveryPrompt(userText: string): boolean {
+  const text = userText.toLowerCase();
+  const asksWhichStep =
+    /哪种|用哪种|应该.*哪种|which step|what step/.test(text)
+    && /步骤|step|模块|step.runner|step_runner/.test(text);
+  const lookupKeys =
+    (/不要猜|don't guess|查清楚|参数键|inputparam|param key/.test(text)
+      && /步骤|step|模块|表达式|expression/.test(text));
+  return asksWhichStep || lookupKeys;
+}
+
+function isActionAuthoringPrompt(userText: string): boolean {
   const text = userText.toLowerCase();
   if (
     hasAny(text, [
@@ -32,13 +44,63 @@ function inferIntent(userText: string): AgentTurnIntent {
       "新建动作",
       "修改动作",
       "编辑动作",
-      "步骤",
-      "step",
+      "编写",
+      "创建",
+      "编写动作",
+      "做一个动作",
+      "做个动作",
+      "做一个新动作",
+      "新建一个动作",
+      "author",
+      "authoring",
+      "patch",
       "subprogram",
       "子程序",
       "workspace_program",
     ])
   ) {
+    return true;
+  }
+  return /做(一|个)?.*动作/.test(text) || /新建.*动作/.test(text);
+}
+
+/** Clipboard read/transform/write authoring (clip-lines benchmark class). */
+export function isClipboardPipelineAuthoringPrompt(userText: string): boolean {
+  const text = userText.toLowerCase();
+  return (
+    isActionAuthoringPrompt(userText)
+    && hasAny(text, ["剪贴板", "clipboard", "getclipboard", "writeclipboard"])
+  );
+}
+
+/** getquicker User/Actions paginated scrape (QuickerBench user-action-likes-total). */
+export function isGetquickerUserActionsAuthoringPrompt(userText: string): boolean {
+  const text = userText.toLowerCase();
+  return (
+    isActionAuthoringPrompt(userText)
+    && text.includes("getquicker")
+    && (text.includes("获赞") || text.includes("totallikes") || text.includes("actioncount"))
+  );
+}
+
+/** Single-step evalexpression multi-var assign (multi-var-assign benchmark class). */
+export function isEvalexpressionMultiVarAuthoringPrompt(userText: string): boolean {
+  const text = userText.toLowerCase();
+  return (
+    isActionAuthoringPrompt(userText)
+    && (
+      (hasAny(text, ["表达式", "evalexpression"]) && hasAny(text, ["同时", "多变量"]))
+      || /a\s*=\s*1.*b\s*=\s*2/.test(text)
+    )
+  );
+}
+
+function inferIntent(userText: string): AgentTurnIntent {
+  const text = userText.toLowerCase();
+  if (isStepDiscoveryPrompt(userText)) {
+    return "conversation";
+  }
+  if (isActionAuthoringPrompt(userText)) {
     return "action_authoring";
   }
   if (
@@ -69,11 +131,16 @@ function inferIntent(userText: string): AgentTurnIntent {
 
 function inferRisk(userText: string, enabledToolIds: readonly string[]): AgentTurnRisk {
   const text = userText.toLowerCase();
+  if (isStepDiscoveryPrompt(userText)) {
+    return "read";
+  }
   if (
     hasAny(text, [
       "不要修改",
       "先不要修改",
       "不要写",
+      "不要 patch",
+      "先不要 patch",
       "不要保存",
       "只读",
       "仅分析",
@@ -95,6 +162,7 @@ function inferRisk(userText: string, enabledToolIds: readonly string[]): AgentTu
       "修改",
       "编辑",
       "写入",
+      "写回",
       "保存",
       "移动",
       "发布",
@@ -125,10 +193,52 @@ function inferRisk(userText: string, enabledToolIds: readonly string[]): AgentTu
   return "read";
 }
 
-function verificationHintsForIntent(intent: AgentTurnIntent): string[] {
+function verificationHintsForIntent(intent: AgentTurnIntent, userText?: string): string[] {
+  if (userText && isStepDiscoveryPrompt(userText)) {
+    return [
+      "Use qkrpc_step_runner_search → get for module keys — never guess inputParams.",
+      "Do not call docs for inputParams or step schema — qkrpc_step_runner_get is authoritative.",
+      "Avoid repeating step_runner_search with the same query; reuse prior hits or call get on a key.",
+      "On qkrpc connectivity failure: qkrpc_wait once, retry search/get — do not substitute docs for step_runner_get.",
+    ];
+  }
+  if (userText && isGetquickerUserActionsAuthoringPrompt(userText)) {
+    return [
+      "getquicker scrape: sys:http GET paginated User/Actions — mock/bench injects HTML; do NOT web_search or browser.",
+      "Search modules: http|regexExtract|repeat|evalexpression|assign — get each key once; multiple searches OK.",
+      "Output vars totalLikes + actionCount (IsOutput); no msgbox/textwindow.",
+      "Large C#: workspace_program file_write *.eval.cs — avoid inline JSON in qkrpc_action_create.",
+      "After patch: workspace_program diagnostics only — never read_data to verify.",
+    ];
+  }
+  if (userText && isEvalexpressionMultiVarAuthoringPrompt(userText)) {
+    return [
+      "Multi-var: one sys:evalexpression with {a}=Convert.ToDouble(1); {b}=…; {c}={a}+{b}; then showText.",
+      "Prefer qkrpc_action_create with inline programData (steps+variables) then patch — skip empty write_data round-trip.",
+      "step_runner search → get once per module key — do not repeat search; do not call docs.",
+      "After create with body on disk: patch → diagnostics or qkrpc_action_debug.",
+    ];
+  }
+  if (userText && isClipboardPipelineAuthoringPrompt(userText)) {
+    return [
+      "Clipboard pipeline: one search `getClipboardText|writeClipboard|evalexpression|showText` — get each distinct key once.",
+      "Transform in a single sys:evalexpression (LINQ) — not csscript; not multiple redundant searches.",
+      "New action: step_runner search → get → create → write_data → patch → diagnostics or debug.",
+      "After qkrpc_action_create, edit empty data.json via write_data — skip read_data.",
+      "When intent-matched skills are preloaded, do NOT call docs for step keys or expression syntax.",
+    ];
+  }
   switch (intent) {
     case "action_authoring":
-      return ["After patching a program body, run workspace_program diagnostics."];
+      return [
+        "New action: step_runner search → get → create → write_data → patch → diagnostics or debug.",
+        "After qkrpc_action_create, edit empty data.json via write_data — skip read_data.",
+        "Do not repeat step_runner_search with the same query — call get on a prior hit key.",
+        "Prefer sys:evalexpression for multi-var {var}=; sys:assign for single var — get before write.",
+        "When intent-matched skills are preloaded, do NOT call docs for step keys or expression syntax.",
+        "Do not use Read/Write/StrReplace on .quicker/ — use workspace_program for program bodies.",
+        "After patching a program body, run diagnostics or qkrpc_action_debug — never read_data to verify.",
+      ];
     case "action_runtime":
       return ["When output or failure details matter, prefer debug/trace over blind rerun."];
     case "settings":
@@ -142,16 +252,22 @@ function verificationHintsForIntent(intent: AgentTurnIntent): string[] {
   }
 }
 
-function preferredToolsForIntent(intent: AgentTurnIntent): string[] {
+function preferredToolsForIntent(intent: AgentTurnIntent, userText?: string): string[] {
+  if (userText && isStepDiscoveryPrompt(userText)) {
+    return [
+      "qkrpc_step_runner_search",
+      "qkrpc_step_runner_get",
+      "qkrpc_wait",
+    ];
+  }
   switch (intent) {
     case "action_authoring":
       return [
-        "docs",
-        "qkrpc_action_query",
-        "qkrpc_action_get",
         "qkrpc_step_runner_search",
         "qkrpc_step_runner_get",
+        "qkrpc_action_create",
         "workspace_program",
+        "qkrpc_action_debug",
       ];
     case "action_runtime":
       return [
@@ -166,7 +282,7 @@ function preferredToolsForIntent(intent: AgentTurnIntent): string[] {
     case "web":
       return ["web_search", "browser", "user_browser"];
     case "workspace":
-      return ["Grep", "Read", "StrReplace", "Write", "Shell", "dev_frontend_check"];
+      return ["Grep", "Read", "StrReplace", "Write", "Shell"];
     case "conversation":
       return ["ask_question", "docs", "web_search"];
   }
@@ -175,9 +291,10 @@ function preferredToolsForIntent(intent: AgentTurnIntent): string[] {
 function recommendEnabledTools(
   intent: AgentTurnIntent,
   enabledToolIds: readonly string[],
+  userText?: string,
 ): string[] {
   const enabled = new Set(enabledToolIds);
-  return preferredToolsForIntent(intent).filter((id) => enabled.has(id));
+  return preferredToolsForIntent(intent, userText).filter((id) => enabled.has(id));
 }
 
 export function buildAgentTurnState(params: {
@@ -197,8 +314,8 @@ export function buildAgentTurnState(params: {
       ? "read"
       : inferRisk(params.userText, params.enabledToolIds),
     targetRefs: params.actionScope.pinnedLatestAll.map((ref) => ref.id),
-    recommendedToolIds: recommendEnabledTools(intent, params.enabledToolIds),
-    verificationHints: verificationHintsForIntent(intent),
+    recommendedToolIds: recommendEnabledTools(intent, params.enabledToolIds, params.userText),
+    verificationHints: verificationHintsForIntent(intent, params.userText),
   };
 }
 

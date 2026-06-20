@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import {
   extractMetadataFields,
   parseFrontmatterMd,
+  parseInheritList,
   parseToolList,
 } from "@/lib/agent-defs/frontmatter";
 import type {
@@ -64,6 +65,7 @@ export function parseSubagentDef(
     name,
     description,
     tools: parseToolList(fields.tools),
+    inherit: parseInheritList(fields.inherit),
     model: fields.model?.trim() || null,
     body: body.trim(),
     filePath,

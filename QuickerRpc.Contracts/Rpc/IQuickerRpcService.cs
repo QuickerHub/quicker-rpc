@@ -1077,7 +1077,7 @@ public sealed class QuickerRpcActionPublishRequest
 
     public string? Description { get; set; }
 
-    /// <summary>Share page intro (markdown).</summary>
+    /// <summary>Deprecated getquicker 「备注」 field; ignored and rejected by readiness when set.</summary>
     public string? Note { get; set; }
 
     /// <summary>

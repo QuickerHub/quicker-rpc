@@ -4,6 +4,7 @@ export type {
   AgentDefScope,
   AgentDefsCatalog,
   SubagentDef,
+  SubagentInherit,
   WorkspaceInstructions,
 } from "@/lib/agent-defs/types";
 
@@ -42,6 +43,14 @@ export {
   getSubagent,
   resetAgentDefsCache,
 } from "@/lib/agent-defs/discover.server";
+
+export {
+  formatWorkspaceInstructionsCompactBlock,
+  formatWorkspaceInstructionsForPrompt,
+  formatWorkspaceInstructionsFullBlock,
+  isWorkspaceRulesFullInPromptEnabled,
+  WORKSPACE_RULES_SUMMARY_CHARS,
+} from "@/lib/agent-defs/workspace-instructions-format";
 
 export {
   loadWorkspaceInstructions,

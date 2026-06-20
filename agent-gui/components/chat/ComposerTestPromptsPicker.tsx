@@ -110,7 +110,7 @@ export function ComposerTestPromptsPicker({
         id={panelId}
         className="composer-popup composer-test-prompts-panel composer-test-prompts-panel--portal"
         role="dialog"
-        aria-label="写动作样例 Prompt"
+        aria-label="QuickerBench 样例 Prompt"
         style={{
           position: "fixed",
           top: panelLayout.top,
@@ -122,9 +122,9 @@ export function ComposerTestPromptsPicker({
         }}
       >
         <div className="composer-test-prompts-panel__head">
-          <span className="composer-test-prompts-panel__title">写动作样例</span>
+          <span className="composer-test-prompts-panel__title">QuickerBench</span>
           <span className="composer-test-prompts-panel__hint">
-            稍复杂的编动作需求；点击即发送，走完整对话
+            子程序式 I/O 评测任务；点击即发送，可用 mock 断言验证
           </span>
         </div>
         <div className="composer-test-prompts-panel__scroll">
@@ -171,7 +171,7 @@ export function ComposerTestPromptsPicker({
             className="composer-test-prompts-panel__link"
             onClick={() => setOpen(false)}
           >
-            打开 /tool-test 完整套件
+            打开 /tool-test · 查看 mock 断言
           </Link>
         </div>
       </div>
@@ -187,11 +187,11 @@ export function ComposerTestPromptsPicker({
         aria-expanded={open}
         aria-controls={panelId}
         aria-haspopup="dialog"
-        title="写动作样例（点击发送）"
+        title="QuickerBench 样例（点击发送）"
         onClick={() => setOpen((v) => !v)}
       >
         <IconTestPrompts />
-        <span>样例</span>
+        <span>Bench</span>
       </button>
       {typeof document !== "undefined" && panel
         ? createPortal(panel, document.body)

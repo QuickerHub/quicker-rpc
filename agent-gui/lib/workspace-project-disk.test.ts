@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
 import {
+  bootstrapWorkspaceProjectOnCreate,
   emptyProgramDataJsonContent,
   materializeProgramDataJsonIfNeeded,
   writeEmptyProgramDataJsonIfMissing,
@@ -60,6 +61,34 @@ test("writeEmptyProgramDataJsonIfMissing is idempotent", async () => {
       assert.equal(second.ok, true);
       const raw = await readFile(join(root, projectDir, "data.json"), "utf8");
       assert.equal(raw, emptyProgramDataJsonContent());
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("bootstrapWorkspaceProjectOnCreate writes provided program data", async () => {
+  const root = await mkdtemp(join(tmpdir(), "qkrpc-create-data-"));
+  const actionId = "00000000-0000-0000-0000-000000000099";
+  const projectDir = `.quicker/actions/${actionId}`;
+  const info = `${JSON.stringify({ Id: actionId, Title: "demo" }, null, 2)}\n`;
+  const programData = {
+    steps: [{ stepKey: "sys:comment", inputParams: { text: "hello" } }],
+    variables: [{ key: "x", type: "text" }],
+  };
+  try {
+    await runWithQkrpcCwdAsync(root, async () => {
+      const written = await bootstrapWorkspaceProjectOnCreate(
+        projectDir,
+        info,
+        programData,
+      );
+      assert.equal(written.ok, true);
+      assert.equal(written.programDataWritten, true);
+      const raw = await readFile(join(root, projectDir, "data.json"), "utf8");
+      const parsed = JSON.parse(raw) as typeof programData;
+      assert.equal(parsed.steps.length, 1);
+      assert.equal(parsed.variables.length, 1);
     });
   } finally {
     await rm(root, { recursive: true, force: true });

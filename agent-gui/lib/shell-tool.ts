@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
-import { SHELL_TOOL } from "@/lib/host-tool-constants";
+import { SHELL_TOOL, SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import { summarizeShellRequest } from "@/lib/shell-policy";
 import { normalizeShellRunRequest } from "@/lib/shell-request-normalize";
 import { buildShellCombinedOutput } from "@/lib/shell-tool-view";
@@ -10,14 +10,12 @@ import {
   runShellRequest,
   shellPolicyRequiresApproval,
 } from "@/lib/shell-runner";
+import { attachShellOutputArtifact } from "@/lib/agent-harness/artifacts/shell-artifact";
 import {
   DEFAULT_SHELL_TIMEOUT_MS,
   MAX_SHELL_TIMEOUT_MS,
   type ShellRunRequest,
 } from "@/lib/shell-types";
-
-import { SHELL_TOOL } from "@/lib/host-tool-constants";
-import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 
 export { SHELL_TOOL, SHELL_EXEC_TOOL };
 
@@ -124,38 +122,62 @@ function toShellRequest(input: z.infer<typeof shellInputSchema>): ShellRunReques
   };
 }
 
-function formatShellToolResult(
+async function formatShellToolResult(
   input: z.infer<typeof shellInputSchema>,
   request: ShellRunRequest,
   result: Awaited<ReturnType<typeof runShellRequest>>,
+  options?: { toolCallId?: string },
 ) {
   const normalized = normalizeShellRunRequest(request);
   const summary = summarizeShellRequest(normalized);
   const output = buildShellCombinedOutput(result.stdout, result.stderr);
-  const data: Record<string, unknown> = {
+  const fullData: Record<string, unknown> = {
     commandLine: result.commandLine || summary,
   };
-  if (result.shell) data.shell = result.shell;
-  if (result.cwd) data.cwd = result.cwd;
+  if (result.shell) fullData.shell = result.shell;
+  if (result.cwd) fullData.cwd = result.cwd;
   if (result.durationMs != null && result.durationMs > 0) {
-    data.durationMs = result.durationMs;
+    fullData.durationMs = result.durationMs;
   }
-  if (result.timedOut) data.timedOut = true;
+  if (result.timedOut) fullData.timedOut = true;
   if (result.blocked) {
-    data.blocked = true;
-    if (result.blockReason) data.blockReason = result.blockReason;
+    fullData.blocked = true;
+    if (result.blockReason) fullData.blockReason = result.blockReason;
   }
-  if (output) data.output = output;
-  if (result.truncated) data.truncated = true;
+  if (output) fullData.output = output;
+  if (result.truncated) fullData.truncated = true;
+
+  let modelData = fullData;
+  const artifact = output
+    ? await attachShellOutputArtifact(output, { toolCallId: options?.toolCallId })
+    : null;
+  if (artifact) {
+    modelData = {
+      ...fullData,
+      output: artifact.tailPreview,
+      artifactRef: artifact.artifactRef,
+      bytesWritten: artifact.artifactRef.bytesWritten,
+      totalOutputChars: artifact.totalOutputChars,
+      readHint: artifact.readHint,
+      truncated: true,
+    };
+  }
+
+  const structured = formatLocalToolResult(
+    modelData,
+    result.ok,
+    result.ok ? undefined : result.stderr || result.blockReason || "shell command failed",
+  );
+
+  const withDisplay =
+    artifact != null
+      ? { ...structured, displayData: fullData }
+      : structured;
 
   return formatToolResultForAgent(
     SHELL_TOOL,
     input,
-    formatLocalToolResult(
-      data,
-      result.ok,
-      result.ok ? undefined : result.stderr || result.blockReason || "shell command failed",
-    ),
+    withDisplay,
   );
 }
 
@@ -168,7 +190,7 @@ export const SHELL_TOOL_DEF = tool({
     + "qkrpc and rg (ripgrep) are auto-added to PATH; prefer Grep or qkrpc tools over raw rg in Shell. "
     + "On connectivity_failure tell user — no shell ping/probe/serve/build.ps1 loops. "
     + "Always set description (UI label). command | script | scriptPath under cwd. "
-    + "Read-only (dotnet build, tests) auto-runs; writes/deletes need Confirm.",
+    + "Read-only (dotnet build, tests) auto-runs; workspace-local writes auto-run; remote/destructive need Confirm.",
   inputSchema: shellInputSchema,
   execute: async (
     input: z.infer<typeof shellInputSchema>,
@@ -177,7 +199,7 @@ export const SHELL_TOOL_DEF = tool({
     const request = toShellRequest(input);
     const sessionId = options?.toolCallId?.trim() || undefined;
     const result = await runShellRequest(request, { sessionId });
-    return formatShellToolResult(input, request, result);
+    return formatShellToolResult(input, request, result, { toolCallId: sessionId });
   },
   needsApproval: async (input: z.infer<typeof shellInputSchema>) =>
     shellPolicyRequiresApproval(toShellRequest(input)),

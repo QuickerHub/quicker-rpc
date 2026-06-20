@@ -10,6 +10,15 @@ import {
 } from "@/lib/subprogram-project-workflow";
 import { attachToolFeedback, formatLocalToolResult } from "@/lib/tool-result";
 import {
+  markProgramDataEditedThisTurn,
+  markProgramPatchedThisTurn,
+  mustWriteDataAfterCreateThisTurn,
+  incrementProgramEditAfterPatchCount,
+  wasActionCreatedThisTurn,
+  wasProgramPatchedThisTurn,
+} from "@/lib/program-turn-context";
+import { groupMatchesByPath } from "@/lib/search-match-grouping";
+import {
   editWorkspaceFile,
   getWorkspaceFileInfo,
   grepWorkspacePath,
@@ -46,9 +55,190 @@ type ReadSlice = {
   maxLines?: number;
 };
 
+function formatMustWriteDataAfterCreateFeedback(
+  input: ParsedWorkspaceProgramInput,
+  blockedAction: "read_data" | "patch",
+): Record<string, unknown> {
+  const message =
+    blockedAction === "patch"
+      ? "Cannot patch empty data.json immediately after create — write steps via write_data first."
+      : "Skip read_data after create — empty data.json is already known; use write_data next.";
+  return attachToolFeedback(
+    formatLocalToolResult(
+      {
+        action: blockedAction === "patch" ? "program-patch" : "program-data-read",
+        success: false,
+        errorMessage: message,
+      },
+      false,
+      message,
+    ),
+    {
+      summary: message,
+      retryable: false,
+      nextActions: [
+        {
+          tool: "workspace_program",
+          priority: "required",
+          reason: "Write steps into empty data.json before patch.",
+          input: {
+            action: "write_data",
+            target: input.target,
+            id: input.id,
+            subProgramId: input.subProgramId,
+          },
+        },
+      ],
+    },
+  );
+}
+
+function formatSkipReadGoPatchAfterCreateFeedback(
+  input: ParsedWorkspaceProgramInput,
+): Record<string, unknown> {
+  const message =
+    "Create already wrote data.json — patch next to save to Quicker; skip read_data.";
+  return attachToolFeedback(
+    formatLocalToolResult(
+      {
+        action: "program-data-read",
+        success: false,
+        errorMessage: message,
+      },
+      false,
+      message,
+    ),
+    {
+      summary: message,
+      retryable: false,
+      nextActions: [
+        {
+          tool: "workspace_program",
+          priority: "required",
+          reason: "Save created program body to Quicker.",
+          input: {
+            action: "patch",
+            target: input.target,
+            id: input.id,
+            subProgramId: input.subProgramId,
+          },
+        },
+      ],
+    },
+  );
+}
+
+function blockReadDataAfterCreate(
+  input: ParsedWorkspaceProgramInput,
+): Record<string, unknown> | null {
+  if (!wasActionCreatedThisTurn() || wasProgramPatchedThisTurn()) {
+    return null;
+  }
+  if (mustWriteDataAfterCreateThisTurn()) {
+    return formatMustWriteDataAfterCreateFeedback(input, "read_data");
+  }
+  return formatSkipReadGoPatchAfterCreateFeedback(input);
+}
+
+function blockExcessiveEditAfterPatch(
+  input: ParsedWorkspaceProgramInput,
+  diskAction: "edit_data" | "write_data",
+  editCountAfterPatch: number,
+): Record<string, unknown> | null {
+  if (editCountAfterPatch < 3) {
+    return null;
+  }
+  const message =
+    "Too many data.json edits after patch — run qkrpc_action_debug, fix only if needed, then patch once.";
+  return attachToolFeedback(
+    formatLocalToolResult(
+      {
+        action: diskAction === "edit_data" ? "program-data-edit" : "program-data-write",
+        success: false,
+        errorMessage: message,
+      },
+      false,
+      message,
+    ),
+    {
+      summary: message,
+      retryable: false,
+      nextActions: [
+        {
+          tool: "qkrpc_action_debug",
+          priority: "required",
+          reason: "Verify runtime behavior before more disk edits.",
+          input: { id: input.id },
+        },
+      ],
+    },
+  );
+}
+
+function attachEditAfterPatchHintIfNeeded(
+  response: Record<string, unknown>,
+  editCountAfterPatch: number,
+): Record<string, unknown> {
+  if (
+    editCountAfterPatch < 2
+    || !wasProgramPatchedThisTurn()
+    || !isStructuredToolResult(response)
+    || !response.ok
+  ) {
+    return response;
+  }
+  return attachToolFeedback(response, {
+    summary:
+      `${editCountAfterPatch} data.json edits after patch — prefer qkrpc_action_debug over edit loops.`,
+    retryable: false,
+  });
+}
+
+function blockReadDataAfterPatch(
+  input: ParsedWorkspaceProgramInput,
+): Record<string, unknown> | null {
+  if (!wasProgramPatchedThisTurn()) {
+    return null;
+  }
+  const message =
+    "read_data after patch is unnecessary — use diagnostics or qkrpc_action_debug instead.";
+  return attachToolFeedback(
+    formatLocalToolResult(
+      {
+        action: "program-data-read",
+        success: false,
+        errorMessage: message,
+      },
+      false,
+      message,
+    ),
+    {
+      summary: message,
+      retryable: false,
+      nextActions: [
+        {
+          tool: "qkrpc_action_debug",
+          priority: "recommended",
+          reason: "Verify program behavior after patch.",
+          input: { id: input.id },
+        },
+      ],
+    },
+  );
+}
+
 export async function executeWorkspaceProgramReadData(
   input: ParsedWorkspaceProgramInput & ReadSlice & { mode?: "content" | "summary" },
 ): Promise<Record<string, unknown>> {
+  const blocked = blockReadDataAfterCreate(input);
+  if (blocked) {
+    return blocked;
+  }
+  const blockedAfterPatch = blockReadDataAfterPatch(input);
+  if (blockedAfterPatch) {
+    return blockedAfterPatch;
+  }
+
   if (input.mode === "summary") {
     const parsed = parseWorkspaceProgramTarget(input);
     if (!parsed.ok) {
@@ -102,7 +292,7 @@ export async function executeWorkspaceProgramReadData(
   }
 
   const syncNote = formatProgramAutoSyncedNote(resolved.autoSynced);
-  return formatLocalToolResult({
+  const base = formatLocalToolResult({
     action: "program-data-read",
     success: true,
     target: resolved.resolved.target.kind,
@@ -119,11 +309,21 @@ export async function executeWorkspaceProgramReadData(
     readHint: result.readHint,
     ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
   });
+
+  return base;
 }
 
 export async function executeWorkspaceProgramWriteData(
-  input: ParsedWorkspaceProgramInput & { content: string },
+  input: ParsedWorkspaceProgramInput & { content: string; contentNormalized?: boolean },
 ): Promise<Record<string, unknown>> {
+  const editCountAfterPatch = wasProgramPatchedThisTurn()
+    ? incrementProgramEditAfterPatchCount()
+    : 0;
+  const editGuard = blockExcessiveEditAfterPatch(input, "write_data", editCountAfterPatch);
+  if (editGuard) {
+    return editGuard;
+  }
+
   const resolved = await resolveWorkspaceProgramDataForTool(input);
   if (!resolved.ok) {
     return formatLocalToolResult(
@@ -168,7 +368,16 @@ export async function executeWorkspaceProgramWriteData(
     ...buildValuePrefixWarningFields(prefixWarnings),
   });
   maybeScheduleSyntaxLintAfterDiskEdit(input, response);
-  return response;
+  markProgramDataEditedThisTurn();
+  const withHint = attachEditAfterPatchHintIfNeeded(response, editCountAfterPatch);
+  if (!input.contentNormalized || !isStructuredToolResult(withHint) || !withHint.ok) {
+    return withHint;
+  }
+  return attachToolFeedback(withHint, {
+    summary:
+      "Program data object normalized to wire shape (key/varType/default, stepRunnerKey/inputParams).",
+    retryable: false,
+  });
 }
 
 export async function executeWorkspaceProgramEditData(
@@ -178,6 +387,14 @@ export async function executeWorkspaceProgramEditData(
     replaceAll?: boolean;
   },
 ): Promise<Record<string, unknown>> {
+  const editCountAfterPatch = wasProgramPatchedThisTurn()
+    ? incrementProgramEditAfterPatchCount()
+    : 0;
+  const editGuard = blockExcessiveEditAfterPatch(input, "edit_data", editCountAfterPatch);
+  if (editGuard) {
+    return editGuard;
+  }
+
   const resolved = await resolveWorkspaceProgramDataForTool(input);
   if (!resolved.ok) {
     return formatLocalToolResult(
@@ -235,7 +452,8 @@ export async function executeWorkspaceProgramEditData(
     ...buildValuePrefixWarningFields(prefixWarnings),
   });
   maybeScheduleSyntaxLintAfterDiskEdit(input, response);
-  return response;
+  markProgramDataEditedThisTurn();
+  return attachEditAfterPatchHintIfNeeded(response, editCountAfterPatch);
 }
 
 export async function executeWorkspaceProgramFileInfo(
@@ -298,7 +516,11 @@ export async function executeWorkspaceProgramFileSearch(
   }
   return formatLocalToolResult(
     programProjectFileToolSuccess("file-search", resolved.resolved, {
-      matches: result.matches,
+      matches: groupMatchesByPath(result.matches, (match) => ({
+        line: match.line,
+        column: match.column,
+        lineText: match.lineText,
+      })),
       truncated: result.truncated,
       filesScanned: result.filesScanned,
     }),
@@ -526,15 +748,25 @@ export async function executeWorkspaceProgramPatch(
       parsed.error,
     );
   }
+
+  if (mustWriteDataAfterCreateThisTurn()) {
+    const summary = await getProgramProjectDataSummary(parsed.target);
+    if (summary.ok && (summary.summary.stepCount ?? 0) === 0) {
+      return formatMustWriteDataAfterCreateFeedback(input, "patch");
+    }
+  }
+
   const result = await saveProgramFromWorkspace(parsed.target, { force: input.force });
   maybeScheduleSyntaxLintAfterPatch(parsed.target, result);
+  markProgramPatchedThisTurn();
   return attachToolFeedback(result, {
-    summary: "Program patch saved; diagnostics should be checked before reporting completion.",
+    summary:
+      "Program patch saved — run diagnostics or qkrpc_action_debug next; do NOT read_data to verify.",
     nextActions: [
       {
         tool: "workspace_program",
-        priority: "recommended",
-        reason: "Verify the patched program body for expression/script syntax issues.",
+        priority: "required",
+        reason: "Verify patched program body for syntax issues.",
         input: {
           action: "diagnostics",
           target: input.target,
@@ -542,6 +774,12 @@ export async function executeWorkspaceProgramPatch(
           subProgramId: input.subProgramId,
           waitMs: 30000,
         },
+      },
+      {
+        tool: "qkrpc_action_debug",
+        priority: "recommended",
+        reason: "Alternative: run with trace when step output matters.",
+        input: { id: input.id },
       },
     ],
   });

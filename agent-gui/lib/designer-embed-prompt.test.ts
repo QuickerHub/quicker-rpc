@@ -4,9 +4,28 @@ import {
   formatDesignerEmbedContextForSystem,
   mergeDesignerDefaultActionScope,
   parseActionDesignerChatContext,
+  resolveActionDesignerForChatTurn,
 } from "@/lib/designer-embed-prompt";
 
 describe("designer-embed-prompt", () => {
+  test("resolveActionDesignerForChatTurn requires scoped embed", () => {
+    const ref = { entityId: "test2", isSubProgram: false };
+    assert.equal(
+      resolveActionDesignerForChatTurn({
+        designerEmbedScoped: false,
+        actionDesigner: ref,
+      }),
+      undefined,
+    );
+    assert.deepEqual(
+      resolveActionDesignerForChatTurn({
+        designerEmbedScoped: true,
+        actionDesigner: ref,
+      }),
+      ref,
+    );
+  });
+
   test("parseActionDesignerChatContext accepts entity id", () => {
     const parsed = parseActionDesignerChatContext({
       entityId: "  abc-def  ",

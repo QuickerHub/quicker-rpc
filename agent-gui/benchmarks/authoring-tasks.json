@@ -348,6 +348,27 @@
       "verify": { "mockProfile": "conditional-http-cache", "manual": ["有 url 时 body 有内容"] }
     },
     {
+      "id": "conditional-http-textwindow",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "条件 HTTP + 文本窗口",
+      "hint": "create 后直接 write_data；conditional-http pattern",
+      "prerequisites": ["needs_network"],
+      "axes": ["A", "B", "C", "D", "E"],
+      "userPrompt": "新建动作：变量 url（文本，默认空）。若 url 非空则 GET 该地址并把响应体写入 body；否则提示「请先设置 url」。有 url 时用文本窗口显示 body 前 200 字符。",
+      "rubric": {
+        "must": [
+          "sys:if 或等效空 url 分支",
+          "非空分支 HTTP GET 写入 body",
+          "空 url 有用户可见提示",
+          "非空时文本窗口展示 body 片段"
+        ],
+        "should": ["create 后 write_data，不 read 空 data.json", "docs get quicker-authoring-conditional-http 而非多次 docs search"],
+        "mustNot": ["qkrpc_action_create 把 info 传成字符串", "patch 后 qkrpc_action_get full"]
+      },
+      "verify": { "mockProfile": "conditional-http-cache", "manual": ["有 url 时窗口/变量可见响应片段"] }
+    },
+    {
       "id": "regression-no-get-after-patch",
       "tier": "L2",
       "category": "regression",

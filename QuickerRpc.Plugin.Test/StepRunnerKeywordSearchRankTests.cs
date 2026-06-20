@@ -288,6 +288,7 @@ public sealed class StepRunnerKeywordSearchRankTests
         var detail = StepRunnerCatalogMapper.GetDetail(catalog, "sys:assign");
         Assert.IsTrue(detail.Success);
         Assert.IsNotNull(detail.Schema);
+        StringAssert.Contains(detail.Schema!.AgentGuidance!, "single-var");
     }
 
     [TestMethod]

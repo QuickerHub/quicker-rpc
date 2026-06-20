@@ -1,7 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
-import { extractTailLinesPreview } from "@/lib/preview-tail-lines";
+import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import { guessFileLanguage } from "@/lib/workspace-file-tool";
 
 const DEFAULT_TAIL_LINES = 4;
@@ -12,30 +11,36 @@ type StreamingCodeTailPreviewProps = {
   maxLines?: number;
 };
 
+function streamingPreviewMaxHeight(maxLines: number): string {
+  return `calc(0.72rem * 1.45 * ${maxLines} + 0.35rem)`;
+}
+
 function StreamingCodeTailPreviewInner({
   path,
   content,
   maxLines = DEFAULT_TAIL_LINES,
 }: StreamingCodeTailPreviewProps) {
-  const { tail, omitted } = useMemo(
-    () => extractTailLinesPreview(content, maxLines),
-    [content, maxLines],
-  );
+  const scrollRef = useRef<HTMLDivElement>(null);
   const lang = useMemo(() => guessFileLanguage(path) ?? "plain", [path]);
 
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [content]);
+
   return (
-    <>
-      {omitted > 0 ? (
-        <div className="file-snapshot-omitted" aria-hidden>
-          … {omitted} 行已省略 …
-        </div>
-      ) : null}
+    <div
+      ref={scrollRef}
+      className="file-editor-streaming-scroll"
+      style={{ maxHeight: streamingPreviewMaxHeight(maxLines) }}
+    >
       <pre
         className={`file-editor-streaming-pre file-editor-streaming-pre--${lang}`}
       >
-        {tail}
+        {content}
       </pre>
-    </>
+    </div>
   );
 }
 

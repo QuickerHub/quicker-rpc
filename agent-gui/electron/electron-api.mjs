@@ -16,3 +16,4 @@ export const WebContentsView = api.WebContentsView;
 export const screen = api.screen;
 export const globalShortcut = api.globalShortcut;
 export const nativeImage = api.nativeImage;
+export const shell = api.shell;

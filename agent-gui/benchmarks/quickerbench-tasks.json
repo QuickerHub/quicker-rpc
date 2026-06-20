@@ -1,0 +1,74 @@
+{
+  "$schema": "./quickerbench-tasks.schema.json",
+  "version": 1,
+  "title": "QuickerBench — agent task completion",
+  "description": "Subprogram-style I/O tasks only: action params in, output vars out. No msgbox/form/selectfile as primary path. Verified via mock initialVars + outputVars assert.",
+  "tiers": {
+    "Q3": "External integration (paginated web)"
+  },
+  "ioDefaults": {
+    "forbiddenStepKeys": [
+      "sys:msgbox",
+      "sys:textwindow",
+      "sys:form",
+      "sys:selectfile",
+      "sys:selectdirectory"
+    ]
+  },
+  "passRules": {
+    "mockAssertRequired": true,
+    "oracleScriptPreferred": true,
+    "outputVarsOnly": true,
+    "note": "Pass when qkrpc action run --mock --assert succeeds. Oracle values maintained by scripts/quickerbench/*.mjs (no reference action required)."
+  },
+  "coreTaskIds": [
+    "user-action-likes-total"
+  ],
+  "tasks": [
+    {
+      "id": "user-action-likes-total",
+      "tier": "Q3",
+      "category": "web-scrape",
+      "label": "统计用户动作获赞总数",
+      "userPrompt": "做一个 Quicker 动作，不要弹窗或文本窗口。运行时用 `{quicker_in_param}` 接收 getquicker 用户分享页链接（完整 URL 或 `User/Actions/…` 路径）。抓取该用户全部公开动作（含分页），把获赞总数写入输出变量 `totalLikes`，动作个数写入 `actionCount`。",
+      "ioContract": {
+        "inputs": [{ "key": "quicker_in_param", "type": "string", "required": true }],
+        "outputs": [
+          { "key": "totalLikes", "type": "number" },
+          { "key": "actionCount", "type": "number" }
+        ]
+      },
+      "deliverable": {
+        "titlePattern": "_quickerbench_*",
+        "minSteps": 2,
+        "requiredStepKeys": ["sys:http"]
+      },
+      "runInput": {
+        "initialVars": {
+          "quicker_in_param": "https://getquicker.net/User/Actions/113342-Cea"
+        }
+      },
+      "oracle": {
+        "script": "scripts/quickerbench/oracle-user-action-likes-total.mjs",
+        "fixtureSet": "getquicker-user-actions/113342-cea",
+        "outputVars": {
+          "totalLikes": 9270,
+          "actionCount": 117
+        },
+        "tolerance": {
+          "totalLikes": 0,
+          "actionCount": 0
+        },
+        "snapshot": {
+          "capturedAt": "2026-06-19",
+          "note": "Computed by scripts/quickerbench/oracle-user-action-likes-total.mjs from frozen fixtures."
+        }
+      },
+      "verify": {
+        "mockProfile": "user-action-likes-total",
+        "modes": ["mock-oracle"]
+      },
+      "skills": ["http", "html-parse", "pagination", "loop", "aggregate"]
+    }
+  ]
+}

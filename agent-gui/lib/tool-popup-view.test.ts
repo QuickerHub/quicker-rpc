@@ -100,10 +100,10 @@ test("docsToolHasPopupVisual false before structured search output", () => {
   );
 });
 
-test("resolveToolPopupBodyView coerces visual to source when unavailable", () => {
-  assert.equal(resolveToolPopupBodyView("visual", false), "source");
+test("resolveToolPopupBodyView coerces visual to model when unavailable", () => {
+  assert.equal(resolveToolPopupBodyView("visual", false), "model");
   assert.equal(resolveToolPopupBodyView("visual", true), "visual");
-  assert.equal(resolveToolPopupBodyView("source", false), "source");
+  assert.equal(resolveToolPopupBodyView("model", false), "model");
 });
 
 test("parseDocsSearchResult reads indexed hits", () => {

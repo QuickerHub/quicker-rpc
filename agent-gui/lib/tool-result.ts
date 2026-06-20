@@ -14,28 +14,14 @@ export type ToolFeedback = {
   userDecisionRequired?: boolean;
 };
 
-export type AgentViewRefetch = {
-  tool: string;
-  reason: "pagination" | "detail_mode" | "full_trace" | "full_content";
-  inputPatch: Record<string, unknown>;
-};
-
-export type AgentViewMeta = {
-  agentSummary: string;
-  anchors?: Record<string, string>;
-  sizeEstimate?: { chars: number; tokens: number };
-  refetch?: AgentViewRefetch;
-};
-
 export type StructuredToolResult = {
   ok: boolean;
   exitCode: number;
   source?: "local" | "qkrpc";
   /** Payload sent to the LLM (may be compressed). */
   data: unknown;
-  /** Full payload for UI popups; stripped before convertToModelMessages. */
+  /** Full payload for UI popups; stripped via Tool.toModelOutput before LLM. */
   displayData?: unknown;
-  agentView?: AgentViewMeta;
   stderr?: string;
   truncated?: boolean;
 } & ToolFeedback;

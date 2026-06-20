@@ -7,6 +7,11 @@ export type ShellPolicyVerdict = {
   requiresApproval: boolean;
 };
 
+export type ShellPolicyOptions = {
+  /** Resolved workspace cwd; enables auto-trust for local non-destructive writes/deletes. */
+  workspaceRoot?: string;
+};
+
 const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
   {
     pattern: /\bformat\s+[a-z]:/i,
@@ -70,9 +75,8 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
   },
 ];
 
-/** Delete / irreversible remote or repo mutations. */
-const DELETE_PATTERNS: RegExp[] = [
-  /\b(remove-item|rm|del|erase|rmdir|rd)\b/i,
+/** Delete / irreversible remote or repo mutations — always confirm. */
+const HIGH_RISK_REMOTE_PATTERNS: RegExp[] = [
   /\b(git\s+(push|clean|reset))\b/i,
   /\b(git\s+checkout\s+(-f|--force))\b/i,
   /\b(git\s+rebase)\b/i,
@@ -80,12 +84,31 @@ const DELETE_PATTERNS: RegExp[] = [
   /\b(docker\s+(rm|rmi|system\s+prune))\b/i,
 ];
 
-/** Local writes (files, moves, commits) — not plain read/query. */
+function isHighRiskDelete(text: string): boolean {
+  if (HIGH_RISK_REMOTE_PATTERNS.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+  if (!MILD_DELETE_PATTERNS.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+  return (
+    /\brm\s+-rf\b/i.test(text)
+    // Leading \b fails before "-" (space and "-" are both non-word).
+    || /(?:^|[\s|])(-recurse|-rf|--recursive)\b/i.test(text)
+  );
+}
+
+/** Local deletes (single file/dir) — auto-trust when scoped to workspace. */
+const MILD_DELETE_PATTERNS: RegExp[] = [
+  /\b(remove-item|rm|del|erase|rmdir|rd)\b/i,
+];
+
+/** Local writes (files, moves, commits) — auto-trust when scoped to workspace. */
 const WRITE_PATTERNS: RegExp[] = [
   /\b(set-content|out-file|add-content)\b/i,
-  /\b(move-item|rename-item)\b/i,
+  /\b(move-item|rename-item|copy-item)\b/i,
   /\b(new-item|mkdir|md)\b/i,
-  /\b(git\s+(commit|merge|pull))\b/i,
+  /\b(git\s+(commit|merge|pull|add))\b/i,
 ];
 
 /**
@@ -111,7 +134,21 @@ const READ_ONLY_SINGLE_LINE_PATTERNS: RegExp[] = [
   /^(write-output|echo)\b/i,
 ];
 
-const APPROVAL_PATTERNS: RegExp[] = [...DELETE_PATTERNS, ...WRITE_PATTERNS];
+const APPROVAL_PATTERNS: RegExp[] = [
+  ...HIGH_RISK_REMOTE_PATTERNS,
+  ...MILD_DELETE_PATTERNS,
+  ...WRITE_PATTERNS,
+  /(?:^|[\s|])(-recurse|-rf|--recursive)\b/i,
+];
+
+/** Paths outside the sidebar workspace — still require confirmation. */
+const OUTSIDE_WORKSPACE_PATH_PATTERNS: RegExp[] = [
+  /\$\{?env:(userprofile|programfiles|windir|systemroot|programdata|appdata)\}?/i,
+  /~[/\\]/,
+  /(^|[\s"'`(])\/(?:etc|usr|bin|var|home)\//i,
+  /\b\\\\[^\s"'`]+/,
+  /\b[a-z]:\\(?:windows|program files|programdata)\b/i,
+];
 
 function collectInspectText(request: ShellRunRequest): string {
   const parts = [
@@ -134,7 +171,58 @@ function isSingleLineReadOnly(text: string): boolean {
   return READ_ONLY_SINGLE_LINE_PATTERNS.some((pattern) => pattern.test(line));
 }
 
-export function evaluateShellPolicy(request: ShellRunRequest): ShellPolicyVerdict {
+function normalizePathForCompare(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+}
+
+function isPathUnderWorkspace(candidate: string, workspaceRoot: string): boolean {
+  const root = normalizePathForCompare(workspaceRoot);
+  const value = normalizePathForCompare(candidate);
+  return value === root || value.startsWith(`${root}/`);
+}
+
+/** True when command appears confined to the workspace (relative paths or paths under workspaceRoot). */
+export function isWorkspaceScopedShell(
+  text: string,
+  workspaceRoot: string | undefined,
+): boolean {
+  if (OUTSIDE_WORKSPACE_PATH_PATTERNS.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+
+  const root = workspaceRoot?.trim();
+
+  const drivePathPattern = /(?:^|[\s"'`(=])([a-z]:\\[^\s"'`);|&]+)/gi;
+  for (const match of text.matchAll(drivePathPattern)) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+    if (!root) {
+      return false;
+    }
+    if (!isPathUnderWorkspace(raw, root)) {
+      return false;
+    }
+  }
+
+  const posixAbsPattern = /(?:^|[\s"'`(=])(\/[^\s"'`);|&]+)/g;
+  for (const match of text.matchAll(posixAbsPattern)) {
+    const raw = match[1]?.trim();
+    if (!raw || raw === "/") continue;
+    if (!root) {
+      return false;
+    }
+    if (!isPathUnderWorkspace(raw, root)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function evaluateShellPolicy(
+  request: ShellRunRequest,
+  options?: ShellPolicyOptions,
+): ShellPolicyVerdict {
   const text = collectInspectText(request);
   if (!text.trim()) {
     return {
@@ -164,12 +252,22 @@ export function evaluateShellPolicy(request: ShellRunRequest): ShellPolicyVerdic
     };
   }
 
-  for (const pattern of DELETE_PATTERNS) {
+  const workspaceScoped = isWorkspaceScopedShell(text, options?.workspaceRoot);
+
+  if (isHighRiskDelete(text)) {
+    return {
+      allowed: true,
+      risk: "high",
+      requiresApproval: true,
+    };
+  }
+
+  for (const pattern of MILD_DELETE_PATTERNS) {
     if (pattern.test(text)) {
       return {
         allowed: true,
-        risk: "high",
-        requiresApproval: true,
+        risk: workspaceScoped ? "medium" : "high",
+        requiresApproval: !workspaceScoped,
       };
     }
   }
@@ -178,8 +276,8 @@ export function evaluateShellPolicy(request: ShellRunRequest): ShellPolicyVerdic
     if (pattern.test(text)) {
       return {
         allowed: true,
-        risk: "medium",
-        requiresApproval: true,
+        risk: workspaceScoped ? "low" : "medium",
+        requiresApproval: !workspaceScoped,
       };
     }
   }

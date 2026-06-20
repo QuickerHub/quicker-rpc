@@ -28,7 +28,7 @@ export const AGENT_VIEW_SCENARIOS: AgentViewScenario[] = [
   {
     id: "shell-large",
     label: "Shell 大输出",
-    description: "长 stdout 首尾压缩",
+    description: "长 stdout → Shell artifact（L1 裁剪默认关）",
     toolName: SHELL_TOOL,
     input: { description: "test", command: "echo x" },
     buildRaw: () => formatLocalToolResult({
@@ -39,7 +39,7 @@ export const AGENT_VIEW_SCENARIOS: AgentViewScenario[] = [
   {
     id: "write-large",
     label: "Write 大 content",
-    description: "写入结果省略全文 echo",
+    description: "写入结果不含 content echo",
     toolName: WRITE_TOOL,
     input: { path: ".local/out.txt", content: "y".repeat(AGENT_PAYLOAD_SOFT_CHARS + 400) },
     buildRaw: () => formatLocalToolResult({
@@ -54,7 +54,7 @@ export const AGENT_VIEW_SCENARIOS: AgentViewScenario[] = [
   {
     id: "grep-many",
     label: "Grep 多行长匹配",
-    description: "match content 截断",
+    description: "24 条返回 / 80 总命中 · 6 文件合并",
     toolName: GREP_TOOL,
     input: { pattern: "foo" },
     buildRaw: () => formatLocalToolResult({
@@ -64,9 +64,11 @@ export const AGENT_VIEW_SCENARIOS: AgentViewScenario[] = [
       searchPath: ".",
       outputMode: "content",
       matches: Array.from({ length: 24 }, (_, i) => ({
-        path: `f-${i}.ts`,
-        line: i,
-        content: "hit ".repeat(180),
+        path: `f-${Math.floor(i / 4)}.ts`,
+        hits: [{
+          line: i,
+          content: "hit ".repeat(180),
+        }],
       })),
       truncated: true,
       totalMatches: 80,

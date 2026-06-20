@@ -33,13 +33,17 @@ public sealed class QkrpcMcpSubprogramTools
         QkrpcMcpSubprogramExecutor.GetAsync(_runtime, id, returnMode, cancellationToken);
 
     [McpServerTool(Name = "qkrpc_subprogram_create")]
-    [Description("Create a new global subprogram. Edit .quicker/ with host file tools → workspace_program patch.")]
+    [Description(
+        "Create a new global subprogram and bootstrap .quicker/subprograms/{id}/. "
+        + "Optional dataJson: { steps, variables } writes program body directly. "
+        + "Edit .quicker/ with host file tools → workspace_program patch.")]
     public Task<string> QkrpcSubprogramCreate(
         string name,
         string? description = null,
         string? icon = null,
+        string? dataJson = null,
         CancellationToken cancellationToken = default) =>
-        QkrpcMcpSubprogramExecutor.CreateAsync(_runtime, name, description, icon, cancellationToken);
+        QkrpcMcpSubprogramExecutor.CreateAsync(_runtime, name, description, icon, dataJson, cancellationToken);
 
     [McpServerTool(Name = "qkrpc_subprogram_export")]
     [Description("Export subprogram to a directory path.")]

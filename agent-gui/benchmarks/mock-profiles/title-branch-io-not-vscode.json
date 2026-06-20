@@ -1,0 +1,14 @@
+{
+  "id": "title-branch-io-not-vscode",
+  "version": 1,
+  "initialVars": {
+    "title": "Notepad"
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "isVscode": "False",
+      "branch": "skip"
+    }
+  }
+}

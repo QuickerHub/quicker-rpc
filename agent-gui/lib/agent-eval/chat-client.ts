@@ -13,6 +13,7 @@ export type AgentGuiChatRequest = {
   llmSelection?: string;
   chatMode?: "agent" | "launcher";
   chatId?: string;
+  benchMode?: boolean;
   signal?: AbortSignal;
 };
 
@@ -54,6 +55,7 @@ export async function postAgentGuiChat(
     workingDirectory: request.workingDirectory,
     chatMode: request.chatMode ?? "agent",
     llmSelection: request.llmSelection?.trim() || undefined,
+    benchMode: request.benchMode === true ? true : undefined,
   };
 
   let response: Response;

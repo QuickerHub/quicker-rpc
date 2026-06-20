@@ -4,7 +4,7 @@ import {
   estimateMessageTokens,
   estimatePartTokens,
 } from "@/lib/context-token-estimate";
-import { buildMicrocompactPayloadFromAgentView } from "@/lib/tool-result-agent-view";
+import { buildMicrocompactPayload } from "@/lib/tool-result-agent-view";
 
 const COMPACT_PLACEHOLDER = "[compact: large tool output omitted; see recent turns]";
 
@@ -30,8 +30,8 @@ function compactToolOutput(
     return part.output;
   }
   const out = part.output as Record<string, unknown>;
-  if ("agentView" in out || typeof out.summary === "string") {
-    return buildMicrocompactPayloadFromAgentView(out);
+  if (typeof out.summary === "string" || out.truncated === true) {
+    return buildMicrocompactPayload(out);
   }
   const compact: Record<string, unknown> = {
     compact: true,

@@ -68,11 +68,15 @@ export async function parseAgentGuiChatStream(
     }),
   );
 
+  let streamError: string | undefined;
+
   try {
     for await (const uiMessage of readUIMessageStream({
       stream: chunkStream,
+      terminateOnError: true,
       onError: (error) => {
-        throw error;
+        streamError =
+          error instanceof Error ? error.message : String(error);
       },
     })) {
       if (uiMessage.role === "assistant") {
@@ -80,16 +84,20 @@ export async function parseAgentGuiChatStream(
       }
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      ok: false,
-      messages,
-      error: `stream parse failed: ${message}`,
-    };
+    const caught = err instanceof Error ? err.message : String(err);
+    streamError = streamError ?? caught;
   }
 
   if (lastAssistant) {
     messages.push(lastAssistant);
+  }
+
+  if (streamError) {
+    return {
+      ok: false,
+      messages,
+      error: streamError,
+    };
   }
 
   return {

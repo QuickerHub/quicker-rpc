@@ -19,6 +19,7 @@ import { ShellToolPopupBody } from "./ShellToolPopupBody";
 import { isShellToolName } from "@/lib/host-tool-constants";
 import { parseDocsToolInlineResult } from "@/lib/docs-tool-view";
 import { DocsToolOutputView } from "./DocsToolResultViews";
+import { ToolModelPayloadPanel } from "./ToolModelPayloadPanel";
 
 export type { ToolPopupViewMode };
 
@@ -44,32 +45,15 @@ export function ToolPopupBody({
   const hasOutput = output !== undefined;
   if (!hasInput && !hasOutput && !errorText) return null;
 
-  if (view === "source") {
+  if (view === "model") {
     return (
-      <div className="tool-body tool-body--debug tool-body--popup-source">
-        {hasInput ? (
-          <ToolPayloadView
-            label="请求"
-            value={input}
-            rawOnly
-            toolName={toolName}
-            input={input}
-            output={output}
-          />
-        ) : null}
-        {hasOutput ? (
-          <ToolPayloadView
-            label="结果"
-            value={output}
-            rawOnly
-            toolName={toolName}
-            input={input}
-            output={output}
-            followTail={followTail}
-          />
-        ) : null}
-        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
-      </div>
+      <ToolModelPayloadPanel
+        toolName={toolName}
+        input={input}
+        output={output}
+        errorText={errorText}
+        followTail={followTail}
+      />
     );
   }
 

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildThreadRunCompleteToast } from "@/lib/thread-run-complete-notify";
+import {
+  buildThreadRunCompleteToast,
+  resolveThreadRunCompleteNotifyChannel,
+} from "@/lib/thread-run-complete-notify";
 
 test("buildThreadRunCompleteToast: success when idle with no pending input", () => {
   const toast = buildThreadRunCompleteToast({
@@ -41,4 +44,12 @@ test("buildThreadRunCompleteToast: error state", () => {
   });
   assert.equal(toast.kind, "error");
   assert.match(toast.body, /出错/);
+});
+
+test("resolveThreadRunCompleteNotifyChannel: in-app when focused", () => {
+  assert.equal(resolveThreadRunCompleteNotifyChannel(true), "in-app");
+});
+
+test("resolveThreadRunCompleteNotifyChannel: native when unfocused", () => {
+  assert.equal(resolveThreadRunCompleteNotifyChannel(false), "native");
 });

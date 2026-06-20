@@ -110,3 +110,22 @@ export function parseToolList(raw: string | undefined): string[] {
   if (!trimmed) return [];
   return trimmed.split(/\s+/).filter(Boolean);
 }
+
+const SUBAGENT_INHERIT_TOKENS = new Set(["skills", "workspace", "all"]);
+
+/** Parse comma/space-separated inherit list for subagents. */
+export function parseInheritList(raw: string | undefined): Array<
+  "skills" | "workspace" | "all"
+> {
+  const trimmed = raw?.trim().toLowerCase() ?? "";
+  if (!trimmed) return [];
+  if (trimmed === "all") return ["all"];
+  const tokens = trimmed.split(/[\s,]+/).filter(Boolean);
+  const out: Array<"skills" | "workspace" | "all"> = [];
+  for (const token of tokens) {
+    if (!SUBAGENT_INHERIT_TOKENS.has(token)) continue;
+    const typed = token as "skills" | "workspace" | "all";
+    if (!out.includes(typed)) out.push(typed);
+  }
+  return out;
+}

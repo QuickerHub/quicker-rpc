@@ -1,7 +1,6 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { useThrottledStreamValue } from "@/lib/use-throttled-stream-value";
 import { TerminalOutputEditor } from "@/components/terminal/TerminalOutputEditor";
 import {
   ToolDetailsIconButton,
@@ -73,8 +72,6 @@ function ShellToolRowInner({
       useCommandLine: false,
     });
   }, [view?.blocked, view?.blockReason, commandLine, combined, isLive]);
-  const editorContent = useThrottledStreamValue(rawEditorContent, isLive);
-
   return (
     <>
       <div
@@ -85,9 +82,9 @@ function ShellToolRowInner({
             <ToolDetailsIconButton onClick={popup.openPopup} />
           </div>
         ) : null}
-        {useBlockTitle || isLive || editorContent.trim() ? (
+        {useBlockTitle || isLive || rawEditorContent.trim() ? (
           <TerminalOutputEditor
-            content={editorContent}
+            content={rawEditorContent}
             commandLine={commandLine}
             shellKind={shellKind}
             running={isLive}
@@ -107,17 +104,19 @@ function ShellToolRowInner({
         ) : null}
         {errorText ? <pre className="tool-error">{errorText}</pre> : null}
       </div>
-      <ToolResultPopup
-        open={popup.open}
-        onClose={popup.closePopup}
-        title={displayTitle}
-        subtitle={meta}
-        toolName="Shell"
-        input={input}
-        output={output}
-        errorText={errorText}
-        followTail={isLive}
-      />
+      {popup.open ? (
+        <ToolResultPopup
+          open
+          onClose={popup.closePopup}
+          title={displayTitle}
+          subtitle={meta}
+          toolName="Shell"
+          input={input}
+          output={output}
+          errorText={errorText}
+          followTail={isLive}
+        />
+      ) : null}
     </>
   );
 }

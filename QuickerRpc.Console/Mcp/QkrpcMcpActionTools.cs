@@ -58,14 +58,16 @@ public sealed class QkrpcMcpActionTools
     [McpServerTool(Name = "qkrpc_action_create")]
     [Description(
         "Create a new Quicker action and bootstrap .quicker/actions/{id}/. "
-        + "title required. After create edit .quicker/ with host file tools → workspace_program patch — do not re-get.")]
+        + "title required. Optional dataJson: { steps, variables } writes program body directly. "
+        + "After create edit .quicker/ with host file tools → workspace_program patch — do not re-get.")]
     public Task<string> QkrpcActionCreate(
         string title,
         string? description = null,
         string? icon = null,
         string? profileId = null,
+        string? dataJson = null,
         CancellationToken cancellationToken = default) =>
-        QkrpcMcpActionExecutor.CreateAsync(_runtime, title, description, icon, profileId, cancellationToken);
+        QkrpcMcpActionExecutor.CreateAsync(_runtime, title, description, icon, profileId, dataJson, cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_edit")]
     [Description("Open one action in Quicker desktop designer UI.")]
@@ -109,11 +111,12 @@ public sealed class QkrpcMcpActionTools
             _runtime, id, profile, row, col, swap, onNoEmptySlot, onOccupiedSlot, cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_publish")]
-    [Description("Publish/share one action to getquicker.net.")]
+    [Description("Publish/share one action to getquicker.net. Use html for Detail intro; note is deprecated and rejected.")]
     public Task<string> QkrpcActionPublish(
         string id,
         string? title = null,
         string? description = null,
+        [Description("DEPRECATED — rejected. Use html for Detail HTML.")]
         string? note = null,
         string? html = null,
         string? tags = null,

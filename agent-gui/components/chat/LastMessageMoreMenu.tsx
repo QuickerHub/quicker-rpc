@@ -16,13 +16,16 @@ import { composerPopupPortalClassNames } from "@/lib/composer-popup-classes";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 
 const MENU_WIDTH_PX = 168;
-const MENU_MAX_HEIGHT_PX = 160;
+const MENU_MAX_HEIGHT_PX = 200;
 
 type LastMessageMoreMenuProps = {
   message: AgentUIMessage;
   userTextOverride?: string;
   canFork?: boolean;
   onFork?: () => void;
+  canExport?: boolean;
+  exportDisabled?: boolean;
+  onExport?: () => void;
 };
 
 function IconMoreHorizontal() {
@@ -66,6 +69,9 @@ export function LastMessageMoreMenu({
   userTextOverride,
   canFork = false,
   onFork,
+  canExport = false,
+  exportDisabled = false,
+  onExport,
 }: LastMessageMoreMenuProps) {
   const copyText = extractMessageCopyText(message, userTextOverride);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -147,7 +153,13 @@ export function LastMessageMoreMenu({
     });
   }, [canFork, closeMenu, onFork]);
 
-  if (!copyText && !canFork) return null;
+  const handleExport = useCallback(() => {
+    if (!canExport || exportDisabled || !onExport) return;
+    onExport();
+    closeMenu();
+  }, [canExport, closeMenu, exportDisabled, onExport]);
+
+  if (!copyText && !canFork && !canExport) return null;
 
   const menu =
     menuOpen && menuLayout ? (
@@ -186,6 +198,17 @@ export function LastMessageMoreMenu({
             onClick={handleFork}
           >
             分叉对话
+          </button>
+        ) : null}
+        {canExport ? (
+          <button
+            type="button"
+            className="msg-more-menu-item"
+            role="menuitem"
+            disabled={exportDisabled}
+            onClick={handleExport}
+          >
+            {exportDisabled ? "导出中…" : "导出对话"}
           </button>
         ) : null}
       </div>

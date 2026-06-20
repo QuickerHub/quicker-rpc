@@ -4,6 +4,7 @@ import {
   LAUNCHER_TOOL_IDS,
   defaultLauncherToolIds,
 } from "@/lib/chat-mode";
+import { filterDevOnlyToolIds } from "@/lib/dev-agent-tools";
 
 export {
   defaultLauncherToolIds,
@@ -31,6 +32,8 @@ export type ToolMeta = {
   category: ToolCategoryId;
   /** Shown in tool picker; destructive tools always need approval when enabled. */
   description?: string;
+  /** Hidden from ToolSelector but tracked in registry / coverage. */
+  pickerHidden?: boolean;
 };
 
 export const TOOL_GROUP_LABELS: Record<ToolGroupId, string> = {
@@ -60,11 +63,19 @@ export const TOOL_CATEGORY_ORDER_BY_GROUP: Record<ToolGroupId, ToolCategoryId[]>
 
 export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   {
+    id: "list_tools",
+    label: "工具目录",
+    group: "read",
+    category: "docs",
+    description: "工具发现：index→目录；routing→意图表；get→完整 schema",
+    pickerHidden: true,
+  },
+  {
     id: "docs",
     label: "编写指南",
     group: "read",
     category: "docs",
-    description: "编写指南：search→snippet（主）；get→全文工作流；index→目录",
+    description: "编写指南：已知 topic→get（如 action-data-schema）；未知关键词→search snippet；index→目录",
   },
   {
     id: "Shell",
@@ -109,7 +120,8 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "前端检查",
     group: "read",
     category: "runtime",
-    description: "检测 agent-gui 本地 dev 页面/编译/浏览器报错（开发模式）",
+    description: "本地 dev：检测 agent-gui 页面/编译/浏览器报错（生产包不可用）",
+    pickerHidden: true,
   },
   {
     id: "qkrpc_wait",
@@ -189,11 +201,11 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "get：首次同步到 .quicker 工作区",
   },
   {
-    id: "qkrpc_action_edit",
-    label: "打开动作设计器",
+    id: "qkrpc_designer_open",
+    label: "打开设计器",
     group: "write",
     category: "action",
-    description: "在 Quicker 桌面打开动作设计器",
+    description: "在 Quicker 桌面打开动作或全局子程序设计器 UI",
   },
   {
     id: "qkrpc_action_edit_var",
@@ -244,12 +256,12 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     category: "runtime",
     description: "弹出悬浮窗运行",
   },
-  {
+    {
     id: "qkrpc_action_create",
     label: "创建动作",
     group: "write",
     category: "action",
-    description: "新建动作：仅 info.json 字段 title/description/icon",
+    description: "新建动作：info.json + 可选 data.json（steps/variables）",
   },
   {
     id: "qkrpc_profile_create",
@@ -301,39 +313,25 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "get：首次同步到 .quicker 工作区",
   },
   {
-    id: "qkrpc_subprogram_export",
-    label: "导出子程序",
+    id: "qkrpc_subprogram_transfer",
+    label: "导入导出子程序",
     group: "write",
     category: "subprogram",
-    description: "导出到目录",
-  },
-  {
-    id: "qkrpc_subprogram_import",
-    label: "导入子程序",
-    group: "write",
-    category: "subprogram",
-    description: "从目录导入",
-  },
-  {
-    id: "qkrpc_subprogram_edit",
-    label: "打开子程序设计器",
-    group: "write",
-    category: "subprogram",
-    description: "Quicker 桌面 UI 编辑",
+    description: "direction=export/import：目录与全局子程序项目互转",
   },
   {
     id: "qkrpc_subprogram_create",
     label: "创建子程序",
     group: "write",
     category: "subprogram",
-    description: "新建并 bootstrap 工作区项目",
+    description: "新建并 bootstrap 工作区；可选 data.json（steps/variables）",
   },
   {
     id: "qkrpc_step_runner_search",
     label: "搜索步骤模块",
     group: "read",
     category: "catalog",
-    description: "查 StepRunner key（写步骤前必搜，禁止猜键名）",
+    description: "查 StepRunner key（空格先 AND，无结果自动 OR；写步骤前必搜）",
   },
   {
     id: "qkrpc_step_runner_get",
@@ -386,10 +384,33 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     category: "delete",
     description: "永久删除，需确认",
   },
+  {
+    id: "set_thread_title",
+    label: "会话标题",
+    group: "write",
+    category: "runtime",
+    description: "Agent 自动设置侧栏会话标题（内部）",
+    pickerHidden: true,
+  },
+  {
+    id: "launcher_command_cache",
+    label: "启动器命令缓存",
+    group: "write",
+    category: "settings",
+    description: "Launcher 固化用户短语 → 工具链映射",
+    pickerHidden: true,
+  },
 ];
 
 export function toolsInCategory(group: ToolGroupId, category: ToolCategoryId): ToolMeta[] {
-  return QKRPC_TOOL_REGISTRY.filter((t) => t.group === group && t.category === category);
+  return QKRPC_TOOL_REGISTRY.filter(
+    (t) => t.group === group && t.category === category && !t.pickerHidden,
+  );
+}
+
+/** Tools shown in the chat tool picker (excludes internal chat-only tools). */
+export function pickerVisibleTools(): ToolMeta[] {
+  return QKRPC_TOOL_REGISTRY.filter((t) => !t.pickerHidden);
 }
 
 export const ALL_QKRPC_TOOL_IDS = QKRPC_TOOL_REGISTRY.map((t) => t.id);
@@ -397,7 +418,7 @@ export const ALL_QKRPC_TOOL_IDS = QKRPC_TOOL_REGISTRY.map((t) => t.id);
 const registryById = new Map(QKRPC_TOOL_REGISTRY.map((t) => [t.id, t]));
 
 export function defaultEnabledToolIds(): string[] {
-  return [...ALL_QKRPC_TOOL_IDS];
+  return filterDevOnlyToolIds(ALL_QKRPC_TOOL_IDS);
 }
 
 /** Tools that require in-chat Confirm/Cancel before execute. */
@@ -454,7 +475,7 @@ const LEGACY_HOST_TOOL_EXPAND: Record<string, readonly string[]> = {
 const LEGACY_MEGA_ACTION_EXPAND: Record<string, readonly string[]> = {
   qkrpc_action: [
     "qkrpc_action_get",
-    "qkrpc_action_edit",
+    "qkrpc_designer_open",
     "qkrpc_action_edit_var",
     "qkrpc_action_set_metadata",
     "qkrpc_action_move",
@@ -478,11 +499,18 @@ const LEGACY_MEGA_ACTION_EXPAND: Record<string, readonly string[]> = {
 const LEGACY_MEGA_SUBPROGRAM_EXPAND: Record<string, readonly string[]> = {
   qkrpc_subprogram: [
     "qkrpc_subprogram_get",
-    "qkrpc_subprogram_export",
-    "qkrpc_subprogram_import",
-    "qkrpc_subprogram_edit",
+    "qkrpc_subprogram_transfer",
+    "qkrpc_designer_open",
   ],
   qkrpc_subprogram_manage: ["qkrpc_subprogram_create"],
+};
+
+/** Pairwise merged tool ids → new registry tools (prefs migration). */
+const LEGACY_MERGED_TOOL_EXPAND: Record<string, readonly string[]> = {
+  qkrpc_action_edit: ["qkrpc_designer_open"],
+  qkrpc_subprogram_edit: ["qkrpc_designer_open"],
+  qkrpc_subprogram_export: ["qkrpc_subprogram_transfer"],
+  qkrpc_subprogram_import: ["qkrpc_subprogram_transfer"],
 };
 
 const LEGACY_TOOL_ID_MAP: Record<string, string> = {
@@ -509,7 +537,7 @@ const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   qkrpc_action_replace: "workspace_program",
   qkrpc_action_publish: "qkrpc_action_publish",
   qkrpc_action_set_metadata: "qkrpc_action_set_metadata",
-  qkrpc_action_edit: "qkrpc_action_edit",
+  qkrpc_action_edit: "qkrpc_designer_open",
   qkrpc_action_edit_var: "qkrpc_action_edit_var",
   qkrpc_action_float: "qkrpc_action_float",
   qkrpc_action_move: "qkrpc_action_move",
@@ -525,9 +553,9 @@ const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   qkrpc_subprogram_create: "qkrpc_subprogram_create",
   qkrpc_subprogram_patch: "workspace_program",
   qkrpc_subprogram_replace: "workspace_program",
-  qkrpc_subprogram_export: "qkrpc_subprogram_export",
-  qkrpc_subprogram_import: "qkrpc_subprogram_import",
-  qkrpc_subprogram_edit: "qkrpc_subprogram_edit",
+  qkrpc_subprogram_export: "qkrpc_subprogram_transfer",
+  qkrpc_subprogram_import: "qkrpc_subprogram_transfer",
+  qkrpc_subprogram_edit: "qkrpc_designer_open",
   qkrpc_subprogram_edit_var: "qkrpc_subprogram_edit_var",
   workspace_action_projects: "workspace_program",
   workspace_action_read_data: "workspace_program",
@@ -572,6 +600,11 @@ function expandLegacyMegaToolIds(ids: string[]): string[] {
       out.push(...subExpand);
       continue;
     }
+    const mergedExpand = LEGACY_MERGED_TOOL_EXPAND[id];
+    if (mergedExpand) {
+      out.push(...mergedExpand);
+      continue;
+    }
     out.push(LEGACY_TOOL_ID_MAP[id] ?? id);
   }
   return [...new Set(out)];
@@ -604,6 +637,13 @@ function expandLegacyConsolidatedPrefs(
       }
     }
   }
+  for (const [legacyId, mergedIds] of Object.entries(LEGACY_MERGED_TOOL_EXPAND)) {
+    if (savedRegistryIds.includes(legacyId) && ids.includes(legacyId)) {
+      for (const id of mergedIds) {
+        set.add(id);
+      }
+    }
+  }
   return [...set];
 }
 
@@ -619,6 +659,12 @@ function normalizeSavedRegistryIds(ids: string[]): string[] {
     if (ids.includes(megaId)) {
       expanded = expanded.filter((id) => id !== megaId);
       expanded.push(...splitIds);
+    }
+  }
+  for (const [legacyId, mergedIds] of Object.entries(LEGACY_MERGED_TOOL_EXPAND)) {
+    if (ids.includes(legacyId)) {
+      expanded = expanded.filter((id) => id !== legacyId);
+      expanded.push(...mergedIds);
     }
   }
   return filterKnownToolIds(expanded);

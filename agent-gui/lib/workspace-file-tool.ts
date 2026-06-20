@@ -9,6 +9,7 @@ import {
   resolveFileIconKind,
 } from "@/lib/file-icon-kind";
 import { isStructuredToolResult } from "@/lib/tool-result";
+import { countSearchMatchHits } from "@/lib/search-match-grouping";
 import {
   LEGACY_WORKSPACE_FILE_TOOL,
   READ_TOOL,
@@ -435,7 +436,7 @@ export function summarizeWorkspaceFileTool(
       return `${pathHint ?? "file"} · ${data.sizeBytes} B${lines}`;
     }
     if (data.action === "file-search" && Array.isArray(data.matches)) {
-      const n = data.matches.length;
+      const n = countSearchMatchHits(data.matches);
       const trunc = data.truncated === true ? " · 已截断" : "";
       return `${pathHint ?? "files"} · ${n} 处匹配${trunc}`;
     }

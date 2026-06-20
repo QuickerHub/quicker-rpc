@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+
+import { resolveEnabledToolsFromPrefs } from "./tool-registry.ts";
 import {
-  isQkrpcSubprogramCreateTool,
-  isQkrpcSubprogramGetTool,
-  isSubprogramListTool,
   QKRPC_SUBPROGRAM_CREATE_TOOL,
   QKRPC_SUBPROGRAM_GET_TOOL,
   QKRPC_SUBPROGRAM_QUERY_TOOL,
+  isQkrpcSubprogramCreateTool,
+  isQkrpcSubprogramGetTool,
+  isSubprogramListTool,
 } from "./qkrpc-subprogram-tool.ts";
-import { resolveEnabledToolsFromPrefs } from "./tool-registry.ts";
 
 describe("qkrpc subprogram tool helpers", () => {
   it("treats qkrpc_subprogram_query as list tool", () => {
@@ -33,15 +34,21 @@ describe("resolveEnabledToolsFromPrefs subprogram split", () => {
       registry,
     );
     assert.equal(enabled.includes("qkrpc_subprogram_get"), false);
-    assert.equal(enabled.includes("qkrpc_subprogram_export"), false);
+    assert.equal(enabled.includes("qkrpc_subprogram_transfer"), false);
     assert.equal(enabled.includes("qkrpc_subprogram"), false);
   });
 
-  it("migrates enabled legacy qkrpc_subprogram to split ops on", () => {
-    const registry = ["docs", "qkrpc_subprogram"];
+  it("migrates enabled legacy qkrpc_subprogram to transfer and designer_open", () => {
+    const registry = [
+      "docs",
+      "qkrpc_subprogram",
+      "qkrpc_subprogram_transfer",
+      "qkrpc_designer_open",
+    ];
     const enabled = resolveEnabledToolsFromPrefs(registry, registry);
     assert.equal(enabled.includes("qkrpc_subprogram_get"), true);
-    assert.equal(enabled.includes("qkrpc_subprogram_edit"), true);
+    assert.equal(enabled.includes("qkrpc_subprogram_transfer"), true);
+    assert.equal(enabled.includes("qkrpc_designer_open"), true);
     assert.equal(enabled.includes("qkrpc_subprogram_edit_var"), false);
     assert.equal(enabled.includes("qkrpc_subprogram"), false);
   });

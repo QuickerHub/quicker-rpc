@@ -288,17 +288,19 @@ function PopupToolRow({
           <pre className="tool-error">{errorText}</pre>
         ) : null}
       </div>
-      <ToolResultPopup
-        open={popup.open}
-        onClose={popup.closePopup}
-        title={displayName}
-        subtitle={meta}
-        toolName={toolName}
-        input={input}
-        output={output}
-        errorText={errorText}
-        followTail={isRunning}
-      />
+      {popup.open ? (
+        <ToolResultPopup
+          open
+          onClose={popup.closePopup}
+          title={displayName}
+          subtitle={meta}
+          toolName={toolName}
+          input={input}
+          output={output}
+          errorText={errorText}
+          followTail={isRunning}
+        />
+      ) : null}
     </>
   );
 }

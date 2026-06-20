@@ -1,0 +1,14 @@
+{
+  "id": "json-format-text",
+  "version": 1,
+  "initialVars": {
+    "text": "{\"a\":1,\"b\":[2,3]}"
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "ok": "True",
+      "formatted": "{\n  \"a\": 1,\n  \"b\": [\n    2,\n    3\n  ]\n}"
+    }
+  }
+}

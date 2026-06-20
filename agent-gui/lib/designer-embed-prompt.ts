@@ -5,6 +5,17 @@ import { formatDesignerStepMentionTitle } from "@/lib/designer-mention-items";
 
 export type ActionDesignerChatContext = ActionDesignerThreadRef;
 
+/** Designer prompt/scope applies only in scoped Action Designer embed, not main QuickerAgent. */
+export function resolveActionDesignerForChatTurn(params: {
+  designerEmbedScoped?: boolean;
+  actionDesigner?: unknown;
+}): ActionDesignerChatContext | undefined {
+  if (params.designerEmbedScoped !== true) {
+    return undefined;
+  }
+  return parseActionDesignerChatContext(params.actionDesigner);
+}
+
 export function parseActionDesignerChatContext(
   value: unknown,
 ): ActionDesignerChatContext | undefined {

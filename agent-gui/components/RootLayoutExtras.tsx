@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { AppConfirmHost } from "@/components/AppConfirmHost";
 import { AppMessageHost } from "@/components/AppMessageHost";
+import { AppWindowFocusTracker } from "@/components/AppWindowFocusTracker";
 import { DevErrorCaptureGate } from "@/components/dev/DevErrorCaptureGate";
 import { DevHooksRecovery } from "@/components/dev/DevHooksRecovery";
 import { QuickerAgentExitHandler } from "@/components/QuickerAgentExitHandler";
@@ -35,6 +36,7 @@ export function RootLayoutExtras() {
       {!isLauncher ? <QuickerAgentUpdateOverlay /> : null}
       <AppConfirmHost />
       <AppMessageHost />
+      {!isLauncher ? <AppWindowFocusTracker /> : null}
     </>
   );
 }

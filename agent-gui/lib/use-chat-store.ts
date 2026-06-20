@@ -31,6 +31,7 @@ import {
   loadChatStoreFromLocalStorage,
   normalizeLoadedStore,
   scheduleSaveChatStore,
+  stripActionDesignerTagsFromStore,
 } from "@/lib/chat-store";
 import { loadPersistedChatStore } from "@/lib/chat-store-persist";
 
@@ -115,10 +116,13 @@ function reloadChatStoreFromStorage(): void {
   }
   void (async () => {
     try {
-      cachedStore = normalizeLoadedStore(await readChatStoreFromClient());
+      cachedStore = stripActionDesignerTagsFromStore(
+        normalizeLoadedStore(await readChatStoreFromClient()),
+      );
     } catch {
       try {
         cachedStore = normalizeLoadedStore(loadChatStoreFromLocalStorage());
+        cachedStore = stripActionDesignerTagsFromStore(cachedStore);
       } catch {
         if (!cachedStore) {
           cachedStore = defaultChatStore();
@@ -177,6 +181,7 @@ function hydrateChatStoreFromClient(): void {
   void (async () => {
     try {
       cachedStore = normalizeLoadedStore(await readChatStoreFromClient());
+      cachedStore = stripActionDesignerTagsFromStore(cachedStore);
     } finally {
       hydrationInFlight = false;
     }
@@ -312,6 +317,9 @@ export function useChatStore() {
   const updateStore = useCallback(
     (next: ChatStoreData, options?: { notify?: boolean }) => {
       let normalized = normalizeLoadedStore(next);
+      if (typeof window !== "undefined" && !isActionDesignerEmbedClient()) {
+        normalized = stripActionDesignerTagsFromStore(normalized);
+      }
       if (typeof window !== "undefined" && isActionDesignerEmbedClient()) {
         const designerRef = actionDesignerRefFromEmbed(
           parseActionDesignerEmbedFromSearchParams(

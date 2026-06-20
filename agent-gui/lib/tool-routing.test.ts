@@ -1,29 +1,49 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { TOOL_ROUTING_PROMPT, TOOL_ROUTING_TABLE } from "./tool-routing.ts";
+import {
+  CORE_TOOL_ROUTING_TABLE,
+  TOOL_ROUTING_PROMPT,
+  TOOL_ROUTING_TABLE,
+} from "./tool-routing.ts";
 
-const REQUIRED_INTENTS = [
+const REQUIRED_CORE_INTENTS = [
   "Edit steps/vars/files on disk",
-  "Read/write plain cwd file",
+  "Read plain cwd file",
   "Quicker program body",
-  "Review disk edits",
-  "Post-patch syntax/lint",
-  "Shell/build/test/git",
+  "Run action",
+  "Debug / step output",
 ] as const;
 
-test("TOOL_ROUTING_TABLE is markdown table with header and rows", () => {
-  const lines = TOOL_ROUTING_TABLE.split("\n");
-  assert.ok(lines[0]?.includes("User intent"));
-  assert.ok(lines[1]?.includes("---"));
-  assert.ok(lines.length >= REQUIRED_INTENTS.length + 2);
-});
+const EXTENDED_INTENTS = [
+  "Float popup",
+  "Open designer UI (action/subprogram)",
+  "Chat LLM profiles",
+] as const;
 
-test("TOOL_ROUTING_PROMPT includes required workbench and workspace intents", () => {
-  for (const intent of REQUIRED_INTENTS) {
+test("TOOL_ROUTING_PROMPT inlines core routing table", () => {
+  for (const intent of REQUIRED_CORE_INTENTS) {
     assert.ok(
       TOOL_ROUTING_PROMPT.includes(intent),
-      `missing routing row for: ${intent}`,
+      `prompt missing core intent: ${intent}`,
+    );
+  }
+  assert.ok(TOOL_ROUTING_PROMPT.includes(CORE_TOOL_ROUTING_TABLE));
+});
+
+test("TOOL_ROUTING_PROMPT documents list_tools bundles for specialized packs", () => {
+  assert.ok(TOOL_ROUTING_PROMPT.includes("list_tools"));
+  assert.ok(TOOL_ROUTING_PROMPT.includes("action=bundles"));
+  assert.ok(TOOL_ROUTING_PROMPT.includes("action_authoring"));
+});
+
+test("extended intents stay in full table but not in core table", () => {
+  for (const intent of EXTENDED_INTENTS) {
+    assert.ok(TOOL_ROUTING_TABLE.includes(intent), `full table missing: ${intent}`);
+    assert.equal(
+      CORE_TOOL_ROUTING_TABLE.includes(intent),
+      false,
+      `core table should not include extended: ${intent}`,
     );
   }
 });

@@ -119,7 +119,6 @@ import {
 import { BrowserToolResultView } from "./BrowserToolResultView";
 import { parseDocsToolInlineResult } from "@/lib/docs-tool-view";
 import { DocsToolOutputView } from "./DocsToolResultViews";
-import { AgentViewMetaSection } from "./AgentViewMetaSection";
 
 export type QkrpcToolResult = {
   ok: boolean;
@@ -222,6 +221,7 @@ export function summarizeToolOutput(
       const searchResult = parseStepRunnerSearchResult(output.data, input);
       if (searchResult) {
         return formatStepRunnerSearchMetaLine(searchResult, {
+          items: searchResult.items,
           controlFieldItemCount: searchResult.controlFieldItemCount,
           multiControlFieldCount: searchResult.multiControlFieldCount,
         });
@@ -986,8 +986,6 @@ function QkrpcToolResultView({
       {result.truncated && (
         <p className="tool-hint tool-muted">输出已截断，请缩小查询范围</p>
       )}
-
-      <AgentViewMetaSection output={result} dense={compact} />
 
       {resultBody !== null && (
         <div className="tool-result-body">{resultBody}</div>

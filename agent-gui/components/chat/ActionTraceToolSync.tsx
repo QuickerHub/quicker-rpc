@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { buildActionTraceTabId } from "@/lib/action-trace-tab-id";
+import {
+  hydrateActionTraceFromArtifact,
+  readTraceRefFromToolData,
+} from "@/lib/action-trace-artifact-client";
 import { startActionTraceFeed } from "@/lib/action-trace-feed-client";
 import {
   getActionTraceTab,
@@ -17,6 +21,7 @@ import {
   isQkrpcToolResult,
   readQkrpcToolOutputData,
 } from "@/components/chat/tool-output";
+import { useChatStore } from "@/lib/use-chat-store";
 
 type ActionTraceToolSyncProps = {
   toolName: string;
@@ -25,7 +30,7 @@ type ActionTraceToolSyncProps = {
   isRunning: boolean;
 };
 
-/** Subscribe trace feed while Agent trace runs; hydrate only if streaming missed events. */
+/** Subscribe trace feed while Agent trace runs; hydrate from artifact when SSE missed events. */
 export function ActionTraceToolSync({
   toolName,
   input,
@@ -34,6 +39,8 @@ export function ActionTraceToolSync({
 }: ActionTraceToolSyncProps) {
   const syncedKeyRef = useRef<string | null>(null);
   const preparedKeyRef = useRef<string | null>(null);
+  const { store, defaultCwd } = useChatStore();
+  const cwd = store.workingDirectory.trim() || defaultCwd.trim();
 
   useEffect(() => {
     if (!isQkrpcActionCommandTool(toolName, input)) return;
@@ -64,18 +71,28 @@ export function ActionTraceToolSync({
       return;
     }
 
-    const syncKey = `${toolName}:${actionId}:${Array.isArray(outputData.events) ? outputData.events.length : 0}`;
+    const events = outputData.events;
+    const traceRef = readTraceRefFromToolData(outputData);
+    const syncKey = `${toolName}:${actionId}:${Array.isArray(events) ? events.length : 0}:${traceRef?.path ?? ""}`;
     if (syncedKeyRef.current === syncKey) return;
 
-    const events = outputData.events;
-    if (!Array.isArray(events) || events.length === 0) return;
+    if (Array.isArray(events) && events.length > 0) {
+      syncedKeyRef.current = syncKey;
+      hydrateActionTraceFromToolOutput(outputData, {
+        actionId,
+        param,
+      });
+      return;
+    }
+
+    if (!traceRef || !cwd) return;
 
     syncedKeyRef.current = syncKey;
-    hydrateActionTraceFromToolOutput(outputData, {
+    void hydrateActionTraceFromArtifact(cwd, traceRef, {
       actionId,
       param,
     });
-  }, [input, isRunning, output, toolName]);
+  }, [cwd, input, isRunning, output, toolName]);
 
   return null;
 }

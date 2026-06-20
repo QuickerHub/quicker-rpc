@@ -7,15 +7,11 @@ namespace QuickerRpc.Contracts.Rpc;
 /// <summary>Resolves getquicker action page intro HTML (SharedActionVm.Detail) for publish/review.</summary>
 public static class ActionPublishIntro
 {
-  /// <summary>Prefer explicit HTML; otherwise convert plain-text or markdown-like note to simple HTML.</summary>
-  public static string? ResolveDetailHtml(string? detailHtml, string? note)
+  /// <summary>Returns trimmed Detail HTML when present; ignores deprecated share note.</summary>
+  public static string? ResolveDetailHtml(string? detailHtml, string? note = null)
   {
-    if (!string.IsNullOrWhiteSpace(detailHtml))
-    {
-      return detailHtml.Trim();
-    }
-
-    return NoteToDetailHtml(note);
+    _ = note;
+    return string.IsNullOrWhiteSpace(detailHtml) ? null : detailHtml.Trim();
   }
 
   /// <summary>Wrap plain text in paragraph tags; pass through strings that already look like HTML.</summary>

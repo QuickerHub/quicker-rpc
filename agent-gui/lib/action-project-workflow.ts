@@ -29,6 +29,7 @@ import {
 } from "@/lib/action-project-info";
 import { ActionProjectInfoSchema } from "@/lib/gen/action_project_pb";
 import { bootstrapWorkspaceProjectOnCreate } from "@/lib/workspace-project-disk";
+import type { ProgramDataInput } from "@/lib/program-data-input";
 import {
   normalizeEditVersion,
   readEditVersionFromGetPayload,
@@ -570,6 +571,7 @@ export async function syncActionToWorkspace(
 export async function bootstrapActionProjectForCreate(
   createPayload: Record<string, unknown>,
   hints?: ActionProjectCreateHints,
+  programData?: ProgramDataInput,
 ): Promise<WorkspaceSyncResult> {
   const actionId = String(
     createPayload.actionId ?? createPayload.ActionId ?? "",
@@ -590,6 +592,7 @@ export async function bootstrapActionProjectForCreate(
   const written = await bootstrapWorkspaceProjectOnCreate(
     projectDir,
     formatActionProjectInfoProto(info),
+    programData,
   );
   if (!written.ok) {
     return {

@@ -4,7 +4,9 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { messagesNeedsScroll } from "@/lib/use-messages-scrollable";
 
 const TURN_STICKY_SLOP_PX = 8;
-const STICKY_HYSTERESIS_PX = 24;
+const STICKY_HYSTERESIS_PX = 48;
+/** Ignore scrollbar-gutter flicker (~15–17px) when comparing scrollport height. */
+const SCROLLPORT_HEIGHT_FLICKER_PX = 20;
 
 /** Sum direct children; ignores turn min-height from sticky-active. */
 export function getTurnContentHeight(turn: HTMLElement): number {
@@ -73,8 +75,29 @@ export function useMsgTurnStickyActive(
     if (!messages || !turn) return;
 
     let rafId = 0;
+    let pendingActive: boolean | null = null;
+    let pendingActiveFrames = 0;
 
     let stableClientHeight = messages.clientHeight;
+
+    const applyActive = (next: boolean) => {
+      if (next === activeRef.current) {
+        pendingActive = null;
+        pendingActiveFrames = 0;
+        return;
+      }
+      if (pendingActive !== next) {
+        pendingActive = next;
+        pendingActiveFrames = 1;
+        return;
+      }
+      pendingActiveFrames += 1;
+      if (pendingActiveFrames < 2) return;
+      pendingActive = null;
+      pendingActiveFrames = 0;
+      activeRef.current = next;
+      setActive(next);
+    };
 
     const measure = () => {
       cancelAnimationFrame(rafId);
@@ -82,7 +105,8 @@ export function useMsgTurnStickyActive(
         const liveClientHeight = messages.clientHeight;
         if (
           stableClientHeight <= 0
-          || Math.abs(liveClientHeight - stableClientHeight) > 20
+          || Math.abs(liveClientHeight - stableClientHeight)
+            > SCROLLPORT_HEIGHT_FLICKER_PX
         ) {
           stableClientHeight = liveClientHeight;
         }
@@ -96,9 +120,7 @@ export function useMsgTurnStickyActive(
           promptHeight,
           activeRef.current,
         );
-        if (next === activeRef.current) return;
-        activeRef.current = next;
-        setActive(next);
+        applyActive(next);
       });
     };
 

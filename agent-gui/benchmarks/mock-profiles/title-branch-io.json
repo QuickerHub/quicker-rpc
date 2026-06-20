@@ -1,0 +1,14 @@
+{
+  "id": "title-branch-io",
+  "version": 1,
+  "initialVars": {
+    "title": "Visual Studio Code - benchmark.mock"
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "isVscode": "True",
+      "branch": "maximize"
+    }
+  }
+}

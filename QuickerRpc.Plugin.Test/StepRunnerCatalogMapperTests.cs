@@ -51,6 +51,133 @@ public sealed class StepRunnerCatalogMapperTests
         };
 
     [TestMethod]
+    public void Parse_multi_token_whitespace_stays_and_legacy()
+    {
+        var query = StepRunnerSearchQuery.Parse("writeClipboard 剪贴板");
+        Assert.IsFalse(query.IsAdvanced);
+        CollectionAssert.AreEqual(
+            new[] { "writeclipboard", "剪贴板" },
+            query.LegacyPatterns);
+    }
+
+    [TestMethod]
+    public void Search_space_separated_synonyms_use_best_token_when_and_empty()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:writeClipboard",
+                    Name = "写入剪贴板",
+                    Description = "将文本或图片等内容写入剪贴板",
+                },
+            },
+        };
+        var result = StepRunnerCatalogMapper.Search(
+            catalog,
+            "setClipboardText writeClipboard 剪贴板写入",
+            maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(result.MatchCount >= 1);
+        Assert.AreEqual("sys:writeClipboard", result.Items[0].Key);
+    }
+
+    [TestMethod]
+    public void Search_rescue_finds_module_from_camel_case_token()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:writeClipboard",
+                    Name = "写入剪贴板",
+                    Description = "将文本或图片等内容写入剪贴板",
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(catalog, "setClipboardText", maxResults: 5);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(result.MatchCount >= 1);
+        Assert.AreEqual("sys:writeClipboard", result.Items[0].Key);
+    }
+
+    [TestMethod]
+    public void Search_and_synonym_query_falls_back_to_or_tokens()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:getClipboardText",
+                    Name = "获取剪贴板文本",
+                    Description = "读取剪贴板中的文本内容",
+                },
+                new()
+                {
+                    Key = "sys:writeClipboard",
+                    Name = "写入剪贴板",
+                    Description = "将文本或图片等内容写入剪贴板",
+                },
+            },
+        };
+        var result = StepRunnerCatalogMapper.Search(
+            catalog,
+            "setClipboardText writeClipboard 剪贴板写入",
+            maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(result.MatchCount >= 1);
+        Assert.AreEqual("sys:writeClipboard", result.Items[0].Key);
+    }
+
+    [TestMethod]
+    public void Search_and_if_synonyms_fall_back_to_or_tokens()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:simpleIf",
+                    Name = "如果",
+                    Description = "依据条件执行操作",
+                },
+                new()
+                {
+                    Key = "sys:if",
+                    Name = "如果/否则",
+                    Description = "依据条件执行操作",
+                },
+                new()
+                {
+                    Key = "sys:comment",
+                    Name = "注释",
+                    Description = "使用注释将步骤分组",
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(
+            catalog,
+            "simpleIf if 条件判断",
+            maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(result.MatchCount >= 1);
+        Assert.IsTrue(result.Items.Any(i => i.Key is "sys:simpleIf" or "sys:if"));
+    }
+
+    [TestMethod]
     public void Search_includes_runner_icon()
     {
         var catalog = new StepRunnerCatalog
@@ -109,6 +236,23 @@ public sealed class StepRunnerCatalogMapperTests
         Assert.AreEqual("type", item.ControlField.Key);
         Assert.AreEqual("move_ex", item.ControlField.Value);
         Assert.AreEqual("移动窗口(增强)", item.ControlField.Name);
+    }
+
+    [TestMethod]
+    public void Search_module_hit_without_control_match_lists_all_control_fields()
+    {
+        var catalog = CreateWindowOperationsCatalog();
+        var result = StepRunnerCatalogMapper.Search(catalog, "sys:windowOperations", maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, result.MatchCount);
+        var item = result.Items[0];
+        Assert.IsNotNull(item.ControlFields);
+        Assert.IsTrue(item.ControlFields.Count > 1);
+        Assert.IsNull(item.ControlField);
+        Assert.IsTrue(item.ControlFields.Any(c => c.Value == "move"));
+        Assert.IsTrue(item.ControlFields.Any(c => c.Value == "move_ex"));
+        Assert.IsTrue(item.ControlFields.Any(c => c.Value == "show"));
     }
 
     [TestMethod]
@@ -399,6 +543,43 @@ public sealed class StepRunnerCatalogMapperTests
         Assert.IsTrue(result.Success);
         Assert.AreEqual(50, result.MatchCount);
         Assert.AreEqual(50, result.Items.Count);
+    }
+
+    [TestMethod]
+    public void Search_includes_input_param_keys_for_simple_module()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:evalexpression",
+                    Name = "表达式",
+                    InputParamDefs = new List<StepRunnerInputParamDef>
+                    {
+                        new() { Key = "expression", IsMultiLine = true },
+                        new() { Key = "timeout", VarType = 1 },
+                    },
+                    OutputParamDefs = new List<StepRunnerOutputParamDef>
+                    {
+                        new() { Key = "output" },
+                        new() { Key = "isSuccess" },
+                    },
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(catalog, "evalexpression", maxResults: 5);
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, result.Items.Count);
+        var item = result.Items[0];
+        CollectionAssert.AreEqual(
+            new[] { "expression", "timeout" },
+            item.InputParamKeys ?? new List<string>());
+        CollectionAssert.AreEqual(
+            new[] { "output", "isSuccess" },
+            item.OutputParamKeys ?? new List<string>());
     }
 
     [TestMethod]

@@ -36,7 +36,7 @@ export async function executeWebSearchTool(
         errorMessage: message,
         hint:
           "Default provider is duckduckgo (no API key). "
-          + "Set BRAVE_SEARCH_API_KEY or TAVILY_API_KEY (+ optional WEB_SEARCH_PROVIDER) for higher quality.",
+          + "Set web-search-config.json or BRAVE_SEARCH_API_KEY / TAVILY_API_KEY (+ optional WEB_SEARCH_PROVIDER).",
       },
       false,
       message,
@@ -49,7 +49,7 @@ export const WEB_SEARCH_TOOL_DEF = tool({
     "Search the public internet when facts, vendor API docs, versions, or errors are uncertain — search before answering from memory. "
     + "Returns title/url/snippet list. Retry with refined query if weak. "
     + "NOT for Quicker actions (qkrpc_action_query), authoring guides (docs search), or logged-in pages (browser). "
-    + "Default provider: duckduckgo (no key). Optional: BRAVE_SEARCH_API_KEY or TAVILY_API_KEY.",
+    + "Default provider: duckduckgo (no key). Optional: web-search-config.json or BRAVE/TAVILY env vars.",
   inputSchema: z.object({
     query: z.string().describe("Search keywords or question"),
     limit: z

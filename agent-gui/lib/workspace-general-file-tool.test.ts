@@ -146,6 +146,29 @@ test("StrReplace edits file under .local", async () => {
   }
 });
 
+test("Read blocks info.json under .quicker/actions", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-ws-file-guard-info-"));
+  const prevCwd = process.env.AGENT_GUI_DEFAULT_CWD;
+  process.env.AGENT_GUI_DEFAULT_CWD = root;
+  try {
+    const actionDir = join(root, ".quicker", "actions", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    await mkdir(actionDir, { recursive: true });
+    await writeFile(join(actionDir, "info.json"), "{}", "utf8");
+
+    const result = await READ_TOOL_DEF.execute!(
+      {
+        path: ".quicker/actions/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/info.json",
+      },
+      { toolCallId: "test" },
+    );
+    assert.equal((result as { ok?: boolean }).ok, false);
+  } finally {
+    if (prevCwd === undefined) delete process.env.AGENT_GUI_DEFAULT_CWD;
+    else process.env.AGENT_GUI_DEFAULT_CWD = prevCwd;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Write blocks program body paths", async () => {
   const root = await mkdtemp(join(tmpdir(), "agent-ws-file-guard-"));
   const prevCwd = process.env.AGENT_GUI_DEFAULT_CWD;

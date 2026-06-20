@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  type ReactNode,
+} from "react";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 
@@ -15,8 +21,16 @@ export function ChatToolActionsProvider({
   addToolOutput: ChatAddToolOutput;
   children: ReactNode;
 }) {
+  const addToolOutputRef = useRef(addToolOutput);
+  addToolOutputRef.current = addToolOutput;
+  const stableAddToolOutput = useCallback(
+    ((...args: Parameters<ChatAddToolOutput>) =>
+      addToolOutputRef.current(...args)) as ChatAddToolOutput,
+    [],
+  );
+
   return (
-    <ChatToolActionsContext.Provider value={addToolOutput}>
+    <ChatToolActionsContext.Provider value={stableAddToolOutput}>
       {children}
     </ChatToolActionsContext.Provider>
   );

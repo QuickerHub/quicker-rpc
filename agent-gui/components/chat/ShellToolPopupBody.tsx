@@ -8,6 +8,8 @@ import {
   readShellToolDescription,
   summarizeShellToolInput,
 } from "@/lib/shell-tool-view";
+import { formatArtifactBytes } from "@/lib/agent-harness/artifacts/client";
+import { ArtifactPathOpenButton } from "./ArtifactPathOpenButton";
 import { ToolPayloadView } from "./tool-output";
 
 type ShellToolPopupBodyProps = {
@@ -105,7 +107,30 @@ export function ShellToolPopupBody({
         </details>
       ) : null}
 
-      {view?.truncated ? (
+      {view?.artifactRef ? (
+        <p className="shell-tool-footnote shell-tool-artifact-banner">
+          完整输出已落盘
+          {" "}
+          <code>{view.artifactRef.path}</code>
+          {" "}
+          <ArtifactPathOpenButton path={view.artifactRef.path} />
+          {formatArtifactBytes(view.artifactRef.bytesWritten)
+            ? ` · ${formatArtifactBytes(view.artifactRef.bytesWritten)}`
+            : view.totalOutputChars
+              ? ` · ${view.totalOutputChars} chars`
+              : null}
+          {view.readHint ? (
+            <>
+              {" "}
+              ·
+              {" "}
+              <span className="tool-muted">{view.readHint}</span>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      {view?.truncated && !view.artifactRef ? (
         <p className="shell-tool-footnote tool-muted">输出已截断</p>
       ) : null}
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}

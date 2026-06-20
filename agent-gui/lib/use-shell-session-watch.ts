@@ -26,7 +26,7 @@ type ShellSessionSnapshot = {
 };
 
 /** Poll interval while a shell session is running. */
-const POLL_MS = 1_000;
+const POLL_MS = 300;
 
 function snapshotToWatchState(
   snapshot: ShellSessionSnapshot,

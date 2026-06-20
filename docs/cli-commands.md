@@ -287,7 +287,7 @@ qkrpc action edit-var --id <id> --var <key> --value <val> [--json]
 
 ```powershell
 # 首次分享（需 title + description，可用动作元数据默认值）
-qkrpc action publish --id <localActionGuid> [--title <text>] [--description <text>] [--share-note <markdown>] [--tags a,b] [--private] [--json]
+qkrpc action publish --id <localActionGuid> [--title <text>] [--description <text>] [--html-file <path>] [--tags a,b] [--private] [--json]
 
 # 更新已分享动作（changelog 必填）
 qkrpc action publish --id <localOrSharedGuid> --changelog "v1.1: 修复超时" [--json]
@@ -315,7 +315,7 @@ qkrpc action delete --id <guid> --yes [--json]
 
 ### `qkrpc step-runner search`
 
-搜索步骤类型目录。空格 AND，`|` OR，`*` 通配。
+搜索步骤类型目录。空格 AND（无结果时自动 OR 回退）；`|` 显式分支；`*` 通配。
 
 ```powershell
 qkrpc step-runner search --query <keyword> [--limit 40] [--json]

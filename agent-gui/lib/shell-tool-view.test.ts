@@ -106,6 +106,32 @@ describe("shell-tool-view", () => {
     assert.equal(tail, "line 7\nline 8\nline 9\nline 10");
   });
 
+  it("parses shell artifact from displayData while model payload is preview", () => {
+    const fullOutput = "line\n".repeat(200);
+    const structured = formatLocalToolResult({
+      commandLine: "build",
+      output: "tail preview…",
+      artifactRef: {
+        path: ".local/agent-artifacts/thread-1/call-1.txt",
+        format: "shell-output-v1",
+        bytesWritten: 1200,
+      },
+      totalOutputChars: fullOutput.length,
+      truncated: true,
+    });
+    const withDisplay = {
+      ...structured,
+      displayData: {
+        commandLine: "build",
+        output: fullOutput,
+      },
+    };
+    const view = parseShellToolView(withDisplay);
+    assert.ok(view);
+    assert.equal(view!.artifactRef?.path, ".local/agent-artifacts/thread-1/call-1.txt");
+    assert.ok(view!.combined.includes("line"));
+  });
+
   it("estimates wrapped visual lines for long single-line stdout", () => {
     const json = `{"ok":true,"items":[${'"x",'.repeat(80)}]}`;
     assert.ok(estimateShellOutputVisualLines(json) > 4);

@@ -118,14 +118,15 @@
     }
   },
   "action.publish": {
-    "cli": "qkrpc action publish --id {{id}} [--title \"{{title}}\"] [--description \"{{description}}\"] [--changelog \"{{changelog}}\"] [--share-note \"{{note}}\"] [--tags {{tags}}] [--private] [--json]",
-    "agent": "qkrpc_action_publish({ id: \"{{id}}\", title?: \"{{title}}\", description?: \"{{description}}\", note?: \"{{note}}\", tags?: \"{{tags}}\", changelog?: \"{{changelog}}\", isPublic?: true })",
+    "cli": "qkrpc action publish --id {{id}} [--title \"{{title}}\"] [--description \"{{description}}\"] [--changelog \"{{changelog}}\"] [--html-file \"{{htmlFile}}\"] [--tags {{tags}}] [--private] [--json]",
+    "agent": "qkrpc_action_publish({ id: \"{{id}}\", title?: \"{{title}}\", description?: \"{{description}}\", html?: \"{{html}}\", tags?: \"{{tags}}\", changelog?: \"{{changelog}}\", isPublic?: true })",
     "defaults": {
       "id": "<guid>",
       "title": "My Action",
       "description": "One-line summary",
-      "changelog": "v1.1: fix …",
-      "note": "## Intro",
+      "changelog": "v1.1: fix timeout",
+      "html": "<p>Intro</p>",
+      "htmlFile": "<path>",
       "tags": "tag1,tag2"
     }
   },

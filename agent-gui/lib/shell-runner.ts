@@ -316,13 +316,26 @@ function publishShellSessionResult(
   finishShellSession(sessionId, result);
 }
 
+function resolvePolicyWorkspaceRoot(request: ShellRunRequest): string | undefined {
+  try {
+    return resolveShellCwd(request.cwd);
+  } catch {
+    try {
+      return resolveShellCwd(undefined);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
 export async function runShellRequest(
   request: ShellRunRequest,
   options?: ShellRunOptions,
 ): Promise<ShellRunResult> {
   const normalized = normalizeShellRunRequest(request);
   const sessionId = options?.sessionId?.trim() || undefined;
-  const policy = evaluateShellPolicy(normalized);
+  const workspaceRoot = resolvePolicyWorkspaceRoot(normalized);
+  const policy = evaluateShellPolicy(normalized, { workspaceRoot });
   if (!policy.allowed) {
     const blocked: ShellRunResult = {
       ok: false,
@@ -437,5 +450,6 @@ export async function runShellRequest(
 }
 
 export function shellPolicyRequiresApproval(request: ShellRunRequest): boolean {
-  return evaluateShellPolicy(request).requiresApproval;
+  const workspaceRoot = resolvePolicyWorkspaceRoot(request);
+  return evaluateShellPolicy(request, { workspaceRoot }).requiresApproval;
 }

@@ -7,6 +7,7 @@ import {
   MAX_GREP_HEAD_LIMIT,
 } from "@/lib/grep-workspace-core";
 import { grepWorkspace } from "@/lib/grep-workspace.server";
+import { groupMatchesByPath } from "@/lib/search-match-grouping";
 import { GREP_TOOL } from "@/lib/grep-tool";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
@@ -91,7 +92,13 @@ export async function executeGrepTool(
     pattern: result.pattern,
     searchPath: result.searchPath,
     outputMode: result.outputMode,
-    matches: result.matches,
+    matches:
+      result.outputMode === "content"
+        ? groupMatchesByPath(result.matches, (match) => ({
+            ...(match.line != null ? { line: match.line } : {}),
+            ...(match.content != null ? { content: match.content } : {}),
+          }))
+        : result.matches,
     truncated: result.truncated,
     totalMatches: result.totalMatches,
     hint: result.truncated

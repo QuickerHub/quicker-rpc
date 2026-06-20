@@ -92,6 +92,8 @@ type ChatComposerFooterProps = {
   voiceInterruptRef?: React.MutableRefObject<(() => void) | null>;
   workingDirectory?: string;
   designerEmbed?: boolean;
+  /** When set, overrides default empty-thread hiding for the context ring. */
+  showContextUsage?: boolean;
 };
 
 const ChatComposerFooterInner = forwardRef<
@@ -128,6 +130,7 @@ const ChatComposerFooterInner = forwardRef<
     voiceInterruptRef,
     workingDirectory = "",
     designerEmbed = false,
+    showContextUsage,
   },
   ref,
 ) {
@@ -268,6 +271,9 @@ const ChatComposerFooterInner = forwardRef<
     [draftMessage, editAnchorMessageId, onEditAnchorDraftChange],
   );
 
+  const showContextRing =
+    showContextUsage ?? (!isEmptyThread || designerEmbed);
+
   return (
     <footer
       className={`composer${editAnchorMessageId ? " composer--branch-edit" : ""}${designerEmbed ? " composer--designer-embed" : ""}`}
@@ -398,7 +404,7 @@ const ChatComposerFooterInner = forwardRef<
                 ) : null}
               </div>
               <div className="composer-toolbar-actions">
-                {!isEmptyThread || designerEmbed ? (
+                {showContextRing ? (
                   <ContextUsage
                     messages={messages}
                     busy={busy}
@@ -410,7 +416,11 @@ const ChatComposerFooterInner = forwardRef<
                   <button
                     type="button"
                     className="composer-btn composer-btn--stop"
-                    onClick={onStop}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onStop();
+                    }}
                     aria-label="停止生成"
                     title={queueLength > 0 ? "停止并清空排队" : "停止生成"}
                   >

@@ -12,7 +12,7 @@ public sealed class QkrpcMcpCatalogTools
 
     [McpServerTool(Name = "qkrpc_step_runner_search")]
     [Description(
-        "Search Quicker step modules (| for OR, * wildcard). Returns controlField hints — do not guess inputParams keys.")]
+        "Search Quicker step modules. Space = AND (auto OR fallback when empty); | branches; * wildcard. Returns controlField hints — do not guess inputParams keys.")]
     public Task<string> QkrpcStepRunnerSearch(
         string query,
         int? limit = null,

@@ -27,10 +27,13 @@ export type AgentCommandDef = {
   warnings: string[];
 };
 
+export type SubagentInherit = "skills" | "workspace" | "all";
+
 export type SubagentDef = {
   name: string;
   description: string;
   tools: string[];
+  inherit: SubagentInherit[];
   model: string | null;
   body: string;
   filePath: string;
@@ -70,5 +73,6 @@ export const subagentFrontmatterSchema = z.object({
   name: z.string().optional(),
   description: z.string().min(1),
   tools: z.string().optional(),
+  inherit: z.string().optional(),
   model: z.string().optional(),
 });

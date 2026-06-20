@@ -93,6 +93,18 @@ function DryRunCard({ run }: { run: ContextCompressionRunEntry }) {
           <dt>模型消息</dt>
           <dd>{dry.modelMessageCount} 条</dd>
         </div>
+        {dry.slidingWindowApplied != null ? (
+          <div>
+            <dt>滑动窗口</dt>
+            <dd>{dry.slidingWindowApplied ? "已 trim 旧 turn 大 tool 输出" : "未触发"}</dd>
+          </div>
+        ) : null}
+        {dry.historyArtifactPath ? (
+          <div>
+            <dt>历史归档</dt>
+            <dd>{dry.historyArtifactPath}</dd>
+          </div>
+        ) : null}
       </dl>
 
       {dry.contextCompression?.reinjectPaths?.length ? (
@@ -114,6 +126,233 @@ function DryRunCard({ run }: { run: ContextCompressionRunEntry }) {
           <summary>systemSuffix</summary>
           <pre className="ctx-compression-run-card__pre">{dry.systemSuffix}</pre>
         </details>
+      ) : null}
+    </article>
+  );
+}
+
+function AgentViewRunCard({ run }: { run: ContextCompressionRunEntry }) {
+  const view = run.agentView;
+
+  return (
+    <article className="ctx-compression-run-card">
+      <header className="ctx-compression-run-card__header">
+        <span className="ctx-compression-run-card__label">{run.scenarioLabel}</span>
+        <span className="ctx-compression-run-card__badge">L1 工具压缩</span>
+      </header>
+      {run.status === "running" && !view ? (
+        <p className="ctx-compression-run-card__hint">运行中…</p>
+      ) : null}
+      {run.error ? (
+        <p className="tool-test-title-result__error">{run.error}</p>
+      ) : null}
+      {view ? (
+        <>
+          <dl className="ctx-compression-run-card__meta">
+            <div>
+              <dt>体积</dt>
+              <dd>
+                {view.beforeChars.toLocaleString()} → {view.afterChars.toLocaleString()} chars
+                {" "}
+                (−{view.savedChars.toLocaleString()})
+              </dd>
+            </div>
+            <div>
+              <dt>状态</dt>
+              <dd>
+                {view.compressionEnabled === false
+                  ? "未裁剪（直通）"
+                  : view.compressed
+                    ? "已压缩"
+                    : "未压缩"}
+              </dd>
+            </div>
+            {view.summary ? (
+              <div>
+                <dt>摘要</dt>
+                <dd>{view.summary}</dd>
+              </div>
+            ) : null}
+            {view.modelTokens != null ? (
+              <div>
+                <dt>模型</dt>
+                <dd>~{view.modelTokens.toLocaleString()} tok</dd>
+              </div>
+            ) : null}
+            {view.nextAction ? (
+              <div>
+                <dt>续读</dt>
+                <dd>{view.nextAction}</dd>
+              </div>
+            ) : null}
+          </dl>
+          {view.modelPayloadJson ? (
+            <details className="ctx-compression-panel__agent-view-output">
+              <summary>模型可见 payload</summary>
+              <pre className="tool-json">{view.modelPayloadJson}</pre>
+            </details>
+          ) : null}
+        </>
+      ) : null}
+    </article>
+  );
+}
+
+function HarnessRunCard({ run }: { run: ContextCompressionRunEntry }) {
+  const harness = run.harness;
+
+  return (
+    <article className="ctx-compression-run-card">
+      <header className="ctx-compression-run-card__header">
+        <span className="ctx-compression-run-card__label">{run.scenarioLabel}</span>
+        <span className="ctx-compression-run-card__badge">Harness</span>
+      </header>
+      {run.status === "running" && !harness ? (
+        <p className="ctx-compression-run-card__hint">运行中…</p>
+      ) : null}
+      {run.error ? (
+        <p className="tool-test-title-result__error">{run.error}</p>
+      ) : null}
+      {harness?.kind === "sliding-window" ? (
+        <dl className="ctx-compression-run-card__meta">
+          <div>
+            <dt>体积</dt>
+            <dd>
+              {harness.beforeChars?.toLocaleString() ?? "—"} →{" "}
+              {harness.afterChars?.toLocaleString() ?? "—"} chars
+              {" "}
+              (−{harness.savedChars?.toLocaleString() ?? "—"})
+            </dd>
+          </div>
+          <div>
+            <dt>状态</dt>
+            <dd>{harness.applied ? "已 trim" : "未触发"}</dd>
+          </div>
+          <div>
+            <dt>校验</dt>
+            <dd>
+              旧 turn preview={String(harness.oldTurnPreviewed)} · 近 turn 全量=
+              {String(harness.recentTurnFull)}
+            </dd>
+          </div>
+          <div>
+            <dt>估算节省</dt>
+            <dd>~{harness.tokensSavedEstimate?.toLocaleString() ?? "—"} tok</dd>
+          </div>
+        </dl>
+      ) : null}
+      {harness?.kind === "shell-artifact" ? (
+        <>
+          <dl className="ctx-compression-run-card__meta">
+            <div>
+              <dt>输出</dt>
+              <dd>{harness.totalOutputChars?.toLocaleString() ?? "—"} chars</dd>
+            </div>
+            <div>
+              <dt>模型 payload</dt>
+              <dd>
+                {harness.modelPayloadChars?.toLocaleString() ?? "—"} chars
+                {" "}
+                (displayData {harness.displayDataChars?.toLocaleString() ?? "—"})
+              </dd>
+            </div>
+            {harness.artifactPath ? (
+              <div>
+                <dt>Artifact</dt>
+                <dd>{harness.artifactPath}</dd>
+              </div>
+            ) : null}
+            {harness.readHint ? (
+              <div>
+                <dt>Read hint</dt>
+                <dd>{harness.readHint}</dd>
+              </div>
+            ) : null}
+          </dl>
+          {harness.modelPayloadJson ? (
+            <details className="ctx-compression-panel__agent-view-output">
+              <summary>模型可见 payload</summary>
+              <pre className="tool-json">{harness.modelPayloadJson}</pre>
+            </details>
+          ) : null}
+        </>
+      ) : null}
+      {harness?.kind === "list-tools-routing" ? (
+        <dl className="ctx-compression-run-card__meta">
+          <div>
+            <dt>System routing</dt>
+            <dd>{harness.compactPromptChars?.toLocaleString() ?? "—"} chars</dd>
+          </div>
+          <div>
+            <dt>Core 内联</dt>
+            <dd>{harness.coreRoutingChars?.toLocaleString() ?? "—"} chars</dd>
+          </div>
+          <div>
+            <dt>list_tools 全表</dt>
+            <dd>{harness.fullRoutingTableChars?.toLocaleString() ?? "—"} chars</dd>
+          </div>
+          <div>
+            <dt>节省</dt>
+            <dd>
+              −{harness.savedVsFull?.toLocaleString() ?? "—"} chars (
+              {harness.savingsPercent ?? "—"}%)
+            </dd>
+          </div>
+        </dl>
+      ) : null}
+      {harness?.kind === "static-shell" ? (
+        <>
+          <dl className="ctx-compression-run-card__meta">
+            <div>
+              <dt>System</dt>
+              <dd>
+                {harness.systemPromptTokens?.toLocaleString() ?? "—"} tok
+                {" "}
+                ({harness.systemWithinTarget ? "≤ target" : "OVER target"})
+              </dd>
+            </div>
+            <div>
+              <dt>Tools</dt>
+              <dd>
+                {harness.toolDefinitionTokens?.toLocaleString() ?? "—"} tok
+                {harness.toolDefinitionTokensFull != null ? (
+                  <>
+                    {" "}
+                    (full {harness.toolDefinitionTokensFull.toLocaleString()} tok
+                    {harness.slimExtendedToolCount != null
+                      ? `, ${harness.slimExtendedToolCount} slimmed`
+                      : ""}
+                    )
+                  </>
+                ) : null}
+                {" "}
+                · {harness.toolCount ?? "—"} 个
+              </dd>
+            </div>
+            <div>
+              <dt>Total static</dt>
+              <dd>{harness.totalStaticTokens?.toLocaleString() ?? "—"} tok</dd>
+            </div>
+            <div>
+              <dt>Target</dt>
+              <dd>
+                system ≤ {harness.targetSystemTokens?.toLocaleString() ?? "8,000"} tok
+              </dd>
+            </div>
+          </dl>
+          {harness.staticSegments?.length ? (
+            <details className="ctx-compression-run-card__details" open>
+              <summary>分段</summary>
+              <ul className="ctx-compression-run-card__segment-list">
+                {harness.staticSegments.map((segment) => (
+                  <li key={segment.label}>
+                    {segment.label}: {segment.tokens.toLocaleString()} tok
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </>
       ) : null}
     </article>
   );
@@ -186,10 +425,12 @@ export function ToolTestContextCompressionResultPane({
 
   const subText =
     runs.length === 0
-      ? "左侧选场景并 Dry-run 或 Chat"
+      ? "左侧选 L2 场景 Dry-run / Chat，或点击 L1 / Harness 场景即运行"
       : `共 ${runs.length} 次运行`;
 
   const dryRuns = runs.filter((run) => run.mode === "dry-run");
+  const agentViewRuns = runs.filter((run) => run.mode === "agent-view");
+  const harnessRuns = runs.filter((run) => run.mode === "harness");
 
   const shellRuns = useMemo(
     () =>
@@ -208,12 +449,18 @@ export function ToolTestContextCompressionResultPane({
     <ToolTestRunsPaneShell
       heading="压缩结果"
       subText={subText}
-      emptyText="Dry-run 查看 split / 摘要 / systemSuffix；Chat 模式验证生产 /api/chat 路径。"
+      emptyText="L1 / Harness：点击场景即运行；L2：Dry-run 查看 split / 摘要，Chat 验证 /api/chat。"
       runs={shellRuns}
       workingDirectory={workingDirectory}
       onClearRuns={onClearRuns}
       streamAnchorRef={endRef}
     >
+      {harnessRuns.map((run) => (
+        <HarnessRunCard key={run.id} run={run} />
+      ))}
+      {agentViewRuns.map((run) => (
+        <AgentViewRunCard key={run.id} run={run} />
+      ))}
       {dryRuns.map((run) => (
         <DryRunCard key={run.id} run={run} />
       ))}

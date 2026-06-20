@@ -12,7 +12,7 @@ import {
   type ToolTestSidebarTab,
 } from "@/lib/tool-test-sidebar-prefs";
 
-export type ToolTestUiPanel = "prompt-chat" | "launcher";
+export type ToolTestUiPanel = "prompt-chat" | "launcher" | "quickerbench";
 
 export type ToolTestUiRunRequest = {
   baseUrl?: string;
@@ -40,6 +40,7 @@ function resolveTimeoutMs(): number {
 export function resolveToolTestUiPanel(
   scenario: AgentEvalScenario,
 ): ToolTestUiPanel {
+  if (scenario.source === "quickerbench") return "quickerbench";
   return scenario.chatMode === "launcher" ? "launcher" : "prompt-chat";
 }
 
@@ -50,7 +51,11 @@ export function buildToolTestEvalUrl(
     cwd?: string;
   },
 ): string {
-  const url = new URL("/tool-test", baseUrl.replace(/\/$/, ""));
+  const root = baseUrl.replace(/\/$/, "");
+  if (options.tab === "quickerbench") {
+    return `${root}/bench`;
+  }
+  const url = new URL("/tool-test", root);
   url.searchParams.set("tab", options.tab);
   if (options.cwd?.trim()) {
     url.searchParams.set("cwd", options.cwd.trim());
@@ -62,7 +67,24 @@ async function waitForLlmReady(
   page: Page,
   timeoutMs: number,
   panel: ToolTestUiPanel,
+  scenarioId?: string,
 ): Promise<void> {
+  if (panel === "quickerbench") {
+    const testId = scenarioId
+      ? `tool-test-quickerbench-task-${scenarioId}`
+      : "tool-test-quickerbench-task-user-action-likes-total";
+    const target = page.getByTestId(testId);
+    await target.waitFor({ state: "visible", timeout: timeoutMs });
+    await page.waitForFunction(
+      (id) => {
+        const el = document.querySelector(`[data-testid="${id}"]`);
+        return el instanceof HTMLButtonElement && !el.disabled;
+      },
+      testId,
+      { timeout: timeoutMs },
+    );
+    return;
+  }
   const sendTestId =
     panel === "launcher" ? "tool-test-launcher-run" : "tool-test-prompt-send";
   const target = page.getByTestId(sendTestId);
@@ -205,6 +227,39 @@ async function runLauncherPanel(
   };
 }
 
+async function runQuickerBenchPanel(
+  page: Page,
+  taskId: string,
+  timeoutMs: number,
+): Promise<ToolTestUiRunResult> {
+  const taskButton = page.getByTestId(`tool-test-quickerbench-task-${taskId}`);
+  await taskButton.waitFor({ state: "visible", timeout: timeoutMs });
+
+  const responsePromise = page.waitForResponse(
+    (res) =>
+      res.url().includes("/api/chat")
+      && res.request().method() === "POST",
+    { timeout: timeoutMs },
+  );
+
+  await taskButton.click();
+  const response = await responsePromise;
+  const parsed = await parseAgentGuiChatResponseBody({
+    ok: response.ok(),
+    body: await response.text(),
+    status: response.status(),
+    seedUserText: "",
+  });
+  await waitForRuntimeMetadataPaint(page);
+  return {
+    ok: parsed.ok,
+    messages: parsed.messages,
+    runtimeMetadata: await readRuntimeMetadataFromPage(page),
+    error: parsed.error,
+    httpStatus: response.status(),
+  };
+}
+
 export async function runToolTestUiEval(
   request: ToolTestUiRunRequest,
 ): Promise<ToolTestUiRunResult> {
@@ -242,10 +297,13 @@ export async function runToolTestUiEval(
     );
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
-    await waitForLlmReady(page, timeoutMs, panel);
+    await waitForLlmReady(page, timeoutMs, panel, request.scenario.id);
 
     if (panel === "launcher") {
       return await runLauncherPanel(page, request.scenario.userPrompt, timeoutMs);
+    }
+    if (panel === "quickerbench") {
+      return await runQuickerBenchPanel(page, request.scenario.id, timeoutMs);
     }
     return await runPromptChatPanel(page, request.scenario.userPrompt, timeoutMs);
   } catch (err) {

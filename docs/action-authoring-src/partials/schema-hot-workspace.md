@@ -12,7 +12,7 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 | file | role |
 |------|------|
 | info.json | title, icon, editVersion, callIdentifier (subprogram) |
-| data.json | steps[] + variables[] only — **action-data-schema**; agents omit stepId, empty ifSteps/elseSteps |
+| data.json | steps[] + variables[] only — **docs get action-data-schema**; agents omit stepId, empty ifSteps/elseSteps |
 | files/ | long scripts/HTML; step ref `paramKey.file`: `files/…` |
 
 ### target → disk
@@ -38,5 +38,3 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 - **new**: create → empty data.json on disk → edit → patch (NO re-get)
 - **existing non-empty**: get → read/edit → [file_*] → patch
 - **discover**: projects_list; `<qka id="guid">` → get then edit
-
-Deep-read: workspace-editing.

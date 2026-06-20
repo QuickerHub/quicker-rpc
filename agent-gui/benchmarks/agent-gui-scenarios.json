@@ -204,6 +204,54 @@
 
     {
 
+      "id": "slash-author-bundled",
+
+      "category": "agent-defs",
+
+      "label": "bundled 斜杠 /author",
+
+      "userPrompt": "/author 列出当前工作区动作并说明下一步如何创建新动作（先不要 patch）",
+
+      "chatMode": "agent",
+
+      "readOnly": true,
+
+      "expect": {
+
+        "mustCallAny": ["qkrpc_action_query", "docs", "ask_question", "workspace_program"],
+
+        "mustNotCall": ["Write", "Shell"]
+
+      }
+
+    },
+
+    {
+
+      "id": "slash-verify-bundled",
+
+      "category": "agent-defs",
+
+      "label": "bundled 斜杠 /verify",
+
+      "userPrompt": "/verify 当前工作区第一个动作",
+
+      "chatMode": "agent",
+
+      "readOnly": true,
+
+      "expect": {
+
+        "mustCallAny": ["workspace_program", "qkrpc_action_query", "docs"],
+
+        "mustNotCall": ["Write", "Shell"]
+
+      }
+
+    },
+
+    {
+
       "id": "task-readonly-explore",
 
       "category": "agent-defs",
@@ -217,6 +265,54 @@
       "readOnly": true,
 
       "fixture": "eval-workspace",
+
+      "expect": {
+
+        "mustCall": ["task"],
+
+        "mustNotCall": ["workspace_program", "Write"]
+
+      }
+
+    },
+
+    {
+
+      "id": "task-step-runner-lookup",
+
+      "category": "agent-defs",
+
+      "label": "task 子代理 step-runner-lookup",
+
+      "userPrompt": "请委派 step-runner-lookup 子代理：查找用于单变量赋值的 step-runner key 和 inputParams，不要 patch。",
+
+      "chatMode": "agent",
+
+      "readOnly": true,
+
+      "expect": {
+
+        "mustCall": ["task"],
+
+        "mustNotCall": ["workspace_program", "Write"]
+
+      }
+
+    },
+
+    {
+
+      "id": "task-action-library-search",
+
+      "category": "agent-defs",
+
+      "label": "task 子代理 action-library-search",
+
+      "userPrompt": "请委派 action-library-search 子代理：在动作库搜索「HTTP JSON」相关分享动作并总结可借鉴的模式，只读不要 patch。",
+
+      "chatMode": "agent",
+
+      "readOnly": true,
 
       "expect": {
 

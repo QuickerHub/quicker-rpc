@@ -8,6 +8,7 @@ import {
   type ActionAuthoringSearchItem,
   type ActionAuthoringTopicMeta,
   groupTopicsByLayer,
+  DOCS_AGENT_ROUTING_HINT,
   isBlockedReferenceKey,
   normalizeReferenceKey,
   sortTopicsByLayer,
@@ -43,6 +44,7 @@ export type {
   ActionAuthoringSearchItem,
   ActionAuthoringTopicMeta,
   DOCS_SCHEMA_TOPIC_IDS,
+  DOCS_AGENT_ROUTING_HINT,
 } from "@/lib/action-authoring-docs.shared";
 export {
   docViewerEntryKey,
@@ -478,8 +480,7 @@ export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
 
   const content = await formatAllPreloadedSkillsForPrompt({
     [AUTHORING_SKILL]: {
-      suffix:
-        'docs search → items[].snippet. docs get(topic) only for full workflow guide.',
+      suffix: DOCS_AGENT_ROUTING_HINT,
     },
   });
   cachedPromptBlock = { content, mtimeMs };
@@ -505,7 +506,7 @@ export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
 
   const groups = groupTopicsByLayer(topics);
   const lines = [
-    "### Topic index (docs search → snippet; docs get for full workflow only)",
+    `### Topic index (${DOCS_AGENT_ROUTING_HINT})`,
   ];
   for (const group of groups) {
     if (group.topics.length === 0) continue;
@@ -973,7 +974,6 @@ export async function searchActionAuthoringDocs(
     matchCount: items.length,
     items,
     availableTopics,
-    hint:
-      "Read items[].snippet (topic + hit neighborhood). docs get(topic) only for full workflow guide.",
+    hint: DOCS_AGENT_ROUTING_HINT,
   };
 }

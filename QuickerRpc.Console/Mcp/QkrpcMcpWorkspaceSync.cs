@@ -74,6 +74,7 @@ internal static class QkrpcMcpWorkspaceSync
     internal static async Task<string> AugmentActionCreateAsync(
         QkrpcMcpRuntime runtime,
         string createJson,
+        string? dataJson,
         CancellationToken cancellationToken)
     {
         if (!TryParseOk(createJson, out var root) || root is null)
@@ -115,14 +116,7 @@ internal static class QkrpcMcpWorkspaceSync
         };
         QuickerProjectFiles.WriteActionInfo(projectDir, info);
 
-        if (!File.Exists(QuickerProjectLayout.GetDataPath(projectDir)))
-        {
-            QuickerProjectFiles.WriteData(projectDir, new JObject
-            {
-                ["steps"] = new JArray(),
-                ["variables"] = new JArray(),
-            });
-        }
+        WriteCreateProgramData(projectDir, dataJson);
 
         QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
         try
@@ -143,6 +137,94 @@ internal static class QkrpcMcpWorkspaceSync
 
         await Task.CompletedTask.ConfigureAwait(false);
         return root.ToJsonString();
+    }
+
+    internal static async Task<string> AugmentSubprogramCreateAsync(
+        QkrpcMcpRuntime runtime,
+        string createJson,
+        string? dataJson,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseOk(createJson, out var root) || root is null)
+        {
+            return createJson;
+        }
+
+        var subProgramId = root["subProgramId"]?.GetValue<string>()
+            ?? root["payload"]?["subProgramId"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(subProgramId))
+        {
+            return createJson;
+        }
+
+        var workspaceResult = await TryGetWorkspaceRootAsync(runtime, cancellationToken).ConfigureAwait(false);
+        if (!workspaceResult.ok)
+        {
+            return createJson;
+        }
+
+        var workspaceRoot = workspaceResult.root;
+        var projectDir = QkrpcMcpWorkspaceHelpers.ResolveGlobalSubProgramDir(workspaceRoot, subProgramId.Trim());
+        Directory.CreateDirectory(projectDir);
+        Directory.CreateDirectory(Path.Combine(projectDir, QuickerProjectLayout.FilesDirName));
+
+        var info = new SubProgramProjectInfo
+        {
+            Id = subProgramId.Trim(),
+            Name = root["name"]?.GetValue<string>(),
+            Description = root["description"]?.GetValue<string>(),
+            Icon = root["icon"]?.GetValue<string>(),
+            CallIdentifier = root["callIdentifier"]?.GetValue<string>(),
+            EditVersion = root["editVersion"]?.GetValue<long>(),
+            ExportedUtc = DateTime.UtcNow.ToString("O"),
+        };
+        QuickerProjectFiles.WriteSubProgramInfo(projectDir, info);
+
+        WriteCreateProgramData(projectDir, dataJson);
+
+        QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
+        try
+        {
+            QkrpcMcpWorkspaceIndex.Write(workspaceRoot);
+        }
+        catch
+        {
+            // non-fatal
+        }
+
+        root["workspaceProject"] = new JsonObject
+        {
+            ["ok"] = true,
+            ["projectDirectory"] = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir, workspaceRoot),
+            ["projectDirectoryAbsolute"] = projectDir,
+        };
+
+        await Task.CompletedTask.ConfigureAwait(false);
+        return root.ToJsonString();
+    }
+
+    private static void WriteCreateProgramData(string projectDir, string? dataJson)
+    {
+        var dataPath = QuickerProjectLayout.GetDataPath(projectDir);
+        if (!string.IsNullOrWhiteSpace(dataJson))
+        {
+            if (!QuickerProjectFiles.TryParseDataRoot(dataJson, out var data, out var error) || data is null)
+            {
+                throw new InvalidOperationException(error ?? "Invalid dataJson for create.");
+            }
+
+            QuickerProjectFiles.WriteData(projectDir, data);
+            return;
+        }
+
+        if (!File.Exists(dataPath))
+        {
+            QuickerProjectFiles.WriteData(projectDir, new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray(),
+            });
+        }
     }
 
     internal static async Task<string> AugmentSubprogramGetAsync(

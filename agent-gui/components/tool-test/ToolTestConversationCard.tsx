@@ -11,6 +11,9 @@ import { formatLauncherAgentTimingMs } from "@/lib/tool-test-launcher-agent-timi
 import { ToolTestChatMessages } from "@/components/tool-test/ToolTestChatMessages";
 import { ToolTestLauncherAgentChatMessages } from "@/components/tool-test/ToolTestLauncherAgentChatMessages";
 import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
+import { ContextUsage } from "@/components/chat/ContextUsage";
+import type { ToolTestExportMeta } from "@/lib/tool-test-chat-export";
+import type { ChatThreadExportResult } from "@/components/chat/ChatThreadExportDialog";
 
 export type ToolTestConversationCardProps = {
   label: string;
@@ -33,6 +36,13 @@ export type ToolTestConversationCardProps = {
   chatVariant?: "default" | "launcher-agent";
   chatError?: string;
   addToolOutput?: ChatAddToolOutput | null;
+  /** Show context ring (same as main chat composer). */
+  llmSelection?: string;
+  /** Enable export button when set. */
+  exportMeta?: ToolTestExportMeta;
+  exportResult?: ChatThreadExportResult | null;
+  exporting?: boolean;
+  onExport?: () => void;
 };
 
 export function ToolTestConversationCard({
@@ -53,6 +63,11 @@ export function ToolTestConversationCard({
   chatVariant = "default",
   chatError,
   addToolOutput,
+  llmSelection,
+  exportMeta,
+  exportResult,
+  exporting = false,
+  onExport,
 }: ToolTestConversationCardProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -75,6 +90,25 @@ export function ToolTestConversationCard({
           </span>
         </div>
         <div className="tool-test-title-run__head-meta">
+          {llmSelection?.trim() ? (
+            <ContextUsage
+              messages={messages}
+              busy={status === "running"}
+              selection={llmSelection}
+              compact
+            />
+          ) : null}
+          {exportMeta && onExport ? (
+            <button
+              type="button"
+              className="tool-test-title-run__export-btn"
+              disabled={exporting || messages.length === 0}
+              title="导出 quicker-agent-*.json 到 QuickerAgent exports"
+              onClick={onExport}
+            >
+              {exporting ? "导出中…" : "导出"}
+            </button>
+          ) : null}
           {timingMs != null ? (
             <span
               className={`tool-test-title-run__timing${timingLive ? " tool-test-title-run__timing--live" : ""}`}
@@ -92,6 +126,18 @@ export function ToolTestConversationCard({
           </time>
         </div>
       </header>
+
+      {exportResult?.filename ? (
+        <p className="tool-test-title-run__export-hint" role="status">
+          已导出 <code>{exportResult.filename}</code>
+          {exportResult.exportsDirectory ? (
+            <span className="tool-test-title-run__export-dir">
+              {" "}
+              → {exportResult.exportsDirectory}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
 
       <div
         ref={chatScrollRef}

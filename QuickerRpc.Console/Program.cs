@@ -376,7 +376,7 @@ internal static partial class Program
             return ExitCodes.Error;
         }
 
-        var (noteOk, note, noteErrorCode, noteErrorMessage) = ResolveShareNote(options);
+        var (noteOk, _, noteErrorCode, noteErrorMessage) = ResolveShareNote(options);
         if (!noteOk)
         {
             await EmitErrorAsync(options.Json, noteErrorCode!, noteErrorMessage!).ConfigureAwait(false);
@@ -395,7 +395,6 @@ internal static partial class Program
         {
             Title = options.Title,
             Description = options.Description,
-            Note = note,
             DetailHtml = detailHtml,
             Tags = options.Tags,
             Keywords = options.Keywords,
@@ -1329,31 +1328,14 @@ internal static partial class Program
         var hasInline = !string.IsNullOrWhiteSpace(options.ShareNote);
         var hasFile = !string.IsNullOrWhiteSpace(options.NoteFile);
 
-        if (hasInline && hasFile)
+        if (!hasInline && !hasFile)
         {
-            return (false, null, "CONFLICTING_SHARE_NOTE", "Use either --share-note or --note-file, not both.");
+            return (true, null, null, null);
         }
 
-        if (!hasFile)
-        {
-            return (true, options.ShareNote, null, null);
-        }
-
-        var path = options.NoteFile!.Trim();
-        if (!File.Exists(path))
-        {
-            return (false, null, "NOTE_FILE_NOT_FOUND", $"Note file not found: {path}");
-        }
-
-        try
-        {
-            var text = File.ReadAllText(path, Encoding.UTF8).TrimEnd();
-            return (true, text, null, null);
-        }
-        catch (Exception ex)
-        {
-            return (false, null, "NOTE_FILE_READ_FAILED", ex.Message);
-        }
+        return (false, null, "DEPRECATED_SHARE_NOTE",
+            "The getquicker 「备注」 field is deprecated. Do not use --share-note or --note-file. "
+            + "Use --html/--html-file for Detail HTML, or qkagent apply for styled action pages.");
     }
 
     private static async Task<(bool Ok, string? DetailHtml, string? ErrorCode, string? ErrorMessage)>
@@ -1555,10 +1537,10 @@ public sealed class ActionOptions
     [Option('f', "changelog-file", HelpText = "Read change log from a UTF-8 text file.")]
     public string? ChangelogFile { get; set; }
 
-    [Option("share-note", HelpText = "Share page intro (Note) markdown for action publish.")]
+    [Option("share-note", Hidden = true, HelpText = "Deprecated; rejected. Use --html/--html-file.")]
     public string? ShareNote { get; set; }
 
-    [Option("note-file", HelpText = "Read share page intro (Note) from a UTF-8 markdown file.")]
+    [Option("note-file", Hidden = true, HelpText = "Deprecated; rejected. Use --html-file.")]
     public string? NoteFile { get; set; }
 
     [Option("html", HelpText = "Action page intro HTML (getquicker 动作说明 Detail) for shared-info-set / publish.")]

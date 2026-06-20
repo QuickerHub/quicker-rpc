@@ -165,7 +165,9 @@ function TerminalOutputEditorInner({
       ))
     : null;
   const showChevron = canToggle;
-  const liveText = running ? (outputText || "…") : "";
+  const liveText = running
+    ? (outputText || "（等待输出…）")
+    : "";
   const hasOutputPane = running || Boolean(outputText);
   const unifiedScroll = showCommandPane && hasOutputPane;
   const wantOutputCm = !running && Boolean(outputText) && !isCompactPreview;
@@ -330,7 +332,7 @@ function TerminalOutputEditorInner({
             LIVE
           </span>
           <span className="terminal-output-editor__meta tool-muted">
-            {liveText === "…"
+            {liveText === "（等待输出…）"
               ? "实时输出…"
               : `实时 · ${countShellOutputLines(liveText)} 行`}
           </span>

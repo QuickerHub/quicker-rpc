@@ -21,9 +21,9 @@ public sealed class ActionPublishIntroTests
     }
 
     [TestMethod]
-    public void ResolveDetailHtml_prefers_explicit_html_over_note()
+    public void ResolveDetailHtml_ignores_note_and_requires_explicit_html()
     {
-        var html = ActionPublishIntro.ResolveDetailHtml("<p>A</p>", "note");
-        Assert.AreEqual("<p>A</p>", html);
+        Assert.IsNull(ActionPublishIntro.ResolveDetailHtml(null, "note"));
+        Assert.AreEqual("<p>A</p>", ActionPublishIntro.ResolveDetailHtml("<p>A</p>", "note"));
     }
 }

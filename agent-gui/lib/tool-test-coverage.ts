@@ -1,7 +1,7 @@
 import { ALL_QKRPC_TOOL_IDS } from "@/lib/tool-registry";
 import { TOOL_TEST_SUITES, type ToolTestSuite } from "@/lib/tool-test-suites";
 
-/** Chat-only tools implemented in quickerTools but outside QKRPC registry. */
+/** Chat-only tools in quickerTools but not user-configurable in the picker. */
 const CHAT_ONLY_TOOL_IDS = [
   "ask_question",
   "set_thread_title",
@@ -21,7 +21,7 @@ export const TOOL_TEST_MANUAL_TOOLS: Readonly<
 > = {
   qkrpc_action_get: "同步会写 .quicker 磁盘",
   qkrpc_action_create: "会新建动作",
-  qkrpc_action_edit: "会打开桌面设计器",
+  qkrpc_designer_open: "会打开设计器",
   qkrpc_action_edit_var: "会修改变量",
   qkrpc_action_set_metadata: "会改元数据",
   qkrpc_action_move: "会移动动作格",
@@ -36,9 +36,7 @@ export const TOOL_TEST_MANUAL_TOOLS: Readonly<
   qkrpc_process_ensure: "会改虚拟进程布局",
   qkrpc_subprogram_get: "会同步子程序到磁盘",
   qkrpc_subprogram_create: "会新建子程序",
-  qkrpc_subprogram_export: "会导出目录",
-  qkrpc_subprogram_import: "会导入目录",
-  qkrpc_subprogram_edit: "会打开子程序设计器",
+  qkrpc_subprogram_transfer: "会导入/导出目录",
   qkrpc_action_delete: "危险删除 — 用「门闩」套件手测确认 UI",
   qkrpc_subprogram_delete: "危险删除 — 用「门闩」套件手测确认 UI",
 };

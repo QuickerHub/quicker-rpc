@@ -8,6 +8,7 @@ import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 export const QUICKER_AGENT_DEFS_DIR = ".quicker";
 export const WORKSPACE_AGENTS_MD = "AGENTS.md";
 export const MAX_WORKSPACE_INSTRUCTIONS_CHARS = 32_000;
+export const BUNDLED_AGENTS_REL = "lib/agent-defs/bundled";
 
 /** User-level agent definitions root (QuickerAgent app data). */
 export function resolveUserAgentDefsRoot(): string {
@@ -26,6 +27,21 @@ export function resolveBundledSkillsRoot(): string {
     return join(repo, DEFAULT_SKILLS_REL);
   }
   return join(resolveAgentGuiRoot(), DEFAULT_SKILLS_REL);
+}
+
+/** Bundled agent-defs root (`commands/` + `agents/` under lib/agent-defs/bundled). */
+export function resolveBundledAgentDefsRoot(): string {
+  return join(resolveAgentGuiRoot(), BUNDLED_AGENTS_REL);
+}
+
+/** @deprecated alias — pass to discoverAgentsInRoot (appends `agents/`). */
+export function resolveBundledAgentsRoot(): string {
+  return resolveBundledAgentDefsRoot();
+}
+
+/** Pass to discoverCommandsInRoot for bundled slash commands (appends `commands/`). */
+export function resolveBundledCommandsRoot(): string {
+  return resolveBundledAgentDefsRoot();
 }
 
 export function resolveCommandsDir(root: string): string {

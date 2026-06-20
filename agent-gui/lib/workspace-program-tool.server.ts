@@ -15,6 +15,7 @@ import {
   parseWorkspaceProgramTarget,
   type ParsedWorkspaceProgramInput,
 } from "@/lib/workspace-program-target";
+import { coerceProgramDataContent } from "@/lib/program-data-input";
 import {
   executeWorkspaceProgramEditData,
   executeWorkspaceProgramFileEdit,
@@ -91,7 +92,7 @@ export type WorkspaceProgramToolInput = {
   id?: string;
   subProgramId?: string;
   path?: string;
-  content?: string;
+  content?: string | Record<string, unknown>;
   mode?: "content" | "summary";
   oldString?: string;
   newString?: string;
@@ -290,9 +291,14 @@ export async function executeWorkspaceProgramTool(
       if (input.content == null) {
         return programInputError("content is required for write_data.");
       }
+      const coerced = coerceProgramDataContent(input.content);
+      if (!coerced.ok) {
+        return programInputError(coerced.error);
+      }
       return executeWorkspaceProgramWriteData({
         ...resolved.parsed,
-        content: input.content,
+        content: coerced.text,
+        contentNormalized: coerced.normalized,
       });
     }
     case "edit_data": {
@@ -402,7 +408,13 @@ export const WORKSPACE_PROGRAM_TOOL_DEF = tool({
       .string()
       .optional()
       .describe("Relative path under files/ for file_* actions"),
-    content: z.string().optional().describe("file_write: full file content"),
+    content: z
+      .union([z.string(), z.record(z.string(), z.unknown())])
+      .optional()
+      .describe(
+        "write_data: data.json {steps,variables} as string or object (object is normalized); "
+        + "file_write: file body string",
+      ),
     mode: z
       .enum(["content", "summary"])
       .optional()

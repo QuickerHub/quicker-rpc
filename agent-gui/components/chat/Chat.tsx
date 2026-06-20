@@ -1,8 +1,5 @@
 "use client";
 
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
-import { lastAssistantMessageIsCompleteWithClientResponses } from "@/lib/chat-auto-submit";
 import { ChatToolActionsProvider } from "@/lib/chat-tool-actions";
 import { collectPendingAskQuestions } from "@/lib/ask-question-tool";
 import { AskQuestionDock } from "@/components/chat/AskQuestionDock";
@@ -39,7 +36,6 @@ import {
 } from "@/lib/sidebar-prefs";
 import {
   applyThreadMessagesToStore,
-  flushPendingChatStoreSaveAsync,
   forkThread,
   getActiveThread,
   getOpenTabThreads,
@@ -87,6 +83,12 @@ import { useDesignerContext } from "@/lib/use-designer-context";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { setThreadRunBusy } from "@/lib/thread-run-status";
 import { notifyBackgroundThreadRunComplete } from "@/lib/thread-run-complete-notify";
+import { clearThreadNeedsAttention } from "@/lib/thread-attention";
+import { listenDesktop } from "@/lib/desktop-bridge";
+import {
+  THREAD_NOTIFICATION_ACTIVATE_EVENT,
+  type ThreadNotificationActivateDetail,
+} from "@/lib/desktop-native-notification";
 import { useAppMainSplit } from "@/lib/use-app-main-split";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { DesignerEmbedContextBar } from "@/components/chat/DesignerEmbedContextBar";
@@ -159,7 +161,6 @@ import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import {
   CHAT_MODE_AGENT,
   CHAT_MODE_LAUNCHER,
-  resolveEnabledToolsForChatMode,
   type ChatMode,
 } from "@/lib/chat-mode";
 import {
@@ -183,44 +184,12 @@ import {
   upsertUserMessageDraft,
   userMessageHasLocalDraft,
 } from "@/lib/user-message-edit";
+import { useAgentChatSession } from "@/components/chat/useAgentChatSession";
+import { formatChatError } from "@/lib/chat-error-format";
 import {
-  finalizeStreamingReasoningParts,
-  repairInterruptedToolCalls,
-} from "@/lib/repair-interrupted-tool-calls";
-
-/** Debounced persist after messages settle. */
-const CHAT_PERSIST_DEBOUNCE_MS = 400;
-/** Cap data loss during long streaming/tool runs when debounce keeps resetting. */
-const CHAT_PERSIST_MAX_INTERVAL_MS = 5000;
-
-function formatChatError(error: Error): string {
-  const message = error.message?.trim();
-  if (!message) {
-    return "对话请求失败（无详细错误信息）。可打开开发者工具 Network 查看 /api/chat 响应。";
-  }
-
-  if (/^\s*<!DOCTYPE\s+html/i.test(message) || /<html[\s>]/i.test(message)) {
-    const titleMatch = message.match(/<title[^>]*>([^<]*)<\/title>/i);
-    const title = titleMatch?.[1]?.trim();
-    return title
-      ? `对话请求失败：/api/chat 返回了 HTML 页面（${title}），不是正常的 JSON/流式响应。请在 Network 里查看该请求的状态码，并看运行 agent-gui 的终端是否有报错。`
-      : "对话请求失败：/api/chat 返回了 HTML 页面而非 JSON。请确认 agent-gui 已正确启动，并在 Network 中查看 /api/chat 的状态码与响应。";
-  }
-
-  try {
-    const parsed = JSON.parse(message) as { error?: unknown };
-    if (typeof parsed.error === "string" && parsed.error.trim()) {
-      return parsed.error.trim();
-    }
-  } catch {
-    /* plain text from /api/chat */
-  }
-
-  if (message.length > 500) {
-    return `${message.slice(0, 480)}…（响应过长，完整内容见 Network → /api/chat）`;
-  }
-  return message;
-}
+  exportThreadLikeWithLiveMessages,
+  useChatThreadExportDialog,
+} from "@/lib/use-chat-thread-export-dialog";
 
 type ChatPanelProps = {
   threadId: string;
@@ -229,6 +198,7 @@ type ChatPanelProps = {
   visible?: boolean;
   ephemeral?: boolean;
   threadTitle: string;
+  threadUpdatedAt: number;
   titleGenerated: boolean;
   titleManual: boolean;
   ping: PingState;
@@ -249,6 +219,8 @@ type ChatPanelProps = {
   ) => void;
   onActivateThread?: () => void;
   designerEmbed?: boolean;
+  /** Scoped Action Designer embed — enables designer prompt + actionDesigner on API. */
+  designerEmbedScoped?: boolean;
   actionDesigner?: ActionDesignerThreadRef;
 };
 
@@ -259,6 +231,7 @@ function ChatPanel({
   visible = true,
   ephemeral = false,
   threadTitle,
+  threadUpdatedAt,
   titleGenerated,
   titleManual,
   ping,
@@ -271,6 +244,7 @@ function ChatPanel({
   onForkThread,
   onActivateThread,
   designerEmbed = false,
+  designerEmbedScoped = false,
   actionDesigner,
 }: ChatPanelProps) {
   const [editAnchorLiveDraft, setEditAnchorLiveDraft] = useState("");
@@ -295,6 +269,8 @@ function ChatPanel({
       : loadStoredLlmSelectionRaw();
     return stored ?? fallback;
   });
+  const llmSelectionRef = useRef(llmSelection);
+  llmSelectionRef.current = llmSelection;
   const devExperienceEnabled = useDevExperienceEnabled();
   const { panelOpen } = useWorkspaceExplorerShell();
   const appMainBodyRef = useRef<HTMLDivElement>(null);
@@ -352,54 +328,10 @@ function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ChatComposerFooterHandle>(null);
   const voiceInterruptRef = useRef<() => void>(() => {});
-  const persistRef = useRef(onPersist);
-  persistRef.current = onPersist;
-  const lastPersistedRef = useRef<{
-    threadId: string;
-    messages: AgentUIMessage[];
-  } | null>(null);
-
-  const enabledToolsRef = useRef(enabledTools);
-  enabledToolsRef.current = enabledTools;
-  const chatModeRef = useRef(chatMode);
-  chatModeRef.current = chatMode;
-  const llmSelectionRef = useRef(llmSelection);
-  llmSelectionRef.current = llmSelection;
-  const workingDirectoryRef = useRef(workingDirectory);
-  workingDirectoryRef.current = workingDirectory;
-  const titleManualRef = useRef(titleManual);
-  titleManualRef.current = titleManual;
-  const actionDesignerRef = useRef(actionDesigner);
-  actionDesignerRef.current = actionDesigner;
-  const messagesForPersistRef = useRef<AgentUIMessage[]>(initialMessages);
-
-  // useChat only recreates Chat when `id` changes; body must stay stable and
-  // read latest composer settings via refs on each request.
-  const chatTransport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        body: () => ({
-          threadId,
-          chatMode: chatModeRef.current,
-          enabledTools: resolveEnabledToolsForChatMode(
-            chatModeRef.current,
-            enabledToolsRef.current,
-            loadStoredEnabledTools,
-          ),
-          llmSelection: llmSelectionRef.current,
-          llmProvider: llmSelectionRef.current,
-          workingDirectory: workingDirectoryRef.current.trim() || undefined,
-          titleManual: titleManualRef.current,
-          actionDesigner: actionDesignerRef.current,
-        }),
-      }),
-    [],
-  );
 
   const {
     messages,
-    sendMessage,
+    sendMessageSafe,
     setMessages,
     status,
     error,
@@ -407,117 +339,21 @@ function ChatPanel({
     clearError,
     addToolApprovalResponse,
     addToolOutput,
-  } = useChat<AgentUIMessage>({
-      id: threadId,
-      // Persisted snapshots may contain reasoning parts stuck in "streaming"
-      // (e.g. app closed mid-stream); finalize so UI timers don't restart.
-      messages: finalizeStreamingReasoningParts(initialMessages),
-      transport: chatTransport,
-      experimental_throttle: 100,
-      sendAutomaticallyWhen:
-        lastAssistantMessageIsCompleteWithClientResponses,
-    });
-
-  messagesForPersistRef.current = messages;
-
-  // Open-tab panels can mount before lazy thread hydration delivers persisted
-  // messages (boot inlines only the active thread, scope=active). useChat reads
-  // `messages` only when the Chat instance is created, so a late snapshot must
-  // be fed into the still-empty chat or the conversation renders blank until a
-  // full reload. An empty live chat with a non-empty store snapshot is always
-  // the "not yet hydrated" state: persist never writes [] over existing
-  // messages (see updateThreadMessages guard).
-  useEffect(() => {
-    if (ephemeral) return;
-    if (initialMessages.length === 0) return;
-    if (status === "streaming" || status === "submitted") return;
-    const live = messagesForPersistRef.current;
-    if (live.length > 0) return;
-    setMessages(finalizeStreamingReasoningParts(initialMessages));
-  }, [ephemeral, initialMessages, setMessages, status, threadId]);
-
-  const busyPersist =
-    status === "streaming" || status === "submitted";
-  const busyPersistRef = useRef(busyPersist);
-  busyPersistRef.current = busyPersist;
-
-  const flushThreadPersist = useCallback(() => {
-    if (!isChatStoreHydrated()) return;
-    const snapshot = messagesForPersistRef.current;
-    lastPersistedRef.current = { threadId, messages: snapshot };
-    persistRef.current(threadId, snapshot, {
-      notify: !busyPersistRef.current,
-    });
-  }, [threadId]);
-
-  const repairToolCalls = useCallback(() => {
-    setMessages((prev) => repairInterruptedToolCalls(prev));
-  }, [setMessages]);
-
-  const sendMessageSafe = useCallback(
-    (payload: Parameters<typeof sendMessage>[0]) => {
-      repairToolCalls();
-      sendMessage(payload);
-    },
-    [repairToolCalls, sendMessage],
-  );
-
-  useEffect(() => {
-    if (ephemeral || !visible) return;
-    const debounceMs = busyPersist
-      ? CHAT_PERSIST_MAX_INTERVAL_MS
-      : CHAT_PERSIST_DEBOUNCE_MS;
-    const timer = window.setTimeout(flushThreadPersist, debounceMs);
-    return () => {
-      window.clearTimeout(timer);
-      if (!busyPersist) {
-        flushThreadPersist();
-      }
-    };
-  }, [busyPersist, ephemeral, flushThreadPersist, messages, visible]);
-
-  // Persist the user turn immediately; while streaming the debounce stretches to 5s
-  // and a fast refresh can tear down the page before pagehide flush runs.
-  useEffect(() => {
-    if (ephemeral || !visible) return;
-    if (status !== "submitted") return;
-    flushThreadPersist();
-  }, [ephemeral, flushThreadPersist, status, visible]);
-
-  const flushThreadPersistToDisk = useCallback(() => {
-    flushThreadPersist();
-    void flushPendingChatStoreSaveAsync({ keepalive: true });
-  }, [flushThreadPersist]);
-
-  useEffect(() => {
-    if (ephemeral || !visible) return;
-    const interval = window.setInterval(
-      flushThreadPersist,
-      CHAT_PERSIST_MAX_INTERVAL_MS,
-    );
-    const onPageHide = () => flushThreadPersistToDisk();
-    window.addEventListener("pagehide", onPageHide);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("pagehide", onPageHide);
-      flushThreadPersistToDisk();
-    };
-  }, [ephemeral, flushThreadPersist, flushThreadPersistToDisk, threadId, visible]);
-
-  const prevStatusRef = useRef(status);
-  useEffect(() => {
-    const prev = prevStatusRef.current;
-    prevStatusRef.current = status;
-    const wasBusy = prev === "streaming" || prev === "submitted";
-    const isIdle = status === "ready" || status === "error";
-    if (!wasBusy || !isIdle) return;
-    // Aborted/errored streams can leave reasoning parts stuck in
-    // "streaming", which keeps the thinking timer ticking in the UI.
-    setMessages((current) => finalizeStreamingReasoningParts(current));
-    if (!ephemeral) {
-      flushThreadPersist();
-    }
-  }, [ephemeral, flushThreadPersist, setMessages, status]);
+    repairToolCalls,
+  } = useAgentChatSession({
+    threadId,
+    initialMessages,
+    ephemeral: ephemeral === true,
+    visible: visible !== false,
+    workingDirectory,
+    titleManual,
+    designerEmbedScoped,
+    actionDesigner,
+    chatMode,
+    enabledTools,
+    llmSelection,
+    onPersist,
+  });
 
   useActionProjectImportFromMessages(messages, !ephemeral && visible);
   useReloadProgramDataFromToolMessages(messages, !ephemeral && visible);
@@ -1218,6 +1054,42 @@ function ChatPanel({
     onForkThread(threadId, messages, lastMessage.id);
   }, [ephemeral, messages, onForkThread, threadId]);
 
+  const { exporting, exportThread, exportDialog } = useChatThreadExportDialog({
+    disabled: ephemeral,
+  });
+
+  const exportThreadMeta = useMemo(
+    () => ({
+      id: threadId,
+      title: threadTitle,
+      updatedAt: threadUpdatedAt,
+      workingDirectory,
+      titleGenerated,
+      titleManual,
+      ...(designerEmbedScoped && actionDesigner ? { actionDesigner } : {}),
+      messages: initialMessages,
+    }),
+    [
+      actionDesigner,
+      designerEmbedScoped,
+      initialMessages,
+      threadId,
+      threadTitle,
+      threadUpdatedAt,
+      titleGenerated,
+      titleManual,
+      workingDirectory,
+    ],
+  );
+
+  const handleExportConversation = useCallback(() => {
+    void exportThreadLikeWithLiveMessages(
+      exportThread,
+      exportThreadMeta,
+      messages,
+    );
+  }, [exportThread, exportThreadMeta, messages]);
+
   const renderChatMessage = useCallback(
     (
       message: AgentUIMessage,
@@ -1269,6 +1141,9 @@ function ChatPanel({
           onInsertComposerPrompt={insertComposerPrompt}
           canForkConversation={!ephemeral && !!onForkThread && messages.length > 0}
           onForkConversation={handleForkConversation}
+          canExportConversation={!ephemeral && messages.length > 0}
+          exportConversationDisabled={exporting}
+          onExportConversation={handleExportConversation}
         />
       );
     },
@@ -1280,6 +1155,8 @@ function ChatPanel({
       editAnchorMessageId,
       ephemeral,
       handleForkConversation,
+      handleExportConversation,
+      exporting,
       insertComposerPrompt,
       focusComposerAtEnd,
       lastTurnFillScrollport,
@@ -1495,6 +1372,7 @@ function ChatPanel({
         {visible ? <WorkspaceExplorerPanel /> : null}
       </div>
     </div>
+    {exportDialog}
     </ChatToolActionsProvider>
   );
 }
@@ -1647,6 +1525,7 @@ export function Chat() {
 
   const handleActivateThread = useCallback(
     (threadId: string) => {
+      clearThreadNeedsAttention(threadId);
       activateThreadWithLazyHydration({
         threadId,
         mode: "open",
@@ -1656,6 +1535,41 @@ export function Chat() {
     },
     [updateStore],
   );
+
+  useEffect(() => {
+    let unlistenDesktop = () => {};
+    const activateFromNotification = (threadId: string) => {
+      if (!threadId.trim()) return;
+      handleActivateThread(threadId);
+    };
+    const onBrowserNotificationActivate = (event: Event) => {
+      const detail = (event as CustomEvent<ThreadNotificationActivateDetail>)
+        .detail;
+      activateFromNotification(detail?.threadId ?? "");
+    };
+
+    window.addEventListener(
+      THREAD_NOTIFICATION_ACTIVATE_EVENT,
+      onBrowserNotificationActivate,
+    );
+    void listenDesktop("thread-notification-activate", (payload) => {
+      if (typeof payload !== "object" || payload === null) return;
+      const threadId = (payload as { threadId?: unknown }).threadId;
+      if (typeof threadId === "string") {
+        activateFromNotification(threadId);
+      }
+    }).then((unlisten) => {
+      unlistenDesktop = unlisten;
+    });
+
+    return () => {
+      window.removeEventListener(
+        THREAD_NOTIFICATION_ACTIVATE_EVENT,
+        onBrowserNotificationActivate,
+      );
+      unlistenDesktop();
+    };
+  }, [handleActivateThread]);
 
   const openSettings = useCallback((
     targetProviderId?: LlmProviderId,
@@ -1821,6 +1735,7 @@ export function Chat() {
                         workingDirectory={resolveThreadCwd(thread)}
                         visible={thread.id === activeThread.id}
                         threadTitle={thread.title}
+                        threadUpdatedAt={thread.updatedAt}
                         titleGenerated={thread.titleGenerated ?? false}
                         titleManual={thread.titleManual ?? false}
                         ping={ping}
@@ -1833,10 +1748,11 @@ export function Chat() {
                         onForkThread={handleForkThread}
                         onActivateThread={() => handleActivateThread(thread.id)}
                         designerEmbed={designerEmbed.enabled}
+                        designerEmbedScoped={designerEmbed.scoped}
                         actionDesigner={
                           designerEmbed.scoped
                             ? (thread.actionDesigner ?? designerThreadRef)
-                            : thread.actionDesigner
+                            : undefined
                         }
                       />
                     ))}
@@ -1849,6 +1765,7 @@ export function Chat() {
                         visible={false}
                         ephemeral
                         threadTitle=""
+                        threadUpdatedAt={Date.now()}
                         titleGenerated={false}
                         titleManual={false}
                         ping={ping}

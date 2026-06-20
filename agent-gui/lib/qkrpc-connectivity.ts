@@ -47,6 +47,9 @@ export function isQkrpcConnectivityFailure(result: QkrpcRunResult): boolean {
   ) {
     return true;
   }
+  if (stderr.includes("无法连接 qkrpc serve") || stderr.includes("无法连接 qkrpc")) {
+    return true;
+  }
   if (
     stderr.includes("quicker") && stderr.includes("plugin")
     && (stderr.includes("load") || stderr.includes("加载") || stderr.includes("运行"))

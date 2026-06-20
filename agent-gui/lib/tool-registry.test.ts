@@ -50,6 +50,13 @@ afterEach(() => {
 
 
 
+test("internal chat tools are registered but hidden from picker", () => {
+  assert.ok(ALL_QKRPC_TOOL_IDS.includes("set_thread_title"));
+  assert.ok(ALL_QKRPC_TOOL_IDS.includes("launcher_command_cache"));
+  const title = QKRPC_TOOL_REGISTRY.find((t) => t.id === "set_thread_title");
+  assert.ok(title?.pickerHidden);
+});
+
 test("Grep host tool is registered in picker", () => {
   assert.ok(ALL_QKRPC_TOOL_IDS.includes("Grep"));
   const grep = QKRPC_TOOL_REGISTRY.find((t) => t.id === "Grep");
@@ -68,7 +75,7 @@ test("every registry entry has id", () => {
 
 });
 
-test("every registry tool appears in tool picker categories", () => {
+test("every picker-visible registry tool appears in tool picker categories", () => {
   const shown = new Set<string>();
   for (const group of ["read", "write", "destructive"] as ToolGroupId[]) {
     for (const category of TOOL_CATEGORY_ORDER_BY_GROUP[group]) {
@@ -77,8 +84,9 @@ test("every registry tool appears in tool picker categories", () => {
       }
     }
   }
-  for (const id of ALL_QKRPC_TOOL_IDS) {
-    assert.ok(shown.has(id), `${id} missing from tool picker categories`);
+  for (const entry of QKRPC_TOOL_REGISTRY) {
+    if (entry.pickerHidden) continue;
+    assert.ok(shown.has(entry.id), `${entry.id} missing from tool picker categories`);
   }
 });
 
@@ -106,6 +114,8 @@ test("split action tools are registered and default-on", () => {
 
     "qkrpc_subprogram_get",
 
+    "qkrpc_designer_open",
+    "qkrpc_subprogram_transfer",
     "qkrpc_subprogram_create",
 
   ]) {
@@ -137,6 +147,7 @@ test("migrates legacy mega qkrpc_action to split tools", () => {
   assert.equal(enabled.includes("qkrpc_action_get"), true);
 
   assert.equal(enabled.includes("qkrpc_action_publish"), true);
+  assert.equal(enabled.includes("qkrpc_designer_open"), true);
 
   assert.equal(enabled.includes("qkrpc_action"), false);
 

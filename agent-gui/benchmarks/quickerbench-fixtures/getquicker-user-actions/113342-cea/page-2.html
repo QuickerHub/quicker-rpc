@@ -1,0 +1,2292 @@
+<!DOCTYPE html>
+<html lang="zh-CN" style="height: 100%">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cea分享的动作 - Quicker</title>
+    <script>
+        // 防止主题切换闪烁，在页面加载前立即应用主题
+        (function() {
+            var theme = localStorage.getItem('quicker-theme') || 'auto';
+            var effectiveTheme = theme;
+            if (theme === 'auto') {
+                effectiveTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', effectiveTheme);
+            
+            // 如果是暗色模式，添加一个样式标签来处理常见的内联样式
+            if (effectiveTheme === 'dark') {
+                var style = document.createElement('style');
+                style.id = 'dark-mode-inline-fix';
+                style.textContent = '[style*="background-color: #E0E0E0"],[style*="background-color:#E0E0E0"],[style*="background-color: #e0e0e0"],[style*="background-color:#e0e0e0"]{background-color:#16213e!important}[style*="background-color: #F0F0F0"],[style*="background-color:#F0F0F0"],[style*="background-color: #f0f0f0"],[style*="background-color:#f0f0f0"]{background-color:#0f3460!important}[style*="background-color: white"],[style*="background-color:#fff"],[style*="background-color: #fff"],[style*="background-color:#FFF"],[style*="background-color: #FFF"],[style*="background-color:#ffffff"],[style*="background-color: #ffffff"],[style*="background-color: #FFFFFF"],[style*="background-color:#FFFFFF"]{background-color:#1f1f3d!important}';
+                document.head.appendChild(style);
+            }
+        })();
+    </script>
+    <!-- Meta -->
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="description" content="Quicker，Windows效率工具。快速触发 + 自动化。">
+<meta name="keywords" content="Windows效率工具,快捷面板,界面操作自动化,模拟按键,Quicker,鼠标手势,轮盘菜单，组合动作,热盒菜单,饼菜单,软件,轻量RPA工具" />
+
+
+<link rel="stylesheet" href="https://libs.getquicker.cn/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" >
+<link rel="stylesheet" href="https://libs.getquicker.cn/npm/animate.css@3.7.2/animate.min.css" >
+<link rel="stylesheet" href="https://files.getquicker.net/_sitefiles/www/libs/fontawesome/5.13.0/css/all.min.css" />
+<link rel="stylesheet" href="https://libs.getquicker.cn/npm/summernote@0.8.20/dist/summernote-bs4.min.css">
+<link rel="stylesheet" href="https://libs.getquicker.cn/npm/lity@2.4.1/dist/lity.min.css">
+<link rel="stylesheet" href="https://libs.getquicker.cn/npm/tocbot@4.27.19/dist/tocbot.css">
+
+
+
+
+
+<link id="theme-style" rel="stylesheet" href="/assets/css/theme-4.css">
+<link id="stylesheet" rel="stylesheet" href="/assets/css/site.css?v=iMqWCWD2us3o4OiysNVLA82_4DrctsKFT0uEiX28eXA">
+    
+    
+
+
+    
+        <script>
+            var _hmt = _hmt || [];
+            (function () {
+                var hm = document.createElement("script");
+                hm.src = "https://hm.baidu.com/hm.js?7bab827f502b0ce36fc1dce2b3656412";
+                var s = document.getElementsByTagName("script")[0];
+                s.parentNode.insertBefore(hm, s);
+            })();
+        </script>
+    
+    <link rel="apple-touch-icon" href="/quicker_square.png" />
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" href="/quicker_round.png">
+</head>
+<body class="" style="height: 100%;">
+
+
+    <nav class="navbar fixed-top  navbar-expand-lg navbar-dark bg-dark ">
+        <div class="container">
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-collapse" aria-controls="navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <a class="navbar-brand align-middle d-flex align-items-center" href="/">
+                <img id="logo-image" class="logo-image align-middle" src="/quicker_white.svg" alt="Logo" style="max-height: 26px">
+                <span class="pl-1 mr-3">Quicker</span>
+            </a>
+
+            <div class="navbar-collapse collapse justify-content-between" id="navbar-collapse">
+                <ul class="navbar-nav navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/" title="打开主页">
+                            <i class="fas fa-fw fa-home"></i>
+                            主页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" title="下载Quicker软件和客户端" href="/Download">
+                            <i class="fas fa-fw fa-download"></i>
+                            下载
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link " href="/pricing">
+                            <i class="fas fa-fw fa-shopping-cart"></i>
+                            专业版
+                        </a>
+                    </li>
+                </ul>
+                <ul class="nav navbar-nav">
+                    <li class="nav-item mr-4 d-flex align-items-center">
+                        <form class="form-inline" method="get" action="/Search">
+                            <div class="input-group input-group-sm">
+                                <input type="text" name="keyword" placeholder="搜索..." title="搜索Quicker网站的内容" class="search-box form-control  border-secondary" style="border-right:0;" />
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" type="submit" title="搜索" style="border-left:0;">
+                                        <i class="fas fa-fw fa-search"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </li>
+
+
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropbtn" title="动作库" data-toggle="tooltip" data-placement="left" href="/Share">
+                            <i class="fas fa-fw fa-th-large"></i>
+                            <span class="d-inline ">分享</span>
+                        </a>
+                        <div class="dropdown-content" aria-labelledby="navbarDropdownMenuLink">
+                            <a class="dropdown-item" title="动作库首页" data-toggle="tooltip" data-placement="right" href="/Share">
+                                <i class="fal fa-fw fa-th-large"></i>
+                                动作库
+                            </a>
+                            <a class="dropdown-item" title="分享具有特定功能的程序块" data-toggle="tooltip" data-placement="right" href="/Share/SubPrograms">
+                                <i class="fal fa-fw fa-cube"></i>
+                                子程序
+                            </a>
+                            <a class="dropdown-item" title="将普通按键组合变成快捷键" data-toggle="tooltip" data-placement="right" href="/Share/PowerKeys">
+                                <i class="fal fa-fw  fa-keyboard"></i>
+                                扩展热键
+                            </a>
+                            <a class="dropdown-item" title="输入缩写字符触发操作" data-toggle="tooltip" data-placement="right" href="/Share/TextCommands">
+                                <i class="fal fa-fw  fa-ad"></i>
+                                文本指令
+                            </a>
+                            <a class="dropdown-item" title="" data-toggle="tooltip" data-placement="right" href="/Share/ActionLists">
+                                <i class="fal fa-fw  fa-clipboard-list"></i>
+                                动作单
+                            </a>
+                            <a class="dropdown-item" title="" data-toggle="tooltip" data-placement="right" href="/Exe">
+                                <i class="fal fa-fw  fa-window"></i>
+                                应用程序
+                            </a>
+                        </div>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropbtn" title="文档" data-toggle="tooltip" data-placement="right" href="/KC">
+                            <i class="fas fa-fw fa-books"></i>
+                            <span class="d-inline ">文档</span>
+                        </a>
+                        <div class="dropdown-content" aria-labelledby="navbarDropdownMenuLink">
+                            <a class="dropdown-item" title="文档中心首页" data-toggle="tooltip" data-placement="right" href="/KC">
+                                <i class="fal fa-fw fa-home"></i>
+                                文档中心首页
+                            </a>
+                            <a class="dropdown-item" title="软件的设置和使用" data-toggle="tooltip" data-placement="right" href="/KC/Manual">
+                                <i class="fal fa-fw  fa-book "></i>
+                                软件使用手册
+                            </a>
+                            <a class="dropdown-item" title="组合动作开发参考" data-toggle="tooltip" data-placement="right" href="/KC/Help">
+                                <i class="fal fa-fw  fa-pencil-ruler "></i>
+                                组合动作开发
+                            </a>
+                            <a class="dropdown-item" title="经验分享文章" data-toggle="tooltip" data-placement="right" href="/KC/Kb">
+                                <i class="fal fa-fw  fa-book-open "></i>
+                                知识库
+                            </a>
+                            <a class="dropdown-item" title="详细版本更新历史" data-toggle="tooltip" data-placement="right" href="/Help/Versions">
+                                <i class="fal fa-fw  fa-history "></i>
+                                版本更新
+                            </a>
+                            <a class="dropdown-item" title="版本更新内容归档" data-toggle="tooltip" data-placement="right" href="/KC/Versions">
+                                <i class="fal fa-fw  fa-history "></i>
+                                版本更新(归档)
+                            </a>
+                            <a class="dropdown-item" title="可能会遇到的异常情况" data-toggle="tooltip" data-placement="right" href="/Help/Errors">
+                                <i class="fal fa-fw  fa-exclamation-triangle "></i>
+                                异常反馈
+                            </a>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" title="讨论区" data-toggle="tooltip" data-placement="bottom" href="/QA">
+                            <i class="fas fa-fw fa-comments-alt"></i>
+                            <span class="d-inline">讨论</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" title="外观设置分享" data-toggle="tooltip" data-placement="bottom" href="/Skins">
+                            <i class="fas fa-fw fa-tshirt"></i>
+                            <span class="d-inline d-lg-none">外观</span>
+                        </a>
+                    </li>
+                    
+
+
+    <li class="nav-item">
+        <a class="nav-link" data-toggle="tooltip" data-placement="bottom" href="/Identity/Account/Login">
+            <i class="fas fa-sign-in"></i> 登录
+        </a>
+    </li>
+    <li class="nav-item"><a class="nav-link" href="/Identity/Account/Register">注册</a></li>
+
+
+
+                </ul><!--//nav-->
+
+            </div><!--//navabr-collapse-->
+        </div>
+    </nav>
+
+
+
+    <div class="body-wrapper" style="position: relative">
+        
+
+
+
+<div class="container" style="min-height: 500px;">
+    <div>
+        <nav aria-label="breadcrumb" >
+            <ol class="breadcrumb bg-white pl-0 mb-0">
+                <li class="breadcrumb-item"><a href="/Share">动作库</a></li>
+                <li class="breadcrumb-item"><label>用户信息</label></li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="d-flex  align-items-center justify-content-between p-3">
+        <h2 class="d-flex  align-items-center">
+            <div class="mr-2">
+                    <img src="https://files.getquicker.net/_userFiles/113342/avata_20211231035032.png" style="width: 2em; height: 2em;" class="avatar" />
+            </div>
+
+            <div class="d-inline-block flex-grow-1">
+                <div class="mt-1">
+                    <span>
+                        Cea
+                    </span>
+                    
+
+                </div>
+                <div class="font14 mt-2">
+                    
+                        <a data-toggle="tooltip" data-placement="bottom" data-copy="113342-5249" title="点击复制Ta的推荐码。如果TA的动作帮助了你，可以在首次购买专业版时使用TA的推荐码，双方都可获赠90天专业版时长。" class="font14 text-secondary cursor-pointer mr-3">
+                            Ta的推荐码：113342-5249
+                        </a>
+                    <span class="text-muted mr-3" title="注册天数" data-toggle="tooltip">
+                        <i class="fas fa-calendar"></i>
+                        2311天
+                    </span>
+                    <span class="mr-3">
+                            <i class="fas fa-crown mr-0 pro-user-icon" style="color: #178feb;font-size: 1.2em" data-toggle="tooltip" title="专业版用户"></i>
+                    </span>
+                        <a class="ml-4 mr-4" data-lity data-lity-desc="赞赏作者" href="/DonateAuthor?serial=113342&amp;nickname=Cea">
+                            <i class="text-warning fas fa-badge-dollar mr-1"></i>赞赏TA
+                        </a>
+
+                </div>
+            </div>
+
+
+        </h2>
+
+        <div class="text-right">
+           
+                <div class="public-msg font14">
+                    <i class="fal fa-comment"></i>
+                    剪贴板动作交流群：824753837
+                </div>
+
+        </div>
+    </div>
+    
+        <div class="nav nav-tabs mb-2 mt-2">
+   
+                <div class="nav-item">
+                    <a class="nav-link active" href="/User/Actions/113342-Cea"><i class='fas fa-fw fa-th-large mr-1'></i>动作</a>
+                
+                </div>
+                <div class="nav-item">
+                    <a class="nav-link " href="/User/SubPrograms/113342-Cea"><i class='fas fa-fw fa-cube mr-1'></i>子程序</a>
+                
+                </div>
+                <div class="nav-item">
+                    <a class="nav-link " href="/User/ActionLists/113342-Cea"><i class='fas fa-fw fa-clipboard-list mr-1'></i>动作单</a>
+                
+                </div>
+        </div>
+
+    
+    <div class="mt-1 mb-5">
+
+        <div class="mb-3">
+            <div class="row">
+                <div class="col-12 col-md-8">
+                    <form method="get" class="d-flex flex-wrap align-items-center">
+                        <input type="hidden" name="userToken" value="113342-Cea" />
+                        <input type="hidden" name="exe" value="" />
+                        <div class="input-group input-group-sm mr-2 mb-2" style="max-width: 350px;">
+                            <input type="text" class="form-control" name="filter" value="" placeholder="关键词或exe文件名...">
+                        </div>
+                        
+                        <div class="mb-2">
+                            <button type="submit" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-search"></i> 搜索
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-12 col-md-4 text-md-right">
+                    <span class="text-muted small">共 117 个动作</span>
+                </div>
+            </div>
+
+                <div class="mt-2">
+                    <span class="text-muted small mr-1">分类：</span>
+                    <a class="btn btn-sm btn-secondary mr-1 mb-1" href="/User/Actions/113342-Cea">
+                        全部 (117)
+                    </a>
+                        <a class="btn btn-sm btn-outline-secondary mr-1 mb-1" title="通用" href="/User/Actions/113342-Cea?exe=common">
+                            common (93)
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary mr-1 mb-1" title="Google Chrome" href="/User/Actions/113342-Cea?exe=chrome.exe">
+                                <img src="https://files.getquicker.net/_icons/45A65C6ADE01AA2FCB9744856C4FEBA0538FF992.png" style="width: 14px; height: 14px; vertical-align: middle;" class="mr-1" />
+                            chrome.exe (11)
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary mr-1 mb-1" title="Quicker" href="/User/Actions/113342-Cea?exe=quicker.exe">
+                                <img src="https://files.getquicker.net/_icons/5E5C8C35FDA9E28D6E35D9C7E4EAA498A6069306.png" style="width: 14px; height: 14px; vertical-align: middle;" class="mr-1" />
+                            quicker.exe (6)
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary mr-1 mb-1" title="Visual Studio Code" href="/User/Actions/113342-Cea?exe=code.exe">
+                                <img src="https://files.getquicker.net/_icons/73551354D4BAD9FEE5282C5FD5416D63BD00672C.png" style="width: 14px; height: 14px; vertical-align: middle;" class="mr-1" />
+                            code.exe (3)
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary mr-1 mb-1" title="Windows 资源管理器" href="/User/Actions/113342-Cea?exe=explorer.exe">
+                                <img src="https://files.getquicker.net/_icons/C10C3344B5B24AD43833A3F5614B5690DF274F4D.png" style="width: 14px; height: 14px; vertical-align: middle;" class="mr-1" />
+                            explorer.exe (2)
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary mr-1 mb-1" title="PDF-XChange Editor" href="/User/Actions/113342-Cea?exe=pdfxedit.exe">
+                                <img src="https://files.getquicker.net/_icons/8936053F1926B030A3BE1B27D5AD71CD7239CF55.png" style="width: 14px; height: 14px; vertical-align: middle;" class="mr-1" />
+                            pdfxedit.exe (1)
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary mr-1 mb-1" title="我来wolai" href="/User/Actions/113342-Cea?exe=wolai.exe">
+                                <img src="https://files.getquicker.net/_icons/C01F56DE95AA2AEFBD0C4523D0288E021BD60E69.png" style="width: 14px; height: 14px; vertical-align: middle;" class="mr-1" />
+                            wolai.exe (1)
+                        </a>
+                </div>
+        </div>
+
+
+
+<div class="pb-4">
+        <table class="table table-bordered table-sm table-hover" >
+            <tr>
+                <th style="width: 40px">
+
+                </th>
+                <th class="align-middle " style="width: 50%">
+                    名称
+                </th>
+                <th class="align-middle text-center">
+                    适用于
+                </th>
+                <th class="align-middle text-center">
+                    分享人
+                </th>
+                <th class="align-middle text-center d-none d-md-table-cell">
+                    <span data-toggle="tooltip" title="动作的数据内容多少，可以大约表示其复杂程度">大小</span>
+                </th>
+
+                <th class="align-middle text-center d-none d-md-table-cell">
+                    获赞
+                </th>
+                <th class="align-middle text-center d-none d-md-table-cell text-nowrap">
+                    <span data-toggle="tooltip" title="安装动作的用户数">用户</span>
+                </th>
+
+                <th class="align-middle text-center d-none d-md-table-cell text-nowrap">
+                    <span data-toggle="tooltip" title="近7日内动作的日均被使用次数。">频度</span>
+                </th>
+            </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='77cdb73e-07de-4705-d8d0-08da0c387041'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/91943F4CEF747C5A9CA96454E7A45173D10F1363.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="77cdb73e-07de-4705-d8d0-08da0c387041" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="CeaBox&#xA;动作大小：28.1 KB&#xA;创建时间：2022-03-24 01:24&#xA;修订版本：45&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=77cdb73e-07de-4705-d8d0-08da0c387041">
+                                    CeaBox
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="搜索框，收藏夹，剪贴板，聚合">
+                                    搜索框，收藏夹，剪贴板，聚合
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/77cdb73e-07de-4705-d8d0-08da0c387041/20220324032509_20220324_152116_404.png" target="_blank" data-lity data-lity-desc="CeaBox">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:77cdb73e-07de-4705-d8d0-08da0c387041">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="28.1 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+35                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        291
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=77cdb73e-07de-4705-d8d0-08da0c387041">
+25                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='c3336884-f4cb-46b9-da4e-08da76a0d1ac'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fal fa-window-maximize " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="c3336884-f4cb-46b9-da4e-08da76a0d1ac"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="窗口菜单&#xA;动作大小：24.5 KB&#xA;创建时间：2022-08-05 15:56&#xA;修订版本：41&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=c3336884-f4cb-46b9-da4e-08da76a0d1ac">
+                                    窗口菜单
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="可用于快速切换窗口">
+                                    可用于快速切换窗口
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:c3336884-f4cb-46b9-da4e-08da76a0d1ac">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="24.5 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+31                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        216
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=c3336884-f4cb-46b9-da4e-08da76a0d1ac">
+11                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='4b3b6a69-15b9-4ca1-447b-08da37d44e37'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/002098E8563D3F0D68BEC42AC4956CE56DD78B57.svg" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="4b3b6a69-15b9-4ca1-447b-08da37d44e37" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="捷径面板3.0&#xA;动作大小：25 KB&#xA;创建时间：2022-05-17 21:55&#xA;修订版本：74&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=4b3b6a69-15b9-4ca1-447b-08da37d44e37">
+                                    捷径面板3.0
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="捷径面板3.0">
+                                    捷径面板3.0
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:4b3b6a69-15b9-4ca1-447b-08da37d44e37">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="25 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+278                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        3001
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=4b3b6a69-15b9-4ca1-447b-08da37d44e37">
+637                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='a9c8d61e-dbab-4d5a-991f-08da410f3c1c'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/87B4B964EA10A9D88E9538D630FFE3BFCD054990.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="a9c8d61e-dbab-4d5a-991f-08da410f3c1c" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="超级菜单&#xA;动作大小：24.3 KB&#xA;创建时间：2022-05-29 21:42&#xA;修订版本：80&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=a9c8d61e-dbab-4d5a-991f-08da410f3c1c">
+                                    超级菜单
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="集合各种功能的菜单">
+                                    集合各种功能的菜单
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/a9c8d61e-dbab-4d5a-991f-08da410f3c1c/20220531011401_bandicam%202022-05-31%2001-10-58-492.mp4" target="_blank" data-lity data-lity-desc="超级菜单">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:a9c8d61e-dbab-4d5a-991f-08da410f3c1c">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="24.3 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+193                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        1513
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=a9c8d61e-dbab-4d5a-991f-08da410f3c1c">
+255                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='a50d39ba-b07c-459e-347c-08da7d9afa4f'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/3BD77D70DC47649020B8870968DEE5C16709FAF9.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="a50d39ba-b07c-459e-347c-08da7d9afa4f" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="书签菜单&#xA;动作大小：24.3 KB&#xA;创建时间：2022-08-14 23:25&#xA;修订版本：42&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=a50d39ba-b07c-459e-347c-08da7d9afa4f">
+                                    书签菜单
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="浏览器书签，菜单">
+                                    浏览器书签，菜单
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:a50d39ba-b07c-459e-347c-08da7d9afa4f">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="24.3 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+65                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        199
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=a50d39ba-b07c-459e-347c-08da7d9afa4f">
+16                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='44f708d3-3dc6-4b6e-194c-08d95b8499a1'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/91943F4CEF747C5A9CA96454E7A45173D10F1363.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="44f708d3-3dc6-4b6e-194c-08d95b8499a1" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="集锦&#xA;动作大小：26.4 KB&#xA;创建时间：2021-08-11 01:17&#xA;修订版本：44&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=44f708d3-3dc6-4b6e-194c-08d95b8499a1">
+                                    集锦
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="如题">
+                                    如题
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:44f708d3-3dc6-4b6e-194c-08d95b8499a1">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="26.4 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+18                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        140
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=44f708d3-3dc6-4b6e-194c-08d95b8499a1">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='17b78d43-8bc7-4200-a090-08d9ac50b9f2'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/47AE36809ECE778A9F27F24D672427CE05D39D71.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="17b78d43-8bc7-4200-a090-08d9ac50b9f2" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="图标管理&#xA;动作大小：33.3 KB&#xA;创建时间：2021-11-21 22:42&#xA;修订版本：60&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=17b78d43-8bc7-4200-a090-08d9ac50b9f2">
+                                    图标管理
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title=" ">
+                                     
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:17b78d43-8bc7-4200-a090-08d9ac50b9f2">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="33.3 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+62                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        569
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=17b78d43-8bc7-4200-a090-08d9ac50b9f2">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='5042d4d2-2979-4fff-4a25-08da404596c9'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/011D8B5F6BB051200D70A0CEBC95304483C6AADD.svg" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="5042d4d2-2979-4fff-4a25-08da404596c9" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="文件菜单&#xA;动作大小：27.4 KB&#xA;创建时间：2022-05-28 19:12&#xA;修订版本：53&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=5042d4d2-2979-4fff-4a25-08da404596c9">
+                                    文件菜单
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title=" ">
+                                     
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:5042d4d2-2979-4fff-4a25-08da404596c9">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="27.4 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+133                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        1260
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=5042d4d2-2979-4fff-4a25-08da404596c9">
+212                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='818dd30d-a759-4779-d4ca-08db111f8bc2'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/D238156FA240C2989A8581FA7D7B6F9558552F44.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="818dd30d-a759-4779-d4ca-08db111f8bc2" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="剪贴板无焦点&#xA;动作大小：26.3 KB&#xA;创建时间：2023-02-18 15:18&#xA;修订版本：39&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=818dd30d-a759-4779-d4ca-08db111f8bc2">
+                                    剪贴板无焦点
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="剪贴板动作无焦点模式，但无法使用键盘操作">
+                                    剪贴板动作无焦点模式，但无法使用键盘操作
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:818dd30d-a759-4779-d4ca-08db111f8bc2">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="26.3 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+13                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        55
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=818dd30d-a759-4779-d4ca-08db111f8bc2">
+42                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='54dc3640-79ab-4223-a073-08da8515cad0'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fal fa-text " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="54dc3640-79ab-4223-a073-08da8515cad0"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="文本菜单&#xA;动作大小：24.3 KB&#xA;创建时间：2022-08-24 17:19&#xA;修订版本：39&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=54dc3640-79ab-4223-a073-08da8515cad0">
+                                    文本菜单
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="选中快速替换文本">
+                                    选中快速替换文本
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-21 10:35
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:54dc3640-79ab-4223-a073-08da8515cad0">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="24.3 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+14                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        106
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=54dc3640-79ab-4223-a073-08da8515cad0">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='d587fa2b-ec07-4398-dda2-08de2211a7a5'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/9CEB381D868C2108F39B4BF0766A81049053D2AC.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="d587fa2b-ec07-4398-dda2-08de2211a7a5" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="窗口吸附&#xA;动作大小：33.9 KB&#xA;创建时间：2025-11-13 01:33&#xA;修订版本：8&#xA;更新内容：优化控制面板图标" class="mr-1" href="/Sharedaction?code=d587fa2b-ec07-4398-dda2-08de2211a7a5">
+                                    窗口吸附
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="最强窗口吸附动作，使用窗口挂钩实现的窗口吸附，实时跟随，无卡顿感（用timer轮询明显卡顿）">
+                                    最强窗口吸附动作，使用窗口挂钩实现的窗口吸附，实时跟随，无...
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/d587fa2b-ec07-4398-dda2-08de2211a7a5/20251113033057_bandicam%202025-11-13%2015-30-14-833.mp4" target="_blank" data-lity data-lity-desc="窗口吸附">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-16 04:43
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:d587fa2b-ec07-4398-dda2-08de2211a7a5">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="33.9 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+21                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        112
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=d587fa2b-ec07-4398-dda2-08de2211a7a5">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='f733c3e9-e8b6-4f51-df26-08d9db64e6a1'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fal fa-apple-alt " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="f733c3e9-e8b6-4f51-df26-08d9db64e6a1"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="倒计时&#xA;动作大小：50.5 KB&#xA;创建时间：2022-01-20 19:08&#xA;修订版本：15&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=f733c3e9-e8b6-4f51-df26-08d9db64e6a1">
+                                    倒计时
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="倒计时">
+                                    倒计时
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-16 03:18
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:f733c3e9-e8b6-4f51-df26-08d9db64e6a1">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="50.5 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:7px;height: 7px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+161                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        2341
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=f733c3e9-e8b6-4f51-df26-08d9db64e6a1">
+145                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='26fe4c88-355d-46c4-3bd9-08d97b88c89f'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fab fa-meetup " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="26fe4c88-355d-46c4-3bd9-08d97b88c89f"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="表达式测试&#x2B;&#xA;动作大小：14.6 KB&#xA;创建时间：2021-09-20 18:11&#xA;修订版本：14&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=26fe4c88-355d-46c4-3bd9-08d97b88c89f">
+                                    表达式测试&#x2B;
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="quicker表达式编辑器">
+                                    quicker表达式编辑器
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-16 03:18
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:26fe4c88-355d-46c4-3bd9-08d97b88c89f">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="14.6 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+26                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        108
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=26fe4c88-355d-46c4-3bd9-08d97b88c89f">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='dda51a2a-ebc4-4999-ec4f-08db9b9dff03'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fal fa-tasks-alt " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="dda51a2a-ebc4-4999-ec4f-08db9b9dff03"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="动作管理窗口&#xA;动作大小：14.6 KB&#xA;创建时间：2023-08-13 23:23&#xA;修订版本：31&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=dda51a2a-ebc4-4999-ec4f-08db9b9dff03">
+                                    动作管理窗口
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="1">
+                                    1
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/dda51a2a-ebc4-4999-ec4f-08db9b9dff03/20230820051154_20230820_051139_288.png" target="_blank" data-lity data-lity-desc="动作管理窗口">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-16 03:18
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:dda51a2a-ebc4-4999-ec4f-08db9b9dff03">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="14.6 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+74                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        530
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=dda51a2a-ebc4-4999-ec4f-08db9b9dff03">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='417c4530-1f20-434e-39b9-08d97dc8fa09'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fab fa-vuejs " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="417c4530-1f20-434e-39b9-08d97dc8fa09"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="钉住&#x2B;锁定&#xA;动作大小：14.8 KB&#xA;创建时间：2021-09-24 01:22&#xA;修订版本：8&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=417c4530-1f20-434e-39b9-08d97dc8fa09">
+                                    钉住&#x2B;锁定
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="quicker面板">
+                                    quicker面板
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/417c4530-1f20-434e-39b9-08d97dc8fa09/-45d9a94247002223.gif" target="_blank" data-lity data-lity-desc="钉住&#x2B;锁定">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-16 03:18
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:417c4530-1f20-434e-39b9-08d97dc8fa09">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="14.8 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+22                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        234
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=417c4530-1f20-434e-39b9-08d97dc8fa09">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='1d188a73-a8ca-4720-99de-08d93777d8dd'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/5227FAB6715571B238CE8A715B9837596861983A.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="1d188a73-a8ca-4720-99de-08d93777d8dd" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="管理子程序&#xA;动作大小：14.6 KB&#xA;创建时间：2021-06-25 15:52&#xA;修订版本：9&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=1d188a73-a8ca-4720-99de-08d93777d8dd">
+                                    管理子程序
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="经常用公共子程序写动作时, 快速打开公共子程序, 而不需要单独开一个动作窗口">
+                                    经常用公共子程序写动作时, 快速打开公共子程序, 而不需要单...
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/1d188a73-a8ca-4720-99de-08d93777d8dd/2021-06-25_15-58-58.png" target="_blank" data-lity data-lity-desc="管理子程序">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-16 03:18
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:1d188a73-a8ca-4720-99de-08d93777d8dd">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="14.6 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+23                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        101
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=1d188a73-a8ca-4720-99de-08d93777d8dd">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='b3ee9862-7a0e-49b0-0896-08d981a94e62'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fal fa-fist-raised " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="b3ee9862-7a0e-49b0-0896-08d981a94e62"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="工具菜单&#xA;动作大小：14.8 KB&#xA;创建时间：2021-09-27 21:21&#xA;修订版本：8&#xA;更新内容：优化依赖加载实现" class="mr-1" href="/Sharedaction?code=b3ee9862-7a0e-49b0-0896-08d981a94e62">
+                                    工具菜单
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end">
+                                    
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-16 03:18
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:b3ee9862-7a0e-49b0-0896-08d981a94e62">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="14.8 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+16                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        56
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=b3ee9862-7a0e-49b0-0896-08d981a94e62">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='a70d05e9-1f90-437c-a495-08de211e65c2'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/C6A46CFC5855BEA56D4B20F90D1B1143609AC067.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="a70d05e9-1f90-437c-a495-08de211e65c2" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="点赞数统计&#xA;动作大小：14.5 KB&#xA;创建时间：2025-11-12 20:16&#xA;修订版本：0&#xA;更新内容：" class="mr-1" href="/Sharedaction?code=a70d05e9-1f90-437c-a495-08de211e65c2">
+                                    点赞数统计
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="打开动作网页或者动作作者主页，运行此动作">
+                                    打开动作网页或者动作作者主页，运行此动作
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-12 20:16
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:a70d05e9-1f90-437c-a495-08de211e65c2">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="14.5 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+2                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        1
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=a70d05e9-1f90-437c-a495-08de211e65c2">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='aae8854d-64e2-44a5-a47d-08de211e65c2'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/C2F2E2AE3FC0953E8E0BF1CBCBC9E2A5C4FB086A.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="aae8854d-64e2-44a5-a47d-08de211e65c2" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="五子棋&#xA;动作大小：13.2 KB&#xA;创建时间：2025-11-12 12:38&#xA;修订版本：0&#xA;更新内容：" class="mr-1" href="/Sharedaction?code=aae8854d-64e2-44a5-a47d-08de211e65c2">
+                                    五子棋
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="五子棋">
+                                    五子棋
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-11-12 12:38
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:aae8854d-64e2-44a5-a47d-08de211e65c2">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="13.2 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:4px;height: 4px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+5                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        31
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=aae8854d-64e2-44a5-a47d-08de211e65c2">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='bd17698e-d5af-4d0f-1bd0-08de17a53e69'>
+                        <div class='action-icon-container'>
+                        
+            <i class="fal fa-code " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="bd17698e-d5af-4d0f-1bd0-08de17a53e69"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="编程语言检测&#xA;动作大小：13 KB&#xA;创建时间：2025-10-31 22:21&#xA;修订版本：0&#xA;更新内容：" class="mr-1" href="/Sharedaction?code=bd17698e-d5af-4d0f-1bd0-08de17a53e69">
+                                    编程语言检测
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="检测常用的50&#x2B;种编程语言">
+                                    检测常用的50&#x2B;种编程语言
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-10-31 22:21
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:bd17698e-d5af-4d0f-1bd0-08de17a53e69">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="13 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:4px;height: 4px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        3
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=bd17698e-d5af-4d0f-1bd0-08de17a53e69">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='f10241d3-6716-4de9-ac0b-08da2e557185'>
+                        <div class='action-icon-container'>
+                        
+            <i class="far fa-battery-full " style="font-size: 22px; line-height: 24px;  color:#999999; cursor: pointer;" title="点击复制" sharedAction="f10241d3-6716-4de9-ac0b-08da2e557185"></i>
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="示例：获取剪贴板历史&#xA;动作大小：25.2 KB&#xA;创建时间：2022-05-06 17:38&#xA;修订版本：3&#xA;更新内容：更新依赖下载" class="mr-1" href="/Sharedaction?code=f10241d3-6716-4de9-ac0b-08da2e557185">
+                                    示例：获取剪贴板历史
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end">
+                                    
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-10-30 19:14
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:f10241d3-6716-4de9-ac0b-08da2e557185">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="25.2 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+2                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        22
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=f10241d3-6716-4de9-ac0b-08da2e557185">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='c8cd0aa8-656a-49e0-e179-08d98f69ed77'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/960F3E6FEA6E4652DA9921CE08BEAE0CDCF68940.svg" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="c8cd0aa8-656a-49e0-e179-08d98f69ed77" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="贪吃蛇&#xA;动作大小：13.8 KB&#xA;创建时间：2021-10-15 23:45&#xA;修订版本：3&#xA;更新内容：检测撞到自己会死亡" class="mr-1" href="/Sharedaction?code=c8cd0aa8-656a-49e0-e179-08d98f69ed77">
+                                    贪吃蛇
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="WPF贪吃蛇">
+                                    WPF贪吃蛇
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/c8cd0aa8-656a-49e0-e179-08d98f69ed77/20211018111452_2021-10-18_23-14-44.png" target="_blank" data-lity data-lity-desc="贪吃蛇">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-10-30 04:18
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:c8cd0aa8-656a-49e0-e179-08d98f69ed77">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="13.8 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:4px;height: 4px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+9                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        82
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=c8cd0aa8-656a-49e0-e179-08d98f69ed77">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='e0d2b6a5-6237-464e-faab-08d92451edfb'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/C160C96C650B532814B80E153EA1B8084E2C73BB.svg" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="e0d2b6a5-6237-464e-faab-08d92451edfb" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="三子棋&#xA;动作大小：29.5 KB&#xA;创建时间：2021-06-01 21:16&#xA;修订版本：1&#xA;更新内容：恢复" class="mr-1" href="/Sharedaction?code=e0d2b6a5-6237-464e-faab-08d92451edfb">
+                                    三子棋
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end">
+                                    
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-10-30 03:32
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:e0d2b6a5-6237-464e-faab-08d92451edfb">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="29.5 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:6px;height: 6px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        18
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=e0d2b6a5-6237-464e-faab-08d92451edfb">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='e4afc7ab-9e8b-4dc9-06f3-08d92279e263'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/531960FA5BD9CD85B24EF52FC950E81CECD53960.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="e4afc7ab-9e8b-4dc9-06f3-08d92279e263" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="标签页分组&#xA;动作大小：66.8 KB&#xA;创建时间：2021-05-30 13:28&#xA;修订版本：4&#xA;更新内容：适配 MV3" class="mr-1" href="/Sharedaction?code=e4afc7ab-9e8b-4dc9-06f3-08d92279e263">
+                                    标签页分组
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="将与 当前打开标签页的域名 相同的 标签页 添加到 同一个分组">
+                                    将与 当前打开标签页的域名 相同的 标签页 添加到 同一个分组
+                                </span>
+                            </div>
+
+
+
+                                <a class="flex-shrink-0 preview-btn" title="查看演示" href="https://files.getquicker.net/_actionDemos/e4afc7ab-9e8b-4dc9-06f3-08d92279e263/bandicam%202021-05-30%2013-29-50-894.mp4" target="_blank" data-lity data-lity-desc="标签页分组">
+                                    <i class="fal  fa-play-circle " style="font-size: 20px;"></i>
+                                </a>
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/6/Actions">
+                                <img src="https://files.getquicker.net/_icons/45A65C6ADE01AA2FCB9744856C4FEBA0538FF992.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="chrome.exe - Google Chrome" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-05-08 19:54
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:e4afc7ab-9e8b-4dc9-06f3-08d92279e263">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="66.8 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:8px;height: 8px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+16                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        167
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=e4afc7ab-9e8b-4dc9-06f3-08d92279e263">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center align-middle">
+                        <span draggable="true" class="action-dragger" data-action='618bd23b-8323-4519-9a9b-08dd5c97ad3b'>
+                        <div class='action-icon-container'>
+                        
+                <img class="action-icon" src="https://files.getquicker.net/_icons/E06B64348CBCEC13C6EA4ECD5D1579B7F17D32BC.png" style="height: 24px;width:24px;cursor: pointer" title="点击复制" sharedAction="618bd23b-8323-4519-9a9b-08dd5c97ad3b" />
+
+                        </div>
+                        </span>
+                    </td>
+                    <td class="align-middle">
+                        <div class=" d-flex align-items-center ">
+                            <div class=" d-flex  flex-wrap align-items-center flex-grow-1 flex-shrink-1">
+
+                                <a title="记事本&#xA;动作大小：23.6 KB&#xA;创建时间：2025-03-06 18:41&#xA;修订版本：1&#xA;更新内容：默认纯文本" class="mr-1" href="/Sharedaction?code=618bd23b-8323-4519-9a9b-08dd5c97ad3b">
+                                    记事本
+                                </a>
+                                <span class="small  flex-shrink-1 text-black-50 d-block text-truncate align-self-end" title="monaco editor 记事本">
+                                    monaco editor 记事本
+                                </span>
+                            </div>
+
+
+
+                        </div>
+
+                    </td>
+                    <td class="text-center align-middle">
+                            <a href="/Exe/16/Actions">
+                                <img src="https://files.getquicker.net/_icons/24BF2D852C7F69657D3736423B755E05C06F715B.png" style="width: 24px; height: 24px" data-toggle="tooltip" title="common - 通用" />
+                            </a>
+                    </td>
+
+                    <td class="text-center align-middle small">
+                            <a class="user-link user-pro" href="/User/113342/Cea">
+        Cea
+       
+       
+       
+    </a>
+
+                        <div class="font10 align-middle text-black-50  text-nowrap" title="最后更新">
+                            2025-03-06 19:03
+                        </div>
+                    </td>
+                    <td class="align-middle">
+
+                        <a href="quicker:previewaction:618bd23b-8323-4519-9a9b-08dd5c97ad3b">
+                            <div class=" d-flex align-items-center justify-content-center">
+                                <span class="text-center size-circle" title="23.6 KB <br/> 点击预览动作定义" data-html="true" data-toggle="tooltip">
+                                    <span style="width:5px;height: 5px;" class="inner-circle align-middle"></span>
+                                </span>
+                            </div>
+                        </a>
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+17                    </td>
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        20
+                    </td>
+
+                    <td class="align-middle text-center  d-none d-md-table-cell small">
+                        <a href="/Share/Actions/Stat?code=618bd23b-8323-4519-9a9b-08dd5c97ad3b">
+                                <span style="opacity: 0.5">&lt;10</span>
+                        </a>
+                    </td>
+                </tr>
+        </table>
+</div>
+
+
+
+<div class="row mt-3 font14">
+    <div class="col-12">
+        <nav aria-label="...">
+            <ul class="pagination">
+                <li class="page-item ">
+                    <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=1">首页</a>
+                </li>
+                <li class="page-item ">
+                    <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=1">上一页</a>
+                </li>
+                    <li class="page-item">
+                        <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=1">1</a>
+                    </li>
+                <li class="page-item disabled">
+                    <span class="page-link text-secondary font-weight-bold">2</span>
+                </li>
+                    <li class="page-item">
+                        <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=3">3</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=4">4</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=5">5</a>
+                    </li>
+
+                    <li class="page-item ">
+                        <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=3">下一页</a>
+                    </li>
+                    <li class="page-item ">
+                        <a class="page-link" tabindex="-1" href="/User/Actions/113342-Cea?p=5">末页</a>
+                    </li>
+
+            </ul>
+        </nav>
+    </div>
+
+</div>
+
+
+
+    </div>
+
+
+
+</div>
+
+
+
+    </div>
+
+    <!-- ******FOOTER****** -->
+
+<div class="footer">
+    <div class="container ">
+        <div class="row font14">
+            <dl class="col-12 col-md-2">
+                <dt class="mb-3">产品</dt>
+                <dd><a href="/">主页</a></dd>
+                <dd><a href="/Download">下载</a></dd>
+                <dd><a href="/pricing">专业版</a></dd>
+            </dl>
+            <dl class="col-12 col-md-2">
+                <dt class="mb-3">文档</dt>
+                <dd><a href="/KC/Manual">使用文档</a></dd>
+                <dd><a href="/KC/Help">组合动作开发</a></dd>
+                <dd><a href="/KC/Kb">知识库</a></dd>
+                <dd><a href="/KC/Versions">版本历史</a></dd>
+                <dd><a href="https://www.yuque.com/gpzy/quicker" title="网友 @瓜皮之牙 的分享内容">瓜皮学堂 <i class="fal fa-external-link"></i></a></dd>
+            </dl>
+            <dl class="col-12 col-md-2">
+                <dt class="mb-3">分享</dt>
+                <dd><a href="/Share">动作库</a></dd>
+                <dd><a href="/Share/SubPrograms">子程序</a></dd>
+                <dd><a href="/Skins">外观</a></dd>
+            </dl>
+
+            <dl class="col-12 col-md-2">
+                <dt class="mb-3">交流</dt>
+                <dd><a href="/QA">问答讨论区</a></dd>
+                <dd><a href="https://github.com/cuiliang/quicker/issues">Github Issues</a></dd>
+                <dd><a href="https://getquicker.net/KC/Kb/Article/904" target="_blank" title="QQ群"><i class="fab fa-qq"></i> QQ群</a></dd>
+                <dd></dd>
+            </dl>
+            <dl class="col-12 col-md-2">
+                <dt class="mb-3">关注</dt>
+                <dd><a href="https://weibo.com/cuiliang123" target="_blank" title="cuiliangbj的微博"> <i class="fab fa-weibo mr-1"></i>CL的微博</a></dd>
+                <dd class="mt-1">
+                    <a href="/assets/quicker/WeiXin2022.jpg" class="font12" data-lity="/assets/quicker/WeiXin2022.jpg">微信订阅号</a>
+                    <br/>
+                    <img src="/assets/quicker/WeiXin2022.jpg" class="mt-1" style="width: 80px" title="微信订阅号"/>
+                </dd>
+               
+            </dl>
+            <dl class="col-12 col-md-2">
+                <dt class="mb-3">条款</dt>
+                <dd><a href="/Privacy">隐私政策</a></dd>
+                <dd><a class="cursor-pointer" id="reportPage">
+                    <i class="fas fa-shield-alt fa-fw mr-1"></i>报告不良信息
+                </a></dd>
+
+            </dl>
+        </div>
+        <div class="row">
+            <div class="col text-center text-secondary">
+                <span>Copyright &copy; 北京立迩合讯科技有限公司</span>  •  <a href="https://beian.miit.gov.cn" class="text-secondary">京ICP备09022189号-8</a>
+                •  <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11010502053266" class="text-secondary" target="_blank"><img src="https://www.beian.gov.cn/img/ghs.png" style="width:16;height:16;vertical-align: text-top;" class="mr-1" />京公网安备 11010502053266号</a>
+                <div class="theme-switcher-footer d-inline-block ml-3">
+                    <div class="theme-dropdown">
+                        <button class="theme-btn" title="切换主题">
+                            <i class="fas fa-adjust"></i>
+                            <span class="theme-text">自动</span>
+                        </button>
+                        <div class="theme-menu">
+                            <div class="theme-option" data-theme="light">
+                                <i class="fas fa-sun"></i>
+                                <span>亮色</span>
+                            </div>
+                            <div class="theme-option" data-theme="dark">
+                                <i class="fas fa-moon"></i>
+                                <span>暗色</span>
+                            </div>
+                            <div class="theme-option active" data-theme="auto">
+                                <i class="fas fa-adjust"></i>
+                                <span>跟随系统</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!--//footer-->
+
+    <div class="alert alert-success alert-dismissible fade text-center shadow " role="alert" id="copySuccessAlert" style="display: none; position: fixed; top: 270px; left: 50%; transform: translate(-50%, 0); width: 70%; max-width: 600px;z-index: 100  ">
+        已复制到剪贴板，请在Quicker面板的空白按钮上点右键粘贴。
+    </div>
+
+    <div class="alert alert-success alert-dismissible fade text-center shadow " role="alert" id="commonCopySuccessAlert" style="display: none; position: fixed; top: 270px; left: 50%; transform: translate(-50%, 0); width: 70%; max-width: 600px;z-index: 100 ">
+        已复制到剪贴板。
+    </div>
+
+
+    
+
+    <!-- Javascript -->
+
+<script src="https://libs.getquicker.cn/npm/jquery@3.4.1/dist/jquery.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/ismobilejs@1.1.1/dist/isMobile.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/jquery.easing@1.4.1/jquery.easing.min.js"></script>
+
+<script type="text/javascript" src="https://libs.getquicker.cn/npm/jquery-inview@1.1.2/jquery.inview.min.js"></script>
+<script type="text/javascript" src="https://libs.getquicker.cn/npm/jquery.scrollto@2.1.3/jquery.scrollTo.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/summernote@0.8.20/dist/summernote-bs4.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/summernote@0.8.20/dist/lang/summernote-zh-CN.js"></script>
+<script src="https://libs.getquicker.cn/npm/lity@2.4.1/dist/lity.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/axios@0.19.2/dist/axios.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/tocbot@4.27.19/dist/tocbot.min.js"></script>
+<script src="https://libs.getquicker.cn/npm/vue@2.6.14/dist/vue.min.js"></script>
+
+
+
+
+
+    <script>
+    var g_isUserLoggedIn = false;
+    </script>
+    
+    <script src="/js/theme-switcher.js?v=ZnyOJZ8evF3HXAqdvOP2bVLz_WXNacV7fOge9AqeTtU"></script>
+    <script src="/js/site.js?v=dfvMiP2lumfLrH1txU6Lvj1XGH0fbAorMIJTrAs3xBY"></script>
+    
+    
+
+
+    <div class="modal fade " tabindex="-1" role="dialog" aria-labelledby="myExtraLargeModalLabel" aria-hidden="true" id="modalWindow">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <iframe style="max-height: 80vw; min-height: 60vh; width: 100%;" id="modalIFrame" onload="resizeIframe && resizeIframe(this)"></iframe>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

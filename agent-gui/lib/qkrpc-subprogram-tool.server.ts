@@ -7,7 +7,6 @@ import {
 import {
   QKRPC_SUBPROGRAM_CREATE_TOOL,
   QKRPC_SUBPROGRAM_EDIT_TOOL,
-  QKRPC_SUBPROGRAM_EDIT_VAR_TOOL,
   QKRPC_SUBPROGRAM_EXPORT_TOOL,
   QKRPC_SUBPROGRAM_GET_TOOL,
   QKRPC_SUBPROGRAM_IMPORT_TOOL,
@@ -24,6 +23,8 @@ import {
 } from "@/lib/qkrpc";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
+import { rejectBenchModeTool } from "@/lib/bench-mode.server";
+import { programDataSchema, programDataHasBody, normalizeProgramDataInput } from "@/lib/program-data-input";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 
@@ -123,6 +124,9 @@ const subprogramCreateSchema = z.object({
   name: z.string().describe("Subprogram name (unique)"),
   description: z.string().optional().describe("Optional summary"),
   icon: z.string().optional().describe("Optional fa: spec from qkrpc_fa search"),
+  data: programDataSchema.optional().describe(
+    "Optional data.json body ({ steps, variables }). When set, writes directly instead of empty data.json — then workspace_program patch.",
+  ),
 });
 
 export type QkrpcSubprogramCreateToolInput = z.infer<typeof subprogramCreateSchema>;
@@ -158,6 +162,10 @@ export type QkrpcSubprogramToolInput = QkrpcSubprogramQueryToolInput & {
 export async function executeQkrpcSubprogramQueryTool(
   input: QkrpcSubprogramQueryToolInput,
 ): Promise<Record<string, unknown>> {
+  const rejected = rejectBenchModeTool(QKRPC_SUBPROGRAM_QUERY_TOOL);
+  if (rejected) {
+    return formatToolResultForAgent(QKRPC_SUBPROGRAM_QUERY_TOOL, input, rejected);
+  }
   const args = ["subprogram", "list"];
   if (input.query?.trim()) args.push("--query", input.query.trim());
   if (input.limit != null) args.push("--limit", String(input.limit));
@@ -254,6 +262,14 @@ export async function executeQkrpcSubprogramIdTool(
 export async function executeQkrpcSubprogramCreateTool(
   input: QkrpcSubprogramCreateToolInput,
 ): Promise<Record<string, unknown>> {
+  const programData =
+    input.data != null ? normalizeProgramDataInput(input.data) : undefined;
+  if (input.data != null && !programData) {
+    return formatQkrpcResultForAgent(
+      qkrpcValidationError("data must be an object with steps[] and variables[] arrays."),
+    );
+  }
+
   const args = ["subprogram", "create", "--name", input.name];
   if (input.description) args.push("--description", input.description);
   if (input.icon) args.push("--icon", input.icon);
@@ -273,7 +289,7 @@ export async function executeQkrpcSubprogramCreateTool(
   const sync = await bootstrapSubprogramProjectForCreate(payload ?? {}, {
     description: input.description,
     icon: input.icon,
-  });
+  }, programData);
   const editVersion =
     sync.ok && sync.manifest.editVersion != null
       ? sync.manifest.editVersion
@@ -328,8 +344,11 @@ export async function executeQkrpcSubprogramCreateTool(
       editVersion: sync.manifest.editVersion,
       fileRefs: [],
     }),
-    workspaceNote:
-      "已用 metadata get 写入 info.json（含标题）与空 data.json。下一步在编辑器或 workspace_program({ action: \"edit_data\", target: \"global_subprogram\" }) 添加步骤，再 patch。",
+    workspaceNote: programData && programDataHasBody(programData)
+      ? "已写入 info.json 与 data.json。下一步 workspace_program({ action: \"patch\", target: \"global_subprogram\" })；勿再 get。"
+      : programData
+        ? "已写入 info.json 与 data.json（空程序体）。下一步 edit_data 添加步骤再 patch。"
+        : "已写入 info.json 与空 data.json。下一步 workspace_program edit_data 添加步骤再 patch；或 create 时传 data 直接写入程序体。",
   });
 }
 
@@ -402,6 +421,7 @@ export const QKRPC_SUBPROGRAM_GET_TOOL_DEF = tool({
     executeQkrpcSubprogramIdTool({ action: "get", ...input }),
 });
 
+/** @deprecated Legacy replay — use qkrpc_subprogram_transfer. */
 export const QKRPC_SUBPROGRAM_EXPORT_TOOL_DEF = tool({
   description: "Export one global subprogram project to a directory.",
   inputSchema: z.object({
@@ -412,6 +432,7 @@ export const QKRPC_SUBPROGRAM_EXPORT_TOOL_DEF = tool({
     executeQkrpcSubprogramIdTool({ action: "export", ...input }),
 });
 
+/** @deprecated Legacy replay — use qkrpc_subprogram_transfer. */
 export const QKRPC_SUBPROGRAM_IMPORT_TOOL_DEF = tool({
   description: "Import a global subprogram project from a directory.",
   inputSchema: z.object({
@@ -423,6 +444,7 @@ export const QKRPC_SUBPROGRAM_IMPORT_TOOL_DEF = tool({
     executeQkrpcSubprogramIdTool({ action: "import", ...input }),
 });
 
+/** @deprecated Legacy replay — use qkrpc_designer_open. */
 export const QKRPC_SUBPROGRAM_EDIT_TOOL_DEF = tool({
   description: "Open one global subprogram in Quicker desktop designer UI.",
   inputSchema: z.object({
@@ -431,21 +453,11 @@ export const QKRPC_SUBPROGRAM_EDIT_TOOL_DEF = tool({
   execute: async ({ id }) => executeQkrpcSubprogramIdTool({ action: "edit", id }),
 });
 
-export const QKRPC_SUBPROGRAM_EDIT_VAR_TOOL_DEF = tool({
-  description: "Set one global subprogram variable in Quicker (not disk edit).",
-  inputSchema: z.object({
-    id: z.string().describe("Subprogram id or name"),
-    var: z.string().describe("Variable key"),
-    value: z.string().describe("New value"),
-  }),
-  execute: async (input) =>
-    executeQkrpcSubprogramIdTool({ action: "edit_var", ...input }),
-});
-
 export const QKRPC_SUBPROGRAM_CREATE_TOOL_DEF = tool({
   description:
     "Create a new global subprogram and bootstrap .quicker/subprograms/{id}/. "
-    + "After create edit via workspace_program (target=global_subprogram) — do not re-get. "
+    + "Optional data: { steps, variables } writes program body directly (skip empty data.json + write_data). "
+    + "After create use workspace_program patch (target=global_subprogram) — do not re-get. "
     + "NOT embedded subprograms. Delete: qkrpc_subprogram_delete.",
   inputSchema: subprogramCreateSchema,
   execute: async (input) => executeQkrpcSubprogramCreateTool(input),
@@ -479,7 +491,6 @@ export const QKRPC_SUBPROGRAM_MANAGE_TOOL_DEF = tool({
 export {
   QKRPC_SUBPROGRAM_CREATE_TOOL,
   QKRPC_SUBPROGRAM_EDIT_TOOL,
-  QKRPC_SUBPROGRAM_EDIT_VAR_TOOL,
   QKRPC_SUBPROGRAM_EXPORT_TOOL,
   QKRPC_SUBPROGRAM_GET_TOOL,
   QKRPC_SUBPROGRAM_IMPORT_TOOL,

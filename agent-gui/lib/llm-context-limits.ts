@@ -5,25 +5,36 @@ export type ContextLimitSource = "env" | "catalog" | "pattern" | "default";
 export type ResolvedContextLimit = {
   tokens: number;
   source: ContextLimitSource;
+  /** Vendor API max when compaction budget is intentionally lower. */
+  apiMaxTokens?: number;
 };
 
 /** Fallback when model is unknown. */
 export const DEFAULT_MODEL_CONTEXT_TOKENS = 128_000;
 
 /**
- * Exact model id → max context tokens (input + output budget for the API).
+ * Proactive compaction budget for models whose API advertises very large windows.
+ * DeepSeek V4 supports up to 1M tokens; use a larger budget than the 128K default
+ * so long agent sessions retain more tool history before L2 compaction.
+ */
+export const DEEPSEEK_COMPACTION_BUDGET_TOKENS = 272_000;
+
+const DEEPSEEK_API_MAX_CONTEXT_TOKENS = 1_000_000;
+
+/**
+ * Exact model id → compaction budget (input + output for triggers / UI ring).
  * Keys are lowercased; lookup normalizes vendor prefixes (e.g. z-ai/glm-5.1).
  */
 const EXACT_CONTEXT_TOKENS: Readonly<Record<string, number>> = {
-  // DeepSeek official (V4: 1M context per api-docs.deepseek.com)
-  "deepseek-v4-flash": 1_000_000,
-  "deepseek-v4-pro": 1_000_000,
-  "deepseek-chat": 1_000_000,
-  "deepseek-reasoner": 1_000_000,
-  "deepseek-v4-flash-free": 1_000_000,
+  // DeepSeek official — compaction budget (API max 1M for V4)
+  "deepseek-v4-flash": DEEPSEEK_COMPACTION_BUDGET_TOKENS,
+  "deepseek-v4-pro": DEEPSEEK_COMPACTION_BUDGET_TOKENS,
+  "deepseek-chat": DEEPSEEK_COMPACTION_BUDGET_TOKENS,
+  "deepseek-reasoner": DEEPSEEK_COMPACTION_BUDGET_TOKENS,
+  "deepseek-v4-flash-free": DEEPSEEK_COMPACTION_BUDGET_TOKENS,
 
   // OpenCode Zen (common routed ids)
-  "deepseek-v4": 1_000_000,
+  "deepseek-v4": DEEPSEEK_COMPACTION_BUDGET_TOKENS,
 
   // NVIDIA integrate / Zhipu
   "z-ai/glm-5.1": 128_000,
@@ -49,11 +60,11 @@ const EXACT_CONTEXT_TOKENS: Readonly<Record<string, number>> = {
 
 /** Longest match first. */
 const PATTERN_CONTEXT_TOKENS: ReadonlyArray<{ pattern: RegExp; tokens: number }> = [
-  { pattern: /deepseek-v4-pro/i, tokens: 1_000_000 },
-  { pattern: /deepseek-v4-flash/i, tokens: 1_000_000 },
-  { pattern: /deepseek.*reasoner/i, tokens: 1_000_000 },
-  { pattern: /deepseek.*chat/i, tokens: 1_000_000 },
-  { pattern: /deepseek/i, tokens: 1_000_000 },
+  { pattern: /deepseek-v4-pro/i, tokens: DEEPSEEK_COMPACTION_BUDGET_TOKENS },
+  { pattern: /deepseek-v4-flash/i, tokens: DEEPSEEK_COMPACTION_BUDGET_TOKENS },
+  { pattern: /deepseek.*reasoner/i, tokens: DEEPSEEK_COMPACTION_BUDGET_TOKENS },
+  { pattern: /deepseek.*chat/i, tokens: DEEPSEEK_COMPACTION_BUDGET_TOKENS },
+  { pattern: /deepseek/i, tokens: DEEPSEEK_COMPACTION_BUDGET_TOKENS },
   { pattern: /glm-4\.6|glm4\.6/i, tokens: 200_000 },
   { pattern: /glm-5|glm5/i, tokens: 128_000 },
   { pattern: /glm-4|glm4/i, tokens: 128_000 },
@@ -81,8 +92,12 @@ export function resolveEnvContextLimit(): number | undefined {
   return readEnvContextLimit();
 }
 
+function isDeepSeekModelId(modelId: string): boolean {
+  return /deepseek/i.test(normalizeModelKey(modelId));
+}
+
 /**
- * Resolve max context tokens for a model id.
+ * Resolve compaction budget for a model id (triggers, recent slice, usage ring).
  * Optional providerId reserved for future provider-specific tables.
  */
 export function resolveModelContextLimit(
@@ -101,12 +116,24 @@ export function resolveModelContextLimit(
 
   const exact = EXACT_CONTEXT_TOKENS[key];
   if (exact !== undefined) {
-    return { tokens: exact, source: "catalog" };
+    return {
+      tokens: exact,
+      source: "catalog",
+      apiMaxTokens: isDeepSeekModelId(modelId)
+        ? DEEPSEEK_API_MAX_CONTEXT_TOKENS
+        : undefined,
+    };
   }
 
   for (const { pattern, tokens } of PATTERN_CONTEXT_TOKENS) {
     if (pattern.test(key)) {
-      return { tokens, source: "pattern" };
+      return {
+        tokens,
+        source: "pattern",
+        apiMaxTokens: isDeepSeekModelId(modelId)
+          ? DEEPSEEK_API_MAX_CONTEXT_TOKENS
+          : undefined,
+      };
     }
   }
 

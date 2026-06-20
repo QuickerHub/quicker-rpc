@@ -1,0 +1,13 @@
+{
+  "id": "json-format-text-invalid",
+  "version": 1,
+  "initialVars": {
+    "text": "{not json"
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "ok": "False"
+    }
+  }
+}

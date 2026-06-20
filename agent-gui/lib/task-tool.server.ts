@@ -3,6 +3,7 @@ import "server-only";
 import { generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { getSubagent } from "@/lib/agent-defs/discover-core";
+import { buildSubagentSystemPrompt } from "@/lib/agent-defs/subagent-system.server";
 import { AGENT_MAX_STEPS } from "@/lib/chat-mode";
 import {
   resolveChatModelForSelection,
@@ -42,13 +43,49 @@ function summarizeSteps(
   }));
 }
 
+function readTaskString(
+  obj: Record<string, unknown>,
+  ...keys: string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return undefined;
+}
+
+function parseTaskToolInput(
+  input: Record<string, unknown>,
+): { agent: string; prompt: string } | null {
+  const agent = readTaskString(
+    input,
+    "agent",
+    "Agent",
+    "subagent",
+    "subagentName",
+    "name",
+  );
+  const prompt = readTaskString(
+    input,
+    "prompt",
+    "Prompt",
+    "task",
+    "message",
+    "query",
+  );
+  if (!agent || !prompt) return null;
+  return { agent, prompt };
+}
+
 export async function executeTaskTool(input: {
-  agent: string;
-  prompt: string;
+  agent?: string;
+  prompt?: string;
 }): Promise<Record<string, unknown>> {
-  const agentName = input.agent.trim();
-  const prompt = input.prompt.trim();
-  if (!agentName || !prompt) {
+  const parsed = parseTaskToolInput(input as Record<string, unknown>);
+  if (!parsed) {
     return formatLocalToolResult(
       {
         action: "task",
@@ -58,6 +95,8 @@ export async function executeTaskTool(input: {
       "agent and prompt are required",
     );
   }
+  const agentName = parsed.agent;
+  const prompt = parsed.prompt;
 
   const cwd = getRequestCwd() ?? "";
   const subagent = await getSubagent(agentName, cwd);
@@ -99,20 +138,12 @@ export async function executeTaskTool(input: {
   }
 
   const tools = buildSubagentTools(subagent.tools);
-  const systemParts = [subagent.body.trim() || subagent.description];
-  if (cwd) {
-    systemParts.push(
-      "",
-      "## cwd",
-      `qkrpc cwd: ${cwd}`,
-      `Scratch/temp path: \`${cwd}/.local/\` (create as needed; gitignored).`,
-    );
-  }
+  const system = await buildSubagentSystemPrompt(subagent, cwd);
 
   try {
     const result = await generateText({
       model,
-      system: systemParts.join("\n"),
+      system,
       prompt,
       tools,
       experimental_repairToolCall: createRepairToolCallHandler(tools),
@@ -150,9 +181,17 @@ export const TASK_TOOL_DEF = tool({
     agent: z
       .string()
       .describe("Subagent name from ## Subagents catalog in system prompt"),
+    subagent: z
+      .string()
+      .optional()
+      .describe("Alias for agent"),
     prompt: z
       .string()
       .describe("Self-contained task description for the subagent"),
   }),
-  execute: executeTaskTool,
+  execute: (input) =>
+    executeTaskTool({
+      agent: input.agent ?? input.subagent,
+      prompt: input.prompt,
+    }),
 });

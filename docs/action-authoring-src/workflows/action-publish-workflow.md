@@ -12,8 +12,8 @@
 | sharedActionId | getquicker library GUID; stored on action after first share |
 | mode `publish` | first-time share; needs title + description |
 | mode `update` | refresh existing share; **changelog required** |
-| Note | short share-page intro markdown on first publish (`note`) |
-| 动作说明 (HTML page) | getquicker rich intro page — **built-in publish automation**, not Agent tools |
+| 备注 Note (`--share-note` / `note`) | **DEPRECATED** on getquicker edit form — **do not fill**; duplicates Detail and is hard to remove |
+| 动作说明 Detail (HTML) | Rich intro page — **`tools/qkagent`**: `page.html` + `intro.css` → `info.html` → `qkagent apply --dir`; or `--html-file` on first publish |
 
 `action publish` auto-detects mode. `action update` is an alias (always update path).
 
@@ -76,11 +76,13 @@ Icons: **action-icons**. File refs: validate/apply project before share.
 
 Required: **title**, **description** (tool flags or action metadata).
 
-Optional: `note` (markdown intro), `tags`, `keywords`, `isPublic` (default true), `submitReview` (default true for public).
+Optional: `html` / `--html-file` (Detail intro for public + submitReview), `tags`, `keywords`, `isPublic` (default true), `submitReview` (default true for public).
+
+**Never** pass `note`, `--share-note`, or `--note-file` — qkrpc rejects with `DEPRECATED_SHARE_NOTE`.
 
 {{#only-agent}}
 ```text
-{{@ action.publish id=<guid> title="My Action" description="One-line summary" note="## Intro\n…"}}
+{{@ action.publish id=<guid> title="My Action" description="One-line summary" html="<p>Intro</p>"}}
 {{@ action.publish id=<guid> title="My Action" description="…" isPublic=false}}
 ```
 Agent UI may ask approval before publish — confirm with user.
@@ -115,14 +117,15 @@ After editing program body, push a new revision:
 
 Update uploads the current action body from Quicker — ensure the action editor saved your latest edits.
 
-## Pub5 Action page intro — built-in automation (Agent STOP)
+## Pub5 Action page intro — qkagent / built-in automation (Agent STOP)
 
-Short **Note** on first publish (`note`) ≠ getquicker **动作说明** HTML page (images, download blocks, semver placeholders).
+The deprecated getquicker **备注** field (`note`) must not be used. **动作说明** is the **Detail** HTML page (images, download blocks, semver placeholders).
 
 | layer | who | how |
 |-------|-----|-----|
-| short intro | Agent (Pub3) | `note` on `action publish` |
-| rich HTML page | **built-in automation** | publish/release pipeline syncs HTML to getquicker edit UI |
+| styled HTML page | **qkagent** | `tools/qkagent/actions/<sharedId>/page.html` → build → `qkagent apply --dir` |
+| simple HTML on first publish | Agent (Pub3) | `--html` / `--html-file` on `action publish` (public + submitReview) |
+| sync after share | human / release automation | `action shared-info-set` or qkagent apply |
 
 Updating the HTML **动作说明** is **built-in qkrpc automation** (`action shared-info-get` / `action shared-info-set` via agent-gui API) that reuses the logged-in Quicker author's web session to read/write getquicker **SharedAction Detail** HTML. It is **not** an Agent tool path.
 
@@ -130,7 +133,7 @@ Updating the HTML **动作说明** is **built-in qkrpc automation** (`action sha
 **Agent rules**
 
 - **STOP after Pub4** — do not call `action shared-info-get` / `action shared-info-set` autonomously.
-- User asks to change **动作说明 / page HTML**: explain it is handled by built-in publish/release automation; offer Pub3 `note` markdown only.
+- User asks to change **动作说明 / page HTML**: use **qkagent** workflow (`page.html` → `apply --dir`); do not use `note`.
 {{/only-agent}}
 
 ### Preview HTML 动作说明 (agent-gui)
@@ -184,7 +187,8 @@ Read current page HTML: same route with `"op": "get"`.
 | `UNMODIFIED_SHARED_INSTALL` | fork/edit original author's action first |
 | `EMBED_SUBPROGRAMS_FAILED` | fix global subprogram refs before publish |
 | `WEBCONNECTOR_UNAVAILABLE` | must run inside Quicker (not headless CLI-only) |
-| user wants HTML 动作说明 | built-in publish automation — Agent STOP at Pub4; draft `note` only |
+| `DEPRECATED_SHARE_NOTE` | remove `note` / `--share-note` / `--note-file`; use `--html-file` or qkagent |
+| user wants HTML 动作说明 | qkagent `page.html` → `apply --dir`; Agent STOP at Pub4 for shared-info tools |
 
 Run `qkrpc action publish --id <guid> --preflight --json` to list all blocking issues before upload.
 

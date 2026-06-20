@@ -11,9 +11,15 @@ import {
 } from "@/lib/action-command-client";
 import { parseActionIdFromSyncedToolOutput } from "@/lib/action-projects";
 import { readQkrpcAction } from "@/lib/qkrpc-action-tool";
+import {
+  readQkrpcSubprogramAction,
+  isSubprogramListTool,
+} from "@/lib/qkrpc-subprogram-tool";
 import { readWorkspaceProgramAction } from "@/lib/workspace-program-tool";
 import { isStructuredToolResult } from "@/lib/tool-result";
+import { invokeSubProgramCommand, isQuickerSubProgramMissingError } from "@/lib/subprogram-command-client";
 import { deleteActionProjectApi } from "@/lib/workspace-explorer-api";
+import { globalSubProgramProjectDir } from "@/lib/workspace-program-target";
 import type { AgentUIMessage } from "@/lib/chat-types";
 
 const UUID_RE =
@@ -36,7 +42,7 @@ const ACTION_ARTIFACT_TOOLS = new Set([
   "qkrpc_profile_create",
   "qkrpc_process_ensure",
   "qkrpc_action_replace",
-  "qkrpc_action_edit",
+  "qkrpc_designer_open",
   "qkrpc_action_edit_var",
   "qkrpc_action_publish",
   "workspace_program",
@@ -51,11 +57,27 @@ const ACTION_ARTIFACT_TOOLS = new Set([
   "workspace_action_file_search",
 ]);
 
+const SUBPROGRAM_ARTIFACT_TOOLS = new Set([
+  "qkrpc_subprogram",
+  "qkrpc_subprogram_manage",
+  "qkrpc_subprogram_get",
+  "qkrpc_subprogram_create",
+  "qkrpc_subprogram_transfer",
+  "qkrpc_subprogram_delete",
+  "qkrpc_subprogram_patch",
+  "qkrpc_designer_open",
+  "workspace_program",
+  "workspace_program_patch",
+]);
+
 export type ToolTestChatCleanupResult = {
   clearedMessages: boolean;
   actionIds: string[];
+  subprogramKeys: string[];
   deletedInQuicker: string[];
   deletedInWorkspace: string[];
+  deletedSubprogramsInQuicker: string[];
+  deletedSubprogramsInWorkspace: string[];
   errors: string[];
 };
 
@@ -71,6 +93,56 @@ function readIdFromRecord(record: Record<string, unknown>): string | undefined {
     }
   }
   return undefined;
+}
+
+function readSubprogramKeyFromRecord(
+  record: Record<string, unknown>,
+): string | undefined {
+  for (const key of [
+    "id",
+    "subProgramId",
+    "SubProgramId",
+    "subprogramId",
+    "callIdentifier",
+    "name",
+  ]) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function readSubprogramKeyFromToolInput(
+  toolName: string,
+  input?: unknown,
+): string | undefined {
+  if (typeof input !== "object" || input === null) {
+    return undefined;
+  }
+  const record = input as Record<string, unknown>;
+  if (toolName === "qkrpc_designer_open") {
+    if (record.target !== "global_subprogram") return undefined;
+  }
+  if (toolName === "workspace_program") {
+    const target = record.target;
+    if (
+      target === "action"
+      || target === "embedded_subprogram"
+      || target === "all"
+      || !target
+    ) {
+      return undefined;
+    }
+    const action = readWorkspaceProgramAction(input);
+    if (!action || action === "projects_list") return undefined;
+  }
+  if (toolName === "qkrpc_subprogram") {
+    const action = readQkrpcSubprogramAction(input);
+    if (!action || action === "list" || action === "search") return undefined;
+  }
+  return readSubprogramKeyFromRecord(record);
 }
 
 function readActionIdFromToolPart(part: {
@@ -98,11 +170,69 @@ function readActionIdFromToolPart(part: {
   return parseActionIdFromSyncedToolOutput(part.output);
 }
 
+function shouldCollectSubprogramKeyFromTool(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  if (SUBPROGRAM_ARTIFACT_TOOLS.has(toolName)) {
+    if (isSubprogramListTool(toolName, input)) return false;
+    if (toolName === "qkrpc_subprogram_query") return false;
+    if (toolName === "qkrpc_designer_open") {
+      return readSubprogramKeyFromToolInput(toolName, input) != null;
+    }
+    if (toolName === "workspace_program") {
+      return readSubprogramKeyFromToolInput(toolName, input) != null;
+    }
+    return true;
+  }
+  if (toolName === "qkrpc_subprogram") {
+    const action = readQkrpcSubprogramAction(input);
+    return action != null && action !== "list" && action !== "search";
+  }
+  return false;
+}
+
+function normalizeArtifactKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function readSubprogramKeyFromToolPartWithName(
+  toolName: string,
+  part: { input?: unknown; output?: unknown },
+): string | undefined {
+  if (isStructuredToolResult(part.output) && part.output.ok) {
+    const data = part.output.data;
+    if (typeof data === "object" && data !== null) {
+      const root = data as Record<string, unknown>;
+      const payload =
+        typeof root.payload === "object" && root.payload !== null
+          ? (root.payload as Record<string, unknown>)
+          : root;
+      const fromOutput = readSubprogramKeyFromRecord(payload);
+      if (fromOutput) return fromOutput;
+    }
+  }
+
+  const fromInput = readSubprogramKeyFromToolInput(toolName, part.input);
+  if (fromInput) return fromInput;
+
+  return undefined;
+}
+
 function shouldCollectActionIdFromTool(
   toolName: string,
   input?: unknown,
 ): boolean {
-  if (ACTION_ARTIFACT_TOOLS.has(toolName)) return true;
+  if (ACTION_ARTIFACT_TOOLS.has(toolName)) {
+    if (toolName === "qkrpc_designer_open") {
+      const record =
+        typeof input === "object" && input !== null
+          ? (input as Record<string, unknown>)
+          : null;
+      return record?.target === "action";
+    }
+    return true;
+  }
   if (toolName === "qkrpc_action_query") return false;
   if (toolName === "qkrpc_action_create") return true;
   if (toolName === "qkrpc_action") {
@@ -158,6 +288,25 @@ export function collectActionIdsFromChatMessages(
   return [...ids];
 }
 
+/** Collect global subprogram keys referenced in a tool-test chat session. */
+export function collectSubprogramKeysFromChatMessages(
+  messages: UIMessage[],
+): string[] {
+  const keys = new Set<string>();
+
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (!isToolOrDynamicToolUIPart(part)) continue;
+      const toolName = getToolOrDynamicToolName(part);
+      if (!shouldCollectSubprogramKeyFromTool(toolName, part.input)) continue;
+      const subprogramKey = readSubprogramKeyFromToolPartWithName(toolName, part);
+      if (subprogramKey) keys.add(normalizeArtifactKey(subprogramKey));
+    }
+  }
+
+  return [...keys];
+}
+
 /** Flatten chat messages from tool-test run records (title / auto-fix panes). */
 export function flattenChatMessagesFromRuns(
   runs: ReadonlyArray<{ chatMessages?: AgentUIMessage[] }>,
@@ -176,21 +325,43 @@ export function formatToolTestCleanupHint(
   clearedLabel = "已清空",
 ): string {
   const parts: string[] = [];
-  if (result.actionIds.length === 0) {
+  const artifactCount = result.actionIds.length + result.subprogramKeys.length;
+  if (artifactCount === 0) {
     parts.push(clearedLabel);
   } else {
-    parts.push(`${clearedLabel} · 处理 ${result.actionIds.length} 个动作`);
-    if (result.deletedInQuicker.length > 0) {
-      parts.push(`Quicker 删除 ${result.deletedInQuicker.length}`);
+    if (result.actionIds.length > 0) {
+      parts.push(`${clearedLabel} · 动作 ${result.actionIds.length}`);
+      if (result.deletedInQuicker.length > 0) {
+        parts.push(`Quicker 删动作 ${result.deletedInQuicker.length}`);
+      }
+      if (result.deletedInWorkspace.length > 0) {
+        parts.push(`工作区删动作 ${result.deletedInWorkspace.length}`);
+      }
     }
-    if (result.deletedInWorkspace.length > 0) {
-      parts.push(`工作区删除 ${result.deletedInWorkspace.length}`);
+    if (result.subprogramKeys.length > 0) {
+      parts.push(`子程序 ${result.subprogramKeys.length}`);
+      if (result.deletedSubprogramsInQuicker.length > 0) {
+        parts.push(`Quicker 删子程序 ${result.deletedSubprogramsInQuicker.length}`);
+      }
+      if (result.deletedSubprogramsInWorkspace.length > 0) {
+        parts.push(`工作区删子程序 ${result.deletedSubprogramsInWorkspace.length}`);
+      }
     }
   }
   if (result.errors.length > 0) {
     parts.push(result.errors[0]!);
   }
   return parts.join(" · ");
+}
+
+function readProgramProjectsFromListPayload(
+  payload: Record<string, unknown>,
+  bucket: "actions" | "globalSubprograms",
+): unknown[] | undefined {
+  const section = payload[bucket];
+  if (typeof section !== "object" || section === null) return undefined;
+  const projects = (section as Record<string, unknown>).projects;
+  return Array.isArray(projects) ? projects : undefined;
 }
 
 async function listWorkspaceActionProjectPaths(
@@ -218,8 +389,11 @@ async function listWorkspaceActionProjectPaths(
     if (!isStructuredToolResult(output) || !output.ok) return paths;
     const payload = output.data;
     if (typeof payload !== "object" || payload === null) return paths;
-    const projects = (payload as Record<string, unknown>).projects;
-    if (!Array.isArray(projects)) return paths;
+    const projects = readProgramProjectsFromListPayload(
+      payload as Record<string, unknown>,
+      "actions",
+    );
+    if (!projects) return paths;
 
     for (const item of projects) {
       if (typeof item !== "object" || item === null) continue;
@@ -242,18 +416,80 @@ async function listWorkspaceActionProjectPaths(
   return paths;
 }
 
+async function listWorkspaceSubprogramProjectPaths(
+  cwd: string,
+  subprogramKeys: string[],
+): Promise<Map<string, string>> {
+  const paths = new Map<string, string>();
+  for (const key of subprogramKeys) {
+    paths.set(normalizeArtifactKey(key), globalSubProgramProjectDir(key));
+  }
+
+  try {
+    const res = await fetch("/api/tools/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        toolName: "workspace_program",
+        input: { action: "projects_list", target: "all" },
+        workingDirectory: cwd,
+      }),
+    });
+    const data = (await res.json()) as { ok?: boolean; output?: unknown };
+    if (!data.ok) return paths;
+    const output = data.output;
+    if (!isStructuredToolResult(output) || !output.ok) return paths;
+    const payload = output.data;
+    if (typeof payload !== "object" || payload === null) return paths;
+    const projects = readProgramProjectsFromListPayload(
+      payload as Record<string, unknown>,
+      "globalSubprograms",
+    );
+    if (!projects) return paths;
+
+    for (const item of projects) {
+      if (typeof item !== "object" || item === null) continue;
+      const row = item as Record<string, unknown>;
+      const subprogramKey =
+        readSubprogramKeyFromRecord(row)
+        ?? (typeof row.dirName === "string" && row.dirName.trim()
+          ? row.dirName.trim()
+          : undefined);
+      const path =
+        typeof row.path === "string" && row.path.trim()
+          ? row.path.trim()
+          : undefined;
+      if (!subprogramKey || !path) continue;
+      const key = normalizeArtifactKey(subprogramKey);
+      if (paths.has(key)) {
+        paths.set(key, path);
+      }
+    }
+  } catch {
+    // Fall back to default `.quicker/subprograms/{key}` paths.
+  }
+
+  return paths;
+}
+
 export async function cleanupToolTestChatSession(params: {
   cwd?: string;
   messages: AgentUIMessage[];
 }): Promise<ToolTestChatCleanupResult> {
   const actionIds = collectActionIdsFromChatMessages(params.messages);
+  const subprogramKeys = collectSubprogramKeysFromChatMessages(params.messages);
   const deletedInQuicker: string[] = [];
   const deletedInWorkspace: string[] = [];
+  const deletedSubprogramsInQuicker: string[] = [];
+  const deletedSubprogramsInWorkspace: string[] = [];
   const errors: string[] = [];
   const cwd = params.cwd?.trim() ?? "";
 
-  const projectPaths = cwd
+  const actionProjectPaths = cwd
     ? await listWorkspaceActionProjectPaths(cwd, actionIds)
+    : new Map<string, string>();
+  const subprogramProjectPaths = cwd
+    ? await listWorkspaceSubprogramProjectPaths(cwd, subprogramKeys)
     : new Map<string, string>();
 
   for (const rawId of actionIds) {
@@ -273,7 +509,7 @@ export async function cleanupToolTestChatSession(params: {
     if (!cwd) continue;
 
     const projectPath =
-      projectPaths.get(actionId.toLowerCase())
+      actionProjectPaths.get(actionId.toLowerCase())
       ?? actionProjectDirFromName(actionId);
     const workspaceResult = await deleteActionProjectApi(cwd, projectPath);
     if (workspaceResult.ok) {
@@ -289,11 +525,47 @@ export async function cleanupToolTestChatSession(params: {
     errors.push("未设置工作目录，已跳过 .quicker/actions 清理");
   }
 
+  for (const rawKey of subprogramKeys) {
+    const subprogramKey = rawKey;
+    const quickerResult = await invokeSubProgramCommand({
+      op: "delete",
+      id: subprogramKey,
+    });
+    if (quickerResult.ok) {
+      deletedSubprogramsInQuicker.push(subprogramKey);
+    } else if (!isQuickerSubProgramMissingError(quickerResult.error)) {
+      errors.push(
+        `Quicker SP ${subprogramKey.slice(0, 12)}: ${quickerResult.error ?? "delete failed"}`,
+      );
+    }
+
+    if (!cwd) continue;
+
+    const projectPath =
+      subprogramProjectPaths.get(normalizeArtifactKey(subprogramKey))
+      ?? globalSubProgramProjectDir(subprogramKey);
+    const workspaceResult = await deleteActionProjectApi(cwd, projectPath);
+    if (workspaceResult.ok) {
+      deletedSubprogramsInWorkspace.push(subprogramKey);
+    } else {
+      errors.push(
+        `Workspace SP ${subprogramKey.slice(0, 12)}: ${workspaceResult.error}`,
+      );
+    }
+  }
+
+  if (!cwd && subprogramKeys.length > 0) {
+    errors.push("未设置工作目录，已跳过 .quicker/subprograms 清理");
+  }
+
   return {
     clearedMessages: true,
     actionIds,
+    subprogramKeys,
     deletedInQuicker,
     deletedInWorkspace,
+    deletedSubprogramsInQuicker,
+    deletedSubprogramsInWorkspace,
     errors,
   };
 }

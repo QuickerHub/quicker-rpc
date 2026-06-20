@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { ToolTestPage } from "@/components/tool-test/ToolTestPage";
 import {
   isToolTestSidebarTab,
@@ -16,6 +17,9 @@ function parseEvalTab(value: string | undefined): ToolTestSidebarTab | undefined
 export default async function Page({ searchParams }: PageProps) {
   const params = await searchParams;
   const tabRaw = typeof params.tab === "string" ? params.tab : undefined;
+  if (tabRaw === "quickerbench") {
+    redirect("/bench");
+  }
   const cwd = typeof params.cwd === "string" ? params.cwd : undefined;
 
   return (

@@ -1,4 +1,6 @@
-import { isStructuredToolResult } from "@/lib/tool-result";
+import { isStructuredToolResult, resolveToolResultForDisplay } from "@/lib/tool-result";
+import { readAgentArtifactRef } from "@/lib/agent-harness/artifacts/client";
+import type { AgentArtifactRef } from "@/lib/agent-harness/artifacts/types";
 import { summarizeShellRequest } from "@/lib/shell-policy";
 import type { ShellKind, ShellRunRequest } from "@/lib/shell-types";
 
@@ -30,6 +32,9 @@ export type ShellToolView = {
   combined: string;
   truncated?: boolean;
   ok?: boolean;
+  artifactRef?: AgentArtifactRef;
+  totalOutputChars?: number;
+  readHint?: string;
 };
 
 const INLINE_PREVIEW_MAX_LINES = 48;
@@ -159,14 +164,29 @@ function readShellToolStreams(
 
 export function parseShellToolView(output: unknown): ShellToolView | null {
   if (!isStructuredToolResult(output)) return null;
-  const root = readRecord(output.data);
+  const display = resolveToolResultForDisplay(output);
+  const modelRoot = readRecord(output.data);
+  const root = readRecord(display.data);
   if (!root) return null;
 
   const commandLine =
     readString(root, "commandLine")
     || readString(root, "summary")
     || "shell";
-  const streams = readShellToolStreams(root, output.stderr);
+  const streams = readShellToolStreams(root, display.stderr);
+  const artifactRef =
+    readAgentArtifactRef(modelRoot)
+    ?? readAgentArtifactRef(root);
+  const totalOutputChars =
+    typeof modelRoot?.totalOutputChars === "number"
+      ? modelRoot.totalOutputChars
+      : typeof root.totalOutputChars === "number"
+        ? root.totalOutputChars
+        : undefined;
+  const readHint =
+    readString(modelRoot, "readHint")
+    || readString(root, "readHint")
+    || undefined;
 
   return {
     summary: commandLine,
@@ -177,7 +197,7 @@ export function parseShellToolView(output: unknown): ShellToolView | null {
     exitCode:
       typeof root.exitCode === "number"
         ? root.exitCode
-        : output.exitCode,
+        : display.exitCode,
     durationMs:
       typeof root.durationMs === "number" ? root.durationMs : undefined,
     timedOut: root.timedOut === true,
@@ -186,8 +206,11 @@ export function parseShellToolView(output: unknown): ShellToolView | null {
     stdout: streams.stdout,
     stderr: streams.stderr,
     combined: streams.combined,
-    truncated: root.truncated === true || output.truncated === true,
-    ok: output.ok,
+    truncated: root.truncated === true || display.truncated === true,
+    ok: display.ok,
+    artifactRef: artifactRef ?? undefined,
+    totalOutputChars,
+    readHint,
   };
 }
 

@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import {
   defaultEnabledToolIds,
+  pickerVisibleTools,
   QKRPC_TOOL_REGISTRY,
   storeEnabledTools,
   TOOL_CATEGORY_LABELS,
@@ -35,10 +36,11 @@ export const ToolSelector = memo(function ToolSelector({
   const rootRef = useRef<HTMLDivElement>(null);
   const panelId = useMountedAriaControlsId();
   const enabledSet = new Set(enabledTools);
+  const visibleTools = pickerVisibleTools();
   const writeOff = !GROUP_ORDER.slice(1).some((g) =>
-    QKRPC_TOOL_REGISTRY.some((t) => t.group === g && enabledSet.has(t.id)),
+    visibleTools.some((t) => t.group === g && enabledSet.has(t.id)),
   );
-  const totalTools = QKRPC_TOOL_REGISTRY.length;
+  const totalTools = visibleTools.length;
 
   useEffect(() => {
     if (!open) return;
@@ -74,7 +76,7 @@ export const ToolSelector = memo(function ToolSelector({
 
   const setGroup = (group: ToolGroupId, on: boolean) => {
     setTools(
-      QKRPC_TOOL_REGISTRY.filter((t) => t.group === group).map((t) => t.id),
+      visibleTools.filter((t) => t.group === group).map((t) => t.id),
       on,
     );
   };
@@ -127,7 +129,7 @@ export const ToolSelector = memo(function ToolSelector({
           </div>
 
           {GROUP_ORDER.map((group) => {
-            const groupTools = QKRPC_TOOL_REGISTRY.filter((t) => t.group === group);
+            const groupTools = visibleTools.filter((t) => t.group === group);
             const groupIds = groupTools.map((t) => t.id);
             const groupEnabled = countEnabledInSet(groupIds, enabledSet);
             const allOn = groupEnabled === groupIds.length;

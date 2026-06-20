@@ -1,4 +1,23 @@
 import {
+  readActionTraceRef,
+  type ActionTraceStepSummary,
+} from "@/lib/action-trace-artifact";
+import {
+  countSearchMatchHits,
+  normalizeGrepMatchesByPath,
+} from "@/lib/search-match-grouping";
+import {
+  parseStepRunnerSearchResult,
+  formatStepRunnerSearchMetaLine,
+  buildStepRunnerGetInputFromSearchItem,
+} from "@/lib/step-runner-tool";
+import {
+  applyAlwaysOnToolResultShape,
+  shapeStepRunnerGetResult,
+  STEP_RUNNER_GET_SCHEMA_SOFT_CHARS,
+} from "@/lib/tool-result-always-shape";
+import type { ToolNextAction } from "@/lib/tool-result";
+import {
   formatTraceEventLine,
   parseActionTraceEvents,
   type ActionTraceEvent,
@@ -27,14 +46,24 @@ import { WORKSPACE_PROGRAM_TOOL } from "@/lib/workspace-program-tool";
 import {
   attachToolFeedback,
   isStructuredToolResult,
-  type AgentViewMeta,
-  type AgentViewRefetch,
   type StructuredToolResult,
   type ToolNextAction,
 } from "@/lib/tool-result";
 
 export const AGENT_PAYLOAD_SOFT_CHARS = 8_000;
 export const AGENT_PAYLOAD_HARD_CHARS = 24_000;
+
+/**
+ * L1 per-tool payload shaping (truncate, omit fields, regroup matches).
+ * Default **on** — full payloads kept in displayData when compressed.
+ * Set TOOL_RESULT_AGENT_VIEW_COMPRESSION=0 to disable semantic compression.
+ */
+export function isToolResultAgentViewCompressionEnabled(): boolean {
+  const raw = process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION?.trim().toLowerCase();
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false;
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true;
+  return true;
+}
 
 const SHELL_HEAD_LINES = 16;
 const SHELL_TAIL_LINES = 32;
@@ -81,28 +110,13 @@ export function estimateStructuredResultChars(result: StructuredToolResult): num
   }).length;
 }
 
-function estimateTokens(chars: number): number {
-  return Math.ceil(chars / 4);
-}
+type CompressRefetch = {
+  tool: string;
+  reason: string;
+  inputPatch: Record<string, unknown>;
+};
 
-function buildAgentViewMeta(
-  agentSummary: string,
-  options?: {
-    anchors?: Record<string, string>;
-    chars?: number;
-    refetch?: AgentViewRefetch;
-  },
-): AgentViewMeta {
-  const chars = options?.chars ?? agentSummary.length;
-  return {
-    agentSummary,
-    anchors: options?.anchors,
-    sizeEstimate: { chars, tokens: estimateTokens(chars) },
-    refetch: options?.refetch,
-  };
-}
-
-function refetchNextAction(refetch: AgentViewRefetch): ToolNextAction {
+function refetchToNextAction(refetch: CompressRefetch): ToolNextAction {
   return {
     tool: refetch.tool,
     reason: refetch.reason,
@@ -200,6 +214,49 @@ function buildTraceWindow(events: ActionTraceEvent[], centerIndex: number): {
   };
 }
 
+function readStepSummaries(value: unknown): ActionTraceStepSummary[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const summaries: ActionTraceStepSummary[] = [];
+  for (const item of value) {
+    const record = readRecord(item);
+    if (!record) continue;
+    const name = readString(record.name);
+    if (!name) continue;
+    summaries.push({
+      name,
+      ...(typeof record.elapsedMs === "number" && record.elapsedMs > 0
+        ? { elapsedMs: record.elapsedMs }
+        : {}),
+      ...(readString(record.stepPath) ? { stepPath: readString(record.stepPath) } : {}),
+    });
+  }
+  return summaries.length > 0 ? summaries : undefined;
+}
+
+function buildDebugDisplayData(
+  data: Record<string, unknown>,
+  actionId?: string,
+): Record<string, unknown> {
+  const traceRef = readActionTraceRef(data.traceRef);
+  const stepSummaries = readStepSummaries(data.stepSummaries);
+  const failureLocation = readRecord(data.failureLocation);
+  const display: Record<string, unknown> = {
+    ...(actionId ? { actionId } : {}),
+    ok: data.ok,
+    ...(typeof data.eventCount === "number" ? { eventCount: data.eventCount } : {}),
+    ...(typeof data.durationMs === "number" ? { durationMs: data.durationMs } : {}),
+    ...(traceRef ? { traceRef } : {}),
+    ...(stepSummaries ? { stepSummaries } : {}),
+    ...(failureLocation ? { failureLocation } : {}),
+    ...(readString(data.errorMessage) ? { errorMessage: readString(data.errorMessage) } : {}),
+    ...(readString(data.message) ? { message: readString(data.message) } : {}),
+    ...(readString(data.editHint) ? { editHint: readString(data.editHint) } : {}),
+    ...(readString(data.returnResult) ? { returnResult: readString(data.returnResult) } : {}),
+    ...(readString(data.actionTitle) ? { actionTitle: readString(data.actionTitle) } : {}),
+  };
+  return display;
+}
+
 function compressDebugResult(
   input: unknown,
   result: StructuredToolResult,
@@ -218,6 +275,8 @@ function compressDebugResult(
     typeof data.eventCount === "number" ? data.eventCount : events.length;
   const durationMs =
     typeof data.durationMs === "number" ? data.durationMs : undefined;
+  const traceRef = readActionTraceRef(data.traceRef);
+  const stepSummaries = readStepSummaries(data.stepSummaries);
 
   const failureLocation = readRecord(data.failureLocation);
   const editHint = readString(data.editHint);
@@ -228,15 +287,18 @@ function compressDebugResult(
     ok: data.ok ?? result.ok,
     eventCount,
     ...(durationMs != null ? { durationMs } : {}),
+    ...(traceRef ? { traceRef } : {}),
+    ...(stepSummaries ? { stepSummaries } : {}),
   };
 
   let agentSummary: string;
-  let refetch: AgentViewRefetch | undefined;
+  let refetch: CompressRefetch | undefined;
 
   if (runOk) {
     compressed.outcome = "success";
     agentSummary = `debug ok · ${eventCount} events`
-      + (durationMs != null ? ` · ${Math.round(durationMs)}ms` : "");
+      + (durationMs != null ? ` · ${Math.round(durationMs)}ms` : "")
+      + (traceRef ? ` · ${traceRef.path}` : "");
   } else {
     const failureIndex = findTraceFailureIndex(events);
     const traceWindow = buildTraceWindow(events, failureIndex);
@@ -255,38 +317,35 @@ function compressDebugResult(
     agentSummary = pointer
       ? `debug failed at ${pointer} · ${eventCount} events`
       : `debug failed · ${eventCount} events`;
-    refetch = {
-      tool: QKRPC_ACTION_DEBUG_TOOL,
-      reason: "full_trace",
-      inputPatch: {
-        id: actionId,
-        param: readString(inputRecord?.param),
-        traceDetail: "full",
-      },
-    };
+    if (traceRef) {
+      agentSummary += ` · ${traceRef.path}`;
+    } else {
+      refetch = {
+        tool: QKRPC_ACTION_DEBUG_TOOL,
+        reason: "full_trace",
+        inputPatch: {
+          id: actionId,
+          param: readString(inputRecord?.param),
+          traceDetail: "full",
+        },
+      };
+    }
   }
-
-  const anchors: Record<string, string> = {};
-  if (actionId) anchors.actionId = actionId;
-  const pointer = readString(failureLocation?.dataJsonPointer);
-  if (pointer) anchors.dataJsonPointer = pointer;
-
-  const agentView = buildAgentViewMeta(agentSummary, {
-    anchors: Object.keys(anchors).length > 0 ? anchors : undefined,
-    refetch,
-  });
 
   const next: StructuredToolResult = {
     ...result,
     data: compressed,
-    displayData: data,
-    agentView,
+    displayData: buildDebugDisplayData(
+      { ...data, eventCount, durationMs },
+      actionId,
+    ),
+    truncated: true,
     summary: agentSummary,
   };
 
   if (refetch) {
     return attachToolFeedback(next, {
-      nextActions: [refetchNextAction(refetch)],
+      nextActions: [refetchToNextAction(refetch)],
     });
   }
   return next;
@@ -319,16 +378,11 @@ function compressShellResult(
     readHint: "Output truncated for context — rerun a narrower command if needed.",
   };
 
-  const agentView = buildAgentViewMeta(agentSummary, {
-    chars: estimateStructuredResultChars({ ...result, data: compressedData }),
-  });
-
   return {
     ...result,
     data: compressedData,
     displayData: data,
     truncated: true,
-    agentView,
     summary: agentSummary,
   };
 }
@@ -339,29 +393,19 @@ function withCompressedResult(
     data: Record<string, unknown>;
     displayData: unknown;
     agentSummary: string;
-    refetch?: AgentViewRefetch;
-    anchors?: Record<string, string>;
+    refetch?: CompressRefetch;
   },
 ): StructuredToolResult {
-  const agentView = buildAgentViewMeta(options.agentSummary, {
-    anchors: options.anchors,
-    refetch: options.refetch,
-    chars: estimateStructuredResultChars({
-      ...result,
-      data: options.data,
-    }),
-  });
   const next: StructuredToolResult = {
     ...result,
     data: options.data,
     displayData: options.displayData,
     truncated: true,
-    agentView,
     summary: options.agentSummary,
   };
   if (!options.refetch) return next;
   return attachToolFeedback(next, {
-    nextActions: [refetchNextAction(options.refetch)],
+    nextActions: [refetchToNextAction(options.refetch)],
   });
 }
 
@@ -399,7 +443,7 @@ function compressLargeFileContent(
 
   const path = readString(data.path) ?? "data.json";
   const agentSummary = `${action} ${path} · ${content.length} chars (preview ${preview.length})`;
-  const refetch: AgentViewRefetch = {
+  const refetch: CompressRefetch = {
     tool: toolName,
     reason: "pagination",
     inputPatch: {
@@ -454,16 +498,60 @@ function shrinkMutationContentField(
   };
 }
 
-function compressFileMutationResult(
+function compressFileWriteResult(
   _input: unknown,
   result: StructuredToolResult,
-  verb: "Write" | "StrReplace",
 ): StructuredToolResult {
   const data = readRecord(result.data);
   if (!data || data.success === false) return result;
 
   const action = readString(data.action);
-  if (action !== "file-write" && action !== "file-edit") return result;
+  if (action !== "file-write") return result;
+
+  const content = readString(data.content);
+  const previousContent = readString(data.previousContent);
+  const shrunkPrevious = shrinkMutationContentField(previousContent);
+
+  if (content == null && shrunkPrevious.omittedChars === 0) return result;
+
+  const compressedData: Record<string, unknown> = { ...data };
+  delete compressedData.content;
+
+  if (previousContent != null) {
+    compressedData.previousContent = shrunkPrevious.value;
+  }
+  if (shrunkPrevious.omittedChars > 0) {
+    compressedData.truncated = true;
+    compressedData.readHint =
+      "Previous file content truncated — use Read with startLine/endLine if needed.";
+  }
+
+  const path = readString(data.path) ?? "?";
+  const bytesWritten =
+    typeof data.bytesWritten === "number" ? data.bytesWritten : undefined;
+  const agentSummary = `Write ${path}`
+    + (bytesWritten != null ? ` · ${bytesWritten} bytes` : "")
+    + (content != null ? " · written content omitted from agent view" : "")
+    + (shrunkPrevious.omittedChars > 0
+      ? ` · ${shrunkPrevious.omittedChars}+ chars of previous omitted`
+      : "");
+
+  return withCompressedResult(result, {
+    data: compressedData,
+    displayData: data,
+    agentSummary,
+  });
+}
+
+function compressFileEditResult(
+  _input: unknown,
+  result: StructuredToolResult,
+): StructuredToolResult {
+  const data = readRecord(result.data);
+  if (!data || data.success === false) return result;
+
+  const action = readString(data.action);
+  if (action !== "file-edit") return result;
 
   const content = readString(data.content);
   const previousContent = readString(data.previousContent);
@@ -486,7 +574,7 @@ function compressFileMutationResult(
   };
 
   const path = readString(data.path) ?? "?";
-  const agentSummary = `${verb} ${path}`
+  const agentSummary = `StrReplace ${path}`
     + (totalOmitted > 0 ? ` · ${totalOmitted}+ chars omitted from payload` : "");
 
   return withCompressedResult(result, {
@@ -500,14 +588,55 @@ function compressWriteToolResult(
   input: unknown,
   result: StructuredToolResult,
 ): StructuredToolResult {
-  return compressFileMutationResult(input, result, "Write");
+  return compressFileWriteResult(input, result);
 }
 
 function compressStrReplaceToolResult(
   input: unknown,
   result: StructuredToolResult,
 ): StructuredToolResult {
-  return compressFileMutationResult(input, result, "StrReplace");
+  return compressFileEditResult(input, result);
+}
+
+function slimGrepHit(row: Record<string, unknown>): Record<string, unknown> {
+  const content = readString(row.content) ?? readString(row.lineText);
+  if (!content || content.length <= GREP_MATCH_CONTENT_MAX_CHARS) return row;
+  const key = row.content != null ? "content" : "lineText";
+  return {
+    ...row,
+    [key]: `${content.slice(0, GREP_MATCH_CONTENT_MAX_CHARS)}…`,
+  };
+}
+
+function slimGrepMatches(matches: unknown[]): unknown[] {
+  return matches.map((match) => {
+    const row = readRecord(match);
+    if (!row) return match;
+    if (Array.isArray(row.hits)) {
+      return {
+        path: row.path,
+        hits: row.hits.map((hit) => {
+          const hitRow = readRecord(hit);
+          return hitRow ? slimGrepHit(hitRow) : hit;
+        }),
+      };
+    }
+    return slimGrepHit(row);
+  });
+}
+
+function formatGrepAgentSummary(
+  pattern: string,
+  matchHitCount: number,
+  totalMatches: number,
+  pathCount: number,
+): string {
+  const patternLabel = pattern || "?";
+  const filesPart = pathCount > 0 ? ` · ${pathCount} files` : "";
+  if (totalMatches > matchHitCount) {
+    return `grep ${patternLabel} · ${matchHitCount}/${totalMatches} line hits returned${filesPart}`;
+  }
+  return `grep ${patternLabel} · ${matchHitCount} line hits${filesPart}`;
 }
 
 function compressGrepResult(
@@ -516,20 +645,25 @@ function compressGrepResult(
 ): StructuredToolResult {
   const data = readRecord(result.data);
   if (!data || data.success === false || !Array.isArray(data.matches)) return result;
-  if (estimateStructuredResultChars(result) <= AGENT_PAYLOAD_SOFT_CHARS) return result;
 
   const inputRecord = readRecord(input);
-  const matches = data.matches as unknown[];
-  const slimMatches = matches.map((match) => {
-    const row = readRecord(match);
-    if (!row) return match;
-    const content = readString(row.content);
-    if (!content || content.length <= GREP_MATCH_CONTENT_MAX_CHARS) return row;
+  const rawMatches = data.matches as unknown[];
+  const normalizedMatches = normalizeGrepMatchesByPath(rawMatches);
+  const slimMatches = slimGrepMatches(normalizedMatches);
+  const matchesPayloadChanged =
+    JSON.stringify(slimMatches) !== JSON.stringify(rawMatches);
+  const overBudget = estimateStructuredResultChars(result) > AGENT_PAYLOAD_SOFT_CHARS;
+  const contentSlimmed =
+    JSON.stringify(slimMatches) !== JSON.stringify(normalizedMatches);
+
+  if (!matchesPayloadChanged) return result;
+
+  if (!overBudget && !contentSlimmed) {
     return {
-      ...row,
-      content: `${content.slice(0, GREP_MATCH_CONTENT_MAX_CHARS)}…`,
+      ...result,
+      data: { ...data, matches: slimMatches },
     };
-  });
+  }
 
   const compressedData: Record<string, unknown> = {
     ...data,
@@ -539,19 +673,25 @@ function compressGrepResult(
       ?? "Increase head_limit or offset for more grep matches.",
   };
 
+  const matchHitCount = countSearchMatchHits(slimMatches);
   const totalMatches =
-    typeof data.totalMatches === "number" ? data.totalMatches : matches.length;
-  const agentSummary = `grep ${readString(data.pattern) ?? "?"} · ${matches.length}/${totalMatches} matches`;
+    typeof data.totalMatches === "number" ? data.totalMatches : matchHitCount;
+  const agentSummary = formatGrepAgentSummary(
+    readString(data.pattern) ?? "?",
+    matchHitCount,
+    totalMatches,
+    slimMatches.length,
+  );
 
-  const refetch: AgentViewRefetch | undefined =
-    data.truncated === true || matches.length < totalMatches
+  const refetch: CompressRefetch | undefined =
+    data.truncated === true || matchHitCount < totalMatches
       ? {
           tool: GREP_TOOL,
           reason: "pagination",
           inputPatch: {
             ...inputRecord,
             offset: (typeof inputRecord?.offset === "number" ? inputRecord.offset : 0)
-              + matches.length,
+              + matchHitCount,
           },
         }
       : undefined;
@@ -973,7 +1113,7 @@ function compressActionQueryResult(
     ? `action query "${truncateText(query, 48)}" · ${slimItems.length}/${rawItems.length}`
     : `action query · ${slimItems.length}/${rawItems.length} actions`;
 
-  const refetch: AgentViewRefetch | undefined =
+  const refetch: CompressRefetch | undefined =
     rawItems.length > slimItems.length
       ? {
           tool: QKRPC_ACTION_QUERY_TOOL,
@@ -1028,12 +1168,11 @@ function compressGenericQkrpcResult(
   const data = result.data;
   const shrunk = shrinkValueForAgent(data);
   const agentSummary =
-    result.agentView?.agentSummary
-    ?? result.summary
+    result.summary
     ?? (result.ok ? "qkrpc ok (payload compressed)" : "qkrpc failed (payload compressed)");
 
   return withCompressedResult(result, {
-    data: shrunk,
+    data: shrunk as Record<string, unknown>,
     displayData: data,
     agentSummary,
   });
@@ -1047,8 +1186,7 @@ function applyGlobalBudget(
 
   const data = readRecord(result.data);
   const summary =
-    result.agentView?.agentSummary
-    ?? result.summary
+    result.summary
     ?? (result.ok ? "ok" : "failed");
 
   const compactData: Record<string, unknown> = {
@@ -1062,24 +1200,20 @@ function applyGlobalBudget(
     agentPayload: "summary_only",
     summary,
     originalChars: chars,
-    readHint: result.agentView?.refetch
-      ? "Use refetch inputPatch from the original tool result."
-      : "Repeat the tool with narrower parameters.",
+    readHint:
+      readString(data?.readHint)
+      ?? (result.nextActions?.length
+        ? "See nextActions on this tool result for continuation parameters."
+        : "Repeat the tool with narrower parameters."),
   };
 
   const displayData = result.displayData ?? data ?? result.data;
-  const agentView = buildAgentViewMeta(summary, {
-    anchors: result.agentView?.anchors,
-    refetch: result.agentView?.refetch,
-    chars: JSON.stringify(compactData).length,
-  });
 
   return {
     ...result,
     data: compactData,
     displayData,
     truncated: true,
-    agentView,
     summary,
   };
 }
@@ -1088,6 +1222,103 @@ type ToolResultCompressor = (
   input: unknown,
   result: StructuredToolResult,
 ) => StructuredToolResult;
+
+function buildStepRunnerSearchNextActions(
+  parsed: NonNullable<ReturnType<typeof parseStepRunnerSearchResult>>,
+): ToolNextAction[] | undefined {
+  const top = parsed.items[0];
+  if (!top) return undefined;
+  return [{
+    tool: "qkrpc_step_runner_get",
+    reason: "Fetch compressed schema for the top search hit before editing steps.",
+    input: buildStepRunnerGetInputFromSearchItem(top),
+    priority: "required",
+  }];
+}
+
+function compressStepRunnerSearchResult(
+  input: unknown,
+  result: StructuredToolResult,
+): StructuredToolResult {
+  const parsed = parseStepRunnerSearchResult(result.data, input);
+  const nextActions = parsed ? buildStepRunnerSearchNextActions(parsed) : undefined;
+
+  if (estimateStructuredResultChars(result) <= AGENT_PAYLOAD_SOFT_CHARS) {
+    if (!nextActions?.length) return result;
+    return attachToolFeedback(result, { nextActions });
+  }
+  if (!parsed) return result;
+
+  const data = readRecord(result.data);
+  if (!data) return result;
+  const payload = unwrapQkrpcPayload(data);
+  const agentSummary = formatStepRunnerSearchMetaLine(parsed, {
+    items: parsed.items,
+    controlFieldItemCount: parsed.controlFieldItemCount,
+    multiControlFieldCount: parsed.multiControlFieldCount,
+  });
+
+  const compressedPayload: Record<string, unknown> = {
+    query: parsed.query,
+    matchCount: parsed.matchCount,
+    items: parsed.items,
+    controlFieldItemCount: parsed.controlFieldItemCount,
+    multiControlFieldCount: parsed.multiControlFieldCount,
+    readHint: "Use items[].key (+ controlField.value) with qkrpc_step_runner_get.",
+  };
+
+  const compressedData: Record<string, unknown> = readRecord(data.payload)
+    ? { ...data, payload: compressedPayload }
+    : { ...data, ...compressedPayload };
+
+  return withCompressedResult(
+    nextActions?.length
+      ? attachToolFeedback(result, { nextActions })
+      : result,
+    {
+      data: compressedData,
+      displayData: data,
+      agentSummary,
+    },
+  );
+}
+
+function compressStepRunnerGetResult(
+  _input: unknown,
+  result: StructuredToolResult,
+): StructuredToolResult {
+  const data = readRecord(result.data);
+  if (!data) return result;
+
+  const payload = unwrapQkrpcPayload(data);
+  const schemaJson = readString(payload.schemaJson) ?? readString(payload.SchemaJson);
+  const overBudget =
+    estimateStructuredResultChars(result) > AGENT_PAYLOAD_SOFT_CHARS
+    || (schemaJson?.length ?? 0) > STEP_RUNNER_GET_SCHEMA_SOFT_CHARS;
+
+  if (!overBudget) return result;
+
+  const shaped = shapeStepRunnerGetResult(result);
+  const key =
+    readString(payload.key)
+    ?? readString(payload.Key)
+    ?? readString(readRecord(_input)?.key);
+
+  return withCompressedResult(shaped, {
+    data: shaped.data as Record<string, unknown>,
+    displayData: data,
+    agentSummary: key
+      ? `step_runner_get ${key} · schema compressed`
+      : "step_runner_get · schema compressed",
+    refetch: key
+      ? {
+          tool: "qkrpc_step_runner_get",
+          reason: "full_schema",
+          inputPatch: { key },
+        }
+      : undefined,
+  });
+}
 
 function resolveCompressor(toolName: string): ToolResultCompressor | null {
   if (toolName === QKRPC_ACTION_DEBUG_TOOL) {
@@ -1136,6 +1367,12 @@ function resolveCompressor(toolName: string): ToolResultCompressor | null {
   if (toolName === BROWSER_TOOL) {
     return compressBrowserResult;
   }
+  if (toolName === "qkrpc_step_runner_search") {
+    return compressStepRunnerSearchResult;
+  }
+  if (toolName === "qkrpc_step_runner_get") {
+    return compressStepRunnerGetResult;
+  }
   return null;
 }
 
@@ -1147,8 +1384,13 @@ export function formatToolResultForAgent(
 ): Record<string, unknown> {
   if (!isStructuredToolResult(result)) return result;
 
+  let next = applyAlwaysOnToolResultShape(toolName, input, result);
+  if (!isStructuredToolResult(next)) return next;
+
+  if (!isToolResultAgentViewCompressionEnabled()) return next;
+
   const compressor = resolveCompressor(toolName);
-  let next = compressor ? compressor(input, result) : result;
+  next = compressor ? compressor(input, next) : next;
   if (
     next.source === "qkrpc"
     && next.displayData == null
@@ -1160,10 +1402,9 @@ export function formatToolResultForAgent(
 }
 
 /** Extract compact placeholder fields from a structured tool result. */
-export function buildMicrocompactPayloadFromAgentView(
+export function buildMicrocompactPayload(
   output: Record<string, unknown>,
 ): Record<string, unknown> {
-  const agentView = readRecord(output.agentView);
   const compact: Record<string, unknown> = {
     compact: true,
     note: "[compact: large tool output omitted; see recent turns]",
@@ -1172,17 +1413,7 @@ export function buildMicrocompactPayloadFromAgentView(
     truncated: output.truncated,
   };
 
-  if (agentView) {
-    if (typeof agentView.agentSummary === "string") {
-      compact.summary = agentView.agentSummary;
-    }
-    const anchors = readRecord(agentView.anchors);
-    if (anchors) {
-      for (const [key, value] of Object.entries(anchors)) {
-        if (typeof value === "string") compact[key] = value;
-      }
-    }
-  } else if (typeof output.summary === "string") {
+  if (typeof output.summary === "string") {
     compact.summary = output.summary;
   }
 
@@ -1196,12 +1427,22 @@ export function buildMicrocompactPayloadFromAgentView(
       compact.actionId = data.actionId;
     }
     if (data.path != null && compact.path == null) compact.path = data.path;
+    if (readString(data.readHint)) compact.readHint = readString(data.readHint);
     const loc = readRecord(data.failureLocation);
     const pointer = readString(loc?.dataJsonPointer);
     if (pointer && compact.dataJsonPointer == null) {
       compact.dataJsonPointer = pointer;
     }
+    const traceRef = readActionTraceRef(data.traceRef);
+    if (traceRef && compact.tracePath == null) compact.tracePath = traceRef.path;
   }
 
   return compact;
+}
+
+/** @deprecated Use buildMicrocompactPayload */
+export function buildMicrocompactPayloadFromAgentView(
+  output: Record<string, unknown>,
+): Record<string, unknown> {
+  return buildMicrocompactPayload(output);
 }

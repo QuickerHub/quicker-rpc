@@ -10,6 +10,7 @@ import {
 import { defaultAgentGuiBaseUrl } from "@/lib/agent-eval/chat-client";
 import { buildAgentEvalCapabilitySummary } from "@/lib/agent-eval/capability-summary";
 import { runMockVerify } from "@/lib/agent-eval/mock-verify";
+import { extractBenchActionIdFromMessages } from "@/lib/bench-mode";
 import {
   extractAssistantText,
   extractLastActionId,
@@ -96,7 +97,9 @@ export async function runAgentGuiUiEvalScenario(
   });
 
   if (options.verifyMock && !scenario.readOnly && status === "finished") {
-    const actionId = extractLastActionId(assistantText);
+    const actionId =
+      extractBenchActionIdFromMessages(ui.messages)
+      ?? extractLastActionId(assistantText);
     const profileId = resolveMockProfile(scenario);
     if (actionId) {
       report.mockVerify = runMockVerify({

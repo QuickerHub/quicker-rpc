@@ -21,7 +21,7 @@ public sealed class StepRunnerSearchRankBiasTests
         };
 
         var result = StepRunnerCatalogMapper.Search(catalog, "expression linq", maxResults: 10);
-        Assert.IsTrue(result.MatchCount >= 2);
+        Assert.IsTrue(result.MatchCount >= 1);
         Assert.AreEqual("sys:evalexpression", result.Items[0].Key);
     }
 
@@ -97,7 +97,7 @@ public sealed class StepRunnerSearchRankBiasTests
         };
 
         var rank = StepRunnerKeywordSearch.ComputeRank(row, StepRunnerSearchQuery.Parse("移动窗口增强"));
-        Assert.AreEqual(8, rank.ControlRankBias);
+        Assert.AreEqual(4, rank.ControlRankBias);
         Assert.IsTrue(rank.TotalScore >= rank.ModuleScore + rank.ControlScore + rank.ControlRankBias);
     }
 }

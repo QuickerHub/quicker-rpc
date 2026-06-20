@@ -42,6 +42,16 @@ export function ToolBatchGroup({
   const workspaceFileBatch = isWorkspaceFileOpenBatch(items);
   const forcedOpen = batchApproval ? true : null;
   const bodyRef = useRef<HTMLDivElement>(null);
+  const scrollTailKey = useMemo(
+    () =>
+      items
+        .map(
+          (item) =>
+            `${item.index}:${item.state}:${item.isRunning ? 1 : 0}:${item.meta}`,
+        )
+        .join("|"),
+    [items],
+  );
 
   useLayoutEffect(() => {
     if (!batchRunning) return;
@@ -54,7 +64,7 @@ export function ToolBatchGroup({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [batchRunning, items]);
+  }, [batchRunning, scrollTailKey]);
 
   useEffect(() => {
     if (forcedOpen) return;

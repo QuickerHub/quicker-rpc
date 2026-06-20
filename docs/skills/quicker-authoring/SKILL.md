@@ -20,6 +20,18 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 | icons | action-icons |
 | event trigger / auto-run | trigger-workflow |
 | WebView2/HTML files | webview2-authoring |
+| data.json steps[] / variables[] | **action-data-schema** |
+
+## Docs tool (编写指南)
+
+| need | call | NOT |
+|------|------|-----|
+| data.json / steps[] / variables[] / wire rules | **docs get action-data-schema** | docs search "schema" keywords |
+| known topic (Route or Deep-read index below) | **docs get(topic)** | search same topic id |
+| step module param keys | step-runner-search → step-runner-get | guess inputParams |
+| topic id unknown / module ref keyword | docs search → items[].snippet | invent syntax |
+
+`action-data-schema` returns **schema** + markdown — read before editing data.json (P2–P6). `docs index` when unsure of topic id.
 
 ## Scenario skills (on-demand)
 
@@ -85,7 +97,7 @@ Walkthrough: authoring-workflow. Workspace: workspace-editing.
 | schemas | action-data-schema, expressions, action-project-files |
 | expressions | **quicker-eval-expression** skill (+ topic `expressions`); multi-var → **quicker-authoring-evalexpression-multi-var** |
 | scenarios | scenario skills table above (on-demand) |
-| modules | step-modules; deep refs via docs search |
+| modules | step-modules; deep refs via docs search when topic unknown |
 
-Hot route in prompt-tier0; workflows → docs get full; references/ → docs search snippets.
+Docs routing in prompt-tier0 — **docs get** for known topics/schemas; **docs search** only when topic id unknown.
 

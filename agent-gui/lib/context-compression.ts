@@ -22,6 +22,7 @@ import { stripToolDisplayDataFromMessages } from "@/lib/tool-result-model-messag
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 import type { PostCompactReinjectResult } from "@/lib/context-compaction-reinject";
 import type { LlmSelection } from "@/lib/llm-selection";
+import { writeAgentHistoryArtifact } from "@/lib/agent-harness/artifacts/shell-artifact";
 
 export {
   DEFAULT_RECENT_MESSAGE_COUNT,
@@ -162,12 +163,22 @@ function buildSummarySource(messages: AgentUIMessage[]): string {
   return lines.join("\n\n");
 }
 
-function renderCompressionSystemSuffix(summary: string): string {
-  return (
-    "Historical context summary (auto-compressed):\n"
-    + `${summary.trim()}\n`
-    + "Use this summary as authoritative history for older turns."
-  );
+function renderCompressionSystemSuffix(
+  summary: string,
+  historyArtifactPath?: string,
+): string {
+  const parts = [
+    "Historical context summary (auto-compressed):",
+    summary.trim(),
+    "Use this summary as authoritative history for older turns.",
+  ];
+  if (historyArtifactPath?.trim()) {
+    parts.push(
+      `Full pre-compression history: ${historyArtifactPath.trim()}`,
+      "Use Read/Grep on that file if the summary misses identifiers or errors.",
+    );
+  }
+  return parts.join("\n");
 }
 
 async function createSummary(
@@ -213,6 +224,7 @@ function buildCompressionMetadata(
     microcompactApplied: boolean;
     reactiveCompactAttempted?: boolean;
     reinjectPaths?: string[];
+    historyArtifactPath?: string;
   },
 ): ContextCompressionMetadata {
   return {
@@ -228,6 +240,7 @@ function buildCompressionMetadata(
     summaryReused: options.summaryReused,
     reactiveCompactAttempted: options.reactiveCompactAttempted,
     reinjectPaths: options.reinjectPaths,
+    historyArtifactPath: options.historyArtifactPath,
   };
 }
 
@@ -252,6 +265,8 @@ export type PrepareCompressedContextOptions = {
   reinjectRecentPatches?: (
     recentMessages: AgentUIMessage[],
   ) => Promise<PostCompactReinjectResult>;
+  /** Thread id for history artifact naming (.local/agent-history/). */
+  threadId?: string;
 };
 
 export async function prepareCompressedContext(
@@ -266,6 +281,7 @@ export async function prepareCompressedContext(
     reinjectRecentPatches,
     force = false,
     reactiveCompactAttempted = false,
+    threadId,
   } = options;
   const summarize =
     summarizeOlderMessages
@@ -320,6 +336,10 @@ export async function prepareCompressedContext(
     return { modelMessages: baseModelMessages, compressed: false };
   }
 
+  const historyArtifact = reuseSummary
+    ? null
+    : await writeAgentHistoryArtifact(olderMessages, { threadId });
+
   const recentModelMessages = await convertToModelMessages(
     stripToolDisplayDataFromMessages(recentMessages),
   );
@@ -338,10 +358,11 @@ export async function prepareCompressedContext(
       microcompactApplied: micro.applied,
       reactiveCompactAttempted: reactiveCompactAttempted || undefined,
       reinjectPaths: reinject.paths.length > 0 ? reinject.paths : undefined,
+      historyArtifactPath: historyArtifact?.path,
     },
   );
   const systemSuffixParts = [
-    renderCompressionSystemSuffix(summary),
+    renderCompressionSystemSuffix(summary, historyArtifact?.path),
     reinject.block,
   ].filter((block): block is string => Boolean(block?.trim()));
   return {

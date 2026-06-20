@@ -1,0 +1,38 @@
+{
+  "id": "user-action-likes-total",
+  "version": 1,
+  "initialVars": {
+    "quicker_in_param": "https://getquicker.net/User/Actions/113342-Cea"
+  },
+  "mocks": {
+    "http": {
+      "https://getquicker.net/User/Actions/113342-Cea": {
+        "statusCode": 200,
+        "contentFile": "../quickerbench-fixtures/getquicker-user-actions/113342-cea/page-1.html"
+      },
+      "https://getquicker.net/User/Actions/113342-Cea?p=2": {
+        "statusCode": 200,
+        "contentFile": "../quickerbench-fixtures/getquicker-user-actions/113342-cea/page-2.html"
+      },
+      "https://getquicker.net/User/Actions/113342-Cea?p=3": {
+        "statusCode": 200,
+        "contentFile": "../quickerbench-fixtures/getquicker-user-actions/113342-cea/page-3.html"
+      },
+      "https://getquicker.net/User/Actions/113342-Cea?p=4": {
+        "statusCode": 200,
+        "contentFile": "../quickerbench-fixtures/getquicker-user-actions/113342-cea/page-4.html"
+      },
+      "https://getquicker.net/User/Actions/113342-Cea?p=5": {
+        "statusCode": 200,
+        "contentFile": "../quickerbench-fixtures/getquicker-user-actions/113342-cea/page-5.html"
+      }
+    }
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "totalLikes": "9270",
+      "actionCount": "117"
+    }
+  }
+}

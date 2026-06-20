@@ -26,11 +26,13 @@
 │ 1. [可选] title-test 模式声明                                │
 │ 2. buildSystemInstructions(cwd, chatMode)                   │
 │    ├─ Agent: SYSTEM_INSTRUCTIONS                              │
-│    │     + Skill: action authoring (prompt-tier0)           │
-│    │     + Topic index                                      │
-│    │     + Post-patch summary                               │
+│    │     + Preloaded skills (essentials: tier0/tier2 摘录)    │
+│    │     + Available skills catalog                         │
+│    │     + Workspace rules (compact) + Subagents catalog    │
 │    │     + ## cwd                                           │
-│    └─ Launcher: LAUNCHER_SYSTEM_INSTRUCTIONS (+ post-patch) │
+│    └─ Launcher: LAUNCHER_SYSTEM_INSTRUCTIONS                │
+│ 2b. [Agent] Intent-matched pattern skills (this turn)         │
+│     formatIntentMatchedSkillsForPrompt — 编写意图 keyword 匹配 │
 │ 3. formatActionScopeForSystem(actionScope)  ← 仅用户 @ 动作   │
 │ 4. buildLauncherCommandCachePromptBlock     ← 仅 launcher     │
 │ 5. buildThreadTitleAgentInstruction         ← 仅 agent 首条   │
@@ -82,20 +84,20 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 
 | Tier | 内容 | 何时 | 实现 |
 |------|------|------|------|
-| 1 Catalog | `name` + `description` | Agent 每次 chat | `formatSkillCatalogForPrompt()` — 非预加载 skill（qkrpc、quicker-run 等） |
-| 2 Instructions | `prompt-tier0.md` 或 `SKILL.md` body | 预加载 skill | `formatAllPreloadedSkillsForPrompt()` — 当前仅 `quicker-authoring` |
-| 1.5 Search-first | `search-strategy-prompt.ts` | Agent 每次 chat | `SEARCH_STRATEGY_PROMPT`（先 search 再 get/猜） |
-| 2b Topic index | `topics.json` 按 layer（仅 topic id + description） | 与 tier 2 同批 | `formatAuthoringTopicIndexForPrompt()` |
-| 3 Resources | `docs/authoring-references/` | `docs search` → `items[].snippet` | 独立目录；`docs get` 仅全文工作流 |
+| 1 Catalog | `name` + `description` | Agent 每次 chat | `formatSkillCatalogForPrompt()` — 非预加载 skill |
+| 2 Essentials | `prompt-tier0` / `prompt-tier2` 摘录（Hard rules、P4 pick） | Agent 每次 chat（默认） | `formatPreloadedSkillsEssentialsForPrompt()` |
+| 2 Full | 完整 tier-2 body | `HARNESS_PRELOAD_SKILLS=1` | `formatAuthoringSkillForPrompt()` |
+| 2t Turn | pattern skill 步骤骨架 | 编写意图 / `/author` / @ pin | `skill-intent-preload.ts` |
+| 1.5 Search-first | `search-strategy-prompt.ts` | Agent 每次 chat | `SEARCH_STRATEGY_PROMPT` |
+| 3 Deep read | skill/topic 全文 | `docs get` / Read skill 路径 | 运行时按需 |
 
-### 预加载：quicker-authoring
+### 预加载：quicker-authoring + quicker-eval-expression
 
 | 项 | 说明 |
 |----|------|
-| 源（生成前） | `docs/action-authoring-src/skills/quicker-authoring/prompt-tier0.src.md` |
-| Tier 2 运行时 | `docs/skills/quicker-authoring/prompt-tier0.md`（`SKILL_TIER2_BODY_FILES`） |
-| 回退 | `SKILL.md` body |
-| 包装 | `## Skill: …` + scope + 后缀「Stuck → docs get」 |
+| 默认 | **Essentials** — Pattern traps、P0–P7、Hard rules、P4 pick（~60 行） |
+| 全文 | `HARNESS_PRELOAD_SKILLS=1` 或 `docs get` |
+| 源 | `docs/skills/quicker-authoring/prompt-tier0.md`、`quicker-eval-expression/prompt-tier2.md` |
 
 **设计原则**：session 开头 **不要** 批量 `docs get`；索引已在 system 中，卡住再读一个 topic。
 

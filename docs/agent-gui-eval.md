@@ -19,6 +19,14 @@ qkrpc wait --json
 
 3. **LLM 已配置**（与 `/tool-test` 相同；可用 `pnpm probe:llm-configs`）
 
+若 live eval 报 `error: Gone` 或 `status=error` 且无 tool calls，通常是当前默认模型 endpoint 返回 **HTTP 410**（模型下线或路由失效）。处理：
+
+```powershell
+cd agent-gui
+pnpm probe:llm-configs -- --method chat
+pnpm agent-eval -- discover-step-expr --json   # 或设置 AGENT_EVAL_LLM_SELECTION
+```
+
 可选环境变量：
 
 | 变量 | 说明 |
@@ -33,6 +41,7 @@ qkrpc wait --json
 | 场景 | 命令 |
 |------|------|
 | 冒烟（只读 L0） | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Preset smoke` |
+| **QuickerBench IO 核心** | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset quickerbench-core -VerifyMock` |
 | Launcher 栈 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset gui-launcher` |
 | GUI 冒烟 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset gui-smoke` |
 | agent-defs（slash / 子代理） | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset gui-agent-defs` |

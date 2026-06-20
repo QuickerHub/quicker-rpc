@@ -6,6 +6,8 @@ export type ChatSystemPromptBlocks = {
   scopeBlock?: string;
   titleInstruction?: string | null;
   titleTest: boolean;
+  benchMode?: boolean;
+  benchInstruction?: string;
 };
 
 /** Stable prefix first; only append blocks that must change per turn at the end. */
@@ -19,6 +21,9 @@ export function composeChatSystemPrompt(
   return [
     blocks.titleTest
       ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
+      : null,
+    blocks.benchMode && blocks.benchInstruction?.trim()
+      ? blocks.benchInstruction.trim()
       : null,
     systemWithScope,
     blocks.designerEmbedBlock,

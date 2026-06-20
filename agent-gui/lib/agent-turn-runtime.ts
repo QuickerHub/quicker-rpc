@@ -11,35 +11,27 @@ import {
   type AgentRuntimeSnapshot,
 } from "@/lib/agent-runtime-snapshot";
 import { buildSystemInstructions } from "@/lib/instructions";
+import { formatIntentMatchedSkillsForPrompt } from "@/lib/agent-skills/skill-intent-preload";
 import {
   buildLauncherCommandCachePromptBlock,
 } from "@/lib/launcher/launcher-command-cache.server";
 import {
-  SET_THREAD_TITLE_TOOL,
   buildThreadTitleAgentInstruction,
   buildTitleTestChatInstruction,
 } from "@/lib/set-thread-title-tool";
+import { buildBenchModeChatInstruction } from "@/lib/bench-mode";
 import { composeChatSystemPrompt } from "@/lib/agent-system-prompt";
-import { pickChatTools } from "@/lib/tool-registry";
-import { quickerTools } from "@/lib/tools";
+import {
+  DEV_AGENT_UI_SYSTEM_BLOCK,
+  isDevAgentEnvironment,
+} from "@/lib/dev-agent-tools";
+import { selectChatTools } from "@/lib/select-chat-tools.server";
 
 export type PreparedChatContext = {
   systemSuffix?: string;
 };
 
-export function selectChatTools(params: {
-  chatMode: ChatMode;
-  enabledToolIds: string[];
-  titleTest: boolean;
-}) {
-  if (params.titleTest) {
-    return { [SET_THREAD_TITLE_TOOL]: quickerTools[SET_THREAD_TITLE_TOOL] };
-  }
-
-  return pickChatTools(quickerTools, params.enabledToolIds, [
-    ...(params.chatMode === CHAT_MODE_LAUNCHER ? [] : [SET_THREAD_TITLE_TOOL]),
-  ]);
-}
+export { selectChatTools } from "@/lib/select-chat-tools.server";
 
 export async function createChatSystemBuilder(params: {
   actionScope: ActionScopeHint;
@@ -51,11 +43,29 @@ export async function createChatSystemBuilder(params: {
   modelId: string;
   repairedMessages: AgentUIMessage[];
   runtimeSnapshot?: AgentRuntimeSnapshot;
+  slashCommandName?: string | null;
   titleManual: boolean;
   titleTest: boolean;
+  benchMode?: boolean;
 }) {
   const scopeBlock = formatActionScopeForSystem(params.actionScope);
-  const baseSystem = await buildSystemInstructions(params.cwd, params.chatMode);
+  const [baseSystem, intentSkillBlock] = await Promise.all([
+    buildSystemInstructions(params.cwd, params.chatMode),
+    formatIntentMatchedSkillsForPrompt({
+      userText: params.launcherUserText,
+      chatMode: params.chatMode,
+      cwd: params.cwd,
+      slashCommandName: params.slashCommandName,
+      actionScope: params.actionScope,
+    }),
+  ]);
+  const mergedBase = intentSkillBlock
+    ? `${baseSystem}\n\n${intentSkillBlock}`
+    : baseSystem;
+  const devUiBlock =
+    isDevAgentEnvironment() && params.chatMode !== CHAT_MODE_LAUNCHER
+      ? DEV_AGENT_UI_SYSTEM_BLOCK
+      : undefined;
   const launcherCacheBlock =
     params.chatMode === CHAT_MODE_LAUNCHER
       ? await buildLauncherCommandCachePromptBlock(params.launcherUserText)
@@ -71,12 +81,14 @@ export async function createChatSystemBuilder(params: {
 
   return (context: PreparedChatContext) =>
     composeChatSystemPrompt({
-      baseSystem,
+      baseSystem: devUiBlock ? `${mergedBase}\n\n${devUiBlock}` : mergedBase,
       contextSystemSuffix: context.systemSuffix,
       designerEmbedBlock: params.designerEmbedBlock,
       launcherCacheBlock,
       scopeBlock,
       titleInstruction,
       titleTest: params.titleTest,
+      benchMode: params.benchMode === true,
+      benchInstruction: params.benchMode ? buildBenchModeChatInstruction() : undefined,
     });
 }

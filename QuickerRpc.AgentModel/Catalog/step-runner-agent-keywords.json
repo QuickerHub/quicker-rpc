@@ -6,8 +6,10 @@
       "condition",
       "branch",
       "条件",
+      "条件判断",
       "如果",
-      "否则"
+      "否则",
+      "simpleIf"
     ],
     "snippet": "Conditional steps with optional else branch"
   },
@@ -16,8 +18,10 @@
       "if",
       "condition",
       "条件",
+      "条件判断",
       "如果",
-      "simple if"
+      "simple if",
+      "simpleIf"
     ],
     "notFor": [
       "else"
@@ -655,8 +659,11 @@
       "write clipboard",
       "set clipboard",
       "clipboard write",
+      "writeClipboard",
+      "setClipboardText",
       "paste",
       "写入剪贴板",
+      "剪贴板写入",
       "复制到剪贴板"
     ],
     "notFor": [
@@ -3497,8 +3504,8 @@
       "变量赋值",
       "计算"
     ],
-    "rankBias": 18,
-    "snippet": "Assign value to action variable (literal, $$, $=, or input.var copy); default for single-var writes"
+    "rankBias": 22,
+    "snippet": "**Default for single-var writes** (literal, $$, $=, paramKey.var) — use before sys:evalexpression"
   },
   "sys:compute": {
     "obsolete": true,

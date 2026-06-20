@@ -16,9 +16,14 @@
 | auto-run on event / trigger | quicker_trigger | trigger-workflow |
 | WebView2/HTML in files/ | workspace_program file_* + patch | webview2-authoring |
 
+## Docs tool
+
+- data.json / steps[] / variables[] → **docs get action-data-schema** (schema+markdown; NOT docs search)
+- known topic id (Route) → **docs get(topic)**; unknown keyword → search→snippet; module keys → step_runner get
+
 ## Scenario skills
 
-On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario skills`). Hot: library-search, selection/clipboard pipeline, subprogram `var:*`, run-action-delegate, form-param-input.
+On-demand — parent SKILL table. Hot: library-search, selection/clipboard pipeline, subprogram `var:*`, run-action-delegate, form-param-input.
 
 ## Pattern traps (do not guess)
 
@@ -40,7 +45,7 @@ On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario 
 ## Hard rules
 
 - NO shell_exec for qkrpc connectivity (ping, probe, serve, build.ps1 -t, qkrpc CLI) — tell user on connectivity_failure
-- Search before guess (see system Search-first); docs search → items[].snippet; docs get(topic) only for full workflow
+- Search before guess; **docs get** for known topics (see Docs tool); **docs search** only when topic id unknown
 - NO guess inputParams without step_runner_search → get
 - NO get-ui / step-runner.getUi
 - NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
@@ -52,5 +57,3 @@ On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario 
 {{#include-partial schema-hot-workspace}}
 
 {{#include-partial schema-hot-action-steps}}
-
-Deep-read: docs search → items[].snippet; full workflow → docs get(topic). No session-start topic/module catalog.

@@ -1,0 +1,19 @@
+{
+  "url": "https://getquicker.net/User/Actions/113342-Cea",
+  "capturedAt": "2026-06-19",
+  "pages": 5,
+  "totalActions": 117,
+  "parsedCount": 117,
+  "totalLikes": 9270,
+  "pageFiles": [
+    "page-1.html",
+    "page-2.html",
+    "page-3.html",
+    "page-4.html",
+    "page-5.html"
+  ],
+  "oracle": {
+    "totalLikes": 9270,
+    "actionCount": 117
+  }
+}

@@ -22,7 +22,7 @@ QuickerAgent 通过工作区 `.quicker/` 命名空间声明 **commands**、**ski
   agents/
 ```
 
-内置 skills（仓库 `docs/skills/`，仅 skills）随 QuickerAgent 分发。工作区自定义能力见本文；规范全文即本文档。
+内置 **skills**（`docs/skills/`）、**commands** 与 **subagents**（`agent-gui/lib/agent-defs/bundled/`）随 QuickerAgent 分发。工作区自定义能力见本文；规范全文即本文档。
 
 相关：[agent-gui-prompt-structure.md](agent-gui-prompt-structure.md)（Skill 如何注入 system prompt）。
 
@@ -32,7 +32,20 @@ QuickerAgent 通过工作区 `.quicker/` 命名空间声明 **commands**、**ski
 
 1. **workspace** — `<cwd>/.quicker/`
 2. **user** — `QuickerAgent/agent-defs/`
-3. **bundled** — `docs/skills/`（仅 skills）
+3. **bundled** — skills: `docs/skills/`；commands/agents: `agent-gui/lib/agent-defs/bundled/`
+
+### Bundled 默认能力（开箱即用）
+
+| 类型 | 名称 | 用途 |
+|------|------|------|
+| command | `author` | P1–P7 编写 checklist + 工具限制 |
+| command | `verify` | diagnostics + debug 验证 |
+| command | `explain-action` | 只读解释动作步骤 |
+| subagent | `readonly-explore` | Grep/Read/docs 只读探索 |
+| subagent | `authoring-verify` | patch 后验证（inherit: skills workspace） |
+| subagent | `step-runner-lookup` | step_runner search/get 查 schema（inherit: skills） |
+| subagent | `action-library-search` | 已安装动作搜索/只读学习（inherit: skills） |
+| subagent | `tool-test-echo` | `/tool-test` 套件用 |
 
 ## Commands（斜杠命令）
 
@@ -67,20 +80,21 @@ model: deepseek                    # 可选，覆盖本轮 LLM 选择
 ---
 name: explore
 description: 快速探索代码库结构
-tools: workspace_file shell_exec docs
+tools: Grep Read docs
+inherit: skills workspace   # 可选：all | skills | workspace（逗号/空格分隔）
 model: auto
 ---
 
 子代理系统提示正文（Markdown）。
 ```
 
-主 Agent 通过 **`task`** 工具委派：`{ "agent": "explore", "prompt": "..." }`。子代理在隔离循环中运行，不可递归调用 `task`。
+主 Agent 通过 **`task`** 工具委派：`{ "agent": "explore", "prompt": "..." }`。子代理在隔离循环中运行，不可递归调用 `task`。`inherit` 时合并预加载 skill 精华与 AGENTS.md 摘要（见 `subagent-system.server.ts`）。
 
 系统提示中的 `## Subagents` 块列出可用子代理目录，供主 Agent 选型。
 
 ## AGENTS.md
 
-工作区根目录或 `.quicker/AGENTS.md`（前者优先）。内容直接注入系统提示 `## Workspace instructions` 段。
+工作区根目录或 `.quicker/AGENTS.md`（前者优先）。默认注入 **compact 摘要**（前 2048 字符 + 路径提示）；完整正文用 Read 或 `HARNESS_WORKSPACE_RULES_FULL=1`。
 
 ## API
 

@@ -79,10 +79,12 @@ type ToolResultPopupProps = {
 export function ToolResultPopupTabs({
   tab,
   hasVisual,
+  hasModelView,
   onTabChange,
 }: {
   tab: ToolPopupViewMode;
   hasVisual: boolean;
+  hasModelView: boolean;
   onTabChange: (next: ToolPopupViewMode) => void;
 }) {
   return (
@@ -102,16 +104,25 @@ export function ToolResultPopupTabs({
       <button
         type="button"
         role="tab"
-        id="tool-popup-tab-source"
-        aria-selected={tab === "source"}
-        aria-controls="tool-popup-panel-source"
-        className={`tool-result-popup-tab${tab === "source" ? " tool-result-popup-tab--active" : ""}`}
-        onClick={() => onTabChange("source")}
+        id="tool-popup-tab-model"
+        aria-selected={tab === "model"}
+        aria-controls="tool-popup-panel-model"
+        className={`tool-result-popup-tab${tab === "model" ? " tool-result-popup-tab--active" : ""}`}
+        disabled={!hasModelView}
+        onClick={() => onTabChange("model")}
       >
-        原始响应
+        模型数据
       </button>
     </div>
   );
+}
+
+function toolPopupPanelId(view: ToolPopupViewMode): string {
+  return view === "model" ? "tool-popup-panel-model" : "tool-popup-panel-visual";
+}
+
+function toolPopupTabId(view: ToolPopupViewMode): string {
+  return view === "model" ? "tool-popup-tab-model" : "tool-popup-tab-visual";
 }
 
 export function ToolResultPopup({
@@ -128,6 +139,8 @@ export function ToolResultPopup({
 }: ToolResultPopupProps) {
   const panelId = useId();
   const hasVisual = toolPopupHasVisualView(toolName, input, output);
+  const hasModelView =
+    input !== undefined || output !== undefined || Boolean(errorText?.trim());
   const [tab, setTab] = useState<ToolPopupViewMode>("visual");
   const prevOpenRef = useRef(false);
   const bodyView = resolveToolPopupBodyView(tab, hasVisual);
@@ -192,6 +205,7 @@ export function ToolResultPopup({
             <ToolResultPopupTabs
               tab={tab}
               hasVisual={hasVisual}
+              hasModelView={hasModelView}
               onTabChange={setTabPersisted}
             />
           </div>
@@ -210,10 +224,8 @@ export function ToolResultPopup({
         <div
           className="tool-result-popup-body"
           role="tabpanel"
-          id={bodyView === "visual" ? "tool-popup-panel-visual" : "tool-popup-panel-source"}
-          aria-labelledby={
-            bodyView === "visual" ? "tool-popup-tab-visual" : "tool-popup-tab-source"
-          }
+          id={toolPopupPanelId(bodyView)}
+          aria-labelledby={toolPopupTabId(bodyView)}
         >
           <ToolPopupBody
             view={bodyView}

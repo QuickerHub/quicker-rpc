@@ -4,6 +4,15 @@ import {
   resolveWorkspaceInstructionsPaths,
 } from "@/lib/agent-defs/paths";
 import type { WorkspaceInstructions } from "@/lib/agent-defs/types";
+import { formatWorkspaceInstructionsForPrompt } from "@/lib/agent-defs/workspace-instructions-format";
+
+export {
+  formatWorkspaceInstructionsCompactBlock,
+  formatWorkspaceInstructionsForPrompt,
+  formatWorkspaceInstructionsFullBlock,
+  isWorkspaceRulesFullInPromptEnabled,
+  WORKSPACE_RULES_SUMMARY_CHARS,
+} from "@/lib/agent-defs/workspace-instructions-format";
 
 export async function loadWorkspaceInstructions(
   cwd: string,
@@ -30,35 +39,36 @@ export async function loadWorkspaceInstructions(
   return null;
 }
 
+/** @deprecated Use formatWorkspaceInstructionsForPrompt */
 export function formatWorkspaceInstructionsBlock(
   instructions: WorkspaceInstructions,
 ): string {
-  const lines = ["## Workspace instructions", ""];
-  if (instructions.truncated) {
-    lines.push(
-      `_(truncated to ${MAX_WORKSPACE_INSTRUCTIONS_CHARS} chars from ${instructions.filePath})_`,
-      "",
-    );
-  }
-  lines.push(instructions.content);
-  return lines.join("\n");
+  return formatWorkspaceInstructionsForPrompt(instructions);
 }
 
 export function formatSubagentsCatalogBlock(
-  agents: Array<{ name: string; description: string }>,
+  agents: Array<{
+    name: string;
+    description: string;
+    inherit?: readonly string[];
+  }>,
 ): string {
   if (agents.length === 0) return "";
   const lines = [
     "## Subagents",
     "Delegate focused work via the `task` tool. Pick by name + description.",
+    "Optional frontmatter `inherit: skills workspace` merges parent skill/workspace context.",
     "",
     "<available_subagents>",
   ];
   for (const agent of agents) {
+    const inheritHint = agent.inherit?.length
+      ? ` (inherit: ${agent.inherit.join(", ")})`
+      : "";
     lines.push(
       `<subagent>`,
       `<name>${agent.name}</name>`,
-      `<description>${agent.description}</description>`,
+      `<description>${agent.description}${inheritHint}</description>`,
       `</subagent>`,
     );
   }

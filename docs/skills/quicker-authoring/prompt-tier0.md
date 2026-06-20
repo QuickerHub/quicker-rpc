@@ -16,9 +16,14 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 | auto-run on event / trigger | quicker_trigger | trigger-workflow |
 | WebView2/HTML in files/ | workspace_program file_* + patch | webview2-authoring |
 
+## Docs tool
+
+- data.json / steps[] / variables[] → **docs get action-data-schema** (schema+markdown; NOT docs search)
+- known topic id (Route) → **docs get(topic)**; unknown keyword → search→snippet; module keys → step_runner get
+
 ## Scenario skills
 
-On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario skills`). Hot: library-search, selection/clipboard pipeline, subprogram `var:*`, run-action-delegate, form-param-input.
+On-demand — parent SKILL table. Hot: library-search, selection/clipboard pipeline, subprogram `var:*`, run-action-delegate, form-param-input.
 
 ## Pattern traps (do not guess)
 
@@ -51,7 +56,7 @@ P7  trust editVersion after save (NO verify re-get)
 ## Hard rules
 
 - NO shell_exec for qkrpc connectivity (ping, probe, serve, build.ps1 -t, qkrpc CLI) — tell user on connectivity_failure
-- Search before guess (see system Search-first); docs search → items[].snippet; docs get(topic) only for full workflow
+- Search before guess; **docs get** for known topics (see Docs tool); **docs search** only when topic id unknown
 - NO guess inputParams without step_runner_search → get
 - NO get-ui / step-runner.getUi
 - NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
@@ -74,7 +79,7 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 | file | role |
 |------|------|
 | info.json | title, icon, editVersion, callIdentifier (subprogram) |
-| data.json | steps[] + variables[] only — **action-data-schema**; agents omit stepId, empty ifSteps/elseSteps |
+| data.json | steps[] + variables[] only — **docs get action-data-schema**; agents omit stepId, empty ifSteps/elseSteps |
 | files/ | long scripts/HTML; step ref `paramKey.file`: `files/…` |
 
 ### target → disk
@@ -101,8 +106,6 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 - **existing non-empty**: get → read/edit → [file_*] → patch
 - **discover**: projects_list; `<qka id="guid">` → get then edit
 
-Deep-read: workspace-editing.
-
 ## Steps & file externalization
 
 steps[] + inputParams: `paramKey` · `.file` · `.var` (one bind/key). **Literal `value` may be JSON string / number / boolean / array / object** per `step_runner_get` `valueType` — not only strings; expr still uses `$$`/`$=`.
@@ -114,6 +117,4 @@ steps[] + inputParams: `paramKey` · `.file` · `.var` (one bind/key). **Literal
 | list/dict literal | `["a"]` / `{"k":1}` on `paramKey` | multiline guess |
 | enum/literal | pick from step_runner_get `options` | guess value |
 
-Long text → `paramKey.file`. Keys: search → get. Branch: sys:if → ifSteps/elseSteps. Deep-read: **action-data-schema**, step-runner-get.
-
-Deep-read: docs search → items[].snippet; full workflow → docs get(topic). No session-start topic/module catalog.
+Long text → `paramKey.file`. Keys: step_runner search → get. Branch: sys:if → ifSteps/elseSteps. Wire rules: **docs get action-data-schema** (not docs search).

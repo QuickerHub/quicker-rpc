@@ -25,6 +25,9 @@ export type ChatMessageArticleProps = {
   onInsertComposerPrompt: (text: string) => void;
   canForkConversation?: boolean;
   onForkConversation?: () => void;
+  canExportConversation?: boolean;
+  exportConversationDisabled?: boolean;
+  onExportConversation?: () => void;
 };
 
 function ChatMessageArticleInner({
@@ -45,6 +48,9 @@ function ChatMessageArticleInner({
   onInsertComposerPrompt,
   canForkConversation = false,
   onForkConversation,
+  canExportConversation = false,
+  exportConversationDisabled = false,
+  onExportConversation,
 }: ChatMessageArticleProps) {
   const isUser = message.role === "user";
 
@@ -60,6 +66,9 @@ function ChatMessageArticleInner({
       userTextOverride={userText}
       canFork={canForkConversation}
       onFork={onForkConversation}
+      canExport={canExportConversation}
+      exportDisabled={exportConversationDisabled}
+      onExport={onExportConversation}
     />
   ) : null;
 

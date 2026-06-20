@@ -24,6 +24,20 @@ describe("agent-eval eval-scenario", () => {
     }
   });
 
+  it("resolves quickerbench task by id", () => {
+    const scenario = loadEvalScenario("user-action-likes-total");
+    assert.equal(scenario.source, "quickerbench");
+    assert.equal(scenario.mockProfile, "user-action-likes-total");
+    assert.equal(scenario.fixture, "bench-empty");
+    assert.match(scenario.userPrompt, /getquicker/);
+  });
+
+  it("resolves quickerbench bench-empty fixture cwd", () => {
+    const scenario = loadEvalScenario("user-action-likes-total");
+    const cwd = resolveScenarioWorkingDirectory(scenario);
+    assert.ok(cwd.includes("bench-empty"));
+  });
+
   it("resolves authoring task by id", () => {
     const scenario = loadEvalScenario("discover-step-expr");
     assert.equal(scenario.source, "authoring");

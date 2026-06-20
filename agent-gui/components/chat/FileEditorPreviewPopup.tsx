@@ -19,7 +19,7 @@ import {
   type FileEditorStat,
 } from "./FileEditorCard";
 import { ToolResultPopupTabs } from "./ToolResultPopup";
-import { ToolPayloadView } from "./tool-output";
+import { ToolModelPayloadPanel } from "./ToolModelPayloadPanel";
 
 export type FileEditorPreviewPopupProps = {
   open: boolean;
@@ -137,6 +137,7 @@ export function FileEditorPreviewPopup({
               <ToolResultPopupTabs
                 tab={tab}
                 hasVisual
+                hasModelView={output !== undefined || input !== undefined}
                 onTabChange={setTabPersisted}
               />
             ) : null}
@@ -162,39 +163,22 @@ export function FileEditorPreviewPopup({
           </div>
         </div>
         <div
-          className={`tool-file-editor-popup-body${tab === "source" ? " tool-file-editor-popup-body--source" : ""}`}
+          className={`tool-file-editor-popup-body${tab === "model" ? " tool-file-editor-popup-body--model" : ""}`}
           role={hasRawPayload ? "tabpanel" : undefined}
           aria-labelledby={
             hasRawPayload
               ? tab === "visual"
                 ? "tool-popup-tab-visual"
-                : "tool-popup-tab-source"
+                : "tool-popup-tab-model"
               : undefined
           }
         >
-          {tab === "source" && hasRawPayload ? (
-            <div className="tool-body tool-body--debug tool-body--popup-source">
-              {input !== undefined ? (
-                <ToolPayloadView
-                  label="请求"
-                  value={input}
-                  rawOnly
-                  toolName={toolName}
-                  input={input}
-                  output={output}
-                />
-              ) : null}
-              {output !== undefined ? (
-                <ToolPayloadView
-                  label="结果"
-                  value={output}
-                  rawOnly
-                  toolName={toolName}
-                  input={input}
-                  output={output}
-                />
-              ) : null}
-            </div>
+          {tab === "model" && hasRawPayload ? (
+            <ToolModelPayloadPanel
+              toolName={toolName}
+              input={input}
+              output={output}
+            />
           ) : (
             <>
               <FileEditorCard

@@ -21,6 +21,7 @@ mod launcher;
 mod legacy_chat_restore;
 mod plugin_runtime;
 mod quicker_agent_paths;
+mod shell_reveal;
 mod single_instance;
 mod tray;
 mod voice_plugin;
@@ -864,6 +865,7 @@ pub fn run() {
             embedded_browser::embedded_browser_profile_info,
             embedded_browser::embedded_browser_force_close,
             legacy_chat_restore::legacy_chat_store_scan,
+            shell_reveal::reveal_path_in_file_manager,
         ])
         .manage(BackendState::new())
         .manage(voice_plugin::VoicePluginState::new())
