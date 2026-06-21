@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    Shared ActionRuntime root resolution for Quicker + quicker-rpc.
+    Override order:
+      1. -p:QuickerActionRuntimeRoot=...
+      2. %USERPROFILE%\.config\quicker\Quicker.ActionRuntime.Root.user.props
+      3. env QUICKER_ACTION_RUNTIME_ROOT
+      4. QuickerActionRuntimeRootDefault (set by repo Directory.Build.props)
+  -->
+  <PropertyGroup>
+    <QuickerActionRuntimeUserProps Condition="'$(QuickerActionRuntimeUserProps)' == ''">$(USERPROFILE)\.config\quicker\Quicker.ActionRuntime.Root.user.props</QuickerActionRuntimeUserProps>
+  </PropertyGroup>
+  <Import Project="$(QuickerActionRuntimeUserProps)" Condition="Exists('$(QuickerActionRuntimeUserProps)')" />
+
+  <PropertyGroup>
+    <QuickerActionRuntimeRoot Condition="'$(QuickerActionRuntimeRoot)' == '' and '$(Env:QUICKER_ACTION_RUNTIME_ROOT)' != ''">$(Env:QUICKER_ACTION_RUNTIME_ROOT)</QuickerActionRuntimeRoot>
+    <QuickerActionRuntimeRoot Condition="'$(QuickerActionRuntimeRoot)' == '' and '$(QuickerActionRuntimeRootDefault)' != ''">$(QuickerActionRuntimeRootDefault)</QuickerActionRuntimeRoot>
+    <QuickerActionRuntimeRoot>$([MSBuild]::EnsureTrailingSlash('$(QuickerActionRuntimeRoot)'))</QuickerActionRuntimeRoot>
+  </PropertyGroup>
+</Project>

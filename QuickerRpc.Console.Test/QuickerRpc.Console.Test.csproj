@@ -21,11 +21,11 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\Quicker.ActionRuntime\tests\Quicker.ActionRuntime.Tests\Fixtures\assign-only.json">
+    <None Include="$(QuickerActionRuntimeRoot)tests\Quicker.ActionRuntime.Tests\Fixtures\assign-only.json">
       <Link>Fixtures\assign-only.json</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\Quicker.ActionRuntime\tests\Quicker.ActionRuntime.Tests\Fixtures\mixed-support.json">
+    <None Include="$(QuickerActionRuntimeRoot)tests\Quicker.ActionRuntime.Tests\Fixtures\mixed-support.json">
       <Link>Fixtures\mixed-support.json</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

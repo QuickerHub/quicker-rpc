@@ -8,6 +8,13 @@
     -->
     <AppendAssemblyVersionFileNameSuffix Condition="'$(AppendAssemblyVersionFileNameSuffix)' == ''">true</AppendAssemblyVersionFileNameSuffix>
   </PropertyGroup>
+
+  <!-- Local dev: point ActionRuntime ProjectReferences to one shared clone (see build/Quicker.ActionRuntime.Root.user.props.example). -->
+  <PropertyGroup>
+    <QuickerActionRuntimeRootDefault>$([MSBuild]::EnsureTrailingSlash($(RepoRoot)))Quicker.ActionRuntime\</QuickerActionRuntimeRootDefault>
+  </PropertyGroup>
+  <Import Project="$(RepoRoot)build\Quicker.ActionRuntime.Root.props" />
+
   <!-- net472: polyfill C# 9+ (init, records, etc.) via source generator; no runtime dependency. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="PolySharp">
