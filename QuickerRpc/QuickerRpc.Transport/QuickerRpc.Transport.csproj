@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net472;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>QuickerRpc.Transport</RootNamespace>
+    <Description>QuickerRpc named-pipe transport and StreamJsonRpc session hosting.</Description>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <NoWarn>$(NoWarn);VSTHRD003</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup>
+    <UseAssemblyVersionFileNameSuffix>true</UseAssemblyVersionFileNameSuffix>
+    <AppendAssemblyVersionFileNameSuffix Condition="'$(TargetFramework)' != 'net472'">false</AppendAssemblyVersionFileNameSuffix>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
+    <PackageReference Include="StreamJsonRpc" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" VersionOverride="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="6.0.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net472'">
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Remove="QuickerRpcPipeSecurity.cs" />
+    <Compile Remove="QuickerRpcServerHost.cs" />
+    <Compile Remove="QuickerRpcPipeServerStreamFactory.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Remove="QuickerRpcPipeSecurity.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
+</Project>

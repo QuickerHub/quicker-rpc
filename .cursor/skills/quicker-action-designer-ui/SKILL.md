@@ -25,7 +25,7 @@ metadata:
 - `../quickerorg/Quicker/Quicker.Designer`
 - `../quickerorg/Quicker/QuickerPc/Quicker`
 
-改 UI 前先确认上述目录在本机存在；不存在时勿猜行为，改查已安装的 `Quicker.exe` 或 `QuickerRpc.Plugin` 反射封装。
+改 UI 前先确认上述目录在本机存在；不存在时勿猜行为，改查已安装的 `Quicker.exe` 或 `QuickerRpc/QuickerRpc.Plugin.V1` 反射封装。
 
 ## 当前任务（优先）
 
@@ -104,7 +104,7 @@ metadata:
 3. **读 Web 源**：对比 `../Quicker/Quicker.Designer/src/Quicker.Designer.Web/src/features/steps/` 是否已有移植；再改 `agent-gui/lib/action-editor/`。
 4. **Schema（静态优先）**：action-editor 使用编译期打包的 `agent-gui/lib/action-editor/data/step-runners-ui-catalog.json`（`Export-StepRunnersUiCatalog.ps1` 从 `qkrpc step-runner get-ui` 导出）。`/api/step-runner/list|get` 默认读静态 JSON；`STEP_RUNNER_CATALOG_LIVE=1` 或 catalog 为空时回退 live `qkrpc`。键名与 `controlField` 与 Agent 路径一致，但 **控件形态只看 UI schema + WPF**。
 5. **改完后**：**自动**跑 `dev_frontend_check` 直到 `ok: true`（或 `/frontend-check`）；见 `quicker-agent-gui-frontend`（**不要** `build.ps1 -t`）。
-6. **涉及插件保存/designer host**：才需要 `quicker-rpc-build-test`（`QuickerRpc.Plugin/Services/ActionDesigner*.cs`）。
+6. **涉及插件保存/designer host**：才需要 `quicker-rpc-build-test`（`QuickerRpc/QuickerRpc.Plugin.V1/Services/ActionDesigner*.cs`）。
 
 ## 搜索命令（维护者本机）
 
@@ -122,4 +122,4 @@ rg "shouldUseVarOrValueEditor" agent-gui/lib/action-editor
 - **主题 token**：`quicker-agent-gui-theme`（新组件/CSS 默认适配深/浅）
 - Quicker.exe 反射 / 类型探测：`.cursor/skills/quicker-exe-type-probing/SKILL.md`
 - `step-runner get-ui` 说明：`docs/cli-commands.md`、`agent-gui/AGENTS.md`（Action editor）
-- 插件侧设计器接入：`QuickerRpc.Plugin/Services/ActionDesignerProgramAccess.cs`、`ActionDesignerUiSave.cs`
+- 插件侧设计器接入：`QuickerRpc/QuickerRpc.Plugin.V1/Services/ActionDesignerProgramAccess.cs`、`ActionDesignerUiSave.cs`

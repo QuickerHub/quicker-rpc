@@ -26,7 +26,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 | 改了什么 | 热更新做什么 | agent-gui |
 |----------|----------------|-------------|
-| `QuickerRpc.Plugin/**` | `-t` → 测试包 + 更新 `QuickerRpc_Run` version → **1s 后** `quicker:runaction` **重载 DLL** | 保持打开；RPC 经 serve 重连管道 |
+| `QuickerRpc/QuickerRpc.Plugin.V1/**`、`QuickerRpc/QuickerRpc.Runtime/**` | `-t` → 测试包 + 更新 `QuickerRpc_Run` version → **1s 后** `quicker:runaction` **重载 DLL** | 保持打开；RPC 经 serve 重连管道 |
 | `QuickerRpc.Console/**`、`QuickerRpc.Contracts/**`（影响 RPC/CLI） | `-t` → 发布 `publish/cli` + **停旧 serve → 启新 serve**（默认 `9477`） | 保持打开；必要时 UI **重新检测** |
 | `QuickerRpc.AgentModel/**` | 同上（CLI 与插件均可能依赖） | 同上 |
 | 仅 `agent-gui/**` | **无需** `build.ps1 -t`；Next **HMR** + **`dev_frontend_check` 直到 ok** | 见 `.cursor/skills/quicker-agent-gui-frontend/SKILL.md` |
@@ -60,7 +60,9 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 ## 触发 build 的路径（任一）
 
-- `QuickerRpc.Plugin/**`
+- `QuickerRpc/QuickerRpc.Plugin.V1/**`
+- `QuickerRpc/QuickerRpc.Runtime/**`
+- `QuickerRpc/QuickerRpc.Transport/**`
 - `QuickerRpc.AgentModel/**`
 - `QuickerRpc.Console/**`
 - `QuickerRpc.Contracts/**`

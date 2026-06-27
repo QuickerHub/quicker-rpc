@@ -7,7 +7,7 @@
 name: quicker-rpc
 displayName: QuickerRpc
 versionKey: QuickerRpc
-projectDir: ./QuickerRpc.Plugin
+projectDir: ./QuickerRpc/QuickerRpc.Plugin.V1
 
 # Quicker package / subprogram (adjust to your action setup)
 uploadDir: quicker.rpc

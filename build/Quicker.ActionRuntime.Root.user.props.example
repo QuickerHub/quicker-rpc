@@ -1,7 +1,7 @@
 <Project>
   <!--
     Copy to: %USERPROFILE%\.config\quicker\Quicker.ActionRuntime.Root.user.props
-    Or run Setup-QuickerActionRuntimeRoot.ps1 from the Quicker repo (Tools/temp/).
+    Or run Setup-ActionRuntimeSymlink.ps1 from the Quicker repo (QuickerPc/build/).
   -->
   <PropertyGroup>
     <QuickerActionRuntimeRoot>D:\source\repos\quicker\Quicker.ActionRuntime</QuickerActionRuntimeRoot>

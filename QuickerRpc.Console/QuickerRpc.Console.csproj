@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
+    <ProjectReference Include="..\QuickerRpc\QuickerRpc.Transport\QuickerRpc.Transport.csproj" />
     <ProjectReference Include="$(QuickerActionRuntimeRoot)Quicker.ActionRuntime.Integration\Quicker.ActionRuntime.Integration.csproj" />
     <ProjectReference Include="$(QuickerActionRuntimeRoot)Quicker.ActionRuntime.ScriptCompiler\Quicker.ActionRuntime.ScriptCompiler.csproj" />
     <ProjectReference Include="$(QuickerActionRuntimeRoot)tests\Quicker.ActionRuntime.Benchmarks\Quicker.ActionRuntime.Benchmarks.csproj" />

@@ -2,7 +2,12 @@
   <Project Path="QuickerRpc.AgentModel/QuickerRpc.AgentModel.csproj" />
   <Project Path="QuickerRpc.Contracts/QuickerRpc.Contracts.csproj" />
   <Project Path="QuickerRpc.Host.Abstractions/QuickerRpc.Host.Abstractions.csproj" />
-  <Project Path="QuickerRpc.Plugin/QuickerRpc.Plugin.csproj" />
+  <Project Path="QuickerRpc/QuickerRpc.Transport/QuickerRpc.Transport.csproj" />
+  <Project Path="QuickerRpc/QuickerRpc.Runtime/QuickerRpc.Runtime.csproj" />
+  <Project Path="tests/QuickerRpc.Transport.Test/QuickerRpc.Transport.Test.csproj" />
+  <Project Path="tests/QuickerRpc.Runtime.Test/QuickerRpc.Runtime.Test.csproj" />
+  <Project Path="QuickerRpc/QuickerRpc.Plugin.V1/QuickerRpc.Plugin.V1.csproj" />
+  <Project Path="QuickerRpc/QuickerRpc.Plugin.V2/QuickerRpc.Plugin.V2.csproj" />
   <Project Path="QuickerRpc.Console/QuickerRpc.Console.csproj" />
   <Project Path="QuickerRpc.Plugin.Test/QuickerRpc.Plugin.Test.csproj" />
   <Project Path="QuickerRpc.Test/QuickerRpc.Test.csproj" />

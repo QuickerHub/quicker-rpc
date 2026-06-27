@@ -158,7 +158,7 @@ if ($IncludeMockProfiles -and (Test-Path -LiteralPath $mockProfilesSource)) {
 
 if (-not $SkipPackaging) {
     Write-Host "Publishing QuickerRpc plugin (Release, net472)..." -ForegroundColor Green
-    $pluginCsproj = Join-Path $repoRoot 'QuickerRpc.Plugin\QuickerRpc.Plugin.csproj'
+    $pluginCsproj = Join-Path $repoRoot 'QuickerRpc\QuickerRpc.Plugin.V1\QuickerRpc.Plugin.V1.csproj'
     $pluginPublishDir = Join-Path $repoRoot 'publish\plugin'
     if (Test-Path -LiteralPath $pluginPublishDir) {
         Remove-Item -LiteralPath (Join-Path $pluginPublishDir '*') -Recurse -Force -ErrorAction SilentlyContinue

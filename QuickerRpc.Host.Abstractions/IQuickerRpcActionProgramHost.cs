@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Host;
 
@@ -19,5 +20,12 @@ public interface IQuickerRpcActionProgramHost
 
   Task<QuickerRpcActionProgramWriteResult> TryUpdatePresentationAsync(
       QuickerRpcActionPresentationWrite write,
+      CancellationToken cancellationToken = default);
+
+  Task<QuickerRpcApplyActionPatchResult> TryApplyPatchAsync(
+      string actionId,
+      string patchJson,
+      long? expectedEditVersion,
+      bool force,
       CancellationToken cancellationToken = default);
 }

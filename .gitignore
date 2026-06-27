@@ -77,7 +77,7 @@ publish/**
 !publish/changelogs/**
 !publish/release-cli-ci.md
 **/publish/*.zip
-QuickerRpc.Plugin/publish/
+QuickerRpc/QuickerRpc.Plugin.V1/publish/
 /.tmp*
 tmp/
 tmp*.json

@@ -7,4 +7,7 @@
     <Description>QuickerRpc host adapter contracts (V1/V2 plugin implementations call into Quicker via these interfaces).</Description>
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
+  </ItemGroup>
 </Project>

@@ -318,14 +318,14 @@ try {
         exit $LASTEXITCODE
     }
 
-    Write-Host "=== QuickerRpc.Plugin (qkbuild) ===" -ForegroundColor Cyan
+    Write-Host "=== QuickerRpc.Plugin.V1 (qkbuild) ===" -ForegroundColor Cyan
     if ($quickerDependencyUpload) {
         Write-Host "Mode: Quicker dependency upload (--publish --no-version); CLI zip/setup skipped." -ForegroundColor Yellow
     }
     if ($qkbuildArgsResolved.Count -gt 0) {
         Write-Host "qkbuild args: $($qkbuildArgsResolved -join ' ')" -ForegroundColor DarkGray
     }
-    $qkbuildCmd = @('build', '-c', 'build.yaml', '--project-path', '.\QuickerRpc.Plugin') + $qkbuildArgsResolved
+    $qkbuildCmd = @('build', '-c', 'build.yaml', '--project-path', '.\QuickerRpc\QuickerRpc.Plugin.V1') + $qkbuildArgsResolved
     & qkbuild @qkbuildCmd
     if ($LASTEXITCODE -ne 0) {
         Write-Host "qkbuild failed (exit $LASTEXITCODE)." -ForegroundColor Red

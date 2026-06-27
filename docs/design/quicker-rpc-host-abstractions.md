@@ -1,5 +1,8 @@
 # QuickerRpc Host Abstractions（V1/V2 分插件）
 
+> **扩展阅读：** 完整分层与统一端口设计见 [quicker-rpc-core-architecture.md](./quicker-rpc-core-architecture.md)。  
+> **实施计划：** [../plans/2026-06-27-quicker-rpc-core.md](../plans/2026-06-27-quicker-rpc-core.md)
+
 ## 目标
 
 - Quicker 进程内**只会是 V1 或 V2 一种运行时**，不在同一插件 DLL 里做双轨反射兼容。
@@ -58,7 +61,10 @@ var snapshot = await host.ActionPrograms.TryGetProgramAsync(actionId, ct);
 
 ## 后续
 
-- [ ] 拆 `QuickerRpc.Plugin` → `Plugin.V1` (net472) / `Plugin.V2` (net10)
-- [ ] `HeadlessActionProgramService` 改为只调 `IQuickerRpcActionProgramHost`
-- [ ] V1 包实现同名接口（`ActionItem` + legacy `SaveEditingAction`）
-- [ ] `IQuickerRpcSubProgramHost`、`IQuickerRpcRunHost` 等按模块扩展
+- [x] 统一 Host 端口接口骨架（`IQuickerRpcHost` + 14 端口，2026-06-27）
+- [x] 拆 `QuickerRpc.Plugin` → `QuickerRpc/QuickerRpc.Plugin.V1` (net472) / `Plugin.V2` (net10, Phase 4+)
+- [x] `QuickerRpcService` 迁至 `QuickerRpc.Runtime`；Plugin.V1 仅 DI + `WpfQuickerRpcCallScheduler` / `PopupQuickerRpcUserFeedback`（2026-06-27）
+- [x] 子程序/动作 headless RPC 经 `_host.SubPrograms` / `_host.ActionPrograms` + `SubProgramRpcHandler` / `ActionProgramRpcHandler`
+- [x] `Headless*ProgramService` 仅由 V1 adapter 引用（Runtime 不再直连）
+- [ ] Phase 4+：V2 主仓 `Quicker.Infrastructure.QuickerRpc.Host` 替代 V1 DataService 反射实现
+- [x] `QuickerRpc.Plugin.V2` 脚手架（net10，`QuickerAppStateHostResolver` + DI，2026-06-27）

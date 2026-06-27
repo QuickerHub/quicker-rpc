@@ -5,8 +5,8 @@ on:
   push:
     paths:
       - 'QuickerRpc.Contracts/Rpc/QuickerRpcActionTrace.cs'
-      - 'QuickerRpc.Plugin/Debugging/**'
-      - 'QuickerRpc.Plugin/Services/XActionTraceRunService.cs'
+      - 'QuickerRpc/QuickerRpc.Plugin.V1/Debugging/**'
+      - 'QuickerRpc/QuickerRpc.Plugin.V1/Services/XActionTraceRunService.cs'
       - 'QuickerRpc.Plugin.Test/ActionTrace*.cs'
       - 'QuickerRpc.Plugin.Test/Fixtures/trace-failure-location/**'
       - 'QuickerRpc.Plugin.Test/Fixtures/workspace-actions/trace-fail-evalexpression/**'
@@ -18,8 +18,8 @@ on:
   pull_request:
     paths:
       - 'QuickerRpc.Contracts/Rpc/QuickerRpcActionTrace.cs'
-      - 'QuickerRpc.Plugin/Debugging/**'
-      - 'QuickerRpc.Plugin/Services/XActionTraceRunService.cs'
+      - 'QuickerRpc/QuickerRpc.Plugin.V1/Debugging/**'
+      - 'QuickerRpc/QuickerRpc.Plugin.V1/Services/XActionTraceRunService.cs'
       - 'QuickerRpc.Plugin.Test/ActionTrace*.cs'
       - 'QuickerRpc.Plugin.Test/Fixtures/trace-failure-location/**'
       - 'QuickerRpc.Plugin.Test/Fixtures/workspace-actions/trace-fail-evalexpression/**'

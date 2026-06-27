@@ -10,15 +10,6 @@ namespace QuickerRpc.Contracts.Rpc;
 /// </summary>
 public static class QuickerRpcActionListCompat
 {
-    public static Task<QuickerRpcSearchActionSummariesResult> ListAsync(
-        QuickerRpcClientSession session,
-        string? query,
-        int maxResults,
-        string? scope,
-        string? sort,
-        CancellationToken cancellationToken = default) =>
-        ListAsync(session.Rpc, session.JsonRpc, query, maxResults, scope, sort, cancellationToken);
-
     public static async Task<QuickerRpcSearchActionSummariesResult> ListAsync(
         IQuickerRpcService rpc,
         JsonRpc jsonRpc,

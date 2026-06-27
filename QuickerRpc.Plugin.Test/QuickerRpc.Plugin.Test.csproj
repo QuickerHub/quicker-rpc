@@ -21,8 +21,11 @@
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" VersionOverride="8.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\QuickerRpc.Plugin\QuickerRpc.Plugin.csproj" />
+    <ProjectReference Include="..\QuickerRpc\QuickerRpc.Plugin.V1\QuickerRpc.Plugin.V1.csproj" />
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj">
+      <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
+    </ProjectReference>
+    <ProjectReference Include="..\QuickerRpc\QuickerRpc.Transport\QuickerRpc.Transport.csproj">
       <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
     </ProjectReference>
   </ItemGroup>

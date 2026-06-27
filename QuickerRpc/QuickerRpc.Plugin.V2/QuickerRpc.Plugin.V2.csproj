@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>QuickerRpc.Plugin.V2</RootNamespace>
+    <AssemblyName>QuickerRpc.Plugin.V2</AssemblyName>
+    <Description>QuickerRpc in-process plugin for Quicker V2 (net10). Resolves IQuickerRpcHost from AppState DI.</Description>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <NoWarn>$(NoWarn);VSTHRD003</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
+    <ProjectReference Include="..\..\QuickerRpc.Host.Abstractions\QuickerRpc.Host.Abstractions.csproj" />
+    <ProjectReference Include="..\..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
+    <ProjectReference Include="..\QuickerRpc.Runtime\QuickerRpc.Runtime.csproj" />
+    <ProjectReference Include="..\QuickerRpc.Transport\QuickerRpc.Transport.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="StreamJsonRpc" />
+  </ItemGroup>
+</Project>

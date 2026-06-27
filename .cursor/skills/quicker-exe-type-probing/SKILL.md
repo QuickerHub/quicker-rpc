@@ -13,28 +13,28 @@ metadata:
 
 ## When To Use
 
-Use this skill before changing `QuickerRpc.Plugin` code that reflects into Quicker internals: action editing, program persistence, variable editing, designer APIs, step-runner catalog, or service access from the injected plugin.
+Use this skill before changing `QuickerRpc/QuickerRpc.Plugin.V1` code that reflects into Quicker internals: action editing, program persistence, variable editing, designer APIs, step-runner catalog, or service access from the injected plugin.
 
 ## Where To Find Code
 
 Read this section **before** guessing type names or adding reflection.
 
-**Default order:** existing `QuickerRpc.Plugin` wrappers → `QuickerRpc.Plugin.Test` exe scans → installed `Quicker.exe` (Release, obfuscated). Optional maintainer-local source under `.ref/Quicker/` (gitignored) only when that directory already exists on disk.
+**Default order:** existing `QuickerRpc.Plugin.V1` wrappers → `QuickerRpc.Plugin.Test` exe scans → installed `Quicker.exe` (Release, obfuscated). Optional maintainer-local source under `.ref/Quicker/` (gitignore) only when that directory already exists on disk.
 
 ### A. quicker-rpc — code you edit
 
 | Area | Path | Notes |
 |------|------|--------|
-| Reflection helpers | `QuickerRpc.Plugin/Reflection/` | `QuickerInternalAccess`, `QuickerAssemblyReflection`, `QuickerActionEditReflection` |
-| RPC-facing services | `QuickerRpc.Plugin/Services/` | One file per capability (`ActionEditService`, `ActionProgramPersistence`, …) |
-| RPC surface | `QuickerRpc.Plugin/Rpc/QuickerRpcService.cs` | Maps CLI/RPC to services |
+| Reflection helpers | `QuickerRpc/QuickerRpc.Plugin.V1/Reflection/` | `QuickerInternalAccess`, `QuickerAssemblyReflection`, `QuickerActionEditReflection` |
+| RPC-facing services | `QuickerRpc/QuickerRpc.Plugin.V1/Services/` | One file per capability; V1 host adapters in `Adapters/` |
+| RPC orchestration | `QuickerRpc/QuickerRpc.Runtime/QuickerRpcService.cs` | Wire → `IQuickerRpcHost` + handlers（无 Quicker 反射） |
 | Contracts | `QuickerRpc.Contracts/Rpc/IQuickerRpcService.cs` | Public RPC API |
 | XAction compress/patch (no Quicker.exe) | `QuickerRpc.AgentModel/` | Agent models; **not** runtime reflection |
 | Action authoring docs for agents | `docs/action-authoring-src/` + `manifest/*.json` | Generate → `cli/` (qkrpc) / single skill `docs/skills/quicker-authoring/` (QuickerAgent) |
 | Offline exe scans | `QuickerRpc.Plugin.Test/` | Debug/Release `Quicker.exe` signature probes |
 | Quicker DLL references | `qkref.props` | Default Release: `C:/Program Files/Quicker` |
 
-**First step:** search `QuickerRpc.Plugin` for an existing wrapper (`rg ActionEditMgr QuickerRpc.Plugin`).
+**First step:** search `QuickerRpc.Plugin.V1` for an existing wrapper (`rg ActionEditMgr QuickerRpc/QuickerRpc.Plugin.V1`).
 
 ### B. Optional local Quicker source (maintainer only)
 
@@ -100,11 +100,11 @@ Use `.ref/Quicker` (if present) or Debug `Quicker.exe` to locate declaring types
 
 ## Recommended Workflow
 
-1. Find or add a wrapper in `QuickerRpc.Plugin/Services/` or `Reflection/`.
+1. Find or add a wrapper in `QuickerRpc/QuickerRpc.Plugin.V1/Services/` or `Reflection/`.
 2. If `.ref/Quicker` exists, `rg` / read call sites for type/method and save flow; otherwise use Plugin.Test scans and Debug exe.
 3. Record full signature: declaring type, static/instance, parameters, return type, async shape.
 4. Only if needed: validate **Release** obfuscation via `QuickerRpc.Plugin.Test` scans.
-5. Implement runtime lookup by signature in `QuickerRpc.Plugin`; avoid hardcoding Release type names.
+5. Implement runtime lookup by signature in `QuickerRpc/QuickerRpc.Plugin.V1`; avoid hardcoding Release type names.
 6. Run `pwsh ./build.ps1 -t` (see `quicker-rpc-build-test` skill).
 
 ## Probe Patterns
@@ -135,7 +135,7 @@ Prefer a focused helper on the service that needs it; share only when several se
 
 ## Agent Checklist
 
-- [ ] Checked existing `QuickerRpc.Plugin` wrappers before adding reflection
+- [ ] Checked existing `QuickerRpc.Plugin.V1` wrappers before adding reflection
 - [ ] Used `.ref/Quicker` only if present; otherwise Plugin.Test + installed exe
 - [ ] Recorded Debug type/method **full signature**
 - [ ] Avoided hardcoding obfuscated Release type names

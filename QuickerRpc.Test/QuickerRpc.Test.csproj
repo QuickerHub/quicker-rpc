@@ -24,6 +24,9 @@
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj">
       <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
     </ProjectReference>
+    <ProjectReference Include="..\QuickerRpc\QuickerRpc.Transport\QuickerRpc.Transport.csproj">
+      <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="Fixtures\rpc-test-xaction.json">

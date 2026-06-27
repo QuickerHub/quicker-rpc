@@ -916,14 +916,14 @@ internal static class ServeInvokeDispatcher
         var queryTrimmed = string.IsNullOrWhiteSpace(mergedQuery) ? null : mergedQuery.Trim();
         var session = await pool.GetSessionAsync(token).ConfigureAwait(false);
         var response = await QuickerRpcActionListCompat
-            .ListAsync(session, queryTrimmed, limit, scope, sort, token)
+            .ListAsync(session.Rpc, session.JsonRpc, queryTrimmed, limit, scope, sort, token)
             .ConfigureAwait(false);
         if (ShouldRetryActionQueryAfterReconnect(queryTrimmed, response.Success, response.MatchCount))
         {
             await pool.InvalidateAsync().ConfigureAwait(false);
             session = await pool.GetSessionAsync(token).ConfigureAwait(false);
             response = await QuickerRpcActionListCompat
-                .ListAsync(session, queryTrimmed, limit, scope, sort, token)
+                .ListAsync(session.Rpc, session.JsonRpc, queryTrimmed, limit, scope, sort, token)
                 .ConfigureAwait(false);
         }
 
