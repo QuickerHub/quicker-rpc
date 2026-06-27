@@ -30,7 +30,7 @@ if (-not $RepoRoot) {
 
 function Get-QuickerAgentVersionFromJson {
     param([string]$Root)
-    $versionFile = Join-Path $Root 'version.json'
+    $versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $Root
     if (-not (Test-Path -LiteralPath $versionFile)) {
         throw "version.json not found: $versionFile"
     }
@@ -148,7 +148,7 @@ Assert-QuickerAgentLatestYmlFile -Path $latestYml -ExpectedSemVer $expectedSemVe
 $publishOut = Join-Path $RepoRoot 'publish'
 New-Item -ItemType Directory -Path $publishOut -Force | Out-Null
 
-$versionJson = Get-Content -LiteralPath (Join-Path $RepoRoot 'version.json') -Raw | ConvertFrom-Json
+$versionJson = Get-Content -LiteralPath (Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $RepoRoot) -Raw | ConvertFrom-Json
 $versionedName = Get-QuickerAgentSetupName -Version ([string]$versionJson.QuickerRpc)
 $versionedPath = Join-Path $publishOut $versionedName
 $aliasPath = Join-Path $publishOut (Get-QkrpcLatestAgentSetupName)

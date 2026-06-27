@@ -11,6 +11,8 @@ import {
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const traceFailFixturePath = join(
   repoRoot,
+  "QuickerRpc",
+  "tests",
   "QuickerRpc.Plugin.Test",
   "Fixtures",
   "workspace-actions",

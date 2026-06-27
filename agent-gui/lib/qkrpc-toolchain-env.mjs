@@ -5,6 +5,7 @@ import {
   resolveQkrpcBin,
   resolveUserInstalledQkrpcExe,
 } from "./qkrpc-bin.mjs";
+import { isQuickerRpcMonorepoRoot } from "./repo-paths.mjs";
 import { listRgPathDirs, resolveRgBin } from "./rg-bin.mjs";
 
 const PATH_SEP = process.platform === "win32" ? ";" : ":";
@@ -58,7 +59,7 @@ export function listQkrpcPathDirs(agentGuiRoot) {
   }
 
   const repoRoot = join(agentGuiRoot, "..");
-  if (existsSync(join(repoRoot, "version.json")) && !existsSync(join(repoRoot, "server.js"))) {
+  if (isQuickerRpcMonorepoRoot(repoRoot)) {
     push(join(repoRoot, "publish", "cli"));
   }
 

@@ -28,7 +28,8 @@ if (-not $DistDir) {
     $DistDir = Join-Path $AgentGuiRoot 'electron\dist'
 }
 
-$versionJson = Get-Content (Join-Path $RepoRoot 'version.json') -Raw | ConvertFrom-Json
+$versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $RepoRoot
+$versionJson = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
 $expectedSemVer = Get-QuickerRpcSemVerFromVersion -Version ([string]$versionJson.QuickerRpc)
 
 function Test-ElectronArtifacts {

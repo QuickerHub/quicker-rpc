@@ -9,6 +9,7 @@ import {
   listShellToolPathDirs,
   prependPathDirs,
 } from "./qkrpc-toolchain-env.mjs";
+import { isQuickerRpcMonorepoRoot } from "./repo-paths.mjs";
 import { resolveRgBin } from "./rg-bin.mjs";
 
 describe("qkrpc-toolchain-env", () => {
@@ -23,7 +24,7 @@ describe("qkrpc-toolchain-env", () => {
   it("applyQkrpcToolchainEnv sets QKRPC_BIN and repo roots in monorepo dev", () => {
     const agentGuiRoot = join(process.cwd());
     const repoRoot = join(agentGuiRoot, "..");
-    if (!existsSync(join(repoRoot, "version.json"))) {
+    if (!isQuickerRpcMonorepoRoot(repoRoot)) {
       return;
     }
 
@@ -45,7 +46,7 @@ describe("qkrpc-toolchain-env", () => {
   it("lists publish/cli when repo root exists", () => {
     const agentGuiRoot = process.cwd();
     const repoRoot = join(agentGuiRoot, "..");
-    if (!existsSync(join(repoRoot, "version.json"))) {
+    if (!isQuickerRpcMonorepoRoot(repoRoot)) {
       return;
     }
     const dirs = listQkrpcPathDirs(agentGuiRoot);

@@ -1,6 +1,6 @@
 version: v2
 inputs:
-  - directory: ../QuickerRpc.AgentModel/Protos
+  - directory: ../QuickerRpc/src/QuickerRpc.AgentModel/Protos
 plugins:
   - local: ["node", "node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es"]
     out: lib/gen

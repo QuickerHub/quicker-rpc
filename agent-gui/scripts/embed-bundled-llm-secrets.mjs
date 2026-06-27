@@ -9,7 +9,7 @@
  *   BUNDLED_LLM_BINGLEIMUZI_API_KEY=sk-...
  *   BUNDLED_LLM_PROVIDERS=bingleimuzi
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readQuickerRpcVersionJson } from "../lib/repo-paths.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodeSecret } from "./llm-secret-cipher.mjs";
@@ -30,8 +30,7 @@ const ALL_PROVIDER_IDS = [
 const DEFAULT_BUNDLED_PROVIDERS = [DEFAULT_PROVIDER_ID];
 
 function readSemver() {
-  const raw = readFileSync(join(repoRoot, "version.json"), "utf8");
-  const data = JSON.parse(raw);
+  const data = readQuickerRpcVersionJson(repoRoot);
   const parts = String(data.QuickerRpc ?? "0.0.0")
     .trim()
     .replace(/^v/, "")

@@ -3,10 +3,12 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   statSync,
 } from "node:fs";
 import { dirname, join, normalize } from "node:path";
+import {
+  listConsoleReleaseOutputDirs,
+} from "./repo-paths.mjs";
 import {
   reconcileStaleQkrpcServe,
   stopQkrpcServeForRuntimeDir,
@@ -59,24 +61,6 @@ export function isUserInstalledQkrpcPath(exePath) {
 
 function allowUserInstalledQkrpc() {
   return process.env.AGENT_GUI_USE_INSTALLED_QKRPC === "1";
-}
-
-function listConsoleReleaseOutputDirs(agentGuiRoot) {
-  const releaseRoot = join(
-    agentGuiRoot,
-    "..",
-    "QuickerRpc.Console",
-    "bin",
-    "Release",
-  );
-  if (!existsSync(releaseRoot)) return [];
-  const dirs = [];
-  for (const tfm of readdirSync(releaseRoot, { withFileTypes: true })) {
-    if (!tfm.isDirectory() || !tfm.name.startsWith("net")) continue;
-    const base = join(releaseRoot, tfm.name);
-    dirs.push(join(base, "win-x64"), base);
-  }
-  return dirs;
 }
 
 /** Tauri bundle: resources/qkrpc next to resources/app (Node cwd). */

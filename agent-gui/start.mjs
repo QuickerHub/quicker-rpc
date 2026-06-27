@@ -14,6 +14,7 @@ import {
   resolveServeQkrpcRuntime,
 } from "./lib/qkrpc-bin.mjs";
 import { applyQkrpcToolchainEnv } from "./lib/qkrpc-toolchain-env.mjs";
+import { isQuickerRpcMonorepoRoot } from "./lib/repo-paths.mjs";
 import {
   reconcileStaleQkrpcServe,
   stopTrackedQkrpcServe,
@@ -536,7 +537,7 @@ function printListening(url) {
 
 function applyDevWorkspaceEnv(agentGuiRoot) {
   const repoRoot = join(agentGuiRoot, "..");
-  const inRepo = existsSync(join(repoRoot, "version.json"));
+  const inRepo = isQuickerRpcMonorepoRoot(repoRoot);
   const cwd = inRepo ? repoRoot : agentGuiRoot;
   applyQkrpcToolchainEnv(process.env, {
     agentGuiRoot,

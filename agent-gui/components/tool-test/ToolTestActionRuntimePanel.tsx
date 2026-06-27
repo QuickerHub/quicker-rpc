@@ -263,7 +263,7 @@ export function ToolTestActionRuntimePanel({
             className="tool-test-runtime-field__input"
             value={projectDir}
             disabled={disabled || busy}
-            placeholder=".quicker/actions/<id> 或 QuickerRpc.Console.Test/Fixtures/..."
+            placeholder=".quicker/actions/<id> 或 QuickerRpc/tests/QuickerRpc.Plugin.Test/Fixtures/..."
             onChange={(e) => setProjectDir(e.target.value)}
           />
         </label>

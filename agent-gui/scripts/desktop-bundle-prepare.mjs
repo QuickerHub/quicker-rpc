@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
 import { prepareRemoteCipherPepper } from "./embed-remote-cipher-pepper.mjs";
+import { readQuickerRpcVersionJson, resolveQuickerRpcVersionJsonPath } from "../lib/repo-paths.mjs";
 
 const defaultAgentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRepoRoot = join(defaultAgentGuiRoot, "..");
@@ -47,8 +48,7 @@ function run(cmd, args, opts = {}) {
 
 /** @returns {string} X.Y.Z from version.json QuickerRpc */
 export function readDesktopBundleSemver(repoRoot = defaultRepoRoot) {
-  const raw = readFileSync(join(repoRoot, "version.json"), "utf8");
-  const data = JSON.parse(raw);
+  const data = readQuickerRpcVersionJson(repoRoot);
   const parts = String(data.QuickerRpc ?? "0.0.0")
     .trim()
     .replace(/^v/, "")
@@ -409,7 +409,11 @@ export function stageNextStandalone(ctx) {
     cpSync(skillsSrc, skillsDst, { recursive: true });
   }
 
-  cpSync(join(repoRoot, "version.json"), join(appDir, "version.json"));
+  const versionJsonPath = resolveQuickerRpcVersionJsonPath(repoRoot);
+  if (!versionJsonPath) {
+    throw new Error(`version.json not found under ${repoRoot}`);
+  }
+  cpSync(versionJsonPath, join(appDir, "version.json"));
   cpSync(join(agentGuiRoot, ".env.example"), join(appDir, ".env.example"));
 
   const drizzleMigrationsSrc = join(agentGuiRoot, "drizzle", "migrations");

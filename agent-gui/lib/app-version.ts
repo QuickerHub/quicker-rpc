@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { formatDisplayVersion } from "@/lib/app-version-format";
 import { isBundledAgentRuntime } from "@/lib/default-working-directory";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
-import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
+import {
+  readQuickerRpcSemverFromRepo,
+  resolveQuickerRpcRepoRoot,
+  resolveQuickerRpcVersionJsonPath,
+} from "@/lib/repo-root";
 import { runQkrpc } from "@/lib/qkrpc";
 import { mustNotSpawnCli } from "@/lib/qkrpc-transport";
 
@@ -16,10 +20,10 @@ export type AppVersionSnapshot = {
 export { formatDisplayVersion } from "@/lib/app-version-format";
 
 function readQuickerRpcVersionFromJson(dir: string): string | null {
-  const path = join(dir, "version.json");
-  if (!existsSync(path)) return null;
+  const versionPath = resolveQuickerRpcVersionJsonPath(dir);
+  if (!versionPath) return null;
   try {
-    const data = JSON.parse(readFileSync(path, "utf8")) as { QuickerRpc?: string };
+    const data = JSON.parse(readFileSync(versionPath, "utf8")) as { QuickerRpc?: string };
     const raw = String(data.QuickerRpc ?? "").trim();
     if (!raw) return null;
     const parts = formatDisplayVersion(raw).split(".");
@@ -49,7 +53,7 @@ export function resolveQuickerAgentVersion(): string {
 
   const repo = resolveQuickerRpcRepoRoot();
   if (repo) {
-    const fromRepo = readQuickerRpcVersionFromJson(repo);
+    const fromRepo = readQuickerRpcSemverFromRepo(repo);
     if (fromRepo) return fromRepo;
   }
 
