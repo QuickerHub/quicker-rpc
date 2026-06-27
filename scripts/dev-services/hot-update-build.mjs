@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { attachTaggedLogs } from "./log-multiplexer.mjs";
 
@@ -35,8 +35,13 @@ export function runHotUpdateBuild(repoRoot, meta = {}) {
       if (code === 0) {
         let version = "";
         try {
-          const raw = readFileSync(join(repoRoot, "version.json"), "utf8");
-          version = JSON.parse(raw)?.QuickerRpc ?? "";
+          const versionPaths = [
+            join(repoRoot, "QuickerRpc", "version.json"),
+            join(repoRoot, "version.json"),
+          ];
+          const versionPath = versionPaths.find((p) => existsSync(p));
+          const raw = versionPath ? readFileSync(versionPath, "utf8") : "";
+          version = raw ? JSON.parse(raw)?.QuickerRpc ?? "" : "";
         } catch {
           // ignore
         }

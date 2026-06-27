@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>QuickerRpc.Console.Test</RootNamespace>
+    <AssemblyName>QuickerRpc.Console.Test</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Description>Offline tests for qkrpc CLI (ActionRuntime standalone run).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\QuickerRpc.Console\QuickerRpc.Console.csproj">
+      <SetTargetFramework>TargetFramework=net10.0-windows10.0.19041.0</SetTargetFramework>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(QuickerActionRuntimeRoot)tests\Quicker.ActionRuntime.Tests\Fixtures\assign-only.json">
+      <Link>Fixtures\assign-only.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(QuickerActionRuntimeRoot)tests\Quicker.ActionRuntime.Tests\Fixtures\mixed-support.json">
+      <Link>Fixtures\mixed-support.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Fixtures\standalone-evalexpression\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Fixtures\standalone-file-ref\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

@@ -1,20 +1,32 @@
 # QuickerRpc/
 
-RPC 技术栈分层目录。架构说明见 [docs/design/quicker-rpc-core-architecture.md](../docs/design/quicker-rpc-core-architecture.md)。
+RPC 产品目录（插件 + `qkrpc` CLI + wire 技术栈）。打开 **`QuickerRpc.slnx`** 即可开发。
+
+```text
+QuickerRpc/
+  src/          # QuickerRpc.* 源码项目
+  lib/          # Quicker.ActionRuntime 子模块（Console 编译依赖）
+  tests/        # 单元 / 集成测试
+  build.yaml    # qkbuild 插件
+  build.ps1     # 热更新（monorepo 根 build.ps1 转发至此）
+  version.json  # 插件版本 / MSBuild RepoRoot
+```
+
+架构说明：[docs/design/quicker-rpc-core-architecture.md](../docs/design/quicker-rpc-core-architecture.md)
 
 | 项目 | 职责 |
 |------|------|
-| `QuickerRpc.Transport/` | 命名管道 + StreamJsonRpc 客户端/服务端 |
-| `QuickerRpc.Runtime/` | `QuickerRpcService` 薄编排 + ActionProgram/SubProgram handlers |
-| `QuickerRpc.Plugin.V1/` | net472 插件（V1 adapters + DI；输出 DLL 名仍为 `QuickerRpc.Plugin`） |
-| `QuickerRpc.Plugin.V2/` | net10 插件脚手架（AppState → `IQuickerRpcHost`，随 Quicker V2 发行） |
+| `src/QuickerRpc.Transport/` | 命名管道 + StreamJsonRpc |
+| `src/QuickerRpc.Runtime/` | `QuickerRpcService` 薄编排 |
+| `src/QuickerRpc.Plugin.V1/` | net472 插件（输出 `QuickerRpc.Plugin.{version}.dll`） |
+| `src/QuickerRpc.Plugin.V2/` | net10 脚手架（随 Quicker V2） |
+| `src/QuickerRpc.Console/` | `qkrpc` CLI |
 
-根目录仍保留 wire 契约与共享抽象：
+```powershell
+# 从 monorepo 根
+pwsh ./build.ps1 -t
 
-| 项目 | 职责 |
-|------|------|
-| `../QuickerRpc.Contracts/` | `IQuickerRpcService` 与 wire DTO |
-| `../QuickerRpc.Host.Abstractions/` | `IQuickerRpcHost` 统一端口 |
-| `../QuickerRpc.AgentModel/` | XAction 压缩/patch、搜索索引 |
-
-输出 DLL 名仍为 **`QuickerRpc.Plugin.{version}.dll`**（`AssemblyName` 未改），与 `quicker.rpc` 包加载兼容。
+# 或仅产品目录
+cd QuickerRpc
+dotnet build QuickerRpc.slnx -c Release
+```

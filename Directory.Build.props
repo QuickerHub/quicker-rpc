@@ -1,27 +1,4 @@
 <Project>
-  <PropertyGroup>
-    <RepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'version.json'))))</RepoRoot>
-    <!--
-      Release: ProjectName.(Version).dll when true. Quicker loads by file name; same base name blocks side-by-side versions.
-      QuickerRpc.Console (net10.0) keeps short dependency names via Contracts/AgentModel netstandard2.0 (AppendAssemblyVersionFileNameSuffix=false there).
-      QuickerRpc.Plugin stays net472 (Quicker.exe host); do not retarget the plugin to modern .NET without a Quicker host upgrade.
-    -->
-    <AppendAssemblyVersionFileNameSuffix Condition="'$(AppendAssemblyVersionFileNameSuffix)' == ''">true</AppendAssemblyVersionFileNameSuffix>
-  </PropertyGroup>
-
-  <!-- Local dev: point ActionRuntime ProjectReferences to one shared clone (see build/Quicker.ActionRuntime.Root.user.props.example). -->
-  <PropertyGroup>
-    <QuickerActionRuntimeRootDefault>$([MSBuild]::EnsureTrailingSlash($(RepoRoot)))Quicker.ActionRuntime\</QuickerActionRuntimeRootDefault>
-  </PropertyGroup>
-  <Import Project="$(RepoRoot)build\Quicker.ActionRuntime.Root.props" />
-
-  <!-- net472: polyfill C# 9+ (init, records, etc.) via source generator; no runtime dependency. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageReference Include="PolySharp">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-    <!-- Quicker AppDomain: pin Pipelines 7.0.0.0 (matches cea.clip.quicker load order). -->
-    <PackageReference Include="System.IO.Pipelines" VersionOverride="$(Net472SystemIOPipelinesVersion)" />
-  </ItemGroup>
+  <!-- Monorepo root: package versions + targets. QuickerRpc product MSBuild lives in QuickerRpc/Directory.Build.props -->
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Packages.props" Condition="Exists('$(MSBuildThisFileDirectory)Directory.Packages.props')" />
 </Project>

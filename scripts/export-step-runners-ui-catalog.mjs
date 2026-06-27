@@ -4,7 +4,7 @@
  * Prereq: Quicker + QuickerRpc plugin; qkrpc on PATH.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,7 +43,13 @@ function qkrpcJson(args) {
 
 function readVersion() {
   try {
-    const v = JSON.parse(readFileSync(join(root, "version.json"), "utf8"));
+    const candidates = [
+      join(root, "QuickerRpc", "version.json"),
+      join(root, "version.json"),
+    ];
+    const path = candidates.find((p) => existsSync(p));
+    if (!path) return "";
+    const v = JSON.parse(readFileSync(path, "utf8"));
     return typeof v.QuickerRpc === "string" ? v.QuickerRpc : "";
   } catch {
     return "";

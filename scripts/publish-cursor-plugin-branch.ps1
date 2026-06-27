@@ -17,6 +17,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot '..\publish\qkrpc-publish-lib.ps1')
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 if ([string]::IsNullOrWhiteSpace($StagePath)) {
     $StagePath = Join-Path $repoRoot '.build\cursor-plugin-stage'
@@ -44,7 +46,7 @@ if ($DryRun) {
     exit 0
 }
 
-$version = (Get-Content (Join-Path $repoRoot 'version.json') -Raw | ConvertFrom-Json).QuickerRpc
+$version = (Get-Content (Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $repoRoot) -Raw | ConvertFrom-Json).QuickerRpc
 
 if (Test-Path $StagePath) {
     Remove-Item -LiteralPath $StagePath -Recurse -Force

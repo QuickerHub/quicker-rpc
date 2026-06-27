@@ -1272,7 +1272,12 @@ function Get-QuickerRpcVersionBaseline {
             }
         }
 
-        foreach ($ref in @('HEAD:version.json', 'HEAD~1:version.json', 'origin/main:version.json', 'origin/master:version.json')) {
+        foreach ($ref in @(
+                'HEAD:QuickerRpc/version.json', 'HEAD~1:QuickerRpc/version.json',
+                'origin/main:QuickerRpc/version.json', 'origin/master:QuickerRpc/version.json',
+                'HEAD:version.json', 'HEAD~1:version.json',
+                'origin/main:version.json', 'origin/master:version.json'
+            )) {
             $raw = git show "${ref}" 2>$null
             if ([string]::IsNullOrWhiteSpace($raw)) {
                 continue
@@ -1700,6 +1705,19 @@ function Set-QuickerAgentIsolatedUserProfile {
         $env:CARGO_HOME = Join-Path $realProfile '.cargo'
         $env:RUSTUP_HOME = Join-Path $realProfile '.rustup'
     }
+}
+
+function Resolve-QuickerRpcVersionJsonPath {
+    param([Parameter(Mandatory = $true)][string]$MonorepoRoot)
+
+    foreach ($relative in @('QuickerRpc\version.json', 'version.json')) {
+        $path = Join-Path $MonorepoRoot $relative
+        if (Test-Path -LiteralPath $path) {
+            return $path
+        }
+    }
+
+    throw "version.json not found under $MonorepoRoot (expected QuickerRpc/version.json)."
 }
 
 function Remove-QuickerRpcUserPath {

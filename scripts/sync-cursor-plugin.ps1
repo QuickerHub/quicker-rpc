@@ -10,11 +10,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot '..\publish\qkrpc-publish-lib.ps1')
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $pluginRoot = Join-Path $repoRoot 'cursor-plugin\quicker-rpc'
 $skillsSourceRoot = Join-Path $repoRoot 'docs\skills'
 $rulesSource = Join-Path $repoRoot 'docs\agent-rules\qkrpc.mdc'
-$versionFile = Join-Path $repoRoot 'version.json'
+$versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $repoRoot
 $pluginManifest = Join-Path $pluginRoot '.cursor-plugin\plugin.json'
 
 $defaultSkills = @(

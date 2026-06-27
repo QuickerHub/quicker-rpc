@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net472;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>QuickerRpc.Runtime</RootNamespace>
+    <Description>QuickerRpc service orchestration (wire methods to host ports + AgentModel).</Description>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+  </PropertyGroup>
+  <PropertyGroup>
+    <UseAssemblyVersionFileNameSuffix>true</UseAssemblyVersionFileNameSuffix>
+    <AppendAssemblyVersionFileNameSuffix Condition="'$(TargetFramework)' != 'net472'">false</AppendAssemblyVersionFileNameSuffix>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
+    <ProjectReference Include="..\QuickerRpc.Host.Abstractions\QuickerRpc.Host.Abstractions.csproj" />
+    <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+  <Import Project="$(MonorepoRoot)build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
+</Project>

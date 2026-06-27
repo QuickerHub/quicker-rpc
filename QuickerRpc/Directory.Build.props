@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <RepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'version.json'))))</RepoRoot>
+    <MonorepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(RepoRoot), 'Directory.Packages.props'))))</MonorepoRoot>
+    <AppendAssemblyVersionFileNameSuffix Condition="'$(AppendAssemblyVersionFileNameSuffix)' == ''">true</AppendAssemblyVersionFileNameSuffix>
+    <QuickerActionRuntimeRootDefault>$([MSBuild]::EnsureTrailingSlash($(RepoRoot)lib\Quicker.ActionRuntime\))</QuickerActionRuntimeRootDefault>
+  </PropertyGroup>
+
+  <Import Project="$(MonorepoRoot)build\Quicker.ActionRuntime.Root.props" Condition="Exists('$(MonorepoRoot)build\Quicker.ActionRuntime.Root.props')" />
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="PolySharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="System.IO.Pipelines" VersionOverride="$(Net472SystemIOPipelinesVersion)" />
+  </ItemGroup>
+</Project>
