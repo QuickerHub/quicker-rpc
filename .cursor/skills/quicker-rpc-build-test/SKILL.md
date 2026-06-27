@@ -26,9 +26,9 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 | 改了什么 | 热更新做什么 | agent-gui |
 |----------|----------------|-------------|
-| `QuickerRpc/QuickerRpc.Plugin.V1/**`、`QuickerRpc/QuickerRpc.Runtime/**` | `-t` → 测试包 + 更新 `QuickerRpc_Run` version → **1s 后** `quicker:runaction` **重载 DLL** | 保持打开；RPC 经 serve 重连管道 |
-| `QuickerRpc.Console/**`、`QuickerRpc.Contracts/**`（影响 RPC/CLI） | `-t` → 发布 `publish/cli` + **停旧 serve → 启新 serve**（默认 `9477`） | 保持打开；必要时 UI **重新检测** |
-| `QuickerRpc.AgentModel/**` | 同上（CLI 与插件均可能依赖） | 同上 |
+| `QuickerRpc/src/QuickerRpc.Plugin.V1/**`、`QuickerRpc/src/QuickerRpc.Runtime/**` | `-t` → 测试包 + 更新 `QuickerRpc_Run` version → **1s 后** `quicker:runaction` **重载 DLL** | 保持打开；RPC 经 serve 重连管道 |
+| `QuickerRpc/src/QuickerRpc.Console/**`、`QuickerRpc/src/QuickerRpc.Contracts/**`（影响 RPC/CLI） | `-t` → 发布 `publish/cli` + **停旧 serve → 启新 serve**（默认 `9477`） | 保持打开；必要时 UI **重新检测** |
+| `QuickerRpc/src/QuickerRpc.AgentModel/**` | 同上（CLI 与插件均可能依赖） | 同上 |
 | 仅 `agent-gui/**` | **无需** `build.ps1 -t`；Next **HMR** + **`dev_frontend_check` 直到 ok** | 见 `.cursor/skills/quicker-agent-gui-frontend/SKILL.md` |
 | `docs/action-authoring-src/**` | 需要 `-t` 或对应生成步骤，嵌入 CLI/agent 文档 | 视是否改到 UI |
 
@@ -60,19 +60,20 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 ## 触发 build 的路径（任一）
 
-- `QuickerRpc/QuickerRpc.Plugin.V1/**`
-- `QuickerRpc/QuickerRpc.Runtime/**`
-- `QuickerRpc/QuickerRpc.Transport/**`
-- `QuickerRpc.AgentModel/**`
-- `QuickerRpc.Console/**`
-- `QuickerRpc.Contracts/**`
+- `QuickerRpc/src/QuickerRpc.Plugin.V1/**`
+- `QuickerRpc/src/QuickerRpc.Runtime/**`
+- `QuickerRpc/src/QuickerRpc.Transport/**`
+- `QuickerRpc/src/QuickerRpc.AgentModel/**`
+- `QuickerRpc/src/QuickerRpc.Console/**`
+- `QuickerRpc/src/QuickerRpc.Contracts/**`
+- `QuickerRpc/build.yaml`、`QuickerRpc/version.json`
 - `docs/action-authoring-src/**`
-- `build.ps1`、`build.yaml`、`publish/publish-rpc.ps1`
-- `Directory.*.props`、`version.json`（若与构建相关）
+- `build.ps1`、`publish/publish-rpc.ps1`
+- `Directory.*.props`（若与构建相关）
 
 ## 构建成功后
 
-1. **Read** `version.json` → 汇报 `QuickerRpc` 版本（如 `0.3.8.0`）
+1. **Read** `QuickerRpc/version.json` → 汇报 `QuickerRpc` 版本（如 `0.3.8.0`）
 2. 汇报产物：
    - 测试包：`C:\Users\{user}\Documents\Quicker\_packages\quicker.rpc\{前三段版本}`
    - CLI：`%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`
@@ -85,7 +86,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 1. 读终端完整错误（编译 / qkbuild / dotnet publish）
 2. 修复后 **再次** `build.ps1 -t`，直到退出码 **0**
-3. 不要提交 `version.json` bump（除非用户要求 commit）
+3. 不要提交 `QuickerRpc/version.json` bump（除非用户要求 commit）
 
 ## 与公开发布的区别
 
@@ -96,7 +97,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 | 产物 | Quicker 测试包 + 本机 CLI | GitHub Release `setup.exe` + zip |
 | `-t` 跳过 | CLI zip、Inno `setup.exe`、`publish/plugin` 二次 publish（插件已由 qkbuild 写入测试包） | — |
 
-**测试包版本**：`build.ps1 -t` 只递增 `version.json` **第四段**（revision），DLL 为 `QuickerRpc.Plugin.0.x.x.r.dll`，目录仍为 `_packages/quicker.rpc/0.x.x/`。**发布时必须第三段 +1、R→0**（`quicker-qkbuild-version-publish`）；勿在仅 `-t` 后更新子程序 `launch_code` 调用新 API。
+**测试包版本**：`build.ps1 -t` 只递增 `QuickerRpc/version.json` **第四段**（revision），DLL 为 `QuickerRpc.Plugin.0.x.x.r.dll`，目录仍为 `_packages/quicker.rpc/0.x.x/`。**发布时必须第三段 +1、R→0**（`quicker-qkbuild-version-publish`）；勿在仅 `-t` 后更新子程序 `launch_code` 调用新 API。
 
 ### 何时必须第三段正式发布（不能只做 `-t`）
 

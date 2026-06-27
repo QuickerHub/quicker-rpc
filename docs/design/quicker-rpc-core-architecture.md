@@ -52,24 +52,34 @@
 ## 3. 目录结构
 
 ```text
-tools/qkrpc/
-  QuickerRpc.slnx
-  QuickerRpc/
-    QuickerRpc.Contracts/
-    QuickerRpc.Transport/          # 新建
-    QuickerRpc.Runtime/            # 新建
-    QuickerRpc.Host.Abstractions/  # 扩展统一端口
-    QuickerRpc.AgentModel/
-  QuickerRpc.Plugin.V1/          # net472 插件（V1 Host 适配器 + DI）
-    QuickerRpc.Console/
-  QuickerRpc.Host.Abstractions/  # 根目录（与 QuickerRpc/ 并列）
-  QuickerRpc.Contracts/
-  tests/
-    QuickerRpc.Transport.Test/
-    QuickerRpc.Runtime.Test/
-    QuickerRpc.Test/
-  agent-gui/                       # 不迁入 QuickerRpc/
+tools/qkrpc/                         # monorepo（agent-gui、docs、publish、build/）
+  QuickerRpc.slnx                    # 可选：全栈 slnx（路径带 QuickerRpc/ 前缀）
+  build.ps1                          # thin wrapper → QuickerRpc/build.ps1
+  Directory.Packages.props
+  QuickerRpc/                        # RPC 产品边界
+    QuickerRpc.slnx                  # 产品 slnx（日常开发入口）
+    build.yaml / build.ps1 / version.json
+    src/
+      QuickerRpc.Contracts/
+      QuickerRpc.Transport/
+      QuickerRpc.Runtime/
+      QuickerRpc.Host.Abstractions/
+      QuickerRpc.AgentModel/
+      QuickerRpc.Plugin.V1/          # net472 插件（V1 Host 适配器 + DI）
+      QuickerRpc.Plugin.V2/          # net10 脚手架（Phase 4+）
+      QuickerRpc.Console/            # qkrpc CLI
+    lib/
+      Quicker.ActionRuntime/         # 子模块；Console 编译依赖
+    tests/
+      QuickerRpc.Transport.Test/
+      QuickerRpc.Runtime.Test/
+      QuickerRpc.Plugin.Test/
+      QuickerRpc.Test/
+      QuickerRpc.Console.Test/
+  agent-gui/                         # 独立产品，不迁入 QuickerRpc/
 ```
+
+MSBuild **`RepoRoot`** 锚定 `QuickerRpc/version.json`；monorepo 根 **`MonorepoRoot`** 含 `Directory.Packages.props` 与 `publish/`。
 
 ## 4. 统一接口设计（核心）
 

@@ -214,10 +214,10 @@ Console → Transport, Contracts, AgentModel, ActionRuntime (外部)
 - Create: `QuickerRpc/build.ps1`（从根 `build.ps1` 拆出 qkbuild + runaction 段）
 - Modify: 根 `build.ps1` → thin wrapper
 
-- [ ] **Step 1:** 创建 `QuickerRpc/src/`、`QuickerRpc/lib/`、`QuickerRpc/tests/`
-- [ ] **Step 2:** 迁移 slnx / yaml / version.json；更新 slnx 内 `<Project Path=` 为 `src/...` 占位
-- [ ] **Step 3:** `build.yaml`：`projectDir: ./src/QuickerRpc.Plugin.V1`
-- [ ] **Step 4:** Commit：`refactor(layout): QuickerRpc product scaffold`
+- [x] **Step 1:** 创建 `QuickerRpc/src/`、`QuickerRpc/lib/`、`QuickerRpc/tests/`
+- [x] **Step 2:** 迁移 slnx / yaml / version.json；更新 slnx 内 `<Project Path=` 为 `src/...` 占位
+- [x] **Step 3:** `build.yaml`：`projectDir: ./src/QuickerRpc.Plugin.V1`
+- [x] **Step 4:** Commit：`refactor(layout): QuickerRpc product scaffold`
 
 ### Task 5.1: 迁入核心库 → `QuickerRpc/src/`
 
@@ -226,7 +226,7 @@ Console → Transport, Contracts, AgentModel, ActionRuntime (外部)
 - Move: `QuickerRpc.Host.Abstractions/` → `QuickerRpc/src/QuickerRpc.Host.Abstractions/`
 - Move: `QuickerRpc.AgentModel/` → `QuickerRpc/src/QuickerRpc.AgentModel/`
 
-- [ ] **Step 1–5:** `git mv` + 修正 ProjectReference + slnx + `dotnet build QuickerRpc/QuickerRpc.slnx`
+- [x] **Step 1–5:** `git mv` + 修正 ProjectReference + slnx + `dotnet build QuickerRpc/QuickerRpc.slnx`
 
 ---
 
@@ -235,9 +235,9 @@ Console → Transport, Contracts, AgentModel, ActionRuntime (外部)
 ### Task 6.1: Transport / Runtime / Plugins
 
 - Move: `QuickerRpc/QuickerRpc.Transport/` → `QuickerRpc/src/QuickerRpc.Transport/`（Runtime、Plugin.V1/V2 同理）
-- [ ] 修正 csproj：`..\QuickerRpc.Contracts`（同级 src 下）
-- [ ] `Import` AssemblyVersion：`$(MSBuildThisFileDirectory)..\..\build\` → 指向 monorepo `build/` 或 `QuickerRpc/build/`
-- [ ] `pwsh ./build.ps1 -t`（根 wrapper → `QuickerRpc/build.ps1`）
+- [x] 修正 csproj：`..\QuickerRpc.Contracts`（同级 src 下）
+- [x] `Import` AssemblyVersion：`$(MSBuildThisFileDirectory)..\..\build\` → 指向 monorepo `build/` 或 `QuickerRpc/build/`
+- [x] `pwsh ./build.ps1 -t`（根 wrapper → `QuickerRpc/build.ps1`）
 
 ---
 
@@ -245,15 +245,15 @@ Console → Transport, Contracts, AgentModel, ActionRuntime (外部)
 
 - Move: `QuickerRpc.Console/` → `QuickerRpc/src/QuickerRpc.Console/`
 - Move submodule: `Quicker.ActionRuntime/` → `QuickerRpc/lib/Quicker.ActionRuntime/`（更新 `.gitmodules`）
-- [ ] `QuickerActionRuntimeRootDefault` → `$(RepoRoot)lib\Quicker.ActionRuntime\`
-- [ ] 更新 `publish/publish-rpc.ps1` Console 项目路径
+- [x] `QuickerActionRuntimeRootDefault` → `$(RepoRoot)lib\Quicker.ActionRuntime\`
+- [x] 更新 `publish/publish-rpc.ps1` Console 项目路径
 
 ---
 
 ## Phase 8 — 测试 → `QuickerRpc/tests/`
 
 - Move 根目录 `QuickerRpc.*.Test/` + repo 根 `tests/QuickerRpc.*.Test/` → 统一 `QuickerRpc/tests/`
-- [ ] csproj 引用 `..\..\src\QuickerRpc.*`
+- [x] csproj 引用 `..\..\src\QuickerRpc.*`
 
 ---
 
@@ -267,9 +267,9 @@ Console → Transport, Contracts, AgentModel, ActionRuntime (外部)
 - Modify: `docs/plans/2026-06-27-quicker-rpc-core.md` File map
 - Modify: workspace `.cursor/skills/quicker-plugin-dev/` 路径示例
 
-- [ ] **Step 1:** 替换所有 `QuickerRpc/QuickerRpc.` 与根目录 `QuickerRpc.Contracts` 文档引用
+- [x] **Step 1:** 替换所有 `QuickerRpc/QuickerRpc.` 与根目录 `QuickerRpc.Contracts` 文档引用
 - [ ] **Step 2:** 在 `src/README.md` 添加「依赖分层图」（自 architecture doc 摘录）
-- [ ] **Step 3:** Commit：`docs(qkrpc): align architecture docs with src/ layout`
+- [x] **Step 3:** Commit：`docs(qkrpc): align architecture docs with src/ layout`
 
 ---
 
@@ -314,13 +314,13 @@ src/QuickerRpc.Plugin.V1/
 
 ## 5. 验收标准（Phase 5–9 整体）
 
-- [ ] repo 根**无** `QuickerRpc.*` csproj 目录、无 `QuickerRpc.slnx`
-- [ ] `dotnet build QuickerRpc/QuickerRpc.slnx -c Release` 0 errors
-- [ ] 根 `pwsh ./build.ps1 -t` 仍可用（wrapper）
-- [ ] `QuickerRpc/version.json` 为 MSBuild RepoRoot 锚点
+- [x] repo 根**无** `QuickerRpc.*` csproj 目录（保留 monorepo 聚合 `QuickerRpc.slnx`）
+- [x] `dotnet build QuickerRpc/QuickerRpc.slnx -c Release` 0 errors
+- [x] 根 `pwsh ./build.ps1 -t` 仍可用（wrapper）
+- [x] `QuickerRpc/version.json` 为 MSBuild RepoRoot 锚点
 - [ ] `QuickerRpcPipeIntegrationTests` 8/8（或当前 baseline）
-- [ ] `grep -r "QuickerRpc/QuickerRpc\." docs/` 无结果（旧双前缀）
-- [ ] architecture doc §3 与 `src/README.md` 一致
+- [x] `grep -r "QuickerRpc/QuickerRpc\." docs/` 无结果（旧双前缀）
+- [x] architecture doc §3 与 `QuickerRpc/README.md` 一致
 
 ---
 

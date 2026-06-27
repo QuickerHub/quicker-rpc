@@ -67,7 +67,9 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $json = Get-Content version.json -Raw | ConvertFrom-Json
+          . ./publish/qkrpc-publish-lib.ps1
+          $versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $PWD
+          $json = Get-Content $versionFile -Raw | ConvertFrom-Json
           $full = [string]$json.QuickerRpc
           if ([string]::IsNullOrWhiteSpace($full)) { throw 'version.json missing QuickerRpc' }
           "full=$full" >> $env:GITHUB_OUTPUT
@@ -99,7 +101,7 @@ jobs:
         run: |
           $publishDir = Join-Path $PWD 'publish/cli'
           New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
-          dotnet publish QuickerRpc.Console/QuickerRpc.Console.csproj `
+          dotnet publish QuickerRpc/src/QuickerRpc.Console/QuickerRpc.Console.csproj `
             -c Release -f net10.0 -r win-x64 --self-contained true `
             -p:PublishSingleFile=false `
             -p:DebugType=none `

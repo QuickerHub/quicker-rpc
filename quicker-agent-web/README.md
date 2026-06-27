@@ -10,7 +10,7 @@ node quicker-agent-web/scripts/build.mjs
 npx --yes serve quicker-agent-web/dist -l 3456
 ```
 
-构建会读取根目录 [`version.json`](../version.json)，并尝试用 GitHub API 获取最新 Release tag（`GITHUB_TOKEN` 在 CI 中自动提供）。
+构建会读取 [`QuickerRpc/version.json`](../QuickerRpc/version.json)，并尝试用 GitHub API 获取最新 Release tag（`GITHUB_TOKEN` 在 CI 中自动提供）。
 
 产物在 `quicker-agent-web/dist/`：
 
