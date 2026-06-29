@@ -13,6 +13,12 @@ TestResults/
 *.trx
 *.coverage
 *.coveragexml
+*.binlog
+*_wpftmp.csproj
+
+# qkbuild (plugin packaging)
+**/.qkbuild/
+**/_packages/
 
 # Node / Next.js / TypeScript
 node_modules/
@@ -45,16 +51,24 @@ llm-bundled-secrets.json
 # IDE / MCP debug captures (Playwright session logs, page snapshots)
 .playwright-mcp/
 
-# Maintainer scratch notes (repo root only)
+# Maintainer scratch (repo root)
 /todo
 /_tmp*
+/.tmp*
+tmp/
+tmp*.json
+temp/
+.build/
+scratch/
+.ci-userprofile/
 
-# Publish output, keep release scripts and changelogs
+# Release publish/ — ignore build output, keep scripts and changelogs
 publish/**
 !publish/publish-rpc.ps1
 !publish/install.ps1
 !publish/Build-QkrpcSetup.ps1
 !publish/qkrpc-publish-lib.ps1
+!publish/qkrpc-setup.iss
 !publish/Publish-GitHubRelease.ps1
 !publish/Publish-AgentGui.ps1
 !publish/Publish-QuickerAgent.ps1
@@ -66,6 +80,7 @@ publish/**
 !publish/Publish-VoiceAsrRelease.ps1
 !publish/Sync-VoicePluginChannel.ps1
 !publish/Sync-PluginRegistry.ps1
+!publish/Sync-LlmPublishConfig.ps1
 !publish/registry/
 !publish/registry/**
 !publish/Upload-VoiceAsrToBitiful.ps1
@@ -77,13 +92,9 @@ publish/**
 !publish/changelogs/**
 !publish/release-cli-ci.md
 **/publish/*.zip
-QuickerRpc/QuickerRpc.Plugin.V1/publish/
-/.tmp*
-tmp/
-tmp*.json
-temp/
-.build/
 
+# qkbuild plugin publish output (under QuickerRpc/src/, not repo-root publish/)
+QuickerRpc/src/QuickerRpc.Plugin.*/publish/
 
 # Local Quicker source reference for agent/reflection work (not part of this repo)
 .ref/Quicker/
@@ -135,6 +146,7 @@ clipboard-history-runtime/target/
 # MSBuild stamp for action-authoring doc generation (local only)
 docs/action-authoring/.generated.stamp
 
-# OS noise (Windows)
+# OS noise
 Thumbs.db
 Desktop.ini
+.DS_Store
