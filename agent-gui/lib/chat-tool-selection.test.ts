@@ -25,6 +25,9 @@ test("resolveToolBundleContext loads action_authoring full schemas for write int
     userText: "创建动作并编辑步骤",
     actionScope: { pinnedLatest: undefined, pinnedLatestAll: [] },
   });
+  assert.equal(ctx.turnPlan.intent, "quicker_authoring");
+  assert.deepEqual(ctx.activeBundles, ctx.turnPlan.activeToolBundles);
+  assert.deepEqual([...ctx.fullSchemaToolIds].sort(), ctx.turnPlan.fullSchemaToolIds.sort());
   assert.ok(ctx.activeBundles.includes("action_authoring"));
   assert.ok(ctx.fullSchemaToolIds.has("workspace_program"));
   assert.equal(ctx.fullSchemaToolIds.has("qkrpc_profile_create"), false);

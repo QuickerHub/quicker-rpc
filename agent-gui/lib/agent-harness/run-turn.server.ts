@@ -44,8 +44,8 @@ import {
   createChatSystemBuilder,
   selectChatTools,
 } from "@/lib/agent-turn-runtime";
+import { resolveTurnPlan } from "@/lib/agent-core/turn-plan";
 import { slimToolsForModel } from "@/lib/agent-harness/model-tool-definitions";
-import { resolveFullSchemaToolIdsForTurn } from "@/lib/chat-tool-selection";
 import { buildAgentRuntimeSnapshot } from "@/lib/agent-runtime-snapshot";
 import { fetchDesignerContextSnapshot } from "@/lib/designer-context.server";
 import { resolveDesignerWindowContext } from "@/lib/designer-embed-layout";
@@ -141,6 +141,14 @@ export async function runAgentChatTurn(body: ChatPostBody): Promise<Response> {
     chatMode !== CHAT_MODE_LAUNCHER
       ? resolveActionDesignerForChatTurn(body)
       : undefined;
+  const preliminaryTurnPlan = resolveTurnPlan({
+    actionScope: preliminaryActionScope,
+    chatMode,
+    enabledToolIds: effectiveEnabledTools,
+    messages: repairedMessages,
+    userText: lastUserText,
+    actionDesigner: preliminaryActionDesigner,
+  });
   const fullTools = selectChatTools({
     chatMode,
     enabledToolIds: effectiveEnabledTools,
@@ -150,15 +158,7 @@ export async function runAgentChatTurn(body: ChatPostBody): Promise<Response> {
     actionScope: preliminaryActionScope,
     actionDesigner: preliminaryActionDesigner,
   });
-  const fullSchemaToolIds = resolveFullSchemaToolIdsForTurn({
-    chatMode,
-    enabledToolIds: effectiveEnabledTools,
-    titleTest,
-    benchMode,
-    userText: lastUserText,
-    actionScope: preliminaryActionScope,
-    actionDesigner: preliminaryActionDesigner,
-  });
+  const fullSchemaToolIds = new Set(preliminaryTurnPlan.fullSchemaToolIds);
   const modelTools = slimToolsForModel(fullTools, fullSchemaToolIds);
 
   let slashTextApplied = false;
@@ -244,12 +244,22 @@ export async function runAgentChatTurn(body: ChatPostBody): Promise<Response> {
               && body.contextCompressionForce === true,
           });
 
+          const turnPlan = resolveTurnPlan({
+            actionScope,
+            chatMode,
+            enabledToolIds: Object.keys(fullTools),
+            messages: repairedMessages,
+            userText: lastUserText,
+            actionDesigner,
+          });
+
           const runtimeSnapshot = buildAgentRuntimeSnapshot({
             actionScope,
             chatMode,
             enabledToolIds: Object.keys(fullTools),
             messages: repairedMessages,
             userText: lastUserText,
+            turnPlan,
           });
 
           const buildSystemForPreparedContext = await createChatSystemBuilder({

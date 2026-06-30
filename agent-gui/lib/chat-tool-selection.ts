@@ -3,16 +3,11 @@ import type { UIMessage } from "ai";
 import type { ActionScopeHint } from "@/lib/action-scope";
 import { extractActionScopeFromMessages } from "@/lib/action-scope";
 import { CHAT_MODE_LAUNCHER, type ChatMode } from "@/lib/chat-mode";
-import { buildAgentTurnState } from "@/lib/agent-turn-state";
+import { resolveTurnPlan } from "@/lib/agent-core/turn-plan";
 import { filterEnabledToolsForTurn } from "@/lib/tool-intent-filter";
 import { filterToolIdsForBenchMode } from "@/lib/bench-mode";
 import { LIST_TOOLS_TOOL } from "@/lib/list-tools-tool";
 import { pickChatTools } from "@/lib/tool-registry";
-import {
-  resolveActiveToolBundles,
-  resolveFullSchemaToolIds,
-  type ResolveActiveToolBundlesParams,
-} from "@/lib/tool-bundles";
 import { SET_THREAD_TITLE_TOOL } from "@/lib/thread-title-tool-messages";
 
 export type SelectChatToolsParams = {
@@ -32,22 +27,19 @@ export function resolveToolBundleContext(params: {
   actionScope: ActionScopeHint;
   actionDesigner?: { entityId: string; isSubProgram?: boolean };
 }) {
-  const turnState = buildAgentTurnState({
+  const turnPlan = resolveTurnPlan({
     actionScope: params.actionScope,
     chatMode: params.chatMode,
     enabledToolIds: params.enabledToolIds,
+    messages: [],
     userText: params.userText,
-  });
-  const bundleParams: ResolveActiveToolBundlesParams = {
-    chatMode: params.chatMode,
-    intent: turnState.intent,
-    actionScope: params.actionScope,
     actionDesigner: params.actionDesigner,
-  };
+  });
   return {
-    turnState,
-    activeBundles: resolveActiveToolBundles(bundleParams),
-    fullSchemaToolIds: resolveFullSchemaToolIds(bundleParams),
+    turnState: turnPlan.turnState,
+    turnPlan,
+    activeBundles: turnPlan.activeToolBundles,
+    fullSchemaToolIds: new Set(turnPlan.fullSchemaToolIds),
   };
 }
 
@@ -81,16 +73,18 @@ export function selectChatToolsFromRegistry<T extends Record<string, unknown>>(
     enabledIds = filterToolIdsForBenchMode(enabledIds);
   }
   if (params.userText && params.actionScope) {
-    const turnState = buildAgentTurnState({
+    const turnPlan = resolveTurnPlan({
       actionScope: params.actionScope,
       chatMode: params.chatMode,
       enabledToolIds: enabledIds,
+      messages: [],
       userText: params.userText,
+      actionDesigner: params.actionDesigner,
     });
     enabledIds = filterEnabledToolsForTurn({
       chatMode: params.chatMode,
       enabledToolIds: enabledIds,
-      intent: turnState.intent,
+      intent: turnPlan.legacyIntent,
       actionScope: params.actionScope,
       actionDesigner: params.actionDesigner,
     });

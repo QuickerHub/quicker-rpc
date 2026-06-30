@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { buildAgentRuntimeSnapshot } from "./agent-runtime-snapshot.ts";
+import { resolveTurnPlan } from "./agent-core/turn-plan.ts";
 import { formatLocalToolResult } from "./tool-result.ts";
 
 const emptyScope = {
@@ -52,8 +53,11 @@ test("buildAgentRuntimeSnapshot captures turn state and recovery decision", () =
   });
 
   assert.equal(snapshot.turnState.intent, "action_authoring");
+  assert.equal(snapshot.turnPlan.intent, "quicker_authoring");
+  assert.equal(snapshot.turnPlan.legacyIntent, snapshot.turnState.intent);
+  assert.equal(snapshot.turnPlan.verificationPolicy, "diagnostics");
   assert.equal(snapshot.turnState.risk, "write");
-  assert.deepEqual(snapshot.turnState.recommendedToolIds, ["docs", "workspace_program"]);
+  assert.deepEqual(snapshot.turnState.recommendedToolIds, ["workspace_program"]);
   assert.equal(snapshot.recentToolFeedbackCount, 1);
   assert.equal(snapshot.recoveryDecision.kind, "next_action");
   assert.equal(
@@ -75,4 +79,26 @@ test("buildAgentRuntimeSnapshot reports none without tool feedback", () => {
   assert.equal(snapshot.turnState.risk, "read");
   assert.equal(snapshot.recentToolFeedbackCount, 0);
   assert.equal(snapshot.recoveryDecision.kind, "none");
+});
+
+test("buildAgentRuntimeSnapshot reuses a precomputed turn plan", () => {
+  const turnPlan = resolveTurnPlan({
+    actionScope: emptyScope,
+    chatMode: "agent",
+    enabledToolIds: ["Read", "Grep"],
+    messages: [],
+    userText: "只读分析代码结构",
+  });
+
+  const snapshot = buildAgentRuntimeSnapshot({
+    actionScope: emptyScope,
+    chatMode: "agent",
+    enabledToolIds: ["Read", "Grep"],
+    messages: [],
+    userText: "different text should not rebuild the plan",
+    turnPlan,
+  });
+
+  assert.equal(snapshot.turnPlan, turnPlan);
+  assert.equal(snapshot.turnState, turnPlan.turnState);
 });

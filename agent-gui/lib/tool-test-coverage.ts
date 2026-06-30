@@ -3,6 +3,7 @@ import { TOOL_TEST_SUITES, type ToolTestSuite } from "@/lib/tool-test-suites";
 
 /** Chat-only tools in quickerTools but not user-configurable in the picker. */
 const CHAT_ONLY_TOOL_IDS = [
+  "list_tools",
   "ask_question",
   "set_thread_title",
   "launcher_command_cache",
@@ -10,6 +11,7 @@ const CHAT_ONLY_TOOL_IDS = [
 
 /** Tools with no server execute — exercised only in chat UI. */
 export const TOOL_TEST_UI_ONLY_TOOLS: ReadonlySet<string> = new Set([
+  "list_tools",
   "ask_question",
   "set_thread_title",
   "launcher_command_cache",
