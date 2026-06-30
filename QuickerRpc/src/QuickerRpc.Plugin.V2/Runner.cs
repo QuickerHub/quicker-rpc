@@ -1,9 +1,11 @@
-namespace QuickerRpc.Plugin.V2;
+using Quicker.Public.Interfaces;
 
-/// <summary>Static entry for Quicker V2 host integration (QExpr / DI bootstrap).</summary>
+namespace QuickerRpc.Plugin;
+
+/// <summary>Optional alias; QuickerRpc_Run uses <see cref="Launcher.Start"/> like V1.</summary>
 public static class Runner
 {
-    public static void StartRpcServer() => Launcher.Start();
+    public static void StartRpcServer(IActionContext? context = null) => Launcher.Start(context);
 
     public static LauncherStatus GetStatus() => Launcher.Status;
 }

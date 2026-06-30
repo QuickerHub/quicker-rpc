@@ -11,6 +11,9 @@ param(
     [switch]$NoVersion,
     [Alias('t')]
     [switch]$Test,
+    [switch]$Net10,
+    [switch]$Net472,
+    [switch]$SingleHost,
     [Parameter(ValueFromRemainingArguments = $true)]
     [object[]]$QkbuildArgs
 )
@@ -85,6 +88,141 @@ function Get-QkbuildInvocationArgs {
         NoVersion = [bool]$NoVersion
         Test      = [bool]$Test
     }
+}
+
+function Get-PreparedQkbuildConfigPath {
+    param(
+        [string]$HostProfilePass
+    )
+
+    $configPath = Join-Path $ProductRoot 'build.yaml'
+    # MonorepoRoot = tools/qkrpc; workspace root is two levels above that.
+    $workspaceRoot = (Resolve-Path (Join-Path $MonorepoRoot '..\..')).Path
+    $prepareScript = Join-Path $workspaceRoot 'scripts\prepare-qkbuild-config.mjs'
+    if (-not (Test-Path -LiteralPath $prepareScript)) {
+        return $configPath
+    }
+
+    $prepareArgs = @(
+        'node', $prepareScript,
+        '--project-root', $ProductRoot,
+        '--config', 'build.yaml'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($HostProfilePass)) {
+        $prepareArgs += @('--host-profile', $HostProfilePass)
+    }
+
+    $prepared = (& $prepareArgs[0] $prepareArgs[1..($prepareArgs.Length - 1)] 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($prepared)) {
+        throw "prepare-qkbuild-config failed for host profile '$HostProfilePass'."
+    }
+    if (Test-Path -LiteralPath $prepared) {
+        return $prepared
+    }
+
+    return $configPath
+}
+
+function Resolve-QkbuildProjectPath {
+    param(
+        [string]$HostProfilePass
+    )
+
+    if ($HostProfilePass -eq 'net10') {
+        return Join-Path $ProductRoot 'src\QuickerRpc.Plugin.V2'
+    }
+
+    return Join-Path $ProductRoot 'src\QuickerRpc.Plugin.V1'
+}
+
+function Invoke-QuickerRpcQkbuildPass {
+    param(
+        [string]$HostProfilePass,
+        [string[]]$QkbuildArgsResolved,
+        [string]$PassLabel
+    )
+
+    $configPath = Get-PreparedQkbuildConfigPath -HostProfilePass $HostProfilePass
+    $projectPath = Resolve-QkbuildProjectPath -HostProfilePass $HostProfilePass
+
+    Write-Host "=== QuickerRpc.Plugin $(if ($HostProfilePass -eq 'net10') { 'V2 (net10)' } else { 'V1 (net472)' }) (qkbuild) ===" -ForegroundColor Cyan
+    Write-Host "host pass: $PassLabel" -ForegroundColor Cyan
+    if ($configPath -ne (Join-Path $ProductRoot 'build.yaml')) {
+        Write-Host "host profile: merged config $($configPath.Replace($ProductRoot, '').TrimStart('\','/'))" -ForegroundColor DarkCyan
+    }
+    Write-Host "project: $projectPath" -ForegroundColor DarkCyan
+    if ($QkbuildArgsResolved.Count -gt 0) {
+        Write-Host "qkbuild args: $($QkbuildArgsResolved -join ' ')" -ForegroundColor DarkGray
+    }
+
+    Push-Location $ProductRoot
+    try {
+        $qkbuildCmd = @('build', '-c', $configPath, '--project-path', $projectPath) + $QkbuildArgsResolved
+        & qkbuild @qkbuildCmd
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "qkbuild failed (exit $LASTEXITCODE)." -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Resolve-QkbuildPassPlan {
+    param(
+        [switch]$Publish,
+        [switch]$NoVersion,
+        [switch]$SingleHost,
+        [switch]$Net10,
+        [switch]$Net472
+    )
+
+    $net10Sidecar = Join-Path $ProductRoot 'build.net10.yaml'
+    $dualEligible = Test-Path -LiteralPath $net10Sidecar
+
+    if (-not $Publish) {
+        return ,@(
+            [ordered]@{
+                HostProfile = if ($Net10) { 'net10' } else { 'net472' }
+                NoVersion   = [bool]$NoVersion
+                Label       = 'build'
+            }
+        )
+    }
+
+    if ($Net10) {
+        return ,@(
+            [ordered]@{
+                HostProfile = 'net10'
+                NoVersion   = [bool]$NoVersion
+                Label       = 'net10 (v2 only)'
+            }
+        )
+    }
+
+    if ($Net472 -or $SingleHost -or -not $dualEligible) {
+        return ,@(
+            [ordered]@{
+                HostProfile = 'net472'
+                NoVersion   = [bool]$NoVersion
+                Label       = 'net472 (v1 only)'
+            }
+        )
+    }
+
+    return @(
+        [ordered]@{
+            HostProfile = 'net472'
+            NoVersion   = [bool]$NoVersion
+            Label       = 'net472 (v1)'
+        },
+        [ordered]@{
+            HostProfile = 'net10'
+            NoVersion   = $true
+            Label       = 'net10 (v2)'
+        }
+    )
 }
 
 $PluginRunActionUri = 'quicker:runaction:aa5917ad-1256-4c73-7022-08debe3efcbe?plugin'
@@ -194,7 +332,7 @@ function Invoke-QuickerRpcPluginRunAction {
 
 $qkMeta = Get-QkbuildInvocationArgs -Publish:$Publish -NoVersion:$NoVersion -Test:$Test -Extra $QkbuildArgs
 $qkbuildArgsResolved = $qkMeta.Args
-$testBuild = $qkMeta.Test
+$passPlan = Resolve-QkbuildPassPlan -Publish:$Publish -NoVersion:$NoVersion -SingleHost:$SingleHost -Net10:$Net10 -Net472:$Net472
 $quickerDependencyUpload = $qkMeta.Publish -and $qkMeta.NoVersion
 
 if ($qkMeta.Publish) {
@@ -224,28 +362,52 @@ try {
     pwsh -NoProfile -File (Join-Path $MonorepoRoot 'scripts\Generate-ActionAuthoringDocs.ps1')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    Write-Host "=== QuickerRpc.Plugin.V1 (qkbuild) ===" -ForegroundColor Cyan
-    if ($quickerDependencyUpload) {
-        Write-Host "Mode: Quicker dependency upload (--publish --no-version); CLI zip/setup skipped." -ForegroundColor Yellow
-    }
-    if ($qkbuildArgsResolved.Count -gt 0) {
-        Write-Host "qkbuild args: $($qkbuildArgsResolved -join ' ')" -ForegroundColor DarkGray
+    $qkbuildArgsResolved = $qkMeta.Args
+    if ($qkMeta.Publish) {
+        Write-Host "publish plan: $($passPlan.Count) pass(es)" -ForegroundColor DarkCyan
+        foreach ($pass in $passPlan) {
+            $passNoVersion = if ($pass.NoVersion) { '--no-version' } else { 'next-patch' }
+            Write-Host "  - $($pass.Label): $($pass.HostProfile) $passNoVersion" -ForegroundColor DarkGray
+        }
+        [Console]::Out.Flush()
     }
 
-    Push-Location $ProductRoot
-    try {
-        $qkbuildCmd = @('build', '-c', 'build.yaml', '--project-path', '.\src\QuickerRpc.Plugin.V1') + $qkbuildArgsResolved
-        & qkbuild @qkbuildCmd
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "qkbuild failed (exit $LASTEXITCODE)." -ForegroundColor Red
-            exit $LASTEXITCODE
+    if ($passPlan.Count -gt 1) {
+        Write-Host ''
+        Write-Host 'dual-host publish: net472 (V1) then net10 (V2, same version)' -ForegroundColor Magenta
+        Write-Host ''
+    }
+
+    $testBuild = $qkMeta.Test
+    $runPluginReload = $true
+
+    for ($i = 0; $i -lt $passPlan.Count; $i++) {
+        $pass = $passPlan[$i]
+        if ($passPlan.Count -gt 1) {
+            Write-Host ''
+            Write-Host "=== dual-host pass $($i + 1)/$($passPlan.Count): $($pass.Label) ===" -ForegroundColor Magenta
+        }
+
+        $passMeta = Get-QkbuildInvocationArgs -Publish:$qkMeta.Publish -NoVersion:([bool]$pass.NoVersion) -Test:$qkMeta.Test -Extra $QkbuildArgs
+        $passQkbuildArgs = $passMeta.Args
+
+        if ($quickerDependencyUpload) {
+            Write-Host "Mode: Quicker dependency upload (--publish --no-version); CLI zip/setup skipped." -ForegroundColor Yellow
+        }
+
+        Invoke-QuickerRpcQkbuildPass -HostProfilePass $pass.HostProfile -QkbuildArgsResolved $passQkbuildArgs -PassLabel $pass.Label
+
+        if ($pass.HostProfile -eq 'net472') {
+            Invoke-QuickerRpcPluginRunAction -DelaySeconds 1
+        }
+        else {
+            $runPluginReload = $false
         }
     }
-    finally {
-        Pop-Location
-    }
 
-    Invoke-QuickerRpcPluginRunAction -DelaySeconds 1
+    if (-not $runPluginReload -and $passPlan.Count -eq 1 -and $passPlan[0].HostProfile -eq 'net10') {
+        Write-Host 'Skip V1 plugin runaction reload (net10-only pass).' -ForegroundColor DarkGray
+    }
 
     Write-Host "=== qkrpc CLI (publish-rpc.ps1) ===" -ForegroundColor Cyan
     if ($skipPackaging) {

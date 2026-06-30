@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Quicker.Public;
 using QuickerRpc.Contracts.Rpc;
-using QuickerRpc.Plugin.StepRunners;
 using Z.Expressions;
 
 namespace QuickerRpc.Plugin.Services;
@@ -272,7 +271,10 @@ public sealed class CodeSyntaxCheckService
 
         InvokeInstance(script, "AddDefaultReferencesAndNamespaces");
         InvokeInstance(script, "AddLoadedReferences");
-        AddScriptAssembly(script, typeof(IStepContext));
+        if (FindStepContextType() is { } stepContextType)
+        {
+            AddScriptAssembly(script, stepContextType);
+        }
 
         foreach (var referencePath in SplitReferences(references))
         {
@@ -332,6 +334,11 @@ public sealed class CodeSyntaxCheckService
         return Type.GetType(typeName + ", Quicker", throwOnError: false, ignoreCase: false)
                ?? Type.GetType(typeName + ", Quicker.3rd", throwOnError: false, ignoreCase: false);
     }
+
+    private static Type? FindStepContextType() =>
+        Type.GetType("QuickerRpc.Plugin.StepRunners.IStepContext, QuickerRpc.Plugin", throwOnError: false, ignoreCase: false)
+        ?? Type.GetType("QuickerRpc.Plugin.StepRunners.IStepContext, QuickerRpc.Plugin.V1", throwOnError: false, ignoreCase: false)
+        ?? Type.GetType("Quicker.Public.IStepContext, Quicker.Public", throwOnError: false, ignoreCase: false);
 
     private static IEnumerable<string> SplitReferences(string? references)
     {

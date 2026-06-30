@@ -9,6 +9,9 @@ param(
     [switch]$NoVersion,
     [Alias('t')]
     [switch]$Test,
+    [switch]$Net10,
+    [switch]$Net472,
+    [switch]$SingleHost,
     [Parameter(ValueFromRemainingArguments = $true)]
     [object[]]$QkbuildArgs
 )

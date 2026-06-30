@@ -15,7 +15,14 @@
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.Host.Abstractions\QuickerRpc.Host.Abstractions.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
-    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="Newtonsoft.Json" Condition="'$(TargetFramework)' != 'net10.0'" />
+  </ItemGroup>
+  <!-- net10.0: compile against NuGet; runtime uses Quicker host Newtonsoft.Json -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Newtonsoft.Json">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <Import Project="$(MonorepoRoot)build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
 </Project>

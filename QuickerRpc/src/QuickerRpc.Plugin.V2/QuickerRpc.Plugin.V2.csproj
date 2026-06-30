@@ -5,11 +5,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Public entry types live in QuickerRpc.Plugin (same as V1); internals stay under QuickerRpc.Plugin.V2.* -->
     <RootNamespace>QuickerRpc.Plugin.V2</RootNamespace>
-    <AssemblyName>QuickerRpc.Plugin.V2</AssemblyName>
+    <AssemblyName>QuickerRpc.Plugin</AssemblyName>
+    <UseAssemblyVersionFileNameSuffix>true</UseAssemblyVersionFileNameSuffix>
     <Description>QuickerRpc in-process plugin for Quicker V2 (net10). Resolves IQuickerRpcHost from AppState DI.</Description>
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <NoWarn>$(NoWarn);VSTHRD003</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(UseAssemblyVersionFileNameSuffix)' == 'true'">
+    <AssemblyName>QuickerRpc.Plugin.$(Version)</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
@@ -19,9 +25,25 @@
     <ProjectReference Include="..\QuickerRpc.Transport\QuickerRpc.Transport.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionLibrarySearchService.cs" Link="Shared\ActionLibrarySearchService.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\CodeSyntaxCheckService.cs" Link="Shared\CodeSyntaxCheckService.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionEvalBinding.cs" Link="Shared\ExpressionEvalBinding.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionEvalTransforms.cs" Link="Shared\ExpressionEvalTransforms.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionExecuteService.cs" Link="Shared\ExpressionExecuteService.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionVariablePlaceholder.cs" Link="Shared\ExpressionVariablePlaceholder.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionVariableResolver.cs" Link="Shared\ExpressionVariableResolver.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Costura.Fody">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- Microsoft.Extensions.* + Newtonsoft.Json: Quicker V2 host (qkref.net10.props), not bundled -->
     <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="QuickerRpc.Runtime.Test" />
+  </ItemGroup>
+  <Import Project="$(MonorepoRoot)qkref.net10.props" Condition="Exists('$(MonorepoRoot)qkref.net10.props')" />
+  <Import Project="$(MonorepoRoot)..\..\qkref.net10.props" Condition="!Exists('$(MonorepoRoot)qkref.net10.props') And Exists('$(MonorepoRoot)..\..\qkref.net10.props')" />
+  <Import Project="$(RepoRoot)..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
 </Project>

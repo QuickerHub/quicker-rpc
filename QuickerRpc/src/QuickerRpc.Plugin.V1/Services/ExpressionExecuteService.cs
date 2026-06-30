@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Newtonsoft.Json;
-using Quicker.Utilities;
 using QuickerRpc.Contracts.Rpc;
 using Z.Expressions;
 
@@ -34,7 +33,7 @@ public sealed class ExpressionExecuteService
             if (expression.IndexOf("{[cliptext]}", StringComparison.Ordinal) >= 0)
             {
                 expression = expression.Replace("{[cliptext]}", "vv_cliptext");
-                globals["vv_cliptext"] = ClipboardHelper.TryGetClipboardText() ?? string.Empty;
+                globals["vv_cliptext"] = TryGetClipboardText() ?? string.Empty;
             }
 
             var definedKeys = new HashSet<string>(inputVariables.Keys, StringComparer.OrdinalIgnoreCase)
@@ -59,8 +58,7 @@ public sealed class ExpressionExecuteService
             if (onUiThread)
             {
                 object? value = null;
-                AppHelper.RunOnUiThread(
-                    true,
+                RunOnUiThread(
                     () => value = ExpressionEvalBinding.Execute(
                         eval,
                         expression,
@@ -166,6 +164,55 @@ public sealed class ExpressionExecuteService
             return JsonConvert.SerializeObject(value.ToString());
         }
     }
+
+    private static void RunOnUiThread(Action action)
+    {
+        var appHelperType = Type.GetType("Quicker.Utilities.AppHelper, Quicker.Utilities", throwOnError: false)
+                            ?? Type.GetType("Quicker.Utilities.AppHelper, Quicker", throwOnError: false);
+        var method = appHelperType?.GetMethods()
+            .FirstOrDefault(m =>
+            {
+                if (!string.Equals(m.Name, "RunOnUiThread", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                var parameters = m.GetParameters();
+                return parameters.Length >= 2
+                       && parameters[0].ParameterType == typeof(bool)
+                       && parameters[1].ParameterType == typeof(Action);
+            });
+
+        if (method is null)
+        {
+            action();
+            return;
+        }
+
+        var parameters = method.GetParameters();
+        var args = new object?[parameters.Length];
+        args[0] = true;
+        args[1] = action;
+        for (var i = 2; i < args.Length; i++)
+        {
+            args[i] = parameters[i].HasDefaultValue
+                ? parameters[i].DefaultValue
+                : GetDefaultValue(parameters[i].ParameterType);
+        }
+
+        method.Invoke(null, args);
+    }
+
+    private static string? TryGetClipboardText()
+    {
+        var clipboardType = Type.GetType("Quicker.Utilities.ClipboardHelper, Quicker.Utilities", throwOnError: false)
+                            ?? Type.GetType("Quicker.Utilities.ClipboardHelper, Quicker", throwOnError: false);
+        var method = clipboardType?.GetMethod("TryGetClipboardText", Type.EmptyTypes);
+        return method?.Invoke(null, Array.Empty<object>()) as string;
+    }
+
+    private static object? GetDefaultValue(Type type) =>
+        type.IsValueType ? Activator.CreateInstance(type) : null;
 
     private static QuickerRpcExpressionExecuteResult Fail(string errorCode, string message) =>
         new()
