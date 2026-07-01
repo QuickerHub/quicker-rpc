@@ -99,6 +99,9 @@ QuickerRpc/src/QuickerRpc.Plugin.*/publish/
 # Local Quicker source reference for agent/reflection work (not part of this repo)
 .ref/Quicker/
 
+# Agent one-off remote debug helpers (local LAN / SSH probes)
+QuickerRpc/.remote-*.ps1
+
 # Local qkrpc action/subprogram projects (export/import)
 .quicker/
 
