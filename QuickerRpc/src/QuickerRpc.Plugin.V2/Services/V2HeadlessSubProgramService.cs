@@ -8,9 +8,9 @@ namespace QuickerRpc.Plugin.V2.Services;
 
 public sealed class V2HeadlessSubProgramService
 {
-    private readonly QuickerV2SubProgramAccessor? _subPrograms = QuickerV2SubProgramAccessor.Current;
+    private QuickerV2SubProgramAccessor? SubPrograms => QuickerV2SubProgramAccessor.Current;
     private readonly V2HeadlessActionProgramService? _actionPrograms;
-    private readonly QuickerV2ActionAccessor? _actions = QuickerV2ActionAccessor.Current;
+    private QuickerV2ActionAccessor? Actions => QuickerV2ActionAccessor.Current;
 
     public V2HeadlessSubProgramService(V2HeadlessActionProgramService actionPrograms)
     {
@@ -20,30 +20,30 @@ public sealed class V2HeadlessSubProgramService
     public QuickerRpcSubProgramSnapshot? TryLoadSubProgramSnapshot(string? subProgramIdOrName)
     {
         var key = (subProgramIdOrName ?? string.Empty).Trim();
-        if (key.Length == 0 || _subPrograms is null)
+        if (key.Length == 0 || SubPrograms is null)
         {
             return null;
         }
 
-        if (!_subPrograms.TryGetByIdOrName(key, out var subProgram, out _) || subProgram is null)
+        if (!SubPrograms.TryGetByIdOrName(key, out var subProgram, out _) || subProgram is null)
         {
             return null;
         }
 
         var body = new JObject
         {
-            ["steps"] = _subPrograms.StepsToJArray(subProgram),
-            ["variables"] = _subPrograms.VariablesToJArray(subProgram),
+            ["steps"] = SubPrograms.StepsToJArray(subProgram),
+            ["variables"] = SubPrograms.VariablesToJArray(subProgram),
         };
 
         return new QuickerRpcSubProgramSnapshot
         {
-            Id = _subPrograms.GetId(subProgram),
+            Id = SubPrograms.GetId(subProgram),
             Name = QuickerV2Reflection.ReadString(subProgram, "Name") ?? string.Empty,
-            CallIdentifier = _subPrograms.GetCallIdentifier(subProgram),
+            CallIdentifier = SubPrograms.GetCallIdentifier(subProgram),
             Description = QuickerV2Reflection.ReadString(subProgram, "Description"),
             Icon = QuickerV2Reflection.ReadString(subProgram, "Icon"),
-            EditVersion = _subPrograms.GetEditVersionMs(subProgram),
+            EditVersion = SubPrograms.GetEditVersionMs(subProgram),
             BodyJson = body.ToString(Newtonsoft.Json.Formatting.None),
         };
     }
@@ -65,7 +65,7 @@ public sealed class V2HeadlessSubProgramService
             return FailApply("bodyJson is required.");
         }
 
-        if (_subPrograms is null)
+        if (SubPrograms is null)
         {
             return FailApply("Quicker V2 subprogram accessor unavailable.");
         }
@@ -83,12 +83,12 @@ public sealed class V2HeadlessSubProgramService
         var steps = body["steps"] as JArray ?? new JArray();
         var variables = body["variables"] as JArray ?? new JArray();
 
-        if (!_subPrograms.TryGetByIdOrName(key, out var subProgram, out var loadError) || subProgram is null)
+        if (!SubPrograms.TryGetByIdOrName(key, out var subProgram, out var loadError) || subProgram is null)
         {
             return FailApply(loadError ?? $"Subprogram not found: {key}");
         }
 
-        var versionBefore = _subPrograms.GetEditVersionMs(subProgram);
+        var versionBefore = SubPrograms.GetEditVersionMs(subProgram);
         if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcApplySubProgramPatchResult
@@ -100,12 +100,12 @@ public sealed class V2HeadlessSubProgramService
             };
         }
 
-        if (!_subPrograms.TryApplyBody(subProgram, steps, variables, out var applyError))
+        if (!SubPrograms.TryApplyBody(subProgram, steps, variables, out var applyError))
         {
             return FailApply(applyError ?? "apply_failed");
         }
 
-        if (!_subPrograms.TrySave(subProgram, out var saveError))
+        if (!SubPrograms.TrySave(subProgram, out var saveError))
         {
             return FailApply(saveError ?? "save_failed");
         }
@@ -113,8 +113,8 @@ public sealed class V2HeadlessSubProgramService
         return new QuickerRpcApplySubProgramPatchResult
         {
             Success = true,
-            SubProgramId = _subPrograms.GetId(subProgram),
-            EditVersion = _subPrograms.GetEditVersionMs(subProgram),
+            SubProgramId = SubPrograms.GetId(subProgram),
+            EditVersion = SubPrograms.GetEditVersionMs(subProgram),
         };
     }
 
@@ -191,12 +191,12 @@ public sealed class V2HeadlessSubProgramService
             return FailVariable(key, varKey, value, "variableKey is required.");
         }
 
-        if (_subPrograms is not null && _subPrograms.TryGetByIdOrName(key, out var subProgram, out _) && subProgram is not null)
+        if (SubPrograms is not null && SubPrograms.TryGetByIdOrName(key, out var subProgram, out _) && subProgram is not null)
         {
             return EditSubProgramVariable(key, varKey, value);
         }
 
-        if (_actions is not null && _actions.TryGetById(key, out var action, out _) && action is not null && _actions.IsXAction(action))
+        if (Actions is not null && Actions.TryGetById(key, out var action, out _) && action is not null && Actions.IsXAction(action))
         {
             return EditActionVariable(key, varKey, value);
         }

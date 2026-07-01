@@ -148,7 +148,13 @@ public sealed class XActionTraceRunService
         if (runException is not null)
         {
             return WithFailureLocation(
-                Fail(runException.Message, actionId, actionTitle, logger.Events, sw.ElapsedMilliseconds),
+                Fail(
+                    runException.Message,
+                    actionId,
+                    actionTitle,
+                    logger.Events,
+                    sw.ElapsedMilliseconds,
+                    runException.StackTrace ?? runException.ToString()),
                 logger.Events,
                 programSteps);
         }
@@ -331,7 +337,8 @@ public sealed class XActionTraceRunService
         string? actionId = null,
         string? actionTitle = null,
         IReadOnlyList<QuickerRpcActionTraceEvent>? events = null,
-        long durationMs = 0) =>
+        long durationMs = 0,
+        string? stackTrace = null) =>
         new()
         {
             Ok = false,
@@ -339,6 +346,7 @@ public sealed class XActionTraceRunService
             ActionTitle = actionTitle,
             Message = message,
             ErrorMessage = message,
+            StackTrace = stackTrace,
             DurationMs = durationMs,
             EventCount = events?.Count ?? 0,
             Events = events is null ? [] : [.. events],

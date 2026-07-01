@@ -20,6 +20,7 @@ public static class QuickerRpcClient
 
     private const int BootstrapPollIntervalMs = 250;
     private const int BootstrapMaxWaitSeconds = 12;
+    private const int ConnectRetryCount = 3;
 
     public static bool IsPipeServerListening(string? pipeName = null)
     {
@@ -43,19 +44,19 @@ public static class QuickerRpcClient
     {
         var hints = new List<string>
         {
-            "?? Quicker ???",
-            $"??????{QuickerRpcBootstrap.BuildRunActionUri()}",
-            "?? Quicker ??? QuickerRpc ??",
-            "???qkrpc ping --json",
+            "请确认 Quicker 已运行",
+            $"或手动运行：{QuickerRpcBootstrap.BuildRunActionUri()}",
+            "并在 Quicker 内加载 QuickerRpc 插件",
+            "请重试：qkrpc ping --json",
         };
 
         if (!QuickerRpcBootstrapPolicy.IsQuickerProcessRunning())
         {
-            hints.Insert(1, "Quicker ????????? quicker:runaction????????");
+            hints.Insert(1, "Quicker 未运行；启动后执行 quicker:runaction 或 QuickerAgent 动作");
         }
         else if (bootstrapAttempted)
         {
-            hints.Insert(1, "????? quicker:runaction ???????????? RPC ??");
+            hints.Insert(1, "已尝试 quicker:runaction 自动拉起；请确认动作存在且 RPC 插件已启动");
         }
 
         return hints;
@@ -64,16 +65,16 @@ public static class QuickerRpcClient
     public static string BuildPluginNotRunningMessage(string pipeName, bool bootstrapAttempted)
     {
         var bootstrapLine = bootstrapAttempted
-            ? $"????????{QuickerRpcBootstrap.BuildRunActionUri()}{Environment.NewLine}"
+            ? $"已尝试自动拉起：{QuickerRpcBootstrap.BuildRunActionUri()}{Environment.NewLine}"
             : string.Empty;
 
         return
-            "QuickerRpc ???????????????" + Environment.NewLine +
+            "QuickerRpc 插件未运行或命名管道不可用。" + Environment.NewLine +
             Environment.NewLine +
-            $"???{pipeName}" + Environment.NewLine +
+            $"管道：{pipeName}" + Environment.NewLine +
             bootstrapLine +
             Environment.NewLine +
-            "??? Quicker ??????? QuickerRpc ???";
+            "请在 Quicker 中加载 QuickerRpc 插件后重试。";
     }
 
     public static Task<QuickerRpcClientSession> ConnectAsync(
@@ -90,63 +91,110 @@ public static class QuickerRpcClient
     {
         var pipeName = QuickerRpcPipeNames.ServerPipe;
         var bootstrapAttempted = false;
-
-        if (!IsPipeServerListening(pipeName) && tryBootstrap)
-        {
-            bootstrapAttempted = await TryBootstrapPluginAsync(pipeName, timeoutSeconds, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (!IsPipeServerListening(pipeName))
-        {
-            throw new QuickerRpcClientException(
-                PluginNotRunningErrorCode,
-                BuildPluginNotRunningMessage(pipeName, bootstrapAttempted),
-                BuildPluginNotRunningHints(bootstrapAttempted));
-        }
-
         var connectTimeoutSeconds = Math.Max(1, timeoutSeconds);
-        var pipe = new NamedPipeClientStream(
-            ".",
-            pipeName,
-            PipeDirection.InOut,
-            PipeOptions.Asynchronous);
 
-        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        connectCts.CancelAfter(TimeSpan.FromSeconds(connectTimeoutSeconds));
+        for (var attempt = 0; attempt < ConnectRetryCount; attempt++)
+        {
+            if (!IsPipeServerListening(pipeName) && tryBootstrap)
+            {
+                bootstrapAttempted = await TryBootstrapPluginAsync(
+                        pipeName,
+                        timeoutSeconds,
+                        bypassCooldown: attempt > 0,
+                        cancellationToken)
+                    .ConfigureAwait(false)
+                    || bootstrapAttempted;
+            }
 
-        try
-        {
-            await pipe.ConnectAsync(connectCts.Token).ConfigureAwait(false);
-            QuickerRpcBootstrapPolicy.ResetCooldown();
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            pipe.Dispose();
-            throw new QuickerRpcClientException(
-                ConnectTimeoutErrorCode,
-                $"?? QuickerRpc ?????{connectTimeoutSeconds}s??{pipeName}",
-                BuildPluginNotRunningHints(bootstrapAttempted));
-        }
-        catch (Exception ex)
-        {
-            pipe.Dispose();
-            throw new QuickerRpcClientException(
-                ConnectTimeoutErrorCode,
-                $"?? QuickerRpc ???? '{pipeName}'?{ex.Message}",
-                BuildPluginNotRunningHints(bootstrapAttempted));
+            if (!IsPipeServerListening(pipeName))
+            {
+                throw new QuickerRpcClientException(
+                    PluginNotRunningErrorCode,
+                    BuildPluginNotRunningMessage(pipeName, bootstrapAttempted),
+                    BuildPluginNotRunningHints(bootstrapAttempted));
+            }
+
+            var pipe = new NamedPipeClientStream(
+                ".",
+                pipeName,
+                PipeDirection.InOut,
+                PipeOptions.Asynchronous);
+
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            connectCts.CancelAfter(TimeSpan.FromSeconds(connectTimeoutSeconds));
+
+            try
+            {
+                await pipe.ConnectAsync(connectCts.Token).ConfigureAwait(false);
+                QuickerRpcBootstrapPolicy.ResetCooldown();
+                var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe, clientRpcTarget);
+                return new QuickerRpcClientSession(pipe, jsonRpc, proxy);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                pipe.Dispose();
+                if (attempt >= ConnectRetryCount - 1)
+                {
+                    throw new QuickerRpcClientException(
+                        ConnectTimeoutErrorCode,
+                        $"连接 QuickerRpc 管道超时（{connectTimeoutSeconds}s）：{pipeName}",
+                        BuildPluginNotRunningHints(bootstrapAttempted));
+                }
+            }
+            catch (Exception ex) when (IsRecoverablePipeConnectError(ex) && tryBootstrap && attempt < ConnectRetryCount - 1)
+            {
+                pipe.Dispose();
+                bootstrapAttempted = await TryBootstrapPluginAsync(
+                        pipeName,
+                        timeoutSeconds,
+                        bypassCooldown: true,
+                        cancellationToken)
+                    .ConfigureAwait(false)
+                    || bootstrapAttempted;
+                await Task.Delay(BootstrapPollIntervalMs, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                pipe.Dispose();
+                throw new QuickerRpcClientException(
+                    ConnectTimeoutErrorCode,
+                    $"无法连接 QuickerRpc 管道 '{pipeName}'：{ex.Message}",
+                    BuildPluginNotRunningHints(bootstrapAttempted));
+            }
         }
 
-        var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe, clientRpcTarget);
-        return new QuickerRpcClientSession(pipe, jsonRpc, proxy);
+        throw new QuickerRpcClientException(
+            ConnectTimeoutErrorCode,
+            $"无法连接 QuickerRpc 管道 '{pipeName}'。",
+            BuildPluginNotRunningHints(bootstrapAttempted));
     }
 
     public static CancellationToken CreateRpcCancellationToken(int timeoutSeconds) =>
         new CancellationTokenSource(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds))).Token;
 
+    private static bool IsRecoverablePipeConnectError(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is UnauthorizedAccessException)
+            {
+                return true;
+            }
+
+            if (current is IOException io
+                && io.Message.Contains("denied", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static async Task<bool> TryBootstrapPluginAsync(
         string pipeName,
         int timeoutSeconds,
+        bool bypassCooldown,
         CancellationToken cancellationToken)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -159,8 +207,8 @@ public static class QuickerRpcClient
             return false;
         }
 
-        var recentlyAttempted = QuickerRpcBootstrapPolicy.WasBootstrapRecentlyAttempted();
-        var launched = QuickerRpcBootstrapPolicy.TryLaunchPluginRunAction();
+        var recentlyAttempted = !bypassCooldown && QuickerRpcBootstrapPolicy.WasBootstrapRecentlyAttempted();
+        var launched = QuickerRpcBootstrapPolicy.TryLaunchPluginRunAction(bypassCooldown);
         if (!launched)
         {
             return recentlyAttempted;
@@ -215,6 +263,7 @@ public static class QuickerRpcClient
                     var launched = await TryBootstrapPluginAsync(
                             pipeName,
                             Math.Min(BootstrapMaxWaitSeconds, timeoutSeconds),
+                            bypassCooldown: bootstrapAttempted,
                             cancellationToken)
                         .ConfigureAwait(false);
                     bootstrapAttempted = bootstrapAttempted || launched;
@@ -245,11 +294,11 @@ public static class QuickerRpcClient
                 }
                 catch (QuickerRpcClientException)
                 {
-                    // Pipe visible but session not ready yet ? keep polling.
+                    // Pipe visible but session not ready yet — keep polling.
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    // Per-attempt connect timeout ? keep polling until global deadline.
+                    // Per-attempt connect timeout — keep polling until global deadline.
                 }
             }
 
@@ -257,7 +306,7 @@ public static class QuickerRpcClient
             {
                 throw new QuickerRpcClientException(
                     WaitTimeoutErrorCode,
-                    $"QuickerRpc ? {timeoutSeconds}s ??????? {attempts} ???",
+                    $"QuickerRpc 在 {timeoutSeconds}s 内未就绪（已轮询 {attempts} 次）。",
                     BuildPluginNotRunningHints(bootstrapAttempted));
             }
 

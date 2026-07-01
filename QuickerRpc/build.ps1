@@ -5,6 +5,7 @@
 param(
     [switch]$SkipCliPackaging,
     [switch]$SkipQkrpcServe,
+    [switch]$SkipInstall,
     [Alias('p')]
     [switch]$Publish,
     [Alias('n')]
@@ -415,7 +416,7 @@ try {
     }
     $publishArgs = @()
     if ($skipPackaging) { $publishArgs += '-SkipPackaging' }
-    if ($testBuild) { $publishArgs += '-SkipInstall' }
+    if ($SkipInstall) { $publishArgs += '-SkipInstall' }
     pwsh -NoProfile -File (Join-Path $MonorepoRoot 'publish\publish-rpc.ps1') @publishArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

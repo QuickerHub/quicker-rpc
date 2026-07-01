@@ -131,6 +131,7 @@ public static class ActionTraceLocationResolver
                 ParamKey = paramKey,
                 StepId = stepId,
                 StepRunnerKey = stepRunnerKey,
+                StackTrace = errorEvent?.StackTrace,
             };
         }
 
@@ -144,6 +145,7 @@ public static class ActionTraceLocationResolver
             DataJsonPointer = BuildDataJsonPointer(stepPath, paramKey),
             Message = errorMessage,
             MatchMethod = matchMethod,
+            StackTrace = errorEvent?.StackTrace,
         };
     }
 
@@ -166,7 +168,22 @@ public static class ActionTraceLocationResolver
             result.Events,
             programSteps,
             result.Ok ? null : result.ErrorMessage ?? result.Message);
+        result.StackTrace ??= result.FailureLocation?.StackTrace ?? FindLastErrorStackTrace(result.Events);
         return result;
+    }
+
+    private static string? FindLastErrorStackTrace(IReadOnlyList<QuickerRpcActionTraceEvent> events)
+    {
+        for (var i = events.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(events[i].Kind, "error", StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(events[i].StackTrace))
+            {
+                return events[i].StackTrace;
+            }
+        }
+
+        return null;
     }
 
     private static IList<ProgramStepEntry> WalkProgramStepsCore(JArray steps, string pathPrefix)

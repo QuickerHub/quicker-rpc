@@ -10,37 +10,38 @@ namespace QuickerRpc.Plugin.V2.Services;
 /// <summary>Headless XAction read/write via V2 reflection accessors (no Quicker compile-time refs).</summary>
 public sealed class V2HeadlessActionProgramService
 {
-    private readonly QuickerV2ActionAccessor? _actions = QuickerV2ActionAccessor.Current;
+    // Defer Quicker DI lookup until first RPC call (avoids UI-thread deadlock during plugin start).
+    private QuickerV2ActionAccessor? Actions => QuickerV2ActionAccessor.Current;
 
     public QuickerRpcActionProgramSnapshot? TryLoadProgramSnapshot(string? actionId)
     {
         var id = (actionId ?? string.Empty).Trim();
-        if (id.Length == 0 || _actions is null)
+        if (id.Length == 0 || Actions is null)
         {
             return null;
         }
 
-        if (!_actions.TryGetById(id, out var action, out _) || action is null)
+        if (!Actions.TryGetById(id, out var action, out _) || action is null)
         {
             return null;
         }
 
-        if (!_actions.IsXAction(action))
+        if (!Actions.IsXAction(action))
         {
             return null;
         }
 
-        var payloadJson = _actions.GetPayloadJson(action, out _);
+        var payloadJson = Actions.GetPayloadJson(action, out _);
         if (string.IsNullOrWhiteSpace(payloadJson))
         {
             return null;
         }
 
-        var (title, description, icon, contextMenuData) = _actions.GetPresentation(action);
+        var (title, description, icon, contextMenuData) = Actions.GetPresentation(action);
         return new QuickerRpcActionProgramSnapshot
         {
             ActionId = id,
-            EditVersion = _actions.GetEditVersionMs(action),
+            EditVersion = Actions.GetEditVersionMs(action),
             BodyJson = payloadJson,
             Presentation = new QuickerRpcActionPresentation
             {
@@ -69,7 +70,7 @@ public sealed class V2HeadlessActionProgramService
             return FailApply("xActionJson is required.");
         }
 
-        if (_actions is null)
+        if (Actions is null)
         {
             return FailApply("Quicker V2 action accessor unavailable.");
         }
@@ -91,17 +92,17 @@ public sealed class V2HeadlessActionProgramService
             return FailApply("xAction must contain steps and variables JSON arrays.");
         }
 
-        if (!_actions.TryGetById(id, out var action, out var loadError) || action is null)
+        if (!Actions.TryGetById(id, out var action, out var loadError) || action is null)
         {
             return FailApply(loadError ?? $"Action not found: {id}");
         }
 
-        if (!_actions.IsXAction(action))
+        if (!Actions.IsXAction(action))
         {
             return FailApply($"Action {id} is not an XAction program.");
         }
 
-        var versionBefore = _actions.GetEditVersionMs(action);
+        var versionBefore = Actions.GetEditVersionMs(action);
         if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcApplyXActionResult
@@ -118,21 +119,21 @@ public sealed class V2HeadlessActionProgramService
         var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variables);
         XActionProgramService.NormalizeStepsInputParamKeys(steps, catalog);
 
-        var payload = MergePayload(_actions.GetPayloadJson(action, out _), xAction, steps, normalizedVariables);
-        var clone = _actions.CloneAction(action);
+        var payload = MergePayload(Actions.GetPayloadJson(action, out _), xAction, steps, normalizedVariables);
+        var clone = Actions.CloneAction(action);
         if (clone is null)
         {
             return FailApply("Failed to clone ActionItem2.");
         }
 
-        _actions.SetOperationPayload(clone, payload);
-        _actions.TouchLastEditUtc(clone, DateTime.UtcNow);
-        if (!_actions.TrySaveAction(clone, out var saveError))
+        Actions.SetOperationPayload(clone, payload);
+        Actions.TouchLastEditUtc(clone, DateTime.UtcNow);
+        if (!Actions.TrySaveAction(clone, out var saveError))
         {
             return FailApply(saveError ?? "save_failed");
         }
 
-        if (!_actions.TryGetById(id, out var saved, out _) || saved is null)
+        if (!Actions.TryGetById(id, out var saved, out _) || saved is null)
         {
             return FailApply("save finished but action could not be reloaded.");
         }
@@ -141,7 +142,7 @@ public sealed class V2HeadlessActionProgramService
         {
             Success = true,
             ActionId = id,
-            EditVersion = _actions.GetEditVersionMs(saved),
+            EditVersion = Actions.GetEditVersionMs(saved),
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
         };
     }
@@ -161,17 +162,17 @@ public sealed class V2HeadlessActionProgramService
             return FailMetadata("actionId is required.");
         }
 
-        if (_actions is null)
+        if (Actions is null)
         {
             return FailMetadata("Quicker V2 action accessor unavailable.");
         }
 
-        if (!_actions.TryGetById(id, out var action, out var loadError) || action is null)
+        if (!Actions.TryGetById(id, out var action, out var loadError) || action is null)
         {
             return FailMetadata(loadError ?? $"Action not found: {id}");
         }
 
-        var versionBefore = _actions.GetEditVersionMs(action);
+        var versionBefore = Actions.GetEditVersionMs(action);
         if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcUpdateActionMetadataResult
@@ -184,30 +185,30 @@ public sealed class V2HeadlessActionProgramService
             };
         }
 
-        var clone = _actions.CloneAction(action);
+        var clone = Actions.CloneAction(action);
         if (clone is null)
         {
             return FailMetadata("Failed to clone ActionItem2.");
         }
 
         UpdatePresentationFields(clone, title, description, icon);
-        _actions.TouchLastEditUtc(clone, DateTime.UtcNow);
-        if (!_actions.TrySaveAction(clone, out var saveError))
+        Actions.TouchLastEditUtc(clone, DateTime.UtcNow);
+        if (!Actions.TrySaveAction(clone, out var saveError))
         {
             return FailMetadata(saveError ?? "save_failed");
         }
 
-        if (!_actions.TryGetById(id, out var saved, out _) || saved is null)
+        if (!Actions.TryGetById(id, out var saved, out _) || saved is null)
         {
             return FailMetadata("save finished but action could not be reloaded.");
         }
 
-        var (savedTitle, savedDescription, savedIcon, savedContextMenuData) = _actions.GetPresentation(saved);
+        var (savedTitle, savedDescription, savedIcon, savedContextMenuData) = Actions.GetPresentation(saved);
         return new QuickerRpcUpdateActionMetadataResult
         {
             Success = true,
             ActionId = id,
-            EditVersion = _actions.GetEditVersionMs(saved),
+            EditVersion = Actions.GetEditVersionMs(saved),
             Title = savedTitle,
             Description = savedDescription,
             Icon = savedIcon,
@@ -243,17 +244,17 @@ public sealed class V2HeadlessActionProgramService
             return FailPatch("patchJson parse failed: " + ex.Message);
         }
 
-        if (_actions is null)
+        if (Actions is null)
         {
             return FailPatch("Quicker V2 action accessor unavailable.");
         }
 
-        if (!_actions.TryGetById(snapshot.ActionId, out var action, out var loadError) || action is null)
+        if (!Actions.TryGetById(snapshot.ActionId, out var action, out var loadError) || action is null)
         {
             return FailPatch(loadError ?? $"Action not found: {snapshot.ActionId}");
         }
 
-        var versionBefore = _actions.GetEditVersionMs(action);
+        var versionBefore = Actions.GetEditVersionMs(action);
         if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return FailPatch(
@@ -269,26 +270,26 @@ public sealed class V2HeadlessActionProgramService
             return FailPatch(core.ErrorMessage ?? "patch apply failed.");
         }
 
-        var clone = _actions.CloneAction(action);
+        var clone = Actions.CloneAction(action);
         if (clone is null)
         {
             return FailPatch("Failed to clone ActionItem2.");
         }
 
-        _actions.SetOperationPayload(clone, core.Body.ToString(Newtonsoft.Json.Formatting.None));
+        Actions.SetOperationPayload(clone, core.Body.ToString(Newtonsoft.Json.Formatting.None));
         UpdatePresentationFields(
             clone,
             core.Metadata.Title,
             core.Metadata.Description,
             core.Metadata.Icon,
             core.Metadata.ContextMenuData);
-        _actions.TouchLastEditUtc(clone, DateTime.UtcNow);
-        if (!_actions.TrySaveAction(clone, out var saveError))
+        Actions.TouchLastEditUtc(clone, DateTime.UtcNow);
+        if (!Actions.TrySaveAction(clone, out var saveError))
         {
             return FailPatch(saveError ?? "save_failed");
         }
 
-        if (!_actions.TryGetById(snapshot.ActionId, out var saved, out _) || saved is null)
+        if (!Actions.TryGetById(snapshot.ActionId, out var saved, out _) || saved is null)
         {
             return FailPatch("save finished but action could not be reloaded.");
         }
@@ -297,7 +298,7 @@ public sealed class V2HeadlessActionProgramService
         {
             Success = true,
             ActionId = snapshot.ActionId,
-            EditVersion = _actions.GetEditVersionMs(saved),
+            EditVersion = Actions.GetEditVersionMs(saved),
             PresentationUpdated = core.PresentationUpdated,
             UpdatedStepsJson = core.UpdatedStepsJson,
             AddedStepsJson = core.AddedStepsJson,

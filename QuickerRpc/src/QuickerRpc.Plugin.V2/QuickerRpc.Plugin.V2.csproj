@@ -14,9 +14,6 @@
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <NoWarn>$(NoWarn);VSTHRD003</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(UseAssemblyVersionFileNameSuffix)' == 'true'">
-    <AssemblyName>QuickerRpc.Plugin.$(Version)</AssemblyName>
-  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.Host.Abstractions\QuickerRpc.Host.Abstractions.csproj" />
@@ -32,6 +29,8 @@
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionExecuteService.cs" Link="Shared\ExpressionExecuteService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionVariablePlaceholder.cs" Link="Shared\ExpressionVariablePlaceholder.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionVariableResolver.cs" Link="Shared\ExpressionVariableResolver.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionRunService.cs" Link="Shared\ActionRunService.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\PluginAssemblyResolve.cs" Link="Shared\PluginAssemblyResolve.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Costura.Fody">
@@ -46,4 +45,8 @@
   <Import Project="$(MonorepoRoot)qkref.net10.props" Condition="Exists('$(MonorepoRoot)qkref.net10.props')" />
   <Import Project="$(MonorepoRoot)..\..\qkref.net10.props" Condition="!Exists('$(MonorepoRoot)qkref.net10.props') And Exists('$(MonorepoRoot)..\..\qkref.net10.props')" />
   <Import Project="$(RepoRoot)..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
+  <!-- QuickerRpc_Run loads QuickerRpc.Plugin.{version}.dll (not QuickerRpc.Plugin.V2). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <AssemblyName>QuickerRpc.Plugin.$(Version)</AssemblyName>
+  </PropertyGroup>
 </Project>

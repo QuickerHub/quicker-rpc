@@ -1,9 +1,6 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using Quicker.Domain;
-using Quicker.Domain.Actions;
-using Quicker.Domain.Actions.Runtime;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
@@ -79,7 +76,8 @@ public sealed class ActionRunService
 
         try
         {
-            var appServer = typeof(AppState).GetProperty("AppServer", BindingFlags.Public | BindingFlags.Static)
+            var appStateType = ResolveAppStateType();
+            var appServer = appStateType?.GetProperty("AppServer", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
             if (appServer is null)
             {
@@ -217,11 +215,6 @@ public sealed class ActionRunService
         errorMessage = null;
         stopFlag = null;
 
-        if (context is ActionExecuteContext typed)
-        {
-            return TryReadExecutionFailure(typed, out errorMessage, out stopFlag);
-        }
-
         if (context is null)
         {
             return false;
@@ -243,33 +236,13 @@ public sealed class ActionRunService
         return true;
     }
 
-    private static bool TryReadExecutionFailure(
-        ActionExecuteContext context,
-        out string? errorMessage,
-        out string? stopFlag)
-    {
-        errorMessage = null;
-        stopFlag = null;
-
-        if (!context.ReturnError && context.StopFlag == ActionStopFlag.NoStop)
-        {
-            return false;
-        }
-
-        stopFlag = context.StopFlag.ToString();
-        errorMessage = !string.IsNullOrWhiteSpace(context.ErrorMessage)
-            ? context.ErrorMessage
-            : DescribeStopFlag(stopFlag);
-        return true;
-    }
-
     private static string DescribeStopFlag(string? stopFlag) =>
         stopFlag switch
         {
-            nameof(ActionStopFlag.OperationFailed) => "动作执行失败。",
-            nameof(ActionStopFlag.UserCancel) => "动作已被用户取消。",
-            nameof(ActionStopFlag.ForceStop) => "动作已被强制停止。",
-            nameof(ActionStopFlag.StopFromCode) => "动作被停止模块终止。",
+            "OperationFailed" => "动作执行失败。",
+            "UserCancel" => "动作已被用户取消。",
+            "ForceStop" => "动作已被强制停止。",
+            "StopFromCode" => "动作被停止模块终止。",
             _ => "动作未成功完成。",
         };
 
@@ -303,11 +276,6 @@ public sealed class ActionRunService
         if (context is null)
         {
             return null;
-        }
-
-        if (context is ActionExecuteContext typed)
-        {
-            return string.IsNullOrWhiteSpace(typed.ReturnResult) ? null : typed.ReturnResult;
         }
 
         var value = context.GetType().GetProperty("ReturnResult")?.GetValue(context) as string;
@@ -360,4 +328,18 @@ public sealed class ActionRunService
 
     private static bool IsInQuicker() =>
         Assembly.GetEntryAssembly()?.GetName().Name == "Quicker";
+
+    private static Type? ResolveAppStateType()
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var type = assembly.GetType("Quicker.Domain.AppState", throwOnError: false);
+            if (type is not null)
+            {
+                return type;
+            }
+        }
+
+        return null;
+    }
 }

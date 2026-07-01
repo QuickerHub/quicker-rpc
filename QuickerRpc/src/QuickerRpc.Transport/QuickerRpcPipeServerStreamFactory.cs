@@ -17,13 +17,15 @@ internal static class QuickerRpcPipeServerStreamFactory
             0,
             QuickerRpcPipeSecurity.CreateForCrossElevationPeers());
 #else
-        // Cross-elevation DACL is net472-only today; net10 uses default pipe ACL (Quicker V2 follow-up if needed).
-        return new NamedPipeServerStream(
+        return NamedPipeServerStreamAcl.Create(
             pipeName,
             PipeDirection.InOut,
             NamedPipeServerStream.MaxAllowedServerInstances,
             PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
+            PipeOptions.Asynchronous,
+            0,
+            0,
+            QuickerRpcPipeSecurity.CreateForCrossElevationPeers());
 #endif
     }
 }

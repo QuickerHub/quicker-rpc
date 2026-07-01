@@ -21,7 +21,7 @@ V2 service locator: `Quicker.Domain.Services.Launcher.GetService` (fallback: leg
 | `StepRunners` | `IStepRunnerService.GetAllRunners` (full inputParams mapping) |
 | `Search` | `GetAllActionsWithLocation` + `SnapshotAll` linear scan |
 
-Headless editing workflow (`action get/patch`, `subprogram get/patch`, `step-runner get`, `action list`, `subprogram list`) is supported via reflection. Other ports return structured "not implemented yet" errors.
+Headless editing workflow (`action get/patch`, `subprogram get/patch`, `step-runner get`, `action list`, `subprogram list`) is supported via reflection. `action run` uses shared `ActionRunService`; `action run --trace` is not wired on V2 yet. Other ports return structured "not implemented yet" errors.
 
 ## Layout
 

@@ -281,12 +281,13 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        return InvokeOnDispatcherAsync(
+        return InvokeOffUiThreadAsync(
             () => _subProgramHandler.GetCompressedSubProgramAsync(
-                _host.SubPrograms,
-                subProgramIdOrName,
-                returnMode,
-                cancellationToken),
+                    _host.SubPrograms,
+                    subProgramIdOrName,
+                    returnMode,
+                    cancellationToken)
+                .ConfigureAwait(false).GetAwaiter().GetResult(),
             cancellationToken);
     }
 
@@ -336,12 +337,115 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcActionUpdateResult> UpdateSharedSubProgramAsync(
+        string subProgramIdOrName,
+        string? changeLog = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subProgramIdOrName))
+        {
+            return Task.FromResult(new QuickerRpcActionUpdateResult
+            {
+                Ok = false,
+                Message = "subProgram id or name is required.",
+            });
+        }
+
+        return MapPublishToUpdateResultAsync(
+            PublishSharedSubProgramAsync(
+                subProgramIdOrName,
+                new QuickerRpcActionPublishRequest { ChangeLog = changeLog },
+                cancellationToken),
+            subProgramIdOrName.Trim());
+    }
+
+    public Task<QuickerRpcActionPublishResult> PublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subProgramIdOrName))
+        {
+            return Task.FromResult(new QuickerRpcActionPublishResult
+            {
+                Ok = false,
+                Message = "subProgram id or name is required.",
+            });
+        }
+
+        request ??= new QuickerRpcActionPublishRequest();
+
+        return InvokeOnDispatcherAsync(
+            async () =>
+            {
+                QuickerRpcActionPublishResult result;
+                try
+                {
+                    result = await _host.SubPrograms
+                        .PublishSharedSubProgramAsync(subProgramIdOrName.Trim(), request, cancellationToken)
+                        .ConfigureAwait(true);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    result = new QuickerRpcActionPublishResult
+                    {
+                        Ok = false,
+                        ActionId = subProgramIdOrName.Trim(),
+                        Message = ex.Message,
+                    };
+                }
+
+                if (result.Ok)
+                {
+                    var text = string.Equals(result.Mode, "update", StringComparison.OrdinalIgnoreCase)
+                        ? (string.IsNullOrWhiteSpace(result.Message)
+                            ? $"子程序已更新：{result.SharedActionId ?? result.ActionId}"
+                            : result.Message)
+                        : (string.IsNullOrWhiteSpace(result.Message)
+                            ? $"子程序已分享：{result.ShareUrl}"
+                            : result.Message);
+                    _feedback.Success(text);
+                }
+                else
+                {
+                    _feedback.Error(string.IsNullOrWhiteSpace(result.Message) ? "分享子程序失败" : result.Message);
+                }
+
+                return result;
+            },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subProgramIdOrName))
+        {
+            return Task.FromResult(new QuickerRpcActionPublishPreflightResult
+            {
+                Ready = false,
+                Message = "subProgram id or name is required.",
+            });
+        }
+
+        request ??= new QuickerRpcActionPublishRequest();
+        return InvokeOnDispatcherAsync(
+            () => _host.SubPrograms.PreflightPublishSharedSubProgramAsync(
+                subProgramIdOrName.Trim(),
+                request,
+                cancellationToken),
+            cancellationToken);
+    }
+
     public Task<QuickerRpcActionUpdateResult> EditGlobalSubProgramAsync(
         string subProgramIdOrName,
         CancellationToken cancellationToken = default)
     {
-        return InvokeOnDispatcherAsync(
-            () => _host.Designer!.OpenSubProgramEditorAsync(subProgramIdOrName, cancellationToken),
+        return InvokeOffUiThreadAsync(
+            () => _host.Designer!.OpenSubProgramEditorAsync(subProgramIdOrName, cancellationToken)
+                .ConfigureAwait(false).GetAwaiter().GetResult(),
             cancellationToken);
     }
 
@@ -648,8 +752,9 @@ public sealed class QuickerRpcService : IQuickerRpcService
             });
         }
 
-        return InvokeOnDispatcherAsync(
-            () => _host.Designer!.OpenActionEditorAsync(actionId.Trim(), cancellationToken),
+        return InvokeOffUiThreadAsync(
+            () => _host.Designer!.OpenActionEditorAsync(actionId.Trim(), cancellationToken)
+                .ConfigureAwait(false).GetAwaiter().GetResult(),
             cancellationToken);
     }
 
@@ -821,12 +926,13 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        return InvokeOnDispatcherAsync(
+        return InvokeOffUiThreadAsync(
             () => _actionProgramHandler.GetCompressedActionByIdAsync(
-                _host.ActionPrograms,
-                actionId,
-                returnMode,
-                cancellationToken),
+                    _host.ActionPrograms,
+                    actionId,
+                    returnMode,
+                    cancellationToken)
+                .ConfigureAwait(false).GetAwaiter().GetResult(),
             cancellationToken);
     }
 

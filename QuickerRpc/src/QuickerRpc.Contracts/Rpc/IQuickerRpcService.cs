@@ -131,6 +131,24 @@ public interface IQuickerRpcService
         bool force = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Share or refresh a global subprogram on getquicker.net (first publish or update).</summary>
+    Task<QuickerRpcActionPublishResult> PublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Validate subprogram publish/update prerequisites without uploading.</summary>
+    Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Refresh a shared subprogram. Alias for <see cref="PublishSharedSubProgramAsync"/>.</summary>
+    Task<QuickerRpcActionUpdateResult> UpdateSharedSubProgramAsync(
+        string subProgramIdOrName,
+        string? changeLog = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Open the Quicker subprogram editor for a global subprogram.</summary>
     Task<QuickerRpcActionUpdateResult> EditGlobalSubProgramAsync(
         string subProgramIdOrName,

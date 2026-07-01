@@ -21,14 +21,14 @@ public sealed class ActionPublishService
     private readonly ActionEditMgrAccessor? _actionEditMgr;
     private readonly ActionUpdateService _actionUpdateService;
     private readonly ActionDocService _actionDocService;
-    private readonly WebConnectorAccessor? _webConnector;
+    private readonly Lazy<WebConnectorAccessor?> _webConnector =
+        new(WebConnectorAccessor.TryCreate, System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 
     public ActionPublishService(ActionUpdateService actionUpdateService, ActionDocService actionDocService)
     {
         _actionUpdateService = actionUpdateService;
         _actionDocService = actionDocService;
         _actionEditMgr = ActionEditMgrAccessor.TryCreate();
-        _webConnector = WebConnectorAccessor.TryCreate();
     }
 
     public Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedActionAsync(
@@ -102,7 +102,7 @@ public sealed class ActionPublishService
             ChangeLog = request.ChangeLog,
             UseTemplate = action?.UseTemplate ?? false,
             TemplateId = action?.TemplateId,
-            HasWebConnector = _webConnector is not null,
+            HasWebConnector = _webConnector.Value is not null,
             HasActionEditMgr = _actionEditMgr?.SetButtonAction is not null,
             EmbedSubProgramsError = TryProbeEmbedSubPrograms(action),
             Tags = request.Tags,
@@ -215,7 +215,7 @@ public sealed class ActionPublishService
         }
 
         var vm = BuildSharedActionVm(action, profile, request, title, description, isPublic, readiness.Tags);
-        var (shareOk, shareMessage, sharedDto) = await _webConnector!.ShareActionAsync(vm).ConfigureAwait(true);
+        var (shareOk, shareMessage, sharedDto) = await _webConnector.Value!.ShareActionAsync(vm).ConfigureAwait(true);
         if (!shareOk || sharedDto is null)
         {
             return Fail(action.Id ?? id, string.IsNullOrWhiteSpace(shareMessage) ? "Share failed." : shareMessage);

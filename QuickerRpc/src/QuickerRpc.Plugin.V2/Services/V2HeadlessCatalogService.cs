@@ -7,8 +7,8 @@ namespace QuickerRpc.Plugin.V2.Services;
 /// <summary>Action/subprogram discovery for qkrpc list/search on V2 reflection host.</summary>
 public sealed class V2HeadlessCatalogService
 {
-    private readonly QuickerV2ActionAccessor? _actions = QuickerV2ActionAccessor.Current;
-    private readonly QuickerV2SubProgramAccessor? _subPrograms = QuickerV2SubProgramAccessor.Current;
+    private QuickerV2ActionAccessor? Actions => QuickerV2ActionAccessor.Current;
+    private QuickerV2SubProgramAccessor? SubPrograms => QuickerV2SubProgramAccessor.Current;
 
     public QuickerRpcSearchActionSummariesResult SearchActionSummaries(
         string? query,
@@ -16,14 +16,14 @@ public sealed class V2HeadlessCatalogService
         string? scope,
         string? sort = null)
     {
-        if (_actions is null)
+        if (Actions is null)
         {
             return FailActionSummaries("Quicker V2 action accessor unavailable.");
         }
 
         var keyword = (query ?? string.Empty).Trim();
         var limit = Clamp(maxResults, 1, 100);
-        var rows = _actions.EnumerateAllWithLocation();
+        var rows = Actions.EnumerateAllWithLocation();
         if (rows.Count == 0)
         {
             return new QuickerRpcSearchActionSummariesResult
@@ -39,25 +39,25 @@ public sealed class V2HeadlessCatalogService
         var scored = new List<(int Score, QuickerRpcActionSummaryItem Item, long EditMs)>();
         foreach (var (action, _) in rows)
         {
-            if (!_actions.IsXAction(action))
+            if (!Actions.IsXAction(action))
             {
                 continue;
             }
 
-            var actionId = _actions.GetActionId(action);
+            var actionId = Actions.GetActionId(action);
             if (actionId.Length == 0)
             {
                 continue;
             }
 
-            var (title, description, icon, _) = _actions.GetPresentation(action);
+            var (title, description, icon, _) = Actions.GetPresentation(action);
             var score = ScoreAction(keyword, actionId, title, description);
             if (keyword.Length > 0 && score <= 0)
             {
                 continue;
             }
 
-            var editMs = _actions.GetEditVersionMs(action);
+            var editMs = Actions.GetEditVersionMs(action);
             scored.Add((score, new QuickerRpcActionSummaryItem
             {
                 ActionId = actionId,
@@ -66,9 +66,9 @@ public sealed class V2HeadlessCatalogService
                 Icon = icon,
                 LastEditTimeUtc = FormatUtc(editMs),
                 LastEditTimeLocal = FormatLocal(editMs),
-                TemplateId = _actions.GetTemplateId(action),
-                SharedActionId = _actions.GetSharedActionId(action),
-                Source = _actions.IsFromSharedAction(action) ? "library" : "local",
+                TemplateId = Actions.GetTemplateId(action),
+                SharedActionId = Actions.GetSharedActionId(action),
+                Source = Actions.IsFromSharedAction(action) ? "library" : "local",
                 Score = keyword.Length > 0 ? score : null,
             }, editMs));
         }
@@ -105,7 +105,7 @@ public sealed class V2HeadlessCatalogService
         int maxCount,
         bool emptyKeywordListsAll)
     {
-        if (_subPrograms is null)
+        if (SubPrograms is null)
         {
             return FailSubPrograms("Quicker V2 subprogram accessor unavailable.");
         }
@@ -114,9 +114,9 @@ public sealed class V2HeadlessCatalogService
         var limit = Clamp(maxCount, 1, 100);
         var hits = new List<(int Score, QuickerRpcSubProgramSummary Item)>();
 
-        foreach (var subProgram in _subPrograms.EnumerateAll())
+        foreach (var subProgram in SubPrograms.EnumerateAll())
         {
-            var id = _subPrograms.GetId(subProgram);
+            var id = SubPrograms.GetId(subProgram);
             if (id.Length == 0)
             {
                 continue;
@@ -124,7 +124,7 @@ public sealed class V2HeadlessCatalogService
 
             var name = QuickerV2Reflection.ReadString(subProgram, "Name") ?? string.Empty;
             var description = QuickerV2Reflection.ReadString(subProgram, "Description");
-            var callId = _subPrograms.GetCallIdentifier(subProgram);
+            var callId = SubPrograms.GetCallIdentifier(subProgram);
             var score = keyword.Length == 0
                 ? (emptyKeywordListsAll ? 1 : 0)
                 : SubProgramSearchScorer.ScoreFields(keyword, id, name, callId, description);

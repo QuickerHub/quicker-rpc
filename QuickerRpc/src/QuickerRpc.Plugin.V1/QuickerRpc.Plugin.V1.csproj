@@ -52,5 +52,10 @@
     <InternalsVisibleTo Include="QuickerRpc.Plugin.Test" />
   </ItemGroup>
   <Import Project="$(MonorepoRoot)qkref.props" />
-  <Import Project="$(MonorepoRoot)build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
+  <Import Project="$(RepoRoot)..\build\AssemblyVersionFileNameSuffix.props"
+          Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true' AND Exists('$(RepoRoot)..\build\AssemblyVersionFileNameSuffix.props')" />
+  <!-- QuickerRpc_Run loads {name}.{version}.dll with name=QuickerRpc.Plugin (not project file QuickerRpc.Plugin.V1). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <AssemblyName>QuickerRpc.Plugin.$(Version)</AssemblyName>
+  </PropertyGroup>
 </Project>

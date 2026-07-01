@@ -28,6 +28,7 @@ public static partial class Launcher
                 services.AddHostedService<AgentSearchIndexWarmupService>();
                 services.AddSingleton<ActionUpdateService>();
                 services.AddSingleton<ActionPublishService>();
+                services.AddSingleton<SubProgramPublishService>();
                 services.AddSingleton<ActionDocService>();
                 services.AddSingleton<ActionSearchService>();
                 services.AddSingleton<SubProgramSearchService>();

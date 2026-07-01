@@ -463,7 +463,7 @@ public sealed class HeadlessSubProgramProgramService
 
         try
         {
-            ActionProgramPatchUiGate.TryRefreshOpenDesignerProgram(
+            ActionProgramPatchUiGate.ScheduleRefreshOpenDesignerProgram(
                 saved!.Id ?? key,
                 isSubProgram: true,
                 steps,
@@ -551,12 +551,25 @@ public sealed class HeadlessSubProgramProgramService
 
         try
         {
-            _actionEditMgr.CreateOrEditGlobalSubProgram.Invoke(_actionEditMgr.Instance, new object[] { subProgram! });
+            QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
+            {
+                try
+                {
+                    _actionEditMgr.CreateOrEditGlobalSubProgram.Invoke(_actionEditMgr.Instance, new object[] { subProgram! });
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.TraceWarning(
+                        "[QuickerRpc.Plugin] EditSubProgram UI failed: {0}",
+                        ex.Message);
+                }
+            });
+
             return new QuickerRpcActionUpdateResult
             {
                 Ok = true,
                 ActionId = subProgram!.Id,
-                Message = "公共子程序编辑窗口已打开。",
+                Message = "公共子程序编辑窗口正在打开。",
             };
         }
         catch (Exception ex) when (ex is TargetInvocationException tie && tie.InnerException is not null)

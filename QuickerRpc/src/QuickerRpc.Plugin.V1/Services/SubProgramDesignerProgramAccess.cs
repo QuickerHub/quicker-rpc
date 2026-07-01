@@ -114,14 +114,10 @@ internal static class SubProgramDesignerProgramAccess
         error = null;
         var subProgramId = live.Id ?? string.Empty;
 
-        if (ActionDesignerUiSave.TryPersistOpenSubProgramDesignerOnUiThread(subProgramId, xAction, out error))
-        {
-            return true;
-        }
-
+        // Headless RPC: write catalog directly. Do not simulate designer Ctrl+S (blocks UI for minutes).
+        // Open designer refresh is handled by ActionProgramPatchUiGate.ScheduleRefreshOpenDesignerProgram.
         if (DesignerHostSubProgramSave.TrySave(live, xAction, out error))
         {
-            ActionDesignerUiSave.TrySyncOpenSubProgramDesignerOnUiThread(subProgramId, xAction);
             return true;
         }
 
@@ -131,13 +127,12 @@ internal static class SubProgramDesignerProgramAccess
             return false;
         }
 
-        if (!accessor.TryGetByIdOrName(subProgramId, out _, out _) )
+        if (!accessor.TryGetByIdOrName(subProgramId, out _, out _))
         {
             error = "save finished but subprogram could not be reloaded.";
             return false;
         }
 
-        ActionDesignerUiSave.TrySyncOpenSubProgramDesignerOnUiThread(subProgramId, xAction);
         return true;
     }
 

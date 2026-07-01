@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using QuickerRpc.AgentModel.Schemas;
 using QuickerRpc.Contracts.Rpc;
@@ -504,6 +505,152 @@ internal static partial class Program
         {
             return await EmitErrorAndFailAsync(options.Json, "SUBPROGRAM_EDIT_VAR_FAILED", ex.Message)
                 .ConfigureAwait(false);
+        }
+    }
+
+    private static Task<int> RunSubProgramUpdateAsync(SubProgramOptions options) =>
+        RunSubProgramPublishAsync(options);
+
+    private static async Task<int> RunSubProgramPublishAsync(SubProgramOptions options)
+    {
+        var subProgramId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(subProgramId))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_SUBPROGRAM_ID", "Provide --id <subProgramIdOrName>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var (changelogOk, changelog, changelogErrorCode, changelogErrorMessage) = ResolveSubProgramChangelog(options);
+        if (!changelogOk)
+        {
+            await EmitErrorAsync(options.Json, changelogErrorCode!, changelogErrorMessage!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var request = new QuickerRpcActionPublishRequest
+        {
+            Title = options.Title,
+            Description = options.Description,
+            Keywords = options.Keywords,
+            ChangeLog = changelog,
+            IsPublic = !options.Private,
+        };
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            if (options.Preflight)
+            {
+                var preflight = await session.Proxy
+                    .PreflightPublishSharedSubProgramAsync(subProgramId, request, rpcToken)
+                    .ConfigureAwait(false);
+
+                if (options.Json)
+                {
+                    global::System.Console.WriteLine(JsonSerializer.Serialize(
+                        new
+                        {
+                            ok = preflight.Ready,
+                            action = "subprogram-publish-preflight",
+                            mode = preflight.Mode,
+                            subProgramId = preflight.ActionId ?? subProgramId,
+                            sharedId = preflight.SharedActionId,
+                            ready = preflight.Ready,
+                            issues = preflight.Issues,
+                            message = preflight.Message,
+                        },
+                        QkrpcJson.CliOutput));
+                }
+                else if (!preflight.Ready)
+                {
+                    WritePublishIssues(preflight.Issues, preflight.Message);
+                }
+
+                return preflight.Ready ? ExitCodes.Success : ExitCodes.Error;
+            }
+
+            var result = await session.Proxy
+                .PublishSharedSubProgramAsync(subProgramId, request, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "subprogram-publish",
+                        mode = result.Mode ?? "publish",
+                        subProgramId = result.ActionId ?? subProgramId,
+                        sharedId = result.SharedActionId,
+                        shareUrl = result.ShareUrl,
+                        revision = result.Revision,
+                        isPublic = result.IsPublic,
+                        issues = result.Issues,
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (!result.Ok)
+            {
+                WritePublishIssues(result.Issues, result.Message);
+            }
+            else
+            {
+                global::System.Console.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "SUBPROGRAM_PUBLISH_FAILED", ex.Message)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static (bool Ok, string? Changelog, string? ErrorCode, string? ErrorMessage) ResolveSubProgramChangelog(
+        SubProgramOptions options)
+    {
+        var hasInline = !string.IsNullOrWhiteSpace(options.Changelog);
+        var hasFile = !string.IsNullOrWhiteSpace(options.ChangelogFile);
+
+        if (hasInline && hasFile)
+        {
+            return (false, null, "CONFLICTING_CHANGELOG", "Use either --changelog or --changelog-file, not both.");
+        }
+
+        if (!hasFile)
+        {
+            return (true, options.Changelog, null, null);
+        }
+
+        var path = options.ChangelogFile!.Trim();
+        if (!File.Exists(path))
+        {
+            return (false, null, "CHANGELOG_FILE_NOT_FOUND", $"Changelog file not found: {path}");
+        }
+
+        try
+        {
+            var text = File.ReadAllText(path, Encoding.UTF8).TrimEnd();
+            return (true, text, null, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, "CHANGELOG_FILE_READ_FAILED", ex.Message);
         }
     }
 }

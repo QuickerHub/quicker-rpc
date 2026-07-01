@@ -31,23 +31,38 @@ internal static class ActionDesignerProgramBridge
         out QuickerRpcGetCompressedActionResult result)
     {
         result = new QuickerRpcGetCompressedActionResult();
-        var designer = ActionDesignerUiSave.TryFindActionDesignerWindow(actionId, isSubProgram: false);
-        if (designer is null)
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () => TryGetCompressedActionOnUiThread(actionId, mode),
+                QuickerDispatcherInvoke.DesignerUiReadTimeout,
+                out var outcome))
         {
             return false;
         }
 
-        ActionDesignerUiSave.WaitUntilDesignerLoaded(designer);
+        result = outcome.Result;
+        return outcome.Handled;
+    }
+
+    private static (bool Handled, QuickerRpcGetCompressedActionResult Result) TryGetCompressedActionOnUiThread(
+        string actionId,
+        XActionGetReturnMode mode)
+    {
+        var result = new QuickerRpcGetCompressedActionResult();
+        var designer = ActionDesignerUiSave.TryFindActionDesignerWindow(actionId, isSubProgram: false);
+        if (designer is null)
+        {
+            return (false, result);
+        }
+
         if (!designer.IsLoaded)
         {
-            return false;
+            return (false, result);
         }
 
         if (!ActionDesignerContext.TryExportXActionJson(designer, out var payloadJson, out var error)
             || string.IsNullOrWhiteSpace(payloadJson))
         {
-            result = FailGet(error ?? "Designer export failed.");
-            return true;
+            return (true, FailGet(error ?? "Designer export failed."));
         }
 
         try
@@ -128,12 +143,11 @@ internal static class ActionDesignerProgramBridge
                 ReturnMode = wireMode,
                 ReadSource = ReadSourceDesigner,
             };
-            return true;
+            return (true, result);
         }
         catch (Exception ex)
         {
-            result = FailGet(ex.Message);
-            return true;
+            return (true, FailGet(ex.Message));
         }
     }
 
@@ -325,6 +339,23 @@ internal static class ActionDesignerProgramBridge
         out QuickerRpcGetCompressedSubProgramResult result)
     {
         result = new QuickerRpcGetCompressedSubProgramResult();
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () => TryGetCompressedSubProgramOnUiThread(subProgramKey, mode),
+                QuickerDispatcherInvoke.DesignerUiReadTimeout,
+                out var outcome))
+        {
+            return false;
+        }
+
+        result = outcome.Result;
+        return outcome.Handled;
+    }
+
+    private static (bool Handled, QuickerRpcGetCompressedSubProgramResult Result) TryGetCompressedSubProgramOnUiThread(
+        string subProgramKey,
+        XActionGetReturnMode mode)
+    {
+        var result = new QuickerRpcGetCompressedSubProgramResult();
         Window? designer = null;
         foreach (var isSubProgram in new[] { true, false })
         {
@@ -337,20 +368,18 @@ internal static class ActionDesignerProgramBridge
 
         if (designer is null)
         {
-            return false;
+            return (false, result);
         }
 
-        ActionDesignerUiSave.WaitUntilDesignerLoaded(designer);
         if (!designer.IsLoaded)
         {
-            return false;
+            return (false, result);
         }
 
         if (!ActionDesignerContext.TryExportXActionJson(designer, out var payloadJson, out var error)
             || string.IsNullOrWhiteSpace(payloadJson))
         {
-            result = FailSubProgramGet(error ?? "Designer export failed.");
-            return true;
+            return (true, FailSubProgramGet(error ?? "Designer export failed."));
         }
 
         try
@@ -409,12 +438,11 @@ internal static class ActionDesignerProgramBridge
                 ReturnMode = wireMode,
                 ReadSource = ReadSourceDesigner,
             };
-            return true;
+            return (true, result);
         }
         catch (Exception ex)
         {
-            result = FailSubProgramGet(ex.Message);
-            return true;
+            return (true, FailSubProgramGet(ex.Message));
         }
     }
 

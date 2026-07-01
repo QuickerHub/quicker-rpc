@@ -216,6 +216,8 @@ internal static partial class Program
             "edit" => await RunSubProgramEditAsync(options).ConfigureAwait(false),
             "delete" => await RunSubProgramDeleteAsync(options).ConfigureAwait(false),
             "edit-var" => await RunSubProgramEditVarAsync(options).ConfigureAwait(false),
+            "publish" => await RunSubProgramPublishAsync(options).ConfigureAwait(false),
+            "update" => await RunSubProgramUpdateAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownSubProgramVerbAsync(options).ConfigureAwait(false),
         };
     }
@@ -225,7 +227,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SUBPROGRAM_VERB",
-            "Use: subprogram create|get|patch|replace|validate|export|import|apply|list|search|edit|edit-var|delete (see qkrpc help --json)")
+            "Use: subprogram create|get|patch|replace|validate|export|import|apply|list|search|publish|update|edit|edit-var|delete (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -996,6 +998,11 @@ internal static partial class Program
                 .RunXActionTraceAsync(xActionJson, options.Param, progress, rpcToken)
                 .ConfigureAwait(false);
 
+            if (!result.Ok)
+            {
+                ActionTraceResultEnricher.EnrichFailure(result);
+            }
+
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
@@ -1015,6 +1022,8 @@ internal static partial class Program
                         message = result.Message,
                         events = result.Events,
                         failureLocation = result.FailureLocation,
+                        stackTrace = result.StackTrace,
+                        logExcerpt = result.LogExcerpt,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -1030,6 +1039,17 @@ internal static partial class Program
 
                 if (!result.Ok)
                 {
+                    if (!string.IsNullOrWhiteSpace(result.StackTrace))
+                    {
+                        global::System.Console.Error.WriteLine(result.StackTrace);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(result.LogExcerpt))
+                    {
+                        global::System.Console.Error.WriteLine("--- quicker.log excerpt ---");
+                        global::System.Console.Error.WriteLine(result.LogExcerpt);
+                    }
+
                     global::System.Console.Error.WriteLine(result.Message);
                 }
                 else if (!string.IsNullOrWhiteSpace(result.ReturnResult))
@@ -1080,6 +1100,11 @@ internal static partial class Program
                 .RunActionTraceAsync(actionId, options.Param, progress, rpcToken)
                 .ConfigureAwait(false);
 
+            if (!result.Ok)
+            {
+                ActionTraceResultEnricher.EnrichFailure(result);
+            }
+
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
@@ -1098,6 +1123,8 @@ internal static partial class Program
                         message = result.Message,
                         events = result.Events,
                         failureLocation = result.FailureLocation,
+                        stackTrace = result.StackTrace,
+                        logExcerpt = result.LogExcerpt,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -1113,6 +1140,17 @@ internal static partial class Program
 
                 if (!result.Ok)
                 {
+                    if (!string.IsNullOrWhiteSpace(result.StackTrace))
+                    {
+                        global::System.Console.Error.WriteLine(result.StackTrace);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(result.LogExcerpt))
+                    {
+                        global::System.Console.Error.WriteLine("--- quicker.log excerpt ---");
+                        global::System.Console.Error.WriteLine(result.LogExcerpt);
+                    }
+
                     global::System.Console.Error.WriteLine(result.Message);
                 }
                 else if (!string.IsNullOrWhiteSpace(result.ReturnResult))
@@ -1733,7 +1771,7 @@ public sealed class ActionOptions
 [Verb("subprogram", HelpText = "Global (public) subprogram operations via RPC.")]
 public sealed class SubProgramOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | edit | edit-var | delete")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | publish | update | edit | edit-var | delete")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Global subprogram id or name.")]
@@ -1748,8 +1786,23 @@ public sealed class SubProgramOptions
     [Option("title", HelpText = "Alias for --name on create.")]
     public string? Title { get; set; }
 
-    [Option("description", HelpText = "Description for create.")]
+    [Option("description", HelpText = "Description for create or first publish.")]
     public string? Description { get; set; }
+
+    [Option("changelog", HelpText = "Required when updating an already-shared subprogram.")]
+    public string? Changelog { get; set; }
+
+    [Option("changelog-file", HelpText = "Changelog UTF-8 file (update).")]
+    public string? ChangelogFile { get; set; }
+
+    [Option("private", HelpText = "Non-public share (first publish).")]
+    public bool Private { get; set; }
+
+    [Option("preflight", HelpText = "Validate publish/update prerequisites without uploading.")]
+    public bool Preflight { get; set; }
+
+    [Option("keywords", HelpText = "Keywords for subprogram publish.")]
+    public string? Keywords { get; set; }
 
     [Option("icon", HelpText = "Icon: fa:Light_Name[:#color] or absolute http(s) image URL.")]
     public string? Icon { get; set; }

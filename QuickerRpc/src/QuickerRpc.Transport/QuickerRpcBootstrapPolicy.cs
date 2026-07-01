@@ -75,7 +75,7 @@ public static class QuickerRpcBootstrapPolicy
     /// <summary>
     /// Returns true when quicker:runaction was launched; false when skipped (Quicker down or cooldown).
     /// </summary>
-    public static bool TryLaunchPluginRunAction()
+    public static bool TryLaunchPluginRunAction(bool bypassCooldown = false)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -89,7 +89,8 @@ public static class QuickerRpcBootstrapPolicy
                 return false;
             }
 
-            if (_lastLaunchUtc != DateTime.MinValue
+            if (!bypassCooldown
+                && _lastLaunchUtc != DateTime.MinValue
                 && (DateTime.UtcNow - _lastLaunchUtc).TotalSeconds < _cooldownSeconds)
             {
                 return false;

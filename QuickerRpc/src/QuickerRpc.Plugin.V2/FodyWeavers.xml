@@ -3,7 +3,7 @@
   Quicker host refs use Private=false in Release (qkref.net10.props).
 -->
 <Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
-  <Costura IncludeDebugSymbols="false" CreateTemporaryAssemblies="true">
+  <Costura IncludeDebugSymbols="false" CreateTemporaryAssemblies="false">
     <IncludeAssemblies>
       QuickerRpc.Contracts*
       QuickerRpc.AgentModel*
@@ -15,6 +15,8 @@
       StreamJsonRpc*
       MessagePack*
       Nerdbank.Streams*
+      Microsoft.VisualStudio.Threading*
+      Microsoft.VisualStudio.Validation*
     </IncludeAssemblies>
   </Costura>
 </Weavers>

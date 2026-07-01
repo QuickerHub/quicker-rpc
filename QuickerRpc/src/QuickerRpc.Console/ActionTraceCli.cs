@@ -52,6 +52,7 @@ internal static class ActionTraceCli
             "step_begin" => BuildStepHead(traceEvent),
             "input" => BuildInputHead(traceEvent),
             "output" => BuildOutputHead(traceEvent),
+            "error" => BuildErrorHead(traceEvent),
             "var_state" => $"{{{traceEvent.VarKey}}}={traceEvent.ParamValue}",
             _ => traceEvent.Message ?? traceEvent.Note ?? traceEvent.Kind,
         };
@@ -90,6 +91,24 @@ internal static class ActionTraceCli
         var key = traceEvent.ParamKey ?? "out";
         var target = !string.IsNullOrWhiteSpace(traceEvent.VarName) ? traceEvent.VarName : key;
         return $"{target}={traceEvent.ParamValue}";
+    }
+
+    private static string BuildErrorHead(QuickerRpcActionTraceEvent traceEvent)
+    {
+        var head = traceEvent.Message ?? "error";
+        if (string.IsNullOrWhiteSpace(traceEvent.StackTrace))
+        {
+            return head;
+        }
+
+        var firstLine = traceEvent.StackTrace
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (firstLine.Length == 0)
+        {
+            return head;
+        }
+
+        return $"{head} | {firstLine[0].Trim()}";
     }
 }
 

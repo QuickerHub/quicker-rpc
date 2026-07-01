@@ -1,9 +1,9 @@
 using System;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Quicker.Common.Vm;
 using Quicker.Domain;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -12,18 +12,23 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 internal sealed class WebConnectorAccessor
 {
-    private readonly MethodInfo _shareActionAsync;
+    private static readonly Lazy<WebConnectorAccessor?> LazyInstance =
+        new(CreateOnce, System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 
-    private WebConnectorAccessor(MethodInfo shareActionAsync)
+    private readonly MethodInfo _shareActionAsync;
+    private readonly MethodInfo? _shareSubProgramAsync;
+
+    private WebConnectorAccessor(MethodInfo shareActionAsync, MethodInfo? shareSubProgramAsync)
     {
         _shareActionAsync = shareActionAsync;
+        _shareSubProgramAsync = shareSubProgramAsync;
     }
 
     public async Task<(bool Ok, string? Message, SharedActionDto? Data)> ShareActionAsync(SharedActionVm vm)
     {
         try
         {
-            var pending = _shareActionAsync.Invoke(null, new object[] { vm });
+            var pending = _shareActionAsync.Invoke(null, new[] { SharedActionHostReflection.ConvertToHostVm(vm) });
             if (pending is not Task task)
             {
                 return (false, "ShareActionAsync did not return Task.", null);
@@ -42,7 +47,41 @@ internal sealed class WebConnectorAccessor
         }
     }
 
-    public static WebConnectorAccessor? TryCreate()
+    public async Task<(bool Ok, string? Message, SharedActionDto? Data)> ShareSubProgramAsync(
+        SharedActionVm vm,
+        bool overwrite)
+    {
+        if (_shareSubProgramAsync is null)
+        {
+            return (false, "ShareSubProgramAsync unavailable on WebConnector.", null);
+        }
+
+        try
+        {
+            var pending = _shareSubProgramAsync.Invoke(
+                null,
+                new[] { SharedActionHostReflection.ConvertToHostVm(vm), overwrite });
+            if (pending is not Task task)
+            {
+                return (false, "ShareSubProgramAsync did not return Task.", null);
+            }
+
+            await task.ConfigureAwait(true);
+            return ReadApiResult(task);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            return (false, ex.InnerException.Message, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message, null);
+        }
+    }
+
+    public static WebConnectorAccessor? TryCreate() => LazyInstance.Value;
+
+    private static WebConnectorAccessor? CreateOnce()
     {
         if (!QuickerHost.IsRunningInQuicker())
         {
@@ -51,32 +90,15 @@ internal sealed class WebConnectorAccessor
 
         try
         {
-            var vmType = typeof(SharedActionVm);
-            var dtoType = typeof(SharedActionDto);
-            var apiResultType = typeof(ApiResult<>).MakeGenericType(dtoType);
-            var taskType = typeof(Task<>).MakeGenericType(apiResultType);
-
-            var candidates = typeof(AppState).Assembly
-                .GetTypes()
-                .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
-                .Where(m =>
-                    m.GetParameters().Length == 1
-                    && m.GetParameters()[0].ParameterType == vmType
-                    && m.ReturnType == taskType)
-                .ToList();
-
-            if (candidates.Count == 0)
+            if (!SharedActionHostReflection.TryGetResolvedWebConnectorMethods(
+                    out var shareAction,
+                    out var shareSubProgram)
+                || shareAction is null)
             {
                 return null;
             }
 
-            var method = candidates.Count == 1
-                ? candidates[0]
-                : candidates.FirstOrDefault(m => m.DeclaringType?.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .Any(f => f.FieldType == typeof(System.Net.Http.HttpClient)) == true)
-                  ?? candidates[0];
-
-            return new WebConnectorAccessor(method);
+            return new WebConnectorAccessor(shareAction, shareSubProgram);
         }
         catch
         {
@@ -95,7 +117,7 @@ internal sealed class WebConnectorAccessor
         var resultType = apiResult.GetType();
         var isSuccess = resultType.GetProperty("IsSuccess")?.GetValue(apiResult) is true;
         var message = resultType.GetProperty("Message")?.GetValue(apiResult) as string;
-        var data = resultType.GetProperty("Data")?.GetValue(apiResult) as SharedActionDto;
+        var data = SharedActionHostReflection.ReadSharedActionDto(resultType.GetProperty("Data")?.GetValue(apiResult));
         return (isSuccess, message, data);
     }
 }

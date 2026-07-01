@@ -80,11 +80,12 @@ public sealed class QuickerRpcServerHost : IHostedService
             {
                 break;
             }
-            catch (Exception ex)
-            {
-                backoffAfterCycle = true;
-                _logger.LogWarning(ex, "QuickerRpc server cycle failed; retrying");
-            }
+        catch (Exception ex)
+        {
+            backoffAfterCycle = true;
+            _logger.LogWarning(ex, "QuickerRpc server cycle failed; retrying");
+            TransportDiagnostics.Write("QuickerRpc server cycle failed", ex);
+        }
             finally
             {
                 pipeStream?.Dispose();
@@ -133,6 +134,11 @@ public sealed class QuickerRpcServerHost : IHostedService
         catch (Exception ex) when (jsonRpc is not null && StreamJsonRpcCompletion.IsBenignSessionEnd(ex))
         {
             _logger.LogDebug(ex, "QuickerRpc client session ended");
+        }
+        catch (Exception ex)
+        {
+            TransportDiagnostics.Write("QuickerRpc client session failed", ex);
+            throw;
         }
         finally
         {

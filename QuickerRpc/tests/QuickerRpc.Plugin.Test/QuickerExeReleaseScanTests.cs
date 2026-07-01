@@ -92,35 +92,30 @@ public sealed class QuickerExeReleaseScanTests
             return;
         }
 
-        var vmType = assembly.GetType("Quicker.Common.Vm.SharedActionVm");
-        var dtoType = assembly.GetType("Quicker.Common.Vm.SharedActionDto");
+        var commonPath = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(QuickerExeProbePaths.ResolveReleaseQuickerExe())!,
+            "Quicker.Common.dll");
+        if (!System.IO.File.Exists(commonPath))
+        {
+            Assert.Inconclusive("Quicker.Common.dll not found beside Quicker.exe.");
+        }
+
+        var common = Assembly.LoadFrom(commonPath);
+        var vmType = common.GetType("Quicker.Common.Vm.SharedActionVm");
+        var dtoType = common.GetType("Quicker.Common.Vm.SharedActionDto");
         if (vmType is null || dtoType is null)
         {
-            Assert.Inconclusive("Release Quicker.exe: SharedActionVm/SharedActionDto types not found.");
+            Assert.Inconclusive("Release Quicker.Common: SharedActionVm/SharedActionDto types not found.");
         }
 
-        var apiResultType = assembly.GetType("Quicker.Common.Vm.ApiResult`1")?.MakeGenericType(dtoType);
-        if (apiResultType is null)
-        {
-            Assert.Inconclusive("Release Quicker.exe: ApiResult<SharedActionDto> not resolved.");
-        }
+        Assert.IsTrue(
+            QuickerRpc.Plugin.Reflection.SharedActionHostReflection.TryProbeWebConnectorMethods(
+                assembly,
+                out var method,
+                out _),
+            "Release Quicker.exe: ShareActionAsync(SharedActionVm) not resolved by signature.");
 
-        var taskType = typeof(System.Threading.Tasks.Task<>).MakeGenericType(apiResultType);
-
-        var method = assembly
-            .GetTypes()
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
-            .FirstOrDefault(m =>
-                m.GetParameters().Length == 1
-                && m.GetParameters()[0].ParameterType == vmType
-                && m.ReturnType == taskType);
-
-        if (method is null)
-        {
-            Assert.Fail("Release Quicker.exe: ShareActionAsync(SharedActionVm) not resolved by signature.");
-        }
-
-        QuickerAssemblyReflection.WriteMethodDetail(method, WriteLine);
+        QuickerAssemblyReflection.WriteMethodDetail(method!, WriteLine);
     }
 
     [TestMethod]

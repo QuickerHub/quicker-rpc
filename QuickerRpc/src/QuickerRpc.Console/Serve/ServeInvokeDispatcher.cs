@@ -1363,6 +1363,11 @@ internal static class ServeInvokeDispatcher
                     .ConfigureAwait(false);
             }
 
+            if (!traceResponse.Ok && !ServeJsonArgs.GetBool(args, "noLogExcerpt"))
+            {
+                ActionTraceResultEnricher.EnrichFailure(traceResponse);
+            }
+
             return Ok(new
             {
                 ok = traceResponse.Ok,
@@ -1378,6 +1383,8 @@ internal static class ServeInvokeDispatcher
                 stopFlag = traceResponse.StopFlag,
                 events = traceResponse.Events,
                 failureLocation = traceResponse.FailureLocation,
+                stackTrace = traceResponse.StackTrace,
+                logExcerpt = traceResponse.LogExcerpt,
             });
         }
 

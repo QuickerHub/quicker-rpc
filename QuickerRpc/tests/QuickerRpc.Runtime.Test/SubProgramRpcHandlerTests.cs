@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
 using QuickerRpc.Runtime;
 
@@ -88,6 +89,18 @@ public sealed class SubProgramRpcHandlerTests
             string patchJson,
             long? expectedEditVersion,
             bool force,
+            CancellationToken cancellationToken = default) =>
+            throw new System.NotImplementedException();
+
+        public Task<QuickerRpcActionPublishResult> PublishSharedSubProgramAsync(
+            string subProgramIdOrName,
+            QuickerRpcActionPublishRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new System.NotImplementedException();
+
+        public Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedSubProgramAsync(
+            string subProgramIdOrName,
+            QuickerRpcActionPublishRequest request,
             CancellationToken cancellationToken = default) =>
             throw new System.NotImplementedException();
     }

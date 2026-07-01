@@ -12,6 +12,9 @@ internal static class V2StubMessage
 {
     public const string NotImplemented =
         "QuickerRpc V2 reflection host does not implement this port yet.";
+
+    public const string TraceNotImplemented =
+        "QuickerRpc V2 trace run is not wired yet; use action run (no --trace) or V1 Quicker for trace.";
 }
 
 internal sealed class V2ActionSharingHost : IQuickerRpcActionSharingHost
@@ -43,36 +46,6 @@ internal sealed class V2ActionSharingHost : IQuickerRpcActionSharingHost
             Success = false,
             ErrorMessage = V2StubMessage.NotImplemented,
         });
-}
-
-internal sealed class V2ActionRunHost : IQuickerRpcActionRunHost
-{
-    public Task<QuickerRpcActionRunResult> RunAsync(
-        string actionId,
-        string? inputParam = null,
-        bool enableDebugging = false,
-        bool waitForComplete = false,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(new QuickerRpcActionRunResult { Ok = false, Message = V2StubMessage.NotImplemented });
-
-    public Task<QuickerRpcActionTraceRunResult> RunTraceAsync(
-        string actionId,
-        string? inputParam = null,
-        IProgress<QuickerRpcActionTraceEvent>? progress = null,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(new QuickerRpcActionTraceRunResult { Ok = false, Message = V2StubMessage.NotImplemented });
-
-    public Task<QuickerRpcActionTraceRunResult> RunXActionTraceAsync(
-        string xActionJson,
-        string? inputParam = null,
-        IProgress<QuickerRpcActionTraceEvent>? progress = null,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(new QuickerRpcActionTraceRunResult { Ok = false, Message = V2StubMessage.NotImplemented });
-
-    public Task<QuickerRpcFloatActionResult> FloatAsync(
-        string actionId,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(new QuickerRpcFloatActionResult { Ok = false, Message = V2StubMessage.NotImplemented });
 }
 
 internal sealed class V2ActionCatalogHost : IQuickerRpcActionCatalogHost

@@ -186,6 +186,18 @@ internal sealed class V2SubProgramHost : IQuickerRpcSubProgramHost
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_programs.EditVariable(idOrName, variableKey, defaultValue));
     }
+
+    public Task<QuickerRpcActionPublishResult> PublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new QuickerRpcActionPublishResult { Ok = false, Message = V2StubMessage.NotImplemented });
+
+    public Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new QuickerRpcActionPublishPreflightResult { Ready = false, Message = V2StubMessage.NotImplemented });
 }
 
 internal sealed class V2StepRunnerHost : IQuickerRpcStepRunnerHost

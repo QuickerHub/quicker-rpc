@@ -180,6 +180,7 @@ function pickFailureLocationForAgent(
     "locationSummary",
     "matchMethod",
     "read",
+    "stackTrace",
   ]) {
     if (key in location) picked[key] = location[key];
   }
@@ -308,6 +309,10 @@ function compressDebugResult(
       compressed.failureLocation = pickFailureLocationForAgent(failureLocation);
     }
     if (editHint) compressed.editHint = editHint;
+    const stackTrace = readString(data.stackTrace) ?? readString(failureLocation?.stackTrace);
+    if (stackTrace) compressed.stackTrace = stackTrace;
+    const logExcerpt = readString(data.logExcerpt);
+    if (logExcerpt) compressed.logExcerpt = logExcerpt;
     const err =
       readString(data.errorMessage)
       ?? readString(data.message)

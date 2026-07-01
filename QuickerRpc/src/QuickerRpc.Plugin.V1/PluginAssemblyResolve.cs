@@ -41,6 +41,16 @@ internal static class PluginAssemblyResolve
             return null;
         }
 
+        // Costura-embedded plugin satellites must not load from disk (version skew with Quicker host resolve).
+        if (name.StartsWith("QuickerRpc.", StringComparison.Ordinal)
+            || name.StartsWith("Google.Protobuf", StringComparison.Ordinal)
+            || name.StartsWith("StreamJsonRpc", StringComparison.Ordinal)
+            || name.StartsWith("MessagePack", StringComparison.Ordinal)
+            || name.StartsWith("Nerdbank.Streams", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         var path = Path.Combine(PluginDirectory, name + ".dll");
         if (!File.Exists(path))
         {

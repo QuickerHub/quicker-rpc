@@ -31,12 +31,25 @@ public sealed class ActionEditService
 
         try
         {
-            AppState.AppServer.EditActionById(id);
+            QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
+            {
+                try
+                {
+                    AppState.AppServer.EditActionById(id);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.TraceWarning(
+                        "[QuickerRpc.Plugin] EditAction UI failed: {0}",
+                        ex.Message);
+                }
+            });
+
             return new QuickerRpcActionUpdateResult
             {
                 Ok = true,
                 ActionId = id,
-                Message = "动作编辑窗口已打开。",
+                Message = "动作编辑窗口正在打开。",
             };
         }
         catch (Exception ex)

@@ -36,9 +36,9 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 1. **不必重启 agent-gui**：`start.mjs` 通过 `http://127.0.0.1:9477` 调 serve；`build.ps1 -t` 会替换二进制并重启 serve，端口不变。
 2. **serve 副本**：开发时 serve 常跑在 `agent-gui/.runtime/qkrpc`，避免锁住 `publish/cli`；`-t` 仍会先 **Stop-QkrpcServe** 再启动 `publish/cli` 下的新进程。
-3. **仅插件行为、且已在 Quicker 手动 reload DLL**：已运行的 serve 可在下次请求时 **重连管道**（`QkrpcRpcSessionPool.InvalidateAsync`）；仍建议改 Plugin 后跑 **`-t`**，避免版本/方法不一致。
-4. **跳过 serve 重启**（仅当用户明确要求）：`pwsh ./build.ps1 -t -SkipQkrpcServe` — 只换插件/包，**不**换正在跑的 `qkrpc.exe`。
-5. **验证**：`GET http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`；agent-gui 侧栏 **重新检测** Quicker RPC。
+3. **验证**：`GET http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`；`qkrpc --version` 应与 `QuickerRpc/version.json` 一致（`-t` 默认安装到用户 PATH）。
+4. **跳过用户安装**（仅当用户明确要求）：`pwsh ./build.ps1 -t -SkipInstall` — CLI 仅在 `publish/cli`，PATH 可能仍是旧版。
+5. **跳过 serve 重启**（仅当用户明确要求）：`pwsh ./build.ps1 -t -SkipQkrpcServe` — 只换插件/包，**不**换正在跑的 `qkrpc.exe`。
 
 前置：Quicker 已启动；`-t` 失败或 RPC 报方法不存在时，确认构建日志在 qkbuild **更新 version 变量后**出现 `Started: quicker:runaction:…?plugin`（脚本会 **等待 1s** 再触发）。未重载时 Plugin 改动不会生效。
 

@@ -40,8 +40,5 @@
     <Compile Remove="QuickerRpcServerHost.cs" />
     <Compile Remove="QuickerRpcPipeServerStreamFactory.cs" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <Compile Remove="QuickerRpcPipeSecurity.cs" />
-  </ItemGroup>
   <Import Project="$(MonorepoRoot)build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
 </Project>

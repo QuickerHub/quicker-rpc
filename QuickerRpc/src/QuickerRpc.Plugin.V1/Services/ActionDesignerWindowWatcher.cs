@@ -16,8 +16,7 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 public sealed class ActionDesignerWindowWatcher : IHostedService
 {
-    private const int StartupReloadPassCount = 4;
-    private const int StartupReloadPumpFrames = 40;
+    private const int StartupReloadPassCount = 1;
 
     private readonly ILogger<ActionDesignerWindowWatcher> _logger;
 
@@ -119,11 +118,6 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
                     if (!_active)
                     {
                         return;
-                    }
-
-                    for (var i = 0; i < StartupReloadPumpFrames; i++)
-                    {
-                        ActionDesignerUiSave.PumpDispatcherOnce();
                     }
 
                     if (!CanInjectAnyTab())

@@ -3,6 +3,7 @@
 param(
     [switch]$SkipCliPackaging,
     [switch]$SkipQkrpcServe,
+    [switch]$SkipInstall,
     [Alias('p')]
     [switch]$Publish,
     [Alias('n')]

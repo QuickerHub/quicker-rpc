@@ -8,6 +8,6 @@
 | `claude-qkrpc.md` | `~/.claude/CLAUDE.md` merge |
 | `codex-qkrpc.md` | project `AGENTS.md` merge (`--project`) |
 
-Repo `.cursor/rules/qkrpc.mdc` should match `qkrpc.mdc` here; if diverged, copy from this directory.
+**quicker-workspace** parent repo: run `pwsh ./scripts/Sync-QkrpcAgentRules.ps1` after editing `qkrpc.mdc` here. Workspace map: parent `docs/qkrpc-agent-usage.md`, skill `.cursor/skills/qkrpc-usage/`.
 
-Do **not** duplicate authoring skills under `.cursor/skills/` in this monorepo — use user-level `qkrpc agent setup --upgrade` (see `AGENTS.md`).
+Do **not** duplicate authoring skills under `.cursor/skills/` in the qkrpc repo — use `qkrpc agent setup --upgrade` (see `AGENTS.md`).

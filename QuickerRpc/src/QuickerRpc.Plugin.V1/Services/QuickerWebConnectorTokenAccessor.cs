@@ -69,33 +69,12 @@ internal static class QuickerWebConnectorTokenAccessor
 
     private static Type? TryFindWebConnectorType(Assembly assembly)
     {
-        var vmType = typeof(SharedActionVm);
-        var dtoType = typeof(SharedActionDto);
-        var apiResultType = typeof(ApiResult<>).MakeGenericType(dtoType);
-        var taskType = typeof(Task<>).MakeGenericType(apiResultType);
-
-        var candidates = assembly
-            .GetTypes()
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
-            .Where(m =>
-                m.GetParameters().Length == 1
-                && m.GetParameters()[0].ParameterType == vmType
-                && m.ReturnType == taskType)
-            .ToList();
-
-        if (candidates.Count == 0)
+        if (!SharedActionHostReflection.TryResolveShareApiTypes(out var vmType, out _, out var taskType))
         {
             return null;
         }
 
-        var method = candidates.Count == 1
-            ? candidates[0]
-            : candidates.FirstOrDefault(m =>
-                  m.DeclaringType?.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                      .Any(f => f.FieldType == typeof(HttpClient)) == true)
-              ?? candidates[0];
-
-        return method.DeclaringType;
+        return SharedActionHostReflection.TryFindWebConnectorType(assembly, vmType, taskType);
     }
 
     private static bool LooksLikeBearerToken(string? value)

@@ -17,8 +17,7 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 internal static class ActionDesignerUiInjector
 {
-    private const int SelectTabPassCount = 8;
-    private const int SelectTabPumpFrames = 25;
+    private const int SelectTabPassCount = 2;
 
     internal const string InjectTabTag = "QuickerRpc.InjectTab";
 
@@ -224,12 +223,6 @@ internal static class ActionDesignerUiInjector
             || !toolTab.Items.Contains(tabItem))
         {
             return;
-        }
-
-        ActionDesignerUiSave.WaitUntilDesignerLoaded(designer, maxAttempts: 30, sleepMs: 5);
-        for (var i = 0; i < SelectTabPumpFrames; i++)
-        {
-            ActionDesignerUiSave.PumpDispatcherOnce();
         }
 
         if (TryApplyInjectedTabSelection(designer, toolTab, tabItem))

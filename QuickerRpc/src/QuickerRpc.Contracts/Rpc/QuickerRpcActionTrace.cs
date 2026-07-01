@@ -36,6 +36,9 @@ public sealed class QuickerRpcActionTraceEvent
 
     /// <summary>Step index path in data.json (e.g. <c>1</c>, <c>0/if/0</c>) — aligned with patch/diagnostics stepPath.</summary>
     public string? StepPath { get; set; }
+
+    /// <summary>Exception stack trace when <see cref="Kind"/> is error and an exception was logged.</summary>
+    public string? StackTrace { get; set; }
 }
 
 /// <summary>Resolved failure location for agent patch workflow (data.json step + param).</summary>
@@ -54,6 +57,9 @@ public sealed class QuickerRpcActionTraceFailureLocation
     public string? Message { get; set; }
 
     public string? MatchMethod { get; set; }
+
+    /// <summary>Stack trace from the failing trace error event (when available).</summary>
+    public string? StackTrace { get; set; }
 }
 
 public sealed class QuickerRpcActionTraceRunResult
@@ -79,4 +85,13 @@ public sealed class QuickerRpcActionTraceRunResult
     public List<QuickerRpcActionTraceEvent> Events { get; set; } = [];
 
     public QuickerRpcActionTraceFailureLocation? FailureLocation { get; set; }
+
+    /// <summary>Stack trace from the failing step (trace event or unhandled runner exception).</summary>
+    public string? StackTrace { get; set; }
+
+    /// <summary>
+    /// Recent excerpt from <c>%LocalAppData%/Quicker/logs/quicker.log</c> for this action (expression/DLL stacks).
+    /// Populated by CLI/serve on trace failure when the log file is readable.
+    /// </summary>
+    public string? LogExcerpt { get; set; }
 }

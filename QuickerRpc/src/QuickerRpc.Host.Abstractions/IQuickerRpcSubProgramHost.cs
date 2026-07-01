@@ -36,4 +36,14 @@ public interface IQuickerRpcSubProgramHost
         long? expectedEditVersion,
         bool force,
         CancellationToken cancellationToken = default);
+
+    Task<QuickerRpcActionPublishResult> PublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default);
 }

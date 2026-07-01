@@ -83,6 +83,31 @@ public sealed class PluginV2CompositionTests
     }
 
     [TestMethod]
+    public async Task V2ActionRunHost_run_uses_shared_v1_service_boundary()
+    {
+        var host = new V2ActionRunHost();
+
+        var result = await host.RunAsync("missing-action-id");
+
+        Assert.IsFalse(result.Ok);
+        Assert.IsTrue(
+            (result.Message ?? string.Empty).Contains("Not running inside Quicker", StringComparison.OrdinalIgnoreCase)
+            || (result.Message ?? string.Empty).Contains("unavailable", StringComparison.OrdinalIgnoreCase),
+            result.Message);
+    }
+
+    [TestMethod]
+    public async Task V2ActionRunHost_trace_returns_v2_not_wired_message()
+    {
+        var host = new V2ActionRunHost();
+
+        var result = await host.RunTraceAsync("missing-action-id");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "trace", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
     public void V2ActionPatchCore_returns_v1_style_patch_result_payloads()
     {
         var body = JObject.Parse(

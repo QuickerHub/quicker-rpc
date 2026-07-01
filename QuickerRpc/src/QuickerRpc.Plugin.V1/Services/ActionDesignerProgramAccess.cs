@@ -112,20 +112,29 @@ internal static class ActionDesignerProgramAccess
         string? contextMenuData,
         out string? error)
     {
-        (bool Ok, string? Error)? outcome = QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
+        (bool Ok, string? Error)? outcome = null;
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () =>
+                {
+                    var ok = TrySaveOnUiThread(
+                        actionId,
+                        steps,
+                        variables,
+                        subProgramsJson,
+                        title,
+                        description,
+                        icon,
+                        contextMenuData,
+                        out var localError);
+                    return (Ok: ok, Error: localError);
+                },
+                QuickerDispatcherInvoke.DefaultUiOperationTimeout,
+                out outcome))
         {
-            var ok = TrySaveOnUiThread(
-                actionId,
-                steps,
-                variables,
-                subProgramsJson,
-                title,
-                description,
-                icon,
-                contextMenuData,
-                out var localError);
-            return (Ok: ok, Error: localError);
-        });
+            error = "Quicker UI is busy; retry or close Action Designer.";
+            return false;
+        }
+
         if (outcome is null)
         {
             error = "WPF dispatcher unavailable.";

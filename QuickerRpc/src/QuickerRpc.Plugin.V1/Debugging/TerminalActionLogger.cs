@@ -128,15 +128,21 @@ internal sealed class TerminalActionLogger : IActionLogger
             stepRunnerName: _currentStepRunnerName,
             note: _currentNote);
 
-    public void LogError(string message, Exception exception) =>
+    public void LogError(string message, Exception exception)
+    {
+        var detail = string.IsNullOrWhiteSpace(message)
+            ? exception.Message
+            : $"{message}: {exception.Message}";
         Emit(
             "error",
-            message: string.IsNullOrWhiteSpace(message) ? exception.Message : $"{message}: {exception.Message}",
+            message: detail,
             stepId: _currentStepId,
             stepPath: _currentStepPath,
             stepRunnerKey: _currentStepRunnerKey,
             stepRunnerName: _currentStepRunnerName,
-            note: _currentNote);
+            note: _currentNote,
+            stackTrace: TrimStackTrace(exception));
+    }
 
     public void Flush() { }
 
@@ -208,6 +214,7 @@ internal sealed class TerminalActionLogger : IActionLogger
         string? varName = null,
         string? varKey = null,
         string? stepPath = null,
+        string? stackTrace = null,
         bool pushDepth = false)
     {
         var depth = _depthStack.Count;
@@ -233,6 +240,7 @@ internal sealed class TerminalActionLogger : IActionLogger
             VarName = NullIfEmpty(varName),
             VarKey = NullIfEmpty(varKey),
             ElapsedMs = _stopwatch.ElapsedMilliseconds,
+            StackTrace = NullIfEmpty(stackTrace),
         };
 
         _events.Add(evt);
@@ -302,5 +310,27 @@ internal sealed class TerminalActionLogger : IActionLogger
         }
 
         return sb.ToString().Trim();
+    }
+
+    private static string? TrimStackTrace(Exception exception)
+    {
+        if (exception is null)
+        {
+            return null;
+        }
+
+        var text = exception.StackTrace;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            text = exception.ToString();
+        }
+
+        const int maxLength = 6000;
+        if (text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        return text.Substring(0, maxLength) + "…";
     }
 }

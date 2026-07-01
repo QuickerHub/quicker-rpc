@@ -30,10 +30,14 @@ internal static class ActionDesignerUiSave
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
+    /// <summary>
+    /// Yields one UI message on the Quicker dispatcher. Must run on the UI thread; no-op elsewhere
+    /// (nested PushFrame from RPC/worker threads deadlocks Quicker).
+    /// </summary>
     public static void PumpDispatcherOnce()
     {
         var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null)
+        if (dispatcher is null || !dispatcher.CheckAccess())
         {
             return;
         }
@@ -111,30 +115,14 @@ internal static class ActionDesignerUiSave
         return null;
     }
 
-    public static void WaitUntilDesignerLoaded(Window designer, int maxAttempts = 300, int sleepMs = 10)
+    /// <summary>
+    /// Non-blocking: RPC must never spin-wait on designer load (freezes Quicker UI).
+    /// Callers treat <see cref="Window.IsLoaded"/> == false as "designer not ready".
+    /// </summary>
+    public static void WaitUntilDesignerLoaded(Window designer, int maxAttempts = 0)
     {
-        _ = sleepMs;
-        if (designer is null || designer.IsLoaded)
-        {
-            return;
-        }
-
-        var dispatcher = designer.Dispatcher ?? Application.Current?.Dispatcher;
-        if (dispatcher is null)
-        {
-            return;
-        }
-
-        if (!dispatcher.CheckAccess())
-        {
-            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => WaitUntilDesignerLoaded(designer, maxAttempts));
-            return;
-        }
-
-        for (var a = 0; a < maxAttempts && !designer.IsLoaded; a++)
-        {
-            PumpDispatcherOnce();
-        }
+        _ = maxAttempts;
+        _ = designer;
     }
 
     /// <summary>Update title/description/icon on open designer without persisting to catalog.</summary>
@@ -329,7 +317,6 @@ internal static class ActionDesignerUiSave
 
             designerWindow.Title = trimmed;
             QuickerActionDesignerReflection.TryInvokeUpdateXActionUi(designerWindow, out _);
-            PumpDispatcherOnce();
 
             if (TryReadDesignerActionTitleText(designerWindow, out var verifyTitle)
                 && !string.IsNullOrWhiteSpace(verifyTitle)
@@ -475,32 +462,29 @@ internal static class ActionDesignerUiSave
             return false;
         }
 
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null)
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () =>
+                {
+                    var designer = TryFindActionDesignerWindow(entityId.Trim(), isSubProgram);
+                    if (designer is null)
+                    {
+                        return ((bool ok, string? err)?)(ok: false, err: null);
+                    }
+
+                    return TryPersistDesignerWindowInPlace(designer, out var localError)
+                        ? ((bool ok, string? err)?)(ok: true, err: null)
+                        : ((bool ok, string? err)?)(ok: false, err: localError);
+                },
+                QuickerDispatcherInvoke.DefaultUiOperationTimeout,
+                out var outcome)
+            || outcome is null)
         {
+            error = "Quicker UI is busy; close Action Designer or retry.";
             return false;
         }
 
-        var persisted = false;
-        string? localError = null;
-        dispatcher.Invoke(() =>
-        {
-            var designer = TryFindActionDesignerWindow(entityId.Trim(), isSubProgram);
-            if (designer is null)
-            {
-                return;
-            }
-
-            persisted = TryPersistDesignerWindowInPlace(designer, out localError);
-        });
-
-        for (var i = 0; i < 120; i++)
-        {
-            PumpDispatcherOnce();
-        }
-
-        error = localError;
-        return persisted;
+        error = outcome.Value.err;
+        return outcome.Value.ok;
     }
 
     private static bool TryPersistOpenDesignerOnUiThread(
@@ -515,26 +499,20 @@ internal static class ActionDesignerUiSave
             return false;
         }
 
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null)
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () => TryPersistOpenDesigner(entityId.Trim(), xAction, isSubProgram, out var localError)
+                    ? ((bool ok, string? err)?)(ok: true, err: null)
+                    : ((bool ok, string? err)?)(ok: false, err: localError),
+                QuickerDispatcherInvoke.DefaultUiOperationTimeout,
+                out var outcome)
+            || outcome is null)
         {
+            error = "Quicker UI is busy; close Action Designer or retry.";
             return false;
         }
 
-        var persisted = false;
-        string? localError = null;
-        dispatcher.Invoke(() =>
-        {
-            persisted = TryPersistOpenDesigner(entityId.Trim(), xAction, isSubProgram, out localError);
-        });
-
-        for (var i = 0; i < 120; i++)
-        {
-            PumpDispatcherOnce();
-        }
-
-        error = localError;
-        return persisted;
+        error = outcome.Value.err;
+        return outcome.Value.ok;
     }
 
     private static bool TryPersistOpenDesigner(
@@ -618,7 +596,6 @@ internal static class ActionDesignerUiSave
                 return false;
             }
 
-            PumpDispatcherOnce();
             if (!designer.IsLoaded)
             {
                 error = "Action Designer closed unexpectedly after save.";
@@ -658,18 +635,19 @@ internal static class ActionDesignerUiSave
             return false;
         }
 
-        bool? synced = QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
+        QuickerDispatcherInvoke.BeginOnUiThreadBackground(() =>
         {
-            var result = TrySyncOpenDesigner(entityId.Trim(), xAction, isSubProgram);
-            for (var i = 0; i < 8; i++)
+            try
             {
-                PumpDispatcherOnce();
+                TrySyncOpenDesigner(entityId.Trim(), xAction, isSubProgram);
             }
-
-            return result;
+            catch
+            {
+                // Best-effort designer memory sync.
+            }
         });
 
-        return synced ?? false;
+        return true;
     }
 
     private static bool TrySyncOpenDesigner(string entityId, XAction xAction, bool isSubProgram)

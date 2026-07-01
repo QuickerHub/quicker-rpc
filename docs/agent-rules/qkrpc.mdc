@@ -6,20 +6,46 @@ alwaysApply: true
 
 # qkrpc agent rules
 
-## Before editing actions
+**Canonical file** — copied to workspace `.cursor/rules/` via `scripts/Sync-QkrpcAgentRules.ps1` and to Cursor plugin via `qkrpc agent setup --upgrade`.
+
+## Before editing
 
 1. `docs` action=get topic `overview`, then `authoring-workflow`
-2. For subprograms: `subprogram-workflow`
+2. Subprograms: `subprogram-workflow`
+3. Disk layout: `docs` topic `workspace-editing` or MCP resource `quicker://workspace/readme`
+
+## Task routing
+
+| Goal | MCP (preferred) | CLI (`--json`) |
+|------|-----------------|----------------|
+| **Local** edit action / global subprogram | `qkrpc_action_get` / `qkrpc_subprogram_get` → edit `.quicker/` → `workspace_program` `action=patch` | `action get` / `subprogram get` → edit → `apply` |
+| **Remote** publish **action** (动作库) | — | `action publish` / `action update` (`--changelog` on update) |
+| **Remote** publish **subprogram** (子程序库) | — | `subprogram publish` / `subprogram update` (`--changelog` on update) |
+| Run / debug with step output | `qkrpc_action` `mode=debug` | `action run --trace` |
+
+On trace failure read `failureLocation`, `stackTrace`, `logExcerpt` (auto tail from `quicker.log`). See `tools/qkrpc/docs/agent-action-debug-workflow.md`.
+| Step `inputParams` schema | `qkrpc_step_runner_search` → `qkrpc_step_runner_get` | `step-runner search` → `step-runner get` |
+| Icons (WPF / WebView) | `qkrpc_fa` | `fa search` / `fa resolve` |
+| Connectivity | `qkrpc_health` → on failure `qkrpc_wait` | `health` / `wait` |
+
+**Never** `action publish` / `action update` for **subprograms** (wrong API). **Never** guess `inputParams` without `step-runner get`.
 
 ## Hard rules
 
-- Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — **never** guess `inputParams`
-- Disk edit: `qkrpc_action_get` / `qkrpc_subprogram_get` → edit `.quicker/` with **host file tools** → `workspace_program` action=patch — **no** inline patch JSON; deprecated `qkrpc_sync`
-- Connectivity: use `qkrpc_wait` on failure — **no** repeated shell ping/probe
-- On persistent failure: read skill **`quicker-rpc-knowledge`** (QuickerAgent action vs AI agent, bootstrap, user checklist)
-- Prefer MCP `qkrpc_*` tools over shell when configured
-- Destructive tools (`qkrpc_action_delete`, `qkrpc_subprogram_delete`) need user confirmation
+- Disk edit: **get → host file tools → patch**; **no** inline patch JSON; **deprecated** `qkrpc_sync`
+- After patch: trust `editVersion`; **no** verify re-get
+- Connectivity: `qkrpc_wait` on failure — **no** repeated shell ping/probe
+- Prefer MCP `qkrpc_*` when configured; else shell `qkrpc` CLI
+- Remote library upload: **ask user** first; subprogram update requires `--changelog`
+- Destructive: `qkrpc_action_delete`, `qkrpc_subprogram_delete` need user confirmation
 
 ## Scope
 
-Cursor MCP has **headless** authoring (`workspace_program`, step-runner tools, run/debug). Use **QuickerAgent** or Quicker Designer for visual step editing, embedded browser, and shell automation.
+Cursor MCP: headless authoring (`workspace_program`, step-runner, run/debug). **QuickerAgent** or Quicker Designer: visual editor, embedded browser, shell automation.
+
+## quicker-workspace
+
+- Disk root: repo `.quicker/` (`QKRPC_WORKSPACE_ROOT` = workspace root)
+- Human/agent map: workspace root `docs/qkrpc-agent-usage.md`
+- Developing `tools/qkrpc/`: after changes run `build.ps1 -t` (plugin reload + CLI install to user PATH); `-SkipInstall` only when user asks
+- Stuck: skill **`quicker-rpc-knowledge`** (`tools/qkrpc/docs/skills/quicker-rpc-knowledge/`)

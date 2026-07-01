@@ -433,7 +433,7 @@ public sealed class HeadlessActionProgramService
 
         try
         {
-            ActionProgramPatchUiGate.TryRefreshOpenDesignerProgram(
+            ActionProgramPatchUiGate.ScheduleRefreshOpenDesignerProgram(
                 id,
                 isSubProgram: false,
                 steps,

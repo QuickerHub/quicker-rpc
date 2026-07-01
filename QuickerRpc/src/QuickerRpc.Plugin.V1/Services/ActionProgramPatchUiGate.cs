@@ -11,6 +11,8 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 internal static class ActionProgramPatchUiGate
 {
+    private static readonly TimeSpan UiGateTimeout = QuickerDispatcherInvoke.DefaultUiOperationTimeout;
+
     internal sealed class DesignerExportResult
     {
         public bool DesignerFound { get; init; }
@@ -38,7 +40,18 @@ internal static class ActionProgramPatchUiGate
             return null;
         }
 
-        return QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => ExportProgramJsonCore(entityId.Trim(), isSubProgram));
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () => ExportProgramJsonCore(entityId.Trim(), isSubProgram),
+                UiGateTimeout,
+                out var export))
+        {
+            return new DesignerExportResult
+            {
+                Error = "Quicker UI is busy; close Action Designer or retry.",
+            };
+        }
+
+        return export;
     }
 
     public static DesignerExportResult? TryExportSubProgramJson(string subProgramKey)
@@ -48,20 +61,31 @@ internal static class ActionProgramPatchUiGate
             return null;
         }
 
-        return QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
-        {
-            var key = subProgramKey.Trim();
-            foreach (var isSubProgram in new[] { true, false })
-            {
-                var export = ExportProgramJsonCore(key, isSubProgram);
-                if (export is not null)
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () =>
                 {
-                    return export;
-                }
-            }
+                    var key = subProgramKey.Trim();
+                    foreach (var isSubProgram in new[] { true, false })
+                    {
+                        var export = ExportProgramJsonCore(key, isSubProgram);
+                        if (export is not null)
+                        {
+                            return export;
+                        }
+                    }
 
-            return null;
-        });
+                    return null;
+                },
+                UiGateTimeout,
+                out var export))
+        {
+            return new DesignerExportResult
+            {
+                Error = "Quicker UI is busy; close Action Designer or retry.",
+            };
+        }
+
+        return export;
     }
 
     public static DesignerApplyResult ApplyProgramToOpenDesigner(
@@ -83,9 +107,26 @@ internal static class ActionProgramPatchUiGate
             return new DesignerApplyResult { Success = false, Error = "Designer entity or patch payload is empty." };
         }
 
-        return QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
-            ApplyProgramToOpenDesignerCore(entityId.Trim(), isSubProgram, xActionForDesigner, titleOrName, description, icon, contextMenuData))
-            ?? new DesignerApplyResult { Success = false, Error = "WPF dispatcher unavailable." };
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () => ApplyProgramToOpenDesignerCore(
+                    entityId.Trim(),
+                    isSubProgram,
+                    xActionForDesigner,
+                    titleOrName,
+                    description,
+                    icon,
+                    contextMenuData),
+                UiGateTimeout,
+                out var apply))
+        {
+            return new DesignerApplyResult
+            {
+                Success = false,
+                Error = "Quicker UI is busy; close Action Designer or retry.",
+            };
+        }
+
+        return apply ?? new DesignerApplyResult { Success = false, Error = "WPF dispatcher unavailable." };
     }
 
     public static DesignerApplyResult ApplyProgramToOpenSubProgramDesigner(
@@ -101,22 +142,41 @@ internal static class ActionProgramPatchUiGate
             return new DesignerApplyResult { Success = false, Error = "Designer entity or patch payload is empty." };
         }
 
-        return QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
-        {
-            var key = subProgramKey.Trim();
-            foreach (var isSubProgram in new[] { true, false })
-            {
-                var designer = ActionDesignerUiSave.TryFindActionDesignerWindow(key, isSubProgram);
-                if (designer is null)
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(
+                () =>
                 {
-                    continue;
-                }
+                    var key = subProgramKey.Trim();
+                    foreach (var isSubProgram in new[] { true, false })
+                    {
+                        var designer = ActionDesignerUiSave.TryFindActionDesignerWindow(key, isSubProgram);
+                        if (designer is null)
+                        {
+                            continue;
+                        }
 
-                return ApplyProgramToOpenDesignerCore(key, isSubProgram, xActionForDesigner, titleOrName, description, icon, contextMenuData: null);
-            }
+                        return ApplyProgramToOpenDesignerCore(
+                            key,
+                            isSubProgram,
+                            xActionForDesigner,
+                            titleOrName,
+                            description,
+                            icon,
+                            contextMenuData: null);
+                    }
 
-            return new DesignerApplyResult { Success = false, Error = "Subprogram designer window not found." };
-        }) ?? new DesignerApplyResult { Success = false, Error = "WPF dispatcher unavailable." };
+                    return new DesignerApplyResult { Success = false, Error = "Subprogram designer window not found." };
+                },
+                UiGateTimeout,
+                out var apply))
+        {
+            return new DesignerApplyResult
+            {
+                Success = false,
+                Error = "Quicker UI is busy; close Action Designer or retry.",
+            };
+        }
+
+        return apply ?? new DesignerApplyResult { Success = false, Error = "WPF dispatcher unavailable." };
     }
 
     private static DesignerExportResult? ExportProgramJsonCore(string entityId, bool isSubProgram)
@@ -147,6 +207,32 @@ internal static class ActionProgramPatchUiGate
     }
 
     private static DesignerApplyResult ApplyProgramToOpenDesignerCore(
+        string entityId,
+        bool isSubProgram,
+        XAction? xActionForDesigner,
+        string? titleOrName,
+        string? description,
+        string? icon,
+        string? contextMenuData)
+    {
+        try
+        {
+            return ApplyProgramToOpenDesignerCoreInner(
+                entityId,
+                isSubProgram,
+                xActionForDesigner,
+                titleOrName,
+                description,
+                icon,
+                contextMenuData);
+        }
+        catch (Exception ex)
+        {
+            return new DesignerApplyResult { Success = false, Error = ex.Message };
+        }
+    }
+
+    private static DesignerApplyResult ApplyProgramToOpenDesignerCoreInner(
         string entityId,
         bool isSubProgram,
         XAction? xActionForDesigner,
@@ -207,25 +293,26 @@ internal static class ActionProgramPatchUiGate
 
     /// <summary>
     /// After workspace apply/replace persisted to catalog, refresh open Action Designer if present.
-    /// Best-effort: returns false when no matching designer window is open.
+    /// Best-effort and non-blocking: does not stall the RPC apply thread.
     /// </summary>
-    public static bool TryRefreshOpenDesignerProgram(
+    public static void ScheduleRefreshOpenDesignerProgram(
         string entityId,
         bool isSubProgram,
         JArray steps,
         JArray variables,
         string? subProgramsJson = null)
     {
-        try
+        QuickerDispatcherInvoke.BeginOnUiThreadBackground(() =>
         {
-            return QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
-                TryRefreshOpenDesignerProgramCore(entityId, isSubProgram, steps, variables, subProgramsJson));
-        }
-        catch
-        {
-            // Designer refresh is best-effort; catalog apply already succeeded.
-            return false;
-        }
+            try
+            {
+                TryRefreshOpenDesignerProgramCore(entityId, isSubProgram, steps, variables, subProgramsJson);
+            }
+            catch
+            {
+                // Designer refresh is best-effort; catalog apply already succeeded.
+            }
+        });
     }
 
     private static bool TryRefreshOpenDesignerProgramCore(
@@ -252,7 +339,7 @@ internal static class ActionProgramPatchUiGate
             variables,
             subProgramsJson ?? "[]");
         var xActionForDesigner = XActionProgramBodyWriter.DeserializeXAction(bodyJson);
-        var applyUi = ApplyProgramToOpenDesigner(
+        var applyUi = ApplyProgramToOpenDesignerCore(
             entityId,
             isSubProgram,
             xActionForDesigner,

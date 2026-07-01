@@ -53,15 +53,15 @@ internal static class ActionDesignerCurrentActionAccess
             }
 
             ActionDesignerUiSave.TrySyncResultItemAfterPaste(designer);
-            for (var i = 0; i < 8; i++)
-            {
-                ActionDesignerUiSave.PumpDispatcherOnce();
-            }
-
             ok = true;
         }
 
-        RunOnUiThread(Body);
+        if (!QuickerDispatcherInvoke.TryOnUiThreadIfNeeded(Body, QuickerDispatcherInvoke.DefaultUiOperationTimeout))
+        {
+            error = "Quicker UI is busy; retry or close Action Designer.";
+            return false;
+        }
+
         error = localError;
         return ok;
     }
@@ -173,17 +173,5 @@ internal static class ActionDesignerCurrentActionAccess
     {
         // CeaQuicker ActionEditor() always uses GetForeGroundWindow → ActionDesignerWindow.
         return ActionDesignerContext.TryGetForegroundDesigner();
-    }
-
-    private static void RunOnUiThread(Action action)
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
-        {
-            action();
-            return;
-        }
-
-        dispatcher.Invoke(action, DispatcherPriority.Normal);
     }
 }

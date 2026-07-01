@@ -10,13 +10,16 @@ internal sealed class V1SubProgramHost : IQuickerRpcSubProgramHost
 {
     private readonly HeadlessSubProgramProgramService _programs;
     private readonly HeadlessVariableEditService _variables;
+    private readonly SubProgramPublishService _publish;
 
     public V1SubProgramHost(
         HeadlessSubProgramProgramService programs,
-        HeadlessVariableEditService variables)
+        HeadlessVariableEditService variables,
+        SubProgramPublishService publish)
     {
         _programs = programs;
         _variables = variables;
+        _publish = publish;
     }
 
     public Task<QuickerRpcSubProgramSnapshot?> TryGetAsync(
@@ -115,4 +118,16 @@ internal sealed class V1SubProgramHost : IQuickerRpcSubProgramHost
         string defaultValue,
         CancellationToken cancellationToken = default) =>
         _variables.EditVariableAsync(idOrName, variableKey, defaultValue);
+
+    public Task<QuickerRpcActionPublishResult> PublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default) =>
+        _publish.PublishSharedSubProgramAsync(subProgramIdOrName, request, cancellationToken);
+
+    public Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedSubProgramAsync(
+        string subProgramIdOrName,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default) =>
+        _publish.PreflightPublishSharedSubProgramAsync(subProgramIdOrName, request, cancellationToken);
 }
