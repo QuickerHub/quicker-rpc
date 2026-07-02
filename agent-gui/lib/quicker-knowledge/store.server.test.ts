@@ -34,4 +34,35 @@ describe("quicker knowledge store", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("rejects invalid source types with a line-numbered error", async () => {
+    const dir = join(tmpdir(), `qk-${Date.now()}`);
+    await mkdir(dir, { recursive: true });
+    const file = join(dir, "chunks.jsonl");
+    await writeFile(file, JSON.stringify({
+      id: "a",
+      pageId: "p",
+      url: "https://getquicker.net/KC",
+      title: "Quicker",
+      sectionPath: ["Quicker"],
+      sourceType: "manuals",
+      text: "动作面板",
+      tokenEstimate: 4,
+      contentHash: "h",
+    }), "utf8");
+
+    try {
+      await assert.rejects(
+        loadQuickerKnowledgeChunksFromJsonl(file),
+        (error) => {
+          assert.ok(error instanceof Error);
+          assert.match(error.message, /line 1/);
+          assert.match(error.message, /sourceType/);
+          return true;
+        },
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -3,7 +3,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
-import type { QuickerKnowledgeChunk } from "@/lib/quicker-knowledge/types";
+import type {
+  QuickerKnowledgeChunk,
+  QuickerKnowledgeSourceType,
+} from "@/lib/quicker-knowledge/types";
 
 const REQUIRED_STRING_KEYS = [
   "id",
@@ -14,6 +17,14 @@ const REQUIRED_STRING_KEYS = [
   "text",
   "contentHash",
 ] as const;
+
+const ALLOWED_SOURCE_TYPES = new Set<QuickerKnowledgeSourceType>([
+  "manual",
+  "action_dev",
+  "kb",
+  "docs_index",
+  "unknown",
+]);
 
 export function resolveDefaultQuickerKnowledgeChunksPath(): string {
   const configured = process.env.QUICKER_KNOWLEDGE_CHUNKS_PATH?.trim();
@@ -80,6 +91,11 @@ function validateChunkRecord(record: unknown, lineNumber: number): QuickerKnowle
     throw invalidRecord(lineNumber, "sectionPath must be an array of strings");
   }
 
+  const sourceType = chunk.sourceType as string;
+  if (!isQuickerKnowledgeSourceType(sourceType)) {
+    throw invalidRecord(lineNumber, "sourceType must be one of: manual, action_dev, kb, docs_index, unknown");
+  }
+
   const text = chunk.text as string;
   const tokenEstimate =
     typeof chunk.tokenEstimate === "number" && Number.isFinite(chunk.tokenEstimate)
@@ -92,11 +108,15 @@ function validateChunkRecord(record: unknown, lineNumber: number): QuickerKnowle
     url: chunk.url as string,
     title: chunk.title as string,
     sectionPath: chunk.sectionPath as string[],
-    sourceType: chunk.sourceType as QuickerKnowledgeChunk["sourceType"],
+    sourceType,
     text,
     tokenEstimate,
     contentHash: chunk.contentHash as string,
   };
+}
+
+function isQuickerKnowledgeSourceType(value: string): value is QuickerKnowledgeSourceType {
+  return ALLOWED_SOURCE_TYPES.has(value as QuickerKnowledgeSourceType);
 }
 
 function invalidRecord(lineNumber: number, reason: string): Error {
