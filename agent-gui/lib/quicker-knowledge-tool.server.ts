@@ -1,5 +1,6 @@
 import "server-only";
 
+import { stat } from "node:fs/promises";
 import { tool } from "ai";
 import { z } from "zod";
 import { reciprocalRankFusion } from "@/lib/quicker-knowledge/hybrid";
@@ -11,8 +12,12 @@ import {
 import {
   hasQuickerKnowledgeCorpus,
   loadQuickerKnowledgeChunksFromJsonl,
+  resolveDefaultQuickerKnowledgeChunksPath,
 } from "@/lib/quicker-knowledge/store.server";
-import type { QuickerKnowledgeSearchResult } from "@/lib/quicker-knowledge/types";
+import type {
+  QuickerKnowledgeChunk,
+  QuickerKnowledgeSearchResult,
+} from "@/lib/quicker-knowledge/types";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { QUICKER_KNOWLEDGE_SEARCH_TOOL } from "@/lib/quicker-knowledge-tool-constants";
@@ -40,7 +45,7 @@ const quickerKnowledgeSearchInputSchema = z.object({
 
 let cachedIndex:
   | {
-      chunksLength: number;
+      cacheKey: string;
       index: QuickerKnowledgeSearchIndex;
     }
   | undefined;
@@ -56,23 +61,38 @@ function formatFailure(
 }
 
 async function loadKeywordIndex(): Promise<QuickerKnowledgeSearchIndex> {
-  if (!hasQuickerKnowledgeCorpus()) {
+  const corpusPath = resolveDefaultQuickerKnowledgeChunksPath();
+  if (!hasQuickerKnowledgeCorpus(corpusPath)) {
     throw new Error(
       "Quicker knowledge corpus is missing. Run the Quicker website knowledge ingest/build task first.",
     );
   }
 
-  const chunks = await loadQuickerKnowledgeChunksFromJsonl();
-  if (cachedIndex?.chunksLength === chunks.length) {
+  const corpusStat = await stat(corpusPath);
+  const chunks = await loadQuickerKnowledgeChunksFromJsonl(corpusPath);
+  const cacheKey = [
+    corpusPath,
+    corpusStat.mtimeMs,
+    corpusStat.size,
+    buildCorpusSignature(chunks),
+  ].join("|");
+
+  if (cachedIndex?.cacheKey === cacheKey) {
     return cachedIndex.index;
   }
 
   const index = buildQuickerKnowledgeKeywordIndex(chunks);
   cachedIndex = {
-    chunksLength: chunks.length,
+    cacheKey,
     index,
   };
   return index;
+}
+
+function buildCorpusSignature(chunks: QuickerKnowledgeChunk[]): string {
+  return chunks
+    .map((chunk) => `${chunk.id}:${chunk.contentHash}`)
+    .join(",");
 }
 
 export async function executeQuickerKnowledgeSearchTool(
