@@ -56,4 +56,30 @@ describe("quicker knowledge normalization", () => {
 
     assert.equal(result.page.title, "页面标题");
   });
+
+  it("prefers document content containers when main is missing", () => {
+    const html = `<body><div class="side-nav">目录 噪声</div><div class="doc-content"><h1>正文标题</h1><p>正文内容</p></div></body>`;
+    const result = normalizeQuickerKnowledgeHtml({
+      html,
+      url: "https://getquicker.net/kc/manual/doc/start",
+      fetchedAt: "2026-07-03T00:00:00.000Z",
+    });
+    const text = result.chunks.map((c) => c.text).join("\n");
+
+    assert.match(text, /正文内容/);
+    assert.doesNotMatch(text, /目录 噪声/);
+  });
+
+  it("keeps usable text when numeric entities are malformed", () => {
+    assert.doesNotThrow(() => {
+      const result = normalizeQuickerKnowledgeHtml({
+        html: `<main><h1>实体</h1><p>before &#999999999999; after</p></main>`,
+        url: "https://getquicker.net/kc/help/doc/form",
+        fetchedAt: "2026-07-03T00:00:00.000Z",
+      });
+
+      assert.match(result.chunks.map((c) => c.text).join("\n"), /before/);
+      assert.match(result.chunks.map((c) => c.text).join("\n"), /after/);
+    });
+  });
 });

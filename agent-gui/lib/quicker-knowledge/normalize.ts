@@ -22,6 +22,8 @@ export type NormalizeQuickerKnowledgeHtmlResult = {
 };
 
 const CHROME_TAGS = ["script", "style", "nav", "footer", "aside"];
+const LIKELY_CONTENT_ATTRIBUTE_PATTERN =
+  /\b(?:class|id)\s*=\s*(?:"[^"]*(?:article|content|markdown|doc|manual|kb|post)[^"]*"|'[^']*(?:article|content|markdown|doc|manual|kb|post)[^']*'|[^\s>]*(?:article|content|markdown|doc|manual|kb|post)[^\s>]*)/iu;
 
 function hashText(text: string): string {
   return createHash("sha256").update(text).digest("hex").slice(0, 16);
@@ -35,8 +37,21 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&gt;/giu, ">")
     .replace(/&quot;/giu, '"')
     .replace(/&#39;|&apos;/giu, "'")
-    .replace(/&#(\d+);/gu, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([\da-f]+);/giu, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 16)));
+    .replace(/&#(\d+);/gu, (entity: string, code: string) => decodeNumericEntity(entity, code, 10))
+    .replace(/&#x([\da-f]+);/giu, (entity: string, code: string) => decodeNumericEntity(entity, code, 16));
+}
+
+function decodeNumericEntity(entity: string, code: string, radix: number): string {
+  const codePoint = Number.parseInt(code, radix);
+  if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+    return entity;
+  }
+
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return entity;
+  }
 }
 
 function stripTags(html: string): string {
@@ -54,8 +69,34 @@ function stripChrome(html: string): string {
 
 function extractMainHtml(html: string): string {
   const cleaned = stripChrome(html);
-  const mainMatch = /<main\b[^>]*>([\s\S]*?)<\/main>/iu.exec(cleaned);
-  return mainMatch?.[1] ?? cleaned;
+  return (
+    extractFirstElementByTag(cleaned, "main") ??
+    extractFirstElementByTag(cleaned, "article") ??
+    extractLikelyContentElement(cleaned) ??
+    cleaned
+  );
+}
+
+function extractFirstElementByTag(html: string, tag: string): string | null {
+  const match = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, "iu").exec(html);
+  return match?.[1] ?? null;
+}
+
+function extractLikelyContentElement(html: string): string | null {
+  for (const match of html.matchAll(/<([a-z][\w:-]*)\b([^>]*)>/giu)) {
+    const [openTag, tagName, attributes] = match;
+    if (!LIKELY_CONTENT_ATTRIBUTE_PATTERN.test(attributes)) {
+      continue;
+    }
+
+    const afterOpenTagIndex = match.index + openTag.length;
+    const closeMatch = new RegExp(`<\\/${tagName}\\s*>`, "iu").exec(html.slice(afterOpenTagIndex));
+    if (closeMatch) {
+      return html.slice(afterOpenTagIndex, afterOpenTagIndex + closeMatch.index);
+    }
+  }
+
+  return null;
 }
 
 function extractTitleFromTag(html: string): string | null {
