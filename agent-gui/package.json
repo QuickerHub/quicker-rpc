@@ -30,6 +30,7 @@
     "docs:gen": "node ../scripts/generate-authoring-docs.mjs",
     "docs:check": "node ../scripts/generate-authoring-docs.mjs --check",
     "docs:search": "tsx scripts/demo-docs-search.ts",
+    "knowledge:crawl": "tsx scripts/quicker-knowledge-crawl.ts",
     "knowledge:search": "tsx scripts/quicker-knowledge-search.ts",
     "test:docs-search": "tsx scripts/run-docs-search-tests.ts",
     "test:docs-search:eval": "tsx scripts/eval-docs-search.ts",

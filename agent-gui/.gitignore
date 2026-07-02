@@ -44,5 +44,8 @@ test-*-err.txt
 agent-run-*.txt
 crash-*.txt
 
+# generated Quicker website knowledge corpus
+data/quicker-knowledge/
+
 # Cursor MCP Playwright session dumps (console logs, page snapshots)
 .playwright-mcp/
