@@ -2,9 +2,9 @@ import type { QuickerKnowledgeSourceType } from "@/lib/quicker-knowledge/types";
 
 const ALLOWED_HOST = "getquicker.net";
 
-function parseUrl(rawUrl: string): URL | null {
+function parseUrl(rawUrl: string, base?: string): URL | null {
   try {
-    return new URL(rawUrl);
+    return new URL(rawUrl, base);
   } catch {
     return null;
   }
@@ -22,14 +22,18 @@ function isPathWithPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-export function canonicalizeQuickerKnowledgeUrl(rawUrl: string): string {
-  const url = parseUrl(rawUrl);
-  if (!url) {
-    return rawUrl;
+export function canonicalizeQuickerKnowledgeUrl(input: string, base?: string): string | null {
+  const url = parseUrl(input, base);
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
+    return null;
   }
 
   url.protocol = "https:";
   url.hostname = url.hostname.toLowerCase();
+  if (url.hostname !== ALLOWED_HOST) {
+    return null;
+  }
+
   url.hash = "";
   url.pathname = stripTrailingSlash(url.pathname);
 
@@ -44,7 +48,12 @@ export function canonicalizeQuickerKnowledgeUrl(rawUrl: string): string {
 }
 
 export function classifyQuickerKnowledgeUrl(rawUrl: string): QuickerKnowledgeSourceType {
-  const url = parseUrl(canonicalizeQuickerKnowledgeUrl(rawUrl));
+  const canonicalUrl = canonicalizeQuickerKnowledgeUrl(rawUrl);
+  if (!canonicalUrl) {
+    return "unknown";
+  }
+
+  const url = parseUrl(canonicalUrl);
   if (!url) {
     return "unknown";
   }
@@ -69,11 +78,11 @@ export function classifyQuickerKnowledgeUrl(rawUrl: string): QuickerKnowledgeSou
   return "unknown";
 }
 
-export function isAllowedQuickerKnowledgeUrl(rawUrl: string): boolean {
-  const url = parseUrl(canonicalizeQuickerKnowledgeUrl(rawUrl));
-  if (!url || url.hostname !== ALLOWED_HOST) {
+export function isAllowedQuickerKnowledgeUrl(input: string, base?: string): boolean {
+  const canonicalUrl = canonicalizeQuickerKnowledgeUrl(input, base);
+  if (!canonicalUrl) {
     return false;
   }
 
-  return classifyQuickerKnowledgeUrl(url.toString()) !== "unknown";
+  return classifyQuickerKnowledgeUrl(canonicalUrl) !== "unknown";
 }

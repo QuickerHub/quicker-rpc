@@ -32,6 +32,19 @@ describe("quicker knowledge URL policy", () => {
       canonicalizeQuickerKnowledgeUrl("https://getquicker.net/KC/Manual?utm_source=x#section"),
       "https://getquicker.net/KC/Manual",
     );
+    assert.equal(
+      canonicalizeQuickerKnowledgeUrl("/kc/help/doc/form?spm=x#top", "https://getquicker.net/KC"),
+      "https://getquicker.net/kc/help/doc/form",
+    );
+  });
+
+  it("returns null when canonicalization rejects a URL", () => {
+    assert.equal(canonicalizeQuickerKnowledgeUrl("https://example.com/KC"), null);
+    assert.equal(canonicalizeQuickerKnowledgeUrl("not a url"), null);
+  });
+
+  it("allows relative documentation URLs against an allowed base", () => {
+    assert.equal(isAllowedQuickerKnowledgeUrl("/kc/help/doc/form", "https://getquicker.net/KC"), true);
   });
 
   it("classifies source type from path", () => {
