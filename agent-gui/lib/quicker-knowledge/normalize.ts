@@ -90,9 +90,29 @@ function extractLikelyContentElement(html: string): string | null {
     }
 
     const afterOpenTagIndex = match.index + openTag.length;
-    const closeMatch = new RegExp(`<\\/${tagName}\\s*>`, "iu").exec(html.slice(afterOpenTagIndex));
-    if (closeMatch) {
-      return html.slice(afterOpenTagIndex, afterOpenTagIndex + closeMatch.index);
+    const closeIndex = findBalancedElementCloseIndex(html, tagName, afterOpenTagIndex);
+    if (closeIndex !== null) {
+      return html.slice(afterOpenTagIndex, closeIndex);
+    }
+  }
+
+  return null;
+}
+
+function findBalancedElementCloseIndex(html: string, tagName: string, fromIndex: number): number | null {
+  const escapedTagName = tagName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const tokenPattern = new RegExp(`<\\/?${escapedTagName}\\b[^>]*>`, "giu");
+  tokenPattern.lastIndex = fromIndex;
+
+  let depth = 1;
+  for (let token = tokenPattern.exec(html); token; token = tokenPattern.exec(html)) {
+    if (token[0].startsWith("</")) {
+      depth -= 1;
+      if (depth === 0) {
+        return token.index;
+      }
+    } else if (!token[0].endsWith("/>")) {
+      depth += 1;
     }
   }
 

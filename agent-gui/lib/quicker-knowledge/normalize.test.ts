@@ -82,4 +82,17 @@ describe("quicker knowledge normalization", () => {
       assert.match(result.chunks.map((c) => c.text).join("\n"), /after/);
     });
   });
+
+  it("preserves nested same-tag content in document containers", () => {
+    const html = `<div class="doc-content"><h1>正文</h1><div>第一段</div><p>第二段</p></div>`;
+    const result = normalizeQuickerKnowledgeHtml({
+      html,
+      url: "https://getquicker.net/kc/manual/doc/start",
+      fetchedAt: "2026-07-03T00:00:00.000Z",
+    });
+    const text = result.chunks.map((c) => c.text).join("\n");
+
+    assert.match(text, /第一段/);
+    assert.match(text, /第二段/);
+  });
 });
