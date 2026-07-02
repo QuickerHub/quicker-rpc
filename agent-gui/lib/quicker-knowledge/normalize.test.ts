@@ -45,4 +45,15 @@ describe("quicker knowledge normalization", () => {
     assert.match(result.chunks.map((c) => c.text).join("\n"), /文本/);
     assert.match(result.chunks.map((c) => c.text).join("\n"), /sys:form/);
   });
+
+  it("falls back to title tag when main content starts with h2", () => {
+    const html = `<main><h2>子标题</h2><p>body</p></main><title>页面标题</title>`;
+    const result = normalizeQuickerKnowledgeHtml({
+      html,
+      url: "https://getquicker.net/kc/help/doc/form",
+      fetchedAt: "2026-07-03T00:00:00.000Z",
+    });
+
+    assert.equal(result.page.title, "页面标题");
+  });
 });

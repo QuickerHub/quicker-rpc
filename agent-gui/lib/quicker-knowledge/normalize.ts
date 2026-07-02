@@ -21,11 +21,6 @@ export type NormalizeQuickerKnowledgeHtmlResult = {
   chunks: QuickerKnowledgeChunk[];
 };
 
-type Heading = {
-  level: number;
-  text: string;
-};
-
 const CHROME_TAGS = ["script", "style", "nav", "footer", "aside"];
 
 function hashText(text: string): string {
@@ -73,11 +68,11 @@ function normalizeInlineText(html: string): string {
   return stripTags(html).replace(/\s+/gu, " ").trim();
 }
 
-function extractFirstHeading(markdown: string): Heading | null {
+function extractFirstH1Heading(markdown: string): string | null {
   for (const line of markdown.split("\n")) {
-    const match = /^(#{1,6})\s+(.+)$/u.exec(line.trim());
+    const match = /^#\s+(.+)$/u.exec(line.trim());
     if (match) {
-      return { level: match[1].length, text: match[2].trim() };
+      return match[1].trim();
     }
   }
 
@@ -200,8 +195,7 @@ export function normalizeQuickerKnowledgeHtml(
   const canonicalUrl = canonicalizeQuickerKnowledgeUrl(input.url) ?? input.url;
   const selectedHtml = extractMainHtml(input.html);
   const readableText = htmlToReadableText(selectedHtml);
-  const firstHeading = extractFirstHeading(readableText);
-  const title = firstHeading?.text ?? extractTitleFromTag(input.html) ?? "Quicker documentation";
+  const title = extractFirstH1Heading(readableText) ?? extractTitleFromTag(input.html) ?? "Quicker documentation";
   const sourceType = classifyQuickerKnowledgeUrl(canonicalUrl);
   const contentHash = hashText(readableText);
   const page: QuickerKnowledgePage = {
