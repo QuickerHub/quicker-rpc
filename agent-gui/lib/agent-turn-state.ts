@@ -64,6 +64,24 @@ function isActionAuthoringPrompt(userText: string): boolean {
   return /做(一|个)?.*动作/.test(text) || /新建.*动作/.test(text);
 }
 
+function isQuickerUsageQuestion(userText: string): boolean {
+  if (isActionAuthoringPrompt(userText) || isStepDiscoveryPrompt(userText)) {
+    return false;
+  }
+  const text = userText.toLowerCase();
+  return hasAny(text, [
+    "quicker",
+    "getquicker",
+    "动作面板",
+    "动作页",
+    "场景",
+    "同步",
+    "动作库",
+    "用户输入",
+    "状态存取",
+  ]);
+}
+
 /** Clipboard read/transform/write authoring (clip-lines benchmark class). */
 export function isClipboardPipelineAuthoringPrompt(userText: string): boolean {
   const text = userText.toLowerCase();
@@ -102,6 +120,9 @@ function inferIntent(userText: string): AgentTurnIntent {
   }
   if (isActionAuthoringPrompt(userText)) {
     return "action_authoring";
+  }
+  if (isQuickerUsageQuestion(userText)) {
+    return "conversation";
   }
   if (
     hasAny(text, [
@@ -259,6 +280,9 @@ function preferredToolsForIntent(intent: AgentTurnIntent, userText?: string): st
       "qkrpc_step_runner_get",
       "qkrpc_wait",
     ];
+  }
+  if (userText && isQuickerUsageQuestion(userText)) {
+    return ["quicker_knowledge_search", "docs", "web_search", "ask_question"];
   }
   switch (intent) {
     case "action_authoring":

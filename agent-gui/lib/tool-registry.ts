@@ -78,6 +78,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "编写指南：已知 topic→get（如 action-data-schema）；未知关键词→search snippet；index→目录",
   },
   {
+    id: "quicker_knowledge_search",
+    label: "Quicker 官网知识库",
+    group: "read",
+    category: "docs",
+    description: "检索 getquicker.net 公开文档：软件使用、设置、同步、账号、模块说明；不用于动作 schema/step 参数。",
+  },
+  {
     id: "Shell",
     label: "终端",
     group: "write",

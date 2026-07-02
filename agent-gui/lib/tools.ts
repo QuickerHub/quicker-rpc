@@ -169,6 +169,10 @@ import { WEB_SEARCH_TOOL_DEF } from "@/lib/web-search-tool.server";
 
 import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
 
+import { QUICKER_KNOWLEDGE_SEARCH_TOOL } from "@/lib/quicker-knowledge-tool-constants";
+
+import { QUICKER_KNOWLEDGE_SEARCH_TOOL_DEF } from "@/lib/quicker-knowledge-tool.server";
+
 import {
 
   ASK_QUESTION_TOOL,
@@ -203,6 +207,8 @@ const quickerToolsCore = {
   [USER_BROWSER_TOOL]: USER_BROWSER_TOOL_DEF,
 
   [WEB_SEARCH_TOOL]: WEB_SEARCH_TOOL_DEF,
+
+  [QUICKER_KNOWLEDGE_SEARCH_TOOL]: QUICKER_KNOWLEDGE_SEARCH_TOOL_DEF,
 
   [LLM_SETTINGS_TOOL]: LLM_SETTINGS_TOOL_DEF,
 

@@ -33,6 +33,7 @@ export const TOOL_BUNDLE_DEFINITIONS: readonly ToolBundleDefinition[] = [
     toolIds: [
       LIST_TOOLS_TOOL,
       "docs",
+      "quicker_knowledge_search",
       "Read",
       "Write",
       "StrReplace",

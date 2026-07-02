@@ -146,6 +146,30 @@ test("buildAgentTurnState treats clip-lines as clipboard pipeline hints", () => 
   );
 });
 
+test("buildAgentTurnState recommends quicker knowledge for Quicker usage questions", () => {
+  const state = buildAgentTurnState({
+    actionScope: { pinnedLatestAll: [] },
+    chatMode: "agent",
+    enabledToolIds: ["quicker_knowledge_search", "docs", "web_search"],
+    userText: "Quicker 怎么设置不同软件显示不同动作面板？",
+  });
+
+  assert.equal(state.intent, "conversation");
+  assert.ok(state.recommendedToolIds.includes("quicker_knowledge_search"));
+});
+
+test("buildAgentTurnState keeps action authoring on qkrpc tools instead of website knowledge", () => {
+  const state = buildAgentTurnState({
+    actionScope: { pinnedLatestAll: [] },
+    chatMode: "agent",
+    enabledToolIds: ["quicker_knowledge_search", "qkrpc_step_runner_search", "workspace_program"],
+    userText: "帮我创建一个动作读取剪贴板并显示出来",
+  });
+
+  assert.equal(state.intent, "action_authoring");
+  assert.equal(state.recommendedToolIds.includes("quicker_knowledge_search"), false);
+});
+
 test("formatAgentTurnStateForPrompt renders a compact prompt block", () => {
   const block = formatAgentTurnStateForPrompt({
     intent: "workspace",
