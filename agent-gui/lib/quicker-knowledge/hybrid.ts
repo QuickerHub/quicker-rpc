@@ -15,7 +15,7 @@ type FusedResult = {
 export function reciprocalRankFusion(
   input: ReciprocalRankFusionInput,
 ): QuickerKnowledgeSearchResult[] {
-  const k = input.k ?? 60;
+  const k = clampK(input.k);
   const fusedByKey = new Map<string, FusedResult>();
 
   addRankedResults(fusedByKey, input.keyword, k, 1);
@@ -49,7 +49,7 @@ function addRankedResults(
 }
 
 function resultKey(result: QuickerKnowledgeSearchResult): string {
-  return `${result.url}#${result.sectionPath.join("/")}`;
+  return result.chunkId;
 }
 
 function clampLimit(limit = 6): number {
@@ -58,4 +58,12 @@ function clampLimit(limit = 6): number {
   }
 
   return Math.min(12, Math.max(1, Math.trunc(limit)));
+}
+
+function clampK(k = 60): number {
+  if (!Number.isFinite(k) || k <= 0) {
+    return 60;
+  }
+
+  return k;
 }

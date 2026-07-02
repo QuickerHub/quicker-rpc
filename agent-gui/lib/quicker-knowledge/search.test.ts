@@ -58,6 +58,7 @@ describe("quicker knowledge search", () => {
   it("finds Chinese usage questions", () => {
     const index = buildQuickerKnowledgeKeywordIndex(CHUNKS);
     const hits = searchQuickerKnowledge(index, { query: "不同软件显示不同动作面板", limit: 3 });
+    assert.equal(hits[0]?.chunkId, "manual-panel");
     assert.equal(hits[0]?.url, "https://getquicker.net/KC/Manual");
     assert.match(hits[0]!.snippet, /动作面板/);
   });

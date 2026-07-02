@@ -29,6 +29,7 @@ export type QuickerKnowledgeChunk = {
 };
 
 export type QuickerKnowledgeSearchResult = {
+  chunkId: string;
   title: string;
   url: string;
   sectionPath: string[];

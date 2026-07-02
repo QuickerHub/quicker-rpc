@@ -112,6 +112,7 @@ export function searchQuickerKnowledge(
 
     seenChunkIds.add(chunkId);
     results.push({
+      chunkId: chunk.id,
       title: chunk.title,
       url: chunk.url,
       sectionPath: chunk.sectionPath,

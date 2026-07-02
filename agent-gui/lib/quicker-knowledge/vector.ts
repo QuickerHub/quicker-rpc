@@ -59,30 +59,31 @@ export function searchQuickerKnowledgeVectors(
   const limit = clampLimit(input.limit);
 
   return [...input.index.vectorByChunkId.entries()]
-    .map(([chunkId, embedding]) => ({
-      chunkId,
-      score: cosineSimilarity(input.queryEmbedding, embedding),
-    }))
-    .filter((result) => result.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .flatMap((result): QuickerKnowledgeSearchResult[] => {
-      const chunk = input.index.chunkById.get(result.chunkId);
+    .flatMap(([chunkId, embedding]) => {
+      const chunk = input.index.chunkById.get(chunkId);
       if (chunk == null) {
         return [];
       }
 
       return [
         {
-          title: chunk.title,
-          url: chunk.url,
-          sectionPath: chunk.sectionPath,
-          sourceType: chunk.sourceType,
-          score: result.score,
-          snippet: chunk.text.slice(0, 360),
+          chunk,
+          score: cosineSimilarity(input.queryEmbedding, embedding),
         },
       ];
-    });
+    })
+    .filter((result) => result.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ chunk, score }) => ({
+      chunkId: chunk.id,
+      title: chunk.title,
+      url: chunk.url,
+      sectionPath: chunk.sectionPath,
+      sourceType: chunk.sourceType,
+      score,
+      snippet: chunk.text.slice(0, 360),
+    }));
 }
 
 function clampLimit(limit = 6): number {
