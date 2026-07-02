@@ -155,7 +155,31 @@ test("buildAgentTurnState recommends quicker knowledge for Quicker usage questio
   });
 
   assert.equal(state.intent, "conversation");
+  assert.equal(state.risk, "read");
   assert.ok(state.recommendedToolIds.includes("quicker_knowledge_search"));
+});
+
+test("buildAgentTurnState does not route repo sync questions to quicker knowledge", () => {
+  const state = buildAgentTurnState({
+    actionScope: { pinnedLatestAll: [] },
+    chatMode: "agent",
+    enabledToolIds: ["quicker_knowledge_search", "Grep", "Read"],
+    userText: "这个 repo 的同步逻辑在哪个文件？",
+  });
+
+  assert.equal(state.intent, "workspace");
+  assert.equal(state.recommendedToolIds.includes("quicker_knowledge_search"), false);
+});
+
+test("buildAgentTurnState keeps generic scene questions off quicker knowledge", () => {
+  const state = buildAgentTurnState({
+    actionScope: { pinnedLatestAll: [] },
+    chatMode: "agent",
+    enabledToolIds: ["quicker_knowledge_search", "docs", "web_search"],
+    userText: "这个测试场景应该怎么命名？",
+  });
+
+  assert.equal(state.recommendedToolIds.includes("quicker_knowledge_search"), false);
 });
 
 test("buildAgentTurnState keeps action authoring on qkrpc tools instead of website knowledge", () => {

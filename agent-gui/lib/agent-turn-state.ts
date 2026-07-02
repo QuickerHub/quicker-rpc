@@ -69,14 +69,24 @@ function isQuickerUsageQuestion(userText: string): boolean {
     return false;
   }
   const text = userText.toLowerCase();
+  const hasStrongQuickerContext = hasAny(text, [
+    "quicker",
+    "getquicker",
+    "动作面板",
+    "动作页",
+    "动作库",
+  ]);
+  if (!hasStrongQuickerContext) {
+    return false;
+  }
   return hasAny(text, [
     "quicker",
     "getquicker",
     "动作面板",
     "动作页",
+    "动作库",
     "场景",
     "同步",
-    "动作库",
     "用户输入",
     "状态存取",
   ]);
@@ -155,6 +165,9 @@ function inferRisk(userText: string, enabledToolIds: readonly string[]): AgentTu
   if (isStepDiscoveryPrompt(userText)) {
     return "read";
   }
+  if (isQuickerUsageQuestion(userText)) {
+    return "read";
+  }
   if (
     hasAny(text, [
       "不要修改",
@@ -206,7 +219,7 @@ function inferRisk(userText: string, enabledToolIds: readonly string[]): AgentTu
       || id === "workspace_program"
       || id.startsWith("qkrpc_action_")
       || id.startsWith("qkrpc_subprogram_")
-      || id.startsWith("quicker_")
+      || (id.startsWith("quicker_") && id !== "quicker_knowledge_search")
     )
   ) {
     return "write";
