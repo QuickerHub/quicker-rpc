@@ -1,0 +1,149 @@
+import "server-only";
+
+import { tool } from "ai";
+import { z } from "zod";
+import { reciprocalRankFusion } from "@/lib/quicker-knowledge/hybrid";
+import {
+  buildQuickerKnowledgeKeywordIndex,
+  searchQuickerKnowledge,
+  type QuickerKnowledgeSearchIndex,
+} from "@/lib/quicker-knowledge/search";
+import {
+  hasQuickerKnowledgeCorpus,
+  loadQuickerKnowledgeChunksFromJsonl,
+} from "@/lib/quicker-knowledge/store.server";
+import type { QuickerKnowledgeSearchResult } from "@/lib/quicker-knowledge/types";
+import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
+import { QUICKER_KNOWLEDGE_SEARCH_TOOL } from "@/lib/quicker-knowledge-tool-constants";
+
+export type QuickerKnowledgeSearchToolInput = {
+  query: string;
+  limit?: number;
+  sourceType?: "manual" | "action_dev" | "kb";
+};
+
+const quickerKnowledgeSearchInputSchema = z.object({
+  query: z.string().describe("Quicker website knowledge search query"),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(12)
+    .optional()
+    .describe("Max results (default 6, max 12)"),
+  sourceType: z
+    .enum(["manual", "action_dev", "kb"])
+    .optional()
+    .describe("Limit results to a Quicker website source type"),
+});
+
+let cachedIndex:
+  | {
+      chunksLength: number;
+      index: QuickerKnowledgeSearchIndex;
+    }
+  | undefined;
+
+function formatFailure(
+  data: Record<string, unknown>,
+  error: string,
+): Record<string, unknown> {
+  return {
+    ...formatLocalToolResult(data, false, error),
+    error,
+  };
+}
+
+async function loadKeywordIndex(): Promise<QuickerKnowledgeSearchIndex> {
+  if (!hasQuickerKnowledgeCorpus()) {
+    throw new Error(
+      "Quicker knowledge corpus is missing. Run the Quicker website knowledge ingest/build task first.",
+    );
+  }
+
+  const chunks = await loadQuickerKnowledgeChunksFromJsonl();
+  if (cachedIndex?.chunksLength === chunks.length) {
+    return cachedIndex.index;
+  }
+
+  const index = buildQuickerKnowledgeKeywordIndex(chunks);
+  cachedIndex = {
+    chunksLength: chunks.length,
+    index,
+  };
+  return index;
+}
+
+export async function executeQuickerKnowledgeSearchTool(
+  input: QuickerKnowledgeSearchToolInput,
+): Promise<Record<string, unknown>> {
+  const query = input.query?.trim() ?? "";
+  if (query.length === 0) {
+    return formatFailure(
+      {
+        action: "quicker-knowledge-search",
+        success: false,
+        query,
+        errorMessage: "query is required",
+      },
+      "query is required",
+    );
+  }
+
+  let index: QuickerKnowledgeSearchIndex;
+  try {
+    index = await loadKeywordIndex();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return formatFailure(
+      {
+        action: "quicker-knowledge-search",
+        success: false,
+        query,
+        errorMessage: message,
+        hint:
+          "The local Quicker website knowledge corpus is not available. "
+          + "Run the website RAG corpus build/ingest step, then retry.",
+      },
+      message,
+    );
+  }
+
+  const keyword = searchQuickerKnowledge(index, {
+    query,
+    limit: input.limit,
+    sourceType: input.sourceType,
+  });
+  const results: QuickerKnowledgeSearchResult[] = reciprocalRankFusion({
+    keyword,
+    vector: [],
+    limit: input.limit,
+  });
+
+  return formatToolResultForAgent(
+    QUICKER_KNOWLEDGE_SEARCH_TOOL,
+    input,
+    formatLocalToolResult({
+      action: "quicker-knowledge-search",
+      success: true,
+      query,
+      mode: "keyword",
+      results,
+      hint:
+        results.length > 0
+          ? "Cite result URLs when answering from Quicker website knowledge."
+          : "No results found. Refine the query with Quicker product terms, settings names, UI labels, or module names.",
+    }),
+  );
+}
+
+export const QUICKER_KNOWLEDGE_SEARCH_TOOL_DEF = tool({
+  description:
+    "Search official public Quicker website knowledge for product usage, settings, UI, install, sync, account, common modules, and docs. "
+    + "Use this before answering Quicker public website knowledge questions, and cite result URLs. "
+    + "Do NOT use for local action editing, step-runner schemas, qkrpc authoring, workspace files, or private/local Quicker data.",
+  inputSchema: quickerKnowledgeSearchInputSchema,
+  execute: async (input: QuickerKnowledgeSearchToolInput) =>
+    executeQuickerKnowledgeSearchTool(input),
+});
