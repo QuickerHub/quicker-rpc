@@ -28,6 +28,10 @@ export function canonicalizeQuickerKnowledgeUrl(input: string, base?: string): s
     return null;
   }
 
+  if (url.username || url.password || url.port) {
+    return null;
+  }
+
   url.protocol = "https:";
   url.hostname = url.hostname.toLowerCase();
   if (url.hostname !== ALLOWED_HOST) {

@@ -41,10 +41,16 @@ describe("quicker knowledge URL policy", () => {
   it("returns null when canonicalization rejects a URL", () => {
     assert.equal(canonicalizeQuickerKnowledgeUrl("https://example.com/KC"), null);
     assert.equal(canonicalizeQuickerKnowledgeUrl("not a url"), null);
+    assert.equal(canonicalizeQuickerKnowledgeUrl("https://user:pass@getquicker.net/KC"), null);
+    assert.equal(canonicalizeQuickerKnowledgeUrl("https://getquicker.net:444/KC"), null);
   });
 
   it("allows relative documentation URLs against an allowed base", () => {
     assert.equal(isAllowedQuickerKnowledgeUrl("/kc/help/doc/form", "https://getquicker.net/KC"), true);
+  });
+
+  it("rejects unsafe credentialed URLs", () => {
+    assert.equal(isAllowedQuickerKnowledgeUrl("https://user:pass@getquicker.net/KC"), false);
   });
 
   it("classifies source type from path", () => {
