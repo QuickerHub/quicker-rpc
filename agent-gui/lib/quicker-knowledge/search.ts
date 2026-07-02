@@ -133,9 +133,8 @@ function addChineseTokens(tokens: Set<string>, sequence: string): void {
     return;
   }
 
-  tokens.add(sequence);
-  if (sequence.length > 12) {
-    return;
+  if (sequence.length <= 12) {
+    tokens.add(sequence);
   }
 
   for (let size = 2; size <= 4; size += 1) {
@@ -150,6 +149,10 @@ function addChineseTokens(tokens: Set<string>, sequence: string): void {
 }
 
 function clampLimit(limit = 6): number {
+  if (!Number.isFinite(limit)) {
+    return 6;
+  }
+
   return Math.min(12, Math.max(1, Math.trunc(limit)));
 }
 

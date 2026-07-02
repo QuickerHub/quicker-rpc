@@ -33,6 +33,18 @@ const CHUNKS: QuickerKnowledgeChunk[] = [
   },
 ];
 
+const LONG_TEXT_ONLY_CHUNK: QuickerKnowledgeChunk = {
+  id: "long-text-panel",
+  pageId: "p3",
+  url: "https://getquicker.net/KC/TextOnlyPanel",
+  title: "场景规则",
+  sectionPath: ["场景规则"],
+  sourceType: "manual",
+  text: "根据当前活动窗口所在的软件自动切换并显示对应的动作面板帮助快速执行常用操作。",
+  tokenEstimate: 30,
+  contentHash: "c",
+};
+
 describe("quicker knowledge search", () => {
   it("tokenizes Chinese and identifiers", () => {
     const tokens = tokenizeQuickerKnowledgeText("动作面板 sys:form getquicker");
@@ -59,5 +71,28 @@ describe("quicker knowledge search", () => {
     });
     assert.equal(hits.length, 1);
     assert.equal(hits[0]?.sourceType, "action_dev");
+  });
+
+  it("finds Chinese phrases inside long text-only sequences", () => {
+    const index = buildQuickerKnowledgeKeywordIndex([LONG_TEXT_ONLY_CHUNK]);
+    const hits = searchQuickerKnowledge(index, { query: "动作面板", limit: 3 });
+    assert.equal(hits[0]?.url, "https://getquicker.net/KC/TextOnlyPanel");
+  });
+
+  it("uses the default limit for NaN", () => {
+    const chunks = Array.from({ length: 8 }, (_, index): QuickerKnowledgeChunk => ({
+      id: `action-${index}`,
+      pageId: `page-${index}`,
+      url: `https://getquicker.net/KC/Action${index}`,
+      title: `动作 ${index}`,
+      sectionPath: ["动作"],
+      sourceType: "manual",
+      text: "动作用于快速执行操作。",
+      tokenEstimate: 10,
+      contentHash: `hash-${index}`,
+    }));
+    const index = buildQuickerKnowledgeKeywordIndex(chunks);
+    const hits = searchQuickerKnowledge(index, { query: "动作", limit: Number.NaN });
+    assert.ok(hits.length <= 6);
   });
 });
