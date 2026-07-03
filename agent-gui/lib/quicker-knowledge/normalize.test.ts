@@ -95,4 +95,22 @@ describe("quicker knowledge normalization", () => {
     assert.match(text, /第一段/);
     assert.match(text, /第二段/);
   });
+
+  it("ignores layout classes that merely contain the word content", () => {
+    const html = [
+      `<body>`,
+      `<div class="navbar-collapse justify-content-between">导航噪声</div>`,
+      `<div class="article-content js-toc-content"><h1>正文标题</h1><p>真正正文</p></div>`,
+      `</body>`,
+    ].join("");
+    const result = normalizeQuickerKnowledgeHtml({
+      html,
+      url: "https://getquicker.net/KC/Manual/Doc/profiles",
+      fetchedAt: "2026-07-03T00:00:00.000Z",
+    });
+    const text = result.chunks.map((c) => c.text).join("\n");
+
+    assert.match(text, /真正正文/);
+    assert.doesNotMatch(text, /导航噪声/);
+  });
 });

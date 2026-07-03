@@ -22,8 +22,30 @@ export type NormalizeQuickerKnowledgeHtmlResult = {
 };
 
 const CHROME_TAGS = ["script", "style", "nav", "footer", "aside"];
-const LIKELY_CONTENT_ATTRIBUTE_PATTERN =
-  /\b(?:class|id)\s*=\s*(?:"[^"]*(?:article|content|markdown|doc|manual|kb|post)[^"]*"|'[^']*(?:article|content|markdown|doc|manual|kb|post)[^']*'|[^\s>]*(?:article|content|markdown|doc|manual|kb|post)[^\s>]*)/iu;
+const STRONG_CONTENT_TOKENS = new Set([
+  "article",
+  "article-content",
+  "content",
+  "doc-content",
+  "document-content",
+  "kb-content",
+  "lake-content",
+  "manual-content",
+  "markdown",
+  "markdown-body",
+  "post-content",
+]);
+const WEAK_CONTENT_TOKENS = ["article", "doc", "kb", "manual", "markdown", "post"];
+const LAYOUT_TOKENS = new Set([
+  "dropdown-content",
+  "justify-content-around",
+  "justify-content-between",
+  "justify-content-center",
+  "justify-content-end",
+  "justify-content-start",
+  "modal-content",
+]);
+const LAYOUT_TOKEN_PREFIXES = ["align-", "col-", "d-", "justify-", "mt-", "mb-", "ml-", "mr-", "pl-", "pr-"];
 
 function hashText(text: string): string {
   return createHash("sha256").update(text).digest("hex").slice(0, 16);
@@ -83,20 +105,74 @@ function extractFirstElementByTag(html: string, tag: string): string | null {
 }
 
 function extractLikelyContentElement(html: string): string | null {
+  let best: { index: number; score: number; html: string } | null = null;
+
   for (const match of html.matchAll(/<([a-z][\w:-]*)\b([^>]*)>/giu)) {
     const [openTag, tagName, attributes] = match;
-    if (!LIKELY_CONTENT_ATTRIBUTE_PATTERN.test(attributes)) {
+    const score = scoreContentAttributes(attributes);
+    if (score <= 0) {
       continue;
     }
 
     const afterOpenTagIndex = match.index + openTag.length;
     const closeIndex = findBalancedElementCloseIndex(html, tagName, afterOpenTagIndex);
     if (closeIndex !== null) {
-      return html.slice(afterOpenTagIndex, closeIndex);
+      const candidate = html.slice(afterOpenTagIndex, closeIndex);
+      if (
+        best == null ||
+        score > best.score ||
+        (score === best.score && match.index < best.index)
+      ) {
+        best = { index: match.index, score, html: candidate };
+      }
     }
   }
 
-  return null;
+  return best?.html ?? null;
+}
+
+function scoreContentAttributes(attributes: string): number {
+  const tokens = extractClassAndIdTokens(attributes);
+  if (tokens.length === 0 || tokens.some(isLayoutToken)) {
+    return 0;
+  }
+
+  let score = 0;
+  for (const token of tokens) {
+    if (STRONG_CONTENT_TOKENS.has(token)) {
+      score += 20;
+      continue;
+    }
+    if (
+      WEAK_CONTENT_TOKENS.some(
+        (word) => token === word || token.startsWith(`${word}-`) || token.endsWith(`-${word}`),
+      )
+    ) {
+      score += 5;
+    }
+  }
+  return score;
+}
+
+function extractClassAndIdTokens(attributes: string): string[] {
+  const tokens: string[] = [];
+  for (const match of attributes.matchAll(/\b(?:class|id)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/giu)) {
+    const value = match[1] ?? match[2] ?? match[3] ?? "";
+    for (const token of value.toLowerCase().split(/\s+/u)) {
+      const trimmed = token.trim();
+      if (trimmed.length > 0) {
+        tokens.push(trimmed);
+      }
+    }
+  }
+  return tokens;
+}
+
+function isLayoutToken(token: string): boolean {
+  return (
+    LAYOUT_TOKENS.has(token) ||
+    LAYOUT_TOKEN_PREFIXES.some((prefix) => token === prefix || token.startsWith(prefix))
+  );
 }
 
 function findBalancedElementCloseIndex(html: string, tagName: string, fromIndex: number): number | null {
