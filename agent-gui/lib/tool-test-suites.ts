@@ -115,6 +115,13 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
     input: { action: "search", query: "authoring workflow P1", limit: 3 },
   },
   {
+    toolName: "quicker_knowledge_search",
+    group: "docs",
+    optional: true,
+    input: { query: "动作面板", limit: 3 },
+    description: "Search local getquicker.net knowledge corpus — needs knowledge:crawl first",
+  },
+  {
     toolName: "launcher_resolve",
     group: "settings",
     requiresQkrpc: true,
