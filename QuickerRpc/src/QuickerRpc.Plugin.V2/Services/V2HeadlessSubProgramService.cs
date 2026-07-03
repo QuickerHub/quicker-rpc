@@ -67,7 +67,7 @@ public sealed class V2HeadlessSubProgramService
 
         if (SubPrograms is null)
         {
-            return FailApply("Quicker V2 subprogram accessor unavailable.");
+            return FailApply("Quicker V2 subprogram accessor unavailable. " + QuickerV2Runtime.DescribeSubProgramServiceProbe());
         }
 
         JObject body;
@@ -115,7 +115,13 @@ public sealed class V2HeadlessSubProgramService
             Success = true,
             SubProgramId = SubPrograms.GetId(subProgram),
             EditVersion = SubPrograms.GetEditVersionMs(subProgram),
+            Warnings = BuildCloudSyncWarnings(),
         };
+    }
+
+    private static IList<string> BuildCloudSyncWarnings()
+    {
+        return new List<string> { "cloudSync: " + QuickerV2CloudSyncTrigger.DescribeProbe() };
     }
 
     public QuickerRpcApplySubProgramPatchResult ApplyPatchToSubProgram(

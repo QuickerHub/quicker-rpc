@@ -190,6 +190,7 @@ internal sealed class QuickerV2ActionAccessor
         try
         {
             _addOrUpdateAction.Invoke(_store, [action]);
+            QuickerV2CloudSyncTrigger.TryTriggerAfterPersist();
             return true;
         }
         catch (Exception ex)
@@ -254,8 +255,8 @@ internal sealed class QuickerV2ActionAccessor
         return result is bool b && b;
     }
 
-    public void SetOperationPayload(object action, string payloadJson) =>
-        QuickerV2Reflection.WriteMember(action, "OperationPayload", payloadJson);
+    public bool TrySetOperationPayload(object action, string payloadJson, out string? error) =>
+        QuickerV2OperationPayloadWriter.TrySetXActionPayloadJson(action, payloadJson, out error);
 
     public void TouchLastEditUtc(object action, DateTime utcNow)
     {

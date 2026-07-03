@@ -76,6 +76,47 @@ public sealed class QuickerV2HostProbeTests
         AssertContains(types, "Quicker.Domain.Actions.X.Storage.ActionStep");
     }
 
+    [TestMethod]
+    public void V2_Common_dll_exposes_xaction_payload_model()
+    {
+        if (!Directory.Exists(HostRoot))
+        {
+            Assert.Inconclusive($"V2 host root not found: {HostRoot}");
+        }
+
+        var commonDll = Path.Combine(HostRoot, "Quicker.Common.dll");
+        var types = ReadTypeNames(commonDll);
+        AssertContains(types, QuickerV2ProbeNames.IOperationPayload);
+        AssertContains(types, QuickerV2ProbeNames.XActionDto);
+        AssertContains(types, QuickerV2ProbeNames.OperationTypes);
+        AssertContains(types, QuickerV2ProbeNames.ActionItem2Converter);
+    }
+
+    [TestMethod]
+    public void V2_Quicker_dll_exposes_global_subprogram_service_contract()
+    {
+        if (!Directory.Exists(HostRoot))
+        {
+            Assert.Inconclusive($"V2 host root not found: {HostRoot}");
+        }
+
+        var quickerDll = Path.Combine(HostRoot, "Quicker.dll");
+        var types = ReadTypeNames(quickerDll);
+        AssertContains(types, QuickerV2ProbeNames.GlobalSubProgramDataService);
+        AssertContains(types, QuickerV2ProbeNames.IGlobalSubProgramDataService);
+    }
+
+    private static class QuickerV2ProbeNames
+    {
+        public const string ActionItem2 = "Quicker.Common.V2.ActionItem2";
+        public const string IOperationPayload = "Quicker.Common.V2.IOperationPayload";
+        public const string XActionDto = "Quicker.Common.ActionPayloads.XAction.XActionDto";
+        public const string OperationTypes = "Quicker.Common.V2.OperationTypes";
+        public const string ActionItem2Converter = "Quicker.Common.V2.ActionItem2Converter";
+        public const string GlobalSubProgramDataService = "Quicker.ReactiveData.GlobalSubProgramDataService";
+        public const string IGlobalSubProgramDataService = "Quicker.ReactiveData.IGlobalSubProgramDataService";
+    }
+
     private static void AssertContains(HashSet<string> types, string fullName) =>
         Assert.IsTrue(types.Contains(fullName), $"Expected type not found: {fullName}");
 

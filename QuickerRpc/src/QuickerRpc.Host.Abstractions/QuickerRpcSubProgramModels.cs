@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace QuickerRpc.Host;
 
 /// <summary>Read model for headless global subprogram load.</summary>
@@ -65,13 +67,20 @@ public sealed class QuickerRpcSubProgramWriteResult
 
     public string? CallIdentifier { get; set; }
 
-    public static QuickerRpcSubProgramWriteResult Ok(string idOrName, string? subProgramId, long editVersion) =>
+    public IList<string> Warnings { get; set; } = new List<string>();
+
+    public static QuickerRpcSubProgramWriteResult Ok(
+        string idOrName,
+        string? subProgramId,
+        long editVersion,
+        IList<string>? warnings = null) =>
         new()
         {
             Success = true,
             IdOrName = idOrName,
             SubProgramId = subProgramId,
             EditVersion = editVersion,
+            Warnings = warnings is null ? new List<string>() : new List<string>(warnings),
         };
 
     public static QuickerRpcSubProgramWriteResult Fail(string idOrName, string message) =>

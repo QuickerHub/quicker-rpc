@@ -115,6 +115,49 @@ internal static class QuickerV2Runtime
         return string.Join("; ", parts);
     }
 
+    /// <summary>Human-readable probe summary when V2 subprogram accessor fails to initialize.</summary>
+    public static string DescribeSubProgramServiceProbe()
+    {
+        if (!IsRunningInQuicker)
+        {
+            return "entry assembly is not Quicker.";
+        }
+
+        var parts = new List<string>();
+        foreach (var name in new[]
+                 {
+                     QuickerV2TypeNames.IGlobalSubProgramDataService,
+                     QuickerV2TypeNames.GlobalSubProgramDataService,
+                     QuickerV2TypeNames.SubProgram,
+                     QuickerV2TypeNames.SubProgramHelper,
+                     QuickerV2TypeNames.StorageActionStep,
+                     QuickerV2TypeNames.StorageActionVariable,
+                 })
+        {
+            var type = ResolveType(name);
+            if (type is null)
+            {
+                parts.Add($"type missing: {name}");
+                continue;
+            }
+
+            var needsService = name is QuickerV2TypeNames.IGlobalSubProgramDataService
+                or QuickerV2TypeNames.GlobalSubProgramDataService;
+            if (!needsService)
+            {
+                parts.Add($"ok: {name} ({type.Assembly.GetName().Name})");
+                continue;
+            }
+
+            var service = TryGetService(type);
+            parts.Add(service is null
+                ? $"service null: {name} ({type.Assembly.GetName().Name})"
+                : $"ok: {name} ({type.Assembly.GetName().Name})");
+        }
+
+        return string.Join("; ", parts);
+    }
+
     internal static IEnumerable<Assembly> EnumerateQuickerAssemblies()
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

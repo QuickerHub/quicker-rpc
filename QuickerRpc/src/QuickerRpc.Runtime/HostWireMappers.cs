@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
 
@@ -62,6 +63,9 @@ internal static class HostWireMappers
                 Success = true,
                 SubProgramId = write.SubProgramId ?? write.IdOrName,
                 EditVersion = write.EditVersion,
+                Warnings = write.Warnings is { Count: > 0 }
+                    ? new List<string>(write.Warnings)
+                    : new List<string>(),
             }
             : write.VersionConflict
                 ? new QuickerRpcApplySubProgramPatchResult

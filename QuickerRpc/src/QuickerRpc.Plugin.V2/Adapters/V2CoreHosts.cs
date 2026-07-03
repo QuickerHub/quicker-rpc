@@ -139,7 +139,8 @@ internal sealed class V2SubProgramHost : IQuickerRpcSubProgramHost
             return Task.FromResult(QuickerRpcSubProgramWriteResult.Ok(
                 write.IdOrName,
                 apply.SubProgramId,
-                apply.EditVersion ?? 0));
+                apply.EditVersion ?? 0,
+                apply.Warnings));
         }
 
         if (apply.VersionConflict == true)

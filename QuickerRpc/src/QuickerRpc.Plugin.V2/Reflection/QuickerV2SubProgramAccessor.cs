@@ -222,6 +222,7 @@ internal sealed class QuickerV2SubProgramAccessor
         try
         {
             _addOrUpdate.Invoke(_dataService, [subProgram]);
+            QuickerV2CloudSyncTrigger.TryTriggerAfterPersist();
             return true;
         }
         catch (Exception ex)
@@ -278,7 +279,8 @@ internal sealed class QuickerV2SubProgramAccessor
             return null;
         }
 
-        var serviceType = QuickerV2Runtime.ResolveType(QuickerV2TypeNames.GlobalSubProgramDataService);
+        var serviceType = QuickerV2Runtime.ResolveType(QuickerV2TypeNames.IGlobalSubProgramDataService)
+            ?? QuickerV2Runtime.ResolveType(QuickerV2TypeNames.GlobalSubProgramDataService);
         var subProgramType = QuickerV2Runtime.ResolveType(QuickerV2TypeNames.SubProgram);
         var helperType = QuickerV2Runtime.ResolveType(QuickerV2TypeNames.SubProgramHelper);
         var stepType = QuickerV2Runtime.ResolveType(QuickerV2TypeNames.StorageActionStep);

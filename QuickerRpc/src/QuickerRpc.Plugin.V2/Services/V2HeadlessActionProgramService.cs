@@ -126,7 +126,11 @@ public sealed class V2HeadlessActionProgramService
             return FailApply("Failed to clone ActionItem2.");
         }
 
-        Actions.SetOperationPayload(clone, payload);
+        Actions.TrySetOperationPayload(clone, payload, out var payloadError);
+        if (payloadError is not null)
+        {
+            return FailApply(payloadError);
+        }
         Actions.TouchLastEditUtc(clone, DateTime.UtcNow);
         if (!Actions.TrySaveAction(clone, out var saveError))
         {
@@ -276,7 +280,10 @@ public sealed class V2HeadlessActionProgramService
             return FailPatch("Failed to clone ActionItem2.");
         }
 
-        Actions.SetOperationPayload(clone, core.Body.ToString(Newtonsoft.Json.Formatting.None));
+        if (!Actions.TrySetOperationPayload(clone, core.Body.ToString(Newtonsoft.Json.Formatting.None), out var payloadError))
+        {
+            return FailPatch(payloadError ?? "set_operation_payload_failed");
+        }
         UpdatePresentationFields(
             clone,
             core.Metadata.Title,
