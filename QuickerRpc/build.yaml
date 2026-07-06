@@ -15,6 +15,7 @@ uploadDir: quicker.rpc
 packageName: quicker.rpc
 subprogramName: QuickerRpc_Run
 instruction: Quicker plugin RPC bridge (StreamJsonRpc named pipe)
+dualHostPublish: true
 
 # V1 Costura embeds Microsoft.Extensions* + StreamJsonRpc deps. V2 (net10) uses Quicker host DI/Newtonsoft (qkref.net10.props); Costura embeds StreamJsonRpc + QuickerRpc.* only.
 filesToInclude:

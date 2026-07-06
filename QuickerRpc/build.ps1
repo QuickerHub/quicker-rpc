@@ -170,6 +170,21 @@ function Invoke-QuickerRpcQkbuildPass {
     }
 }
 
+function Test-QuickerRpcDualHostPublish {
+    $yaml = Join-Path $ProductRoot 'build.yaml'
+    if (-not (Test-Path -LiteralPath $yaml)) { return $false }
+    foreach ($line in Get-Content -LiteralPath $yaml -Encoding UTF8) {
+        if ($line -match '^\s*dualHostPublish:\s*(.+?)\s*(#.*)?$') {
+            $value = $Matches[1].Trim().Trim('"').Trim("'").ToLowerInvariant()
+            if ($value -match '^(false|no|0)$') { return $false }
+            if ($value -match '^(true|yes|1)$') { return $true }
+            return $false
+        }
+    }
+    # Legacy: sidecar implied dual-host before dualHostPublish: true in build.yaml
+    return Test-Path -LiteralPath (Join-Path $ProductRoot 'build.net10.yaml')
+}
+
 function Resolve-QkbuildPassPlan {
     param(
         [switch]$Publish,
@@ -179,8 +194,7 @@ function Resolve-QkbuildPassPlan {
         [switch]$Net472
     )
 
-    $net10Sidecar = Join-Path $ProductRoot 'build.net10.yaml'
-    $dualEligible = Test-Path -LiteralPath $net10Sidecar
+    $dualEligible = Test-QuickerRpcDualHostPublish
 
     if (-not $Publish) {
         return ,@(
