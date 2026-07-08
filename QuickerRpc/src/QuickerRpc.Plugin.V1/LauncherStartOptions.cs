@@ -62,6 +62,11 @@ public static class LauncherStartOptionsParser
             return PluginOnly();
         }
 
+        if (IsPluginOnlyWithNotifyMode(mode))
+        {
+            return PluginOnlyWithVersionNotify();
+        }
+
         if (IsAgentMode(mode))
         {
             return new LauncherStartOptions
@@ -112,6 +117,10 @@ public static class LauncherStartOptionsParser
     private static bool IsAgentMode(string mode) =>
         mode.Equals(ModeAgent, StringComparison.OrdinalIgnoreCase)
         || mode.Equals("ui", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPluginOnlyWithNotifyMode(string mode) =>
+        mode.Equals("plugin-notify", StringComparison.OrdinalIgnoreCase)
+        || mode.Equals("plugin+notify", StringComparison.OrdinalIgnoreCase);
 
     public static LauncherStartOptions PluginOnly() =>
         new()

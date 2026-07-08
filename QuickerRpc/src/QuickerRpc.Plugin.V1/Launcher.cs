@@ -20,4 +20,24 @@ public static partial class Launcher
     /// </summary>
     public static void StartFromQuickerInParam(string? quickerInParam, IActionContext? context = null) =>
         StartCore(LauncherStartOptionsResolver.Resolve(context, quickerInParam));
+
+    /// <summary>
+    /// Starts RPC only (no QuickerAgent UI), honoring interactive panel clicks.
+    /// Use for dedicated standalone qkrpc actions; do not rely on <c>quicker_in_param=plugin</c> on panel clicks.
+    /// </summary>
+    public static void StartPluginOnly(IActionContext? context = null, bool notifyVersion = false) =>
+        StartCore(
+            notifyVersion
+                ? LauncherStartOptionsParser.PluginOnlyWithVersionNotify()
+                : LauncherStartOptionsParser.PluginOnly());
+
+    /// <summary>
+    /// Starts RPC and opens QuickerAgent, honoring interactive panel clicks.
+    /// </summary>
+    public static void StartWithQuickerAgent(IActionContext? context = null) =>
+        StartCore(new LauncherStartOptions
+        {
+            LaunchQuickerAgent = true,
+            Silent = false,
+        });
 }

@@ -46,6 +46,18 @@ public sealed class LauncherStartOptionsParserTests
     }
 
     [TestMethod]
+    public void Parse_plugin_notify_mode_is_silent_without_agent()
+    {
+        foreach (var mode in new[] { "plugin-notify", "plugin+notify" })
+        {
+            var options = LauncherStartOptionsParser.Parse(mode);
+            Assert.IsFalse(options.LaunchQuickerAgent, mode);
+            Assert.IsTrue(options.Silent, mode);
+            Assert.IsTrue(options.NotifyPluginVersion, mode);
+        }
+    }
+
+    [TestMethod]
     public void Parse_agent_kill_mode_kills_agent_only()
     {
         foreach (var mode in new[] { "agent-kill", "kill-agent", "?agent-kill", " AGENT-KILL " })
