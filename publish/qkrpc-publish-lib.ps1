@@ -1238,6 +1238,27 @@ function ConvertTo-QuickerRpcFourPartVersion {
     )
 }
 
+function Resolve-QuickerRpcVersionStringFromJsonObject {
+    param([Parameter(Mandatory = $true)]$JsonObject)
+
+    $legacy = [string]$JsonObject.QuickerRpc
+    if (-not [string]::IsNullOrWhiteSpace($legacy)) {
+        return $legacy.Trim()
+    }
+
+    $release = [string]$JsonObject.release
+    if (-not [string]::IsNullOrWhiteSpace($release)) {
+        $build = 0
+        if ($null -ne $JsonObject.build) {
+            $build = [int]$JsonObject.build
+        }
+
+        return "$($release.Trim()).$build"
+    }
+
+    throw "version.json missing 'QuickerRpc' or 'release'+'build'"
+}
+
 function Get-QuickerRpcVersionFromJsonFile {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -1246,8 +1267,10 @@ function Get-QuickerRpcVersionFromJsonFile {
     }
 
     $data = Get-Content -Raw -Path $Path | ConvertFrom-Json
-    $raw = [string]$data.QuickerRpc
-    if ([string]::IsNullOrWhiteSpace($raw)) {
+    try {
+        $raw = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $data
+    }
+    catch {
         return $null
     }
 

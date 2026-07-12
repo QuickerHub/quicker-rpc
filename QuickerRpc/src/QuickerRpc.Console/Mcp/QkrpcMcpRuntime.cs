@@ -63,7 +63,7 @@ public sealed class QkrpcMcpRuntime : IAsyncDisposable
         var response = await ServeInvokeDispatcher
             .InvokeAsync(_pool, normalizedOp, mergedArgs, _timeoutSeconds, cancellationToken)
             .ConfigureAwait(false);
-        return QkrpcMcpJson.FormatServeResponse(response);
+        return QkrpcMcpResponseCompact.Compact(QkrpcMcpJson.FormatServeResponse(response));
     }
 
     private async Task<JsonElement> AttachWorkspaceRootAsync(

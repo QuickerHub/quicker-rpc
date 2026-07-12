@@ -30,6 +30,10 @@ On trace failure read `failureLocation`, `stackTrace`, `logExcerpt` (auto tail f
 
 **Never** `action publish` / `action update` for **subprograms** (wrong API). **Never** guess `inputParams` without `step-runner get`.
 
+## MCP output (compact)
+
+MCP tools return **flat compact JSON** — not `{ ok, data: { action, payload } }`. Fields like `actionId`, `editVersion`, `compressed` sit at the top level. `workspaceSync` is only `{ ok, projectDir, editVersion }`; read files from disk under `projectDir`. Verbose legacy: `QKRPC_MCP_VERBOSE=1`. See `tools/qkrpc/docs/mcp-output-contract.md`.
+
 ## Hard rules
 
 - Disk edit: **get → host file tools → patch**; **no** inline patch JSON; **deprecated** `qkrpc_sync`

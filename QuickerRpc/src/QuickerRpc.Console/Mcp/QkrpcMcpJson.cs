@@ -6,7 +6,7 @@ namespace QuickerRpc.Console.Mcp;
 
 internal static class QkrpcMcpJson
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    internal static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -16,7 +16,7 @@ internal static class QkrpcMcpJson
         JsonSerializer.Serialize(response, SerializerOptions);
 
     public static string FormatObject(object value) =>
-        JsonSerializer.Serialize(value, SerializerOptions);
+        QkrpcMcpResponseCompact.Compact(JsonSerializer.Serialize(value, SerializerOptions));
 
     public static JsonElement ParseArgsObject(string? argsJson)
     {

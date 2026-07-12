@@ -51,10 +51,7 @@ if (-not (Test-Path -LiteralPath $versionFile)) {
 }
 
 $versionData = Get-Content -Raw -Path $versionFile | ConvertFrom-Json
-$quickerRpcVersion = [string]$versionData.QuickerRpc
-if ([string]::IsNullOrWhiteSpace($quickerRpcVersion)) {
-    throw "version.json missing QuickerRpc string."
-}
+$quickerRpcVersion = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $versionData
 
 Assert-QuickerRpcVersionMonotonic `
     -RepoRoot $RepoRoot `

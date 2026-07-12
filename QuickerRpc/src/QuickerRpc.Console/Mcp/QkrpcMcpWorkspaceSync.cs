@@ -36,7 +36,7 @@ internal static class QkrpcMcpWorkspaceSync
                 ["message"] =
                     "Action has no steps or variables; skipped extract to avoid writing an empty data.json.",
             };
-            return root.ToJsonString();
+            return QkrpcMcpResponseCompact.Compact(root.ToJsonString());
         }
 
         var extractJson = await runtime.InvokeOpAsync(
@@ -46,16 +46,12 @@ internal static class QkrpcMcpWorkspaceSync
 
         if (TryParseOk(extractJson, out var extractRoot) && extractRoot is not null)
         {
-            root["workspaceSync"] = new JsonObject
-            {
-                ["ok"] = true,
-                ["action"] = "extract",
-                ["payload"] = extractRoot["payload"]?.DeepClone(),
-            };
+            root["workspaceSync"] = QkrpcMcpResponseCompact.CompactWorkspaceSyncNode(extractRoot)
+                ?? new JsonObject { ["ok"] = false, ["message"] = "extract failed" };
         }
         else
         {
-            root["workspaceSync"] = JsonNode.Parse(extractJson);
+            root["workspaceSync"] = QkrpcMcpResponseCompact.CompactWorkspaceSyncNode(JsonNode.Parse(extractJson));
         }
 
         QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
@@ -68,7 +64,7 @@ internal static class QkrpcMcpWorkspaceSync
             // non-fatal
         }
 
-        return root.ToJsonString();
+        return QkrpcMcpResponseCompact.Compact(root.ToJsonString());
     }
 
     internal static async Task<string> AugmentActionCreateAsync(
@@ -131,12 +127,11 @@ internal static class QkrpcMcpWorkspaceSync
         root["workspaceProject"] = new JsonObject
         {
             ["ok"] = true,
-            ["projectDirectory"] = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir, workspaceRoot),
-            ["projectDirectoryAbsolute"] = projectDir,
+            ["projectDir"] = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir, workspaceRoot),
         };
 
         await Task.CompletedTask.ConfigureAwait(false);
-        return root.ToJsonString();
+        return QkrpcMcpResponseCompact.Compact(root.ToJsonString());
     }
 
     internal static async Task<string> AugmentSubprogramCreateAsync(
@@ -195,12 +190,11 @@ internal static class QkrpcMcpWorkspaceSync
         root["workspaceProject"] = new JsonObject
         {
             ["ok"] = true,
-            ["projectDirectory"] = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir, workspaceRoot),
-            ["projectDirectoryAbsolute"] = projectDir,
+            ["projectDir"] = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir, workspaceRoot),
         };
 
         await Task.CompletedTask.ConfigureAwait(false);
-        return root.ToJsonString();
+        return QkrpcMcpResponseCompact.Compact(root.ToJsonString());
     }
 
     private static void WriteCreateProgramData(string projectDir, string? dataJson)
@@ -252,7 +246,7 @@ internal static class QkrpcMcpWorkspaceSync
             QkrpcMcpJson.ToElement(new { id = subprogramId, dir, workspaceRoot }),
             cancellationToken).ConfigureAwait(false);
 
-        root["workspaceSync"] = JsonNode.Parse(exportJson);
+        root["workspaceSync"] = QkrpcMcpResponseCompact.CompactWorkspaceSyncNode(JsonNode.Parse(exportJson));
         QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
         try
         {
@@ -263,7 +257,7 @@ internal static class QkrpcMcpWorkspaceSync
             // non-fatal
         }
 
-        return root.ToJsonString();
+        return QkrpcMcpResponseCompact.Compact(root.ToJsonString());
     }
 
     private static async Task<(bool ok, string root)> TryGetWorkspaceRootAsync(
@@ -312,21 +306,35 @@ internal static class QkrpcMcpWorkspaceSync
             return true;
         }
 
-        var compressed = payload["compressedJson"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(compressed))
+        var compressed = payload["compressed"] ?? payload["compressedJson"];
+        if (compressed is JsonObject compressedObj)
+        {
+            if (compressedObj["steps"] is JsonArray innerSteps && innerSteps.Count > 0)
+            {
+                return true;
+            }
+
+            if (compressedObj["variables"] is JsonArray innerVars && innerVars.Count > 0)
+            {
+                return true;
+            }
+        }
+
+        var compressedText = compressed?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(compressedText))
         {
             return false;
         }
 
         try
         {
-            var inner = JsonNode.Parse(compressed) as JsonObject;
-            if (inner?["steps"] is JsonArray innerSteps && innerSteps.Count > 0)
+            var inner = JsonNode.Parse(compressedText) as JsonObject;
+            if (inner?["steps"] is JsonArray parsedSteps && parsedSteps.Count > 0)
             {
                 return true;
             }
 
-            return inner?["variables"] is JsonArray innerVars && innerVars.Count > 0;
+            return inner?["variables"] is JsonArray parsedVars && parsedVars.Count > 0;
         }
         catch
         {

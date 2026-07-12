@@ -65,12 +65,7 @@ function Get-QuickerRpcVersionFromJson {
     }
 
     $json = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
-    $version = $json.QuickerRpc
-    if ([string]::IsNullOrWhiteSpace($version)) {
-        throw "version.json missing 'QuickerRpc' key"
-    }
-
-    return $version.ToString().Trim()
+    return Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $json
 }
 
 function Resolve-QuickerRpcConsoleCsproj {
