@@ -104,7 +104,7 @@ internal static class QkrpcAgentSetup
                 results.Add($"workspace index: {Path.Combine(workspace, QkrpcMcpWorkspaceIndex.RelativePath)}");
             }
 
-            if (options.Project)
+            if (options.Project && (options.Vscode || options.All))
             {
                 EnsureWorkspaceTerminalEnv(workspace);
                 results.Add($"terminal PATH: {Path.Combine(workspace, ".vscode", "settings.json")}");
@@ -575,7 +575,10 @@ internal static class QkrpcAgentSetup
 
         if (options.Project)
         {
-            foreach (var target in McpInstallTarget.ProjectTargets(workspace))
+            foreach (var target in McpInstallTarget.ProjectTargets(
+                workspace,
+                includeVscodeProject: options.Vscode || options.All,
+                includeClaudeCodeProject: options.All))
             {
                 yield return target;
             }

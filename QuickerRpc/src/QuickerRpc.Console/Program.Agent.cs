@@ -86,7 +86,7 @@ public sealed class AgentSetupFlagsOptions
     [Option("all", HelpText = "All supported user-level MCP configs.")]
     public bool All { get; set; }
 
-    [Option("project", HelpText = "Also write project .cursor/.vscode/.mcp.json in cwd.")]
+    [Option("project", HelpText = "Write project .cursor/mcp.json only. Add --vscode for .vscode/mcp.json + terminal PATH; --all for .mcp.json too.")]
     public bool Project { get; set; }
 
     [Option("project-skills", HelpText = "With --project: also copy skills to .cursor/skills/.")]

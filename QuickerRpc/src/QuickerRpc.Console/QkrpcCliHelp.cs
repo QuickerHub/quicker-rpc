@@ -897,7 +897,7 @@ internal static class QkrpcCliHelp
 
             Option("all", "Write all supported user-level MCP configs."),
 
-            Option("project", "Also write .cursor/.vscode/.mcp.json in cwd."),
+            Option("project", "Write project .cursor/mcp.json only; add --vscode for .vscode/mcp.json."),
 
             Option("project-skills", "With --project: also copy skills to .cursor/skills/."),
 

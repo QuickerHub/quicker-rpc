@@ -195,10 +195,25 @@ public sealed class QkrpcAgentSetupVerificationTests
     }
 
     [TestMethod]
-    public void ProjectTargets_UseWorkspaceRootNotCwd()
+    public void ProjectTargets_Default_IsCursorProjectOnly()
     {
         var workspace = @"D:\team\quicker-workspace";
         var targets = McpInstallTarget.ProjectTargets(workspace).ToList();
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual(
+            Path.Combine(workspace, ".cursor", "mcp.json"),
+            targets[0].ResolveConfigPath());
+    }
+
+    [TestMethod]
+    public void ProjectTargets_AllHosts_IncludesVscodeAndClaudeCode()
+    {
+        var workspace = @"D:\team\quicker-workspace";
+        var targets = McpInstallTarget.ProjectTargets(
+            workspace,
+            includeVscodeProject: true,
+            includeClaudeCodeProject: true).ToList();
 
         Assert.AreEqual(3, targets.Count);
         Assert.AreEqual(

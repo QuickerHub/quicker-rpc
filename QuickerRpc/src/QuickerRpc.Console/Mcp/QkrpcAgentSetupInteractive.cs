@@ -105,7 +105,7 @@ internal static class QkrpcAgentSetupInteractive
         var cursorSelected = selection.AllHosts || selection.Cursor;
         var cursorPlugin = cursorSelected;
 
-        var projectMcp = PromptYesNo("写入当前目录项目级 MCP (.cursor/.vscode/.mcp.json)? [y/N]", defaultYes: false);
+        var projectMcp = PromptYesNo("写入当前目录 .cursor/mcp.json（项目级 MCP）? [y/N]", defaultYes: false);
         var projectSkills = false;
         if (projectMcp)
         {
@@ -192,7 +192,7 @@ internal static class QkrpcAgentSetupInteractive
         }
         if (selection.ProjectMcp)
         {
-            global::System.Console.Error.WriteLine("  • 项目级 MCP 配置");
+            global::System.Console.Error.WriteLine("  • 项目级 .cursor/mcp.json");
         }
         if (selection.ProjectSkills)
         {

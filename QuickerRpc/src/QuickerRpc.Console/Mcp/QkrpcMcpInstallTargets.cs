@@ -91,11 +91,23 @@ internal sealed record McpInstallTarget(string Id, string DisplayName, McpConfig
         ("claude-code-project", "Claude Code (project .mcp.json)"),
     ];
 
-    public static IEnumerable<McpInstallTarget> ProjectTargets(string workspaceRoot)
+  /// <param name="includeVscodeProject">Also write <c>.vscode/mcp.json</c> (requires <c>--vscode</c> or <c>--all</c>).</param>
+    /// <param name="includeClaudeCodeProject">Also write project <c>.mcp.json</c> (requires <c>--all</c>).</param>
+    public static IEnumerable<McpInstallTarget> ProjectTargets(
+        string workspaceRoot,
+        bool includeVscodeProject = false,
+        bool includeClaudeCodeProject = false)
     {
         yield return CursorProject(workspaceRoot);
-        yield return VscodeProject(workspaceRoot);
-        yield return ClaudeCodeProject(workspaceRoot);
+        if (includeVscodeProject)
+        {
+            yield return VscodeProject(workspaceRoot);
+        }
+
+        if (includeClaudeCodeProject)
+        {
+            yield return ClaudeCodeProject(workspaceRoot);
+        }
     }
 
     private static string ResolveAppDataSubPath(params string[] segments)

@@ -1475,7 +1475,7 @@ public sealed class McpOptions
     [Option("all", HelpText = "Install: all supported user-level MCP configs")]
     public bool All { get; set; }
 
-    [Option("project", HelpText = "Install: also write project .cursor/.vscode/.mcp.json in cwd")]
+    [Option("project", HelpText = "Install: write project .cursor/mcp.json only; add --vscode for .vscode/mcp.json")]
     public bool Project { get; set; }
 
     [Option("project-skills", HelpText = "Install: with --project, also copy skills to .cursor/skills/")]
