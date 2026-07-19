@@ -1,6 +1,6 @@
 ## Steps & file externalization
 
-steps[] + inputParams: `paramKey` · `.file` · `.var` (one bind/key). **Literal `value` may be JSON string / number / boolean / array / object** per `step_runner_get` `valueType` — not only strings; expr still uses `$$`/`$=`.
+steps[] + **inputs** (short wire): `paramKey` · `.file` · `.var` (one bind/key). Write `"key"` for runner id — never `stepKey`. Legacy `stepRunnerKey`/`inputParams` read-only. **Literal values may be JSON string / number / boolean / array / object** per `step_runner_get` `valueType` — not only strings; expr still uses `$$`/`$=`.
 
 | intent | write | NOT |
 |--------|-------|-----|

@@ -9,7 +9,7 @@
  *   BUNDLED_LLM_BINGLEIMUZI_API_KEY=sk-...
  *   BUNDLED_LLM_PROVIDERS=bingleimuzi
  */
-import { readQuickerRpcVersionJson } from "../lib/repo-paths.mjs";
+import { readQuickerRpcSemverFromJson, readQuickerRpcVersionJson } from "../lib/repo-paths.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodeSecret } from "./llm-secret-cipher.mjs";
@@ -31,14 +31,7 @@ const DEFAULT_BUNDLED_PROVIDERS = [DEFAULT_PROVIDER_ID];
 
 function readSemver() {
   const data = readQuickerRpcVersionJson(repoRoot);
-  const parts = String(data.QuickerRpc ?? "0.0.0")
-    .trim()
-    .replace(/^v/, "")
-    .split(".");
-  if (parts.length < 3) {
-    throw new Error("version.json QuickerRpc must have at least 3 segments");
-  }
-  return parts.slice(0, 3).join(".");
+  return readQuickerRpcSemverFromJson(data);
 }
 
 function readExampleDefaults() {

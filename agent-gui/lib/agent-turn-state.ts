@@ -230,8 +230,8 @@ function inferRisk(userText: string, enabledToolIds: readonly string[]): AgentTu
 function verificationHintsForIntent(intent: AgentTurnIntent, userText?: string): string[] {
   if (userText && isStepDiscoveryPrompt(userText)) {
     return [
-      "Use qkrpc_step_runner_search → get for module keys — never guess inputParams.",
-      "Do not call docs for inputParams or step schema — qkrpc_step_runner_get is authoritative.",
+      "Use qkrpc_step_runner_search → get for module keys — never guess inputs.",
+      "Do not call docs for inputs or step schema — qkrpc_step_runner_get is authoritative.",
       "Avoid repeating step_runner_search with the same query; reuse prior hits or call get on a key.",
       "On qkrpc connectivity failure: qkrpc_wait once, retry search/get — do not substitute docs for step_runner_get.",
     ];

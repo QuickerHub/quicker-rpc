@@ -105,6 +105,7 @@ public static class QuickerProjectFiles
         WorkspaceDataJsonNormalizer.NormalizeForDisk(toWrite, catalog);
         InputParamWireCoercer.CompactStepsRecursive(toWrite["steps"] as JArray);
         VariableDefaultValueWireCoercer.CompactVariablesRecursive(toWrite["variables"] as JArray);
+        WorkspaceDataJsonNormalizer.FinalizeCompactWire(toWrite);
         var json = JsonConvert.SerializeObject(toWrite, JsonSettings);
         if (onlyIfChanged && File.Exists(path))
         {

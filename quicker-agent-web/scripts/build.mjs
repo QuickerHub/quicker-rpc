@@ -7,6 +7,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readQuickerRpcSemverFromJson, readQuickerRpcVersionString } from "../../scripts/lib/quicker-rpc-version.mjs";
+import { resolveQuickerRpcVersionJsonPath } from "../../agent-gui/lib/repo-paths.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.resolve(__dirname, "..");
@@ -38,13 +40,14 @@ function tagFromSemver(semver) {
 }
 
 async function readVersionJson() {
-  const raw = await fs.readFile(path.join(REPO_ROOT, "version.json"), "utf8");
-  const json = JSON.parse(raw);
-  const full = String(json.QuickerRpc ?? "").trim();
-  if (!full) {
-    throw new Error("version.json missing QuickerRpc");
+  const versionPath = resolveQuickerRpcVersionJsonPath(REPO_ROOT);
+  if (!versionPath) {
+    throw new Error("version.json not found (expected QuickerRpc/version.json)");
   }
-  const semver = semverFromQuickerRpcVersion(full);
+  const raw = await fs.readFile(versionPath, "utf8");
+  const json = JSON.parse(raw);
+  const full = readQuickerRpcVersionString(REPO_ROOT);
+  const semver = readQuickerRpcSemverFromJson(json);
   return { full, semver, tag: tagFromSemver(semver) };
 }
 

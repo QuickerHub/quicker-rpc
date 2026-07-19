@@ -33,16 +33,16 @@ public sealed class XActionCompressorQuickerJsonTests
         var compressed = XActionCompressor.Compress(steps, new JArray(), catalog, omitDefaultLiteralInputs: true);
 
         var step = (JObject)compressed["steps"]![0]!;
-        Assert.AreEqual("sys:subprogram", step["stepRunnerKey"]?.ToString());
+        Assert.AreEqual("sys:subprogram", step["key"]?.ToString());
+        Assert.IsNull(step["stepRunnerKey"], "legacy runner key should be short-wired away");
         Assert.IsNull(step["StepRunnerKey"], "PascalCase runner key should be normalized away");
 
-        var subProgram = step["inputParams"]?["subProgram"] as JObject;
+        var subProgram = step["inputs"]?["subProgram"];
         Assert.IsNotNull(subProgram);
-        Assert.AreEqual("%%44e8b90d-9a97-4525-8bcc-96f10d1a9c7e", subProgram!["value"]?.ToString());
-        Assert.IsNull(subProgram!["VarKey"]);
-        Assert.IsNull(subProgram!["varKey"]);
+        Assert.AreEqual("%%44e8b90d-9a97-4525-8bcc-96f10d1a9c7e", subProgram!.ToString());
         Assert.IsFalse(step.Properties().Any(p => p.Name == "disabled"));
         Assert.IsFalse(step.Properties().Any(p => p.Name == "Disabled"));
+        Assert.IsFalse(step.Properties().Any(p => p.Name == "inputParams"));
     }
 
     [TestMethod]

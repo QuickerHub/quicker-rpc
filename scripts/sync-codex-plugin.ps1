@@ -68,11 +68,7 @@ function Test-SourcesPresent() {
   }
 }
 
-$versionJson = Get-Content $versionFile -Raw | ConvertFrom-Json
-$cliVersion = $versionJson.QuickerRpc
-if ([string]::IsNullOrWhiteSpace($cliVersion)) {
-  throw "version.json missing QuickerRpc field"
-}
+$cliVersion = [string](Get-QuickerRpcVersionFromJsonFile -Path $versionFile)
 
 $manifest = Get-Content $pluginManifest -Raw | ConvertFrom-Json
 $parts = $cliVersion.Split('.')
@@ -111,18 +107,18 @@ if ($Check) {
         $expected = Join-Path $tempPlugin 'skills' $skillName
         $actual = Join-Path $skillsDestRoot $skillName
         if (-not (Test-Path $actual)) {
-          $issues += "skills/$skillName (missing â€” run sync)"
+          $issues += "skills/$skillName (missing â€?run sync)"
           continue
         }
         $expSkill = Join-Path $expected 'SKILL.md'
         $actSkill = Join-Path $actual 'SKILL.md'
         if ((Read-Text $expSkill) -ne (Read-Text $actSkill)) {
-          $issues += "skills/$skillName (stale â€” run sync)"
+          $issues += "skills/$skillName (stale â€?run sync)"
         }
       }
     }
     else {
-      $issues += 'skills/ (missing â€” run sync)'
+      $issues += 'skills/ (missing â€?run sync)'
     }
   }
   finally {
@@ -161,4 +157,4 @@ foreach ($skillName in $defaultSkills) {
 }
 
 Write-Host "Codex plugin synced at $pluginRoot (version $cliVersion)"
-Write-Host "Note: skills/ are gitignored â€” edit docs/skills only."
+Write-Host "Note: skills/ are gitignored â€?edit docs/skills only."

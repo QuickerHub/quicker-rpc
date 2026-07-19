@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.XAction.Proto;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
 
@@ -178,7 +179,7 @@ public static class XActionFileRefValidator
             }
 
             var stepRef = DescribeStep(step);
-            if (step["inputParams"] is JObject inputParams)
+            if (AgentStepWireAliases.ReadInputMap(step) is JObject inputParams)
             {
                 foreach (var prop in inputParams.Properties())
                 {
@@ -226,7 +227,7 @@ public static class XActionFileRefValidator
     private static string DescribeStep(JObject step)
     {
         var stepId = step.Value<string>("stepId");
-        var runner = step.Value<string>("stepRunnerKey");
+        var runner = AgentStepWireAliases.ReadRunnerKey(step);
         if (!string.IsNullOrWhiteSpace(stepId))
         {
             return $"step {stepId}";

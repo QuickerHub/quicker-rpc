@@ -2,6 +2,8 @@
 
 **When**: create or edit **data.json** — steps[] + variables[] wire shape and authoring rules.
 
+**Write short names only**: `key` / `inputs` / `outputs`. Legacy `stepRunnerKey` / `inputParams` / `outputParams` are **read-compatible only**. Never write `stepKey` / `StepKey`.
+
 ## JSON schema
 
 `qkrpc guide get --topic action-data-schema --json` (or `docs_get` / agent `docs` action=get) → response field **`schema`** (`qkrpc.program-data.v1`), plus **`markdown`** prose below.
@@ -11,7 +13,7 @@
 | **action** | `#/definitions/variables/action` — base only; NO isInput/isOutput/paramName; runtime input = `{quicker_in_param}` |
 | **subprogram** | `#/definitions/variables/subprogram` — base + IO + inputParamInfo/outputParamInfo/tableDef |
 
-**steps[]** identical for both (`#/definitions/step`, `inputParams`, `outputParams`, `ifSteps`, `elseSteps`). Response includes **`template`** and **`example`** per programKind.
+**steps[]** identical for both (`#/definitions/step`, `inputs`, `outputs`, `ifSteps`, `elseSteps`). Response includes **`template`** and **`example`** per programKind.
 
 ## variables[]
 
@@ -48,7 +50,7 @@ Subprogram variables[] only: `isInput` / `isOutput` expose the variable as a cal
 
 **stepId** (workspace disk edit): agents **omit** — order = array index; patch is save-only. QuickerAgent UI may add handles; runtime ignores stepId.
 
-**inputParams** / **outputParams**: `outputParams` = `Record<string, string>`. **`inputParams`** values per `paramKey` (from `step-runner get` `valueType`):
+**inputs** / **outputs**: `outputs` = `Record<string, string>`. **`inputs`** values per `paramKey` (from `step-runner get` `valueType`):
 
 | wire key | value |
 |----------|--------|
@@ -68,7 +70,7 @@ Subprogram variables[] only: `isInput` / `isOutput` expose the variable as a cal
 Expressions (`$$` / `$=`) must be **strings**. Compare/omit defaults with normalized literals (`true` ≡ `"true"`, arrays compared via JSON).
 
 ```json
-"inputParams": {
+"inputs": {
   "title": "Hello",
   "paths.var": "urls",
   "tags": ["a", "b"],
@@ -80,9 +82,9 @@ Expressions (`$$` / `$=`) must be **strings**. Compare/omit defaults with normal
 }
 ```
 
-**Schema `default`** (`step-runner get`) uses the same typing (e.g. Boolean → `default: true`). Omit `inputParams` entries equal to that default whether you wrote `true` or `"true"`.
+**Schema `default`** (`step-runner get`) uses the same typing (e.g. Boolean → `default: true`). Omit `inputs` entries equal to that default whether you wrote `true` or `"true"`.
 
-**Omit schema defaults** — after `step-runner get`, drop literal `inputParams` matching the effective default (workspace `omitDefaultLiteralInputs` / `compress-module-ref-examples.mjs`). Keep: `.var` / `.file`, non-default literals, and any `$=` / `$$` string.
+**Omit schema defaults** — after `step-runner get`, drop literal `inputs` matching the effective default (workspace `omitDefaultLiteralInputs` / `compress-module-ref-examples.mjs`). Keep: `.var` / `.file`, non-default literals, and any `$=` / `$$` string.
 
 **Bind vs interpolate** — do not mix binds for the same `paramKey`:
 
@@ -92,14 +94,14 @@ Expressions (`$$` / `$=`) must be **strings**. Compare/omit defaults with normal
 | text mentions variable | `"paramKey": "$$Hello {varKey}"` | `paramKey.var` |
 | C# compute | `$=…` or sys:evalexpression | `paramKey.var` |
 
-`outputParams` value = target variable key (or `dictVar.entry`). Declare in `variables[]` first.
+`outputs` value = target variable key (or `dictVar.entry`). Declare in `variables[]` first. Never `.var` / `.file` on outputs.
 
 **Long text** (>4 lines): `paramKey.file`; evalexpression → `files/*.eval.cs`; formDef → `files/*.form.json` (**form-spec**).
 
 **Branching** — only on branch step runners; **omit** empty `ifSteps` / `elseSteps`:
 
-| stepRunnerKey | ifSteps | elseSteps |
-|---------------|---------|-----------|
+| key | ifSteps | elseSteps |
+|-----|---------|-----------|
 | `sys:if` | yes | yes (omit when empty) |
 | `sys:simpleIf`, `sys:loop`, `sys:group`, … | yes | no |
 | all other keys | **omit** | **omit** |
@@ -107,9 +109,9 @@ Expressions (`$$` / `$=`) must be **strings**. Compare/omit defaults with normal
 ## Rules
 
 - step_runner_get before writing keys
-- expressions/evalexpression before csscript
+- Prefer **sys:assign** / `$=` / `$$` before csscript; evalexpression for batch/`{var}=` / complex LINQ
 - externalize long content
 
 ## Related
 
-expressions · action-project-files · subprogram-workflow · step-runner-get · overview
+expressions · action-project-files · subprogram-workflow · step-runner-get · form-spec · overview

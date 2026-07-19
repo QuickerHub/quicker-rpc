@@ -1,7 +1,7 @@
 {
   "schemaId": "qkrpc.program-data.v1",
   "wire": "data.json",
-  "description": "Persisted program body on disk. steps[] wire is identical for action and subprogram; variables[] shape depends on programKind.",
+  "description": "Persisted program body on disk. Write short names key/inputs/outputs; legacy stepRunnerKey/inputParams/outputParams are read-compatible only. Never write stepKey.",
   "programKinds": ["action", "subprogram"],
   "properties": {
     "steps": {
@@ -22,9 +22,9 @@
     "step": {
       "type": "object",
       "properties": {
-        "stepRunnerKey": { "type": "string", "required": true, "notes": "From qkrpc step-runner get — do not guess." },
-        "inputParams": { "$ref": "#/definitions/inputParams" },
-        "outputParams": { "$ref": "#/definitions/outputParams" },
+        "key": { "type": "string", "required": true, "notes": "From qkrpc step-runner get — do not guess. Never write stepKey." },
+        "inputs": { "$ref": "#/definitions/inputs" },
+        "outputs": { "$ref": "#/definitions/outputs" },
         "ifSteps": {
           "type": "array",
           "items": { "$ref": "#/definitions/step" },
@@ -43,11 +43,11 @@
         "delayMs": { "type": "number" },
         "stepId": {
           "type": "string",
-          "notes": "Editor-only handle (QuickerAgent UI). Workspace disk edit: omit — agents use read_data/write_data/edit_data on full steps[]; patch is save-only, not incremental op JSON. Runtime ignores stepId."
+          "notes": "Editor-only handle (QuickerAgent UI). Workspace disk edit: omit — agents use host file edit or write_data/edit_data on full steps[]; patch is save-only, not incremental op JSON. Runtime ignores stepId."
         }
       }
     },
-    "inputParams": {
+    "inputs": {
       "type": "object",
       "valueType": "Record<string, string | number | boolean | array | object>",
       "notes": "One bind per catalog paramKey. Match valueType: List→JSON array, Dict→object, Boolean/Number→bool/number or string, Text→string ($$/$=). paramKey.var / paramKey.file: string only.",
@@ -57,10 +57,10 @@
         { "key": "paramKey.file", "value": "files/… path" }
       ]
     },
-    "outputParams": {
+    "outputs": {
       "type": "object",
       "valueType": "Record<string, string>",
-      "notes": "Value = target variable key or dictVar.entry. Declare variables[] first."
+      "notes": "Value = target variable key or dictVar.entry. Declare variables[] first. No .var/.file on outputs."
     },
     "variables": {
       "base": {
@@ -183,9 +183,9 @@
       ],
       "steps": [
         {
-          "stepRunnerKey": "sys:evalexpression",
-          "inputParams": { "expression.file": "files/count.eval.cs" },
-          "outputParams": { "result": "count" }
+          "key": "sys:evalexpression",
+          "inputs": { "expression.file": "files/count.eval.cs" },
+          "outputs": { "result": "count" }
         }
       ]
     },
@@ -212,9 +212,9 @@
       ],
       "steps": [
         {
-          "stepRunnerKey": "sys:evalexpression",
-          "inputParams": { "paths.var": "cmd" },
-          "outputParams": { "result": "exitCode" }
+          "key": "sys:evalexpression",
+          "inputs": { "paths.var": "cmd" },
+          "outputs": { "result": "exitCode" }
         }
       ]
     }

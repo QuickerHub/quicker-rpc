@@ -24,11 +24,13 @@ alwaysApply: true
 | Run / debug with step output | `qkrpc_action` `mode=debug` | `action run --trace` |
 
 On trace failure read `failureLocation`, `stackTrace`, `logExcerpt` (auto tail from `quicker.log`). See `tools/qkrpc/docs/agent-action-debug-workflow.md`.
-| Step `inputParams` schema | `qkrpc_step_runner_search` → `qkrpc_step_runner_get` | `step-runner search` → `step-runner get` |
+| Step `inputs` schema | `qkrpc_step_runner_search` → `qkrpc_step_runner_get` | `step-runner search` → `step-runner get` |
 | Icons (WPF / WebView) | `qkrpc_fa` | `fa search` / `fa resolve` |
 | Connectivity | `qkrpc_health` → on failure `qkrpc_wait` | `health` / `wait` |
 
-**Never** `action publish` / `action update` for **subprograms** (wrong API). **Never** guess `inputParams` without `step-runner get`.
+**Never** `action publish` / `action update` for **subprograms** (wrong API). **Never** guess `inputs` without `step-runner get`.
+
+**data.json wire (write)**: short names only — `key` / `inputs` / `outputs`. Never `stepKey`. Legacy long names are read-compatible only. Domain topics (form-spec, icons, context-menu) stay in docs — do not invent formDef without **form-spec**.
 
 ## MCP output (compact)
 

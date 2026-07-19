@@ -68,11 +68,7 @@ function Test-SourcesPresent() {
   }
 }
 
-$versionJson = Get-Content $versionFile -Raw | ConvertFrom-Json
-$cliVersion = $versionJson.QuickerRpc
-if ([string]::IsNullOrWhiteSpace($cliVersion)) {
-  throw "version.json missing QuickerRpc field"
-}
+$cliVersion = Get-QuickerRpcVersionFromJsonFile -Path $versionFile
 
 $manifest = Get-Content $pluginManifest -Raw | ConvertFrom-Json
 $manifest.version = $cliVersion
@@ -108,25 +104,25 @@ if ($Check) {
         $expected = Join-Path $tempPlugin 'skills' $skillName
         $actual = Join-Path $skillsDestRoot $skillName
         if (-not (Test-Path $actual)) {
-          $issues += "skills/$skillName (missing â€” run sync)"
+          $issues += "skills/$skillName (missing â€?run sync)"
           continue
         }
         $expSkill = Join-Path $expected 'SKILL.md'
         $actSkill = Join-Path $actual 'SKILL.md'
         if ((Read-Text $expSkill) -ne (Read-Text $actSkill)) {
-          $issues += "skills/$skillName (stale â€” run sync)"
+          $issues += "skills/$skillName (stale â€?run sync)"
         }
       }
     }
     else {
-      $issues += 'skills/ (missing â€” run sync or install-cursor-plugin)'
+      $issues += 'skills/ (missing â€?run sync or install-cursor-plugin)'
     }
 
     if (-not (Test-Path $rulesDest)) {
-      $issues += 'rules/qkrpc.mdc (missing â€” run sync)'
+      $issues += 'rules/qkrpc.mdc (missing â€?run sync)'
     }
     elseif ((Read-Text $rulesDest) -ne $rulesContent) {
-      $issues += 'rules/qkrpc.mdc (stale â€” run sync)'
+      $issues += 'rules/qkrpc.mdc (stale â€?run sync)'
     }
   }
   finally {
@@ -162,4 +158,4 @@ foreach ($skillName in $defaultSkills) {
 }
 
 Write-Host "Cursor plugin synced at $pluginRoot (version $cliVersion)"
-Write-Host "Note: skills/ and rules/ are gitignored â€” edit docs/skills and docs/agent-rules only."
+Write-Host "Note: skills/ and rules/ are gitignored â€?edit docs/skills and docs/agent-rules only."

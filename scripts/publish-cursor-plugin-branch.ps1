@@ -46,7 +46,7 @@ if ($DryRun) {
     exit 0
 }
 
-$version = (Get-Content (Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $repoRoot) -Raw | ConvertFrom-Json).QuickerRpc
+$version = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject (Get-Content (Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $repoRoot) -Raw | ConvertFrom-Json)
 
 if (Test-Path $StagePath) {
     Remove-Item -LiteralPath $StagePath -Recurse -Force

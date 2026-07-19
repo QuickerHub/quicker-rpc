@@ -4,11 +4,12 @@ using System.Linq;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.AgentModel.XAction.Proto;
 
 namespace QuickerRpc.AgentModel.XAction.Validation;
 
 /// <summary>
-/// Collects <c>inputParams</c> key warnings against the StepRunner catalog (after key normalization).
+/// Collects input map key warnings against the StepRunner catalog (after key normalization).
 /// </summary>
 public static class StepInputParamsValidator
 {
@@ -68,7 +69,7 @@ public static class StepInputParamsValidator
         StepInputParamsValidationContext? context,
         List<string> warnings)
     {
-        var runnerKey = (step.Value<string>("stepRunnerKey") ?? string.Empty).Trim();
+        var runnerKey = AgentStepWireAliases.ReadRunnerKey(step).Trim();
         if (runnerKey.Length == 0)
         {
             return;
@@ -81,13 +82,13 @@ public static class StepInputParamsValidator
             if (warnings.Count < MaxWarnings)
             {
                 warnings.Add(
-                    $"step {stepRef}: stepRunnerKey '{runnerKey}' not in catalog; run qkrpc step-runner search --query <keyword> --json.");
+                    $"step {stepRef}: key '{runnerKey}' not in catalog; run qkrpc step-runner search --query <keyword> --json.");
             }
 
             return;
         }
 
-        if (step["inputParams"] is not JObject inputParams)
+        if (AgentStepWireAliases.ReadInputMap(step) is not JObject inputParams)
         {
             return;
         }

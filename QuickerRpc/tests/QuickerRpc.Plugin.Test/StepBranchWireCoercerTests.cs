@@ -43,8 +43,9 @@ public sealed class StepBranchWireCoercerTests
             var json = File.ReadAllText(QuickerProjectLayout.GetDataPath(dir));
             Assert.IsFalse(json.Contains("ifSteps", StringComparison.Ordinal));
             Assert.IsFalse(json.Contains("elseSteps", StringComparison.Ordinal));
-            StringAssert.Contains(json, "\"stepRunnerKey\": \"sys:getClipboardText\"");
+            StringAssert.Contains(json, "\"key\": \"sys:getClipboardText\"");
             StringAssert.Contains(json, "\"output\": \"clipText\"");
+            Assert.IsFalse(json.Contains("\"stepRunnerKey\""), json);
         }
         finally
         {

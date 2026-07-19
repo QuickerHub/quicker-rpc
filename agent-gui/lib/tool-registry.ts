@@ -345,7 +345,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "查看模块定义",
     group: "read",
     category: "catalog",
-    description: "压缩 schema + inputParams 键名（Agent 专用，非 get-ui）",
+    description: "压缩 schema + inputs 键名（Agent 专用，非 get-ui）",
   },
   {
     id: "qkrpc_fa",

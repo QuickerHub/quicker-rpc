@@ -446,13 +446,10 @@ const quickerToolsCore = {
   qkrpc_step_runner_get: tool({
 
     description:
-
-      "Agent-only compressed StepRunner schema. Required before workspace_program step edits — do NOT guess inputParams. "
-
-      + "Each input: key, valueType, variableMode (bind rule). Var bind: \"paramKey\":\"@var:varKey\" — NOT \"{varKey}\" in value. "
-
-      + "Text interpolation: $$…{varKey}…; file: @file: or paramKey.file. NOT get-ui.",
-
+      "Agent-only compressed StepRunner schema. Required before workspace_program step edits — do NOT guess inputs. "
+      + "Write short wire key/inputs/outputs (never stepKey). "
+      + "Var bind: \"paramKey.var\":\"varKey\" — NOT \"{varKey}\" or @var:. "
+      + "Text interpolation: $$…{varKey}…; file: paramKey.file. NOT get-ui.",
 
     inputSchema: z
       .object({

@@ -46,9 +46,9 @@ On-demand — parent SKILL table. Hot: library-search, selection/clipboard pipel
 
 - NO shell_exec for qkrpc connectivity (ping, probe, serve, build.ps1 -t, qkrpc CLI) — tell user on connectivity_failure
 - Search before guess; **docs get** for known topics (see Docs tool); **docs search** only when topic id unknown
-- NO guess inputParams without step_runner_search → get
+- NO guess **inputs** keys without step_runner_search → get
 - NO get-ui / step-runner.getUi
-- NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
+- NO inline program-body patch / whole-program `--patch-file`; write short `key`/`inputs`/`outputs` (never `stepKey`) per get → one Pretty data.json → patch
 - After patch trust editVersion; NO re-get to verify
 - P4: **sys:assign** single-var; **`$=`/`$$`/evalexpression** rules in preloaded **quicker-eval-expression** below; module → csscript last
 

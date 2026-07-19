@@ -30,7 +30,7 @@ if (-not $DistDir) {
 
 $versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $RepoRoot
 $versionJson = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
-$expectedSemVer = Get-QuickerRpcSemVerFromVersion -Version ([string]$versionJson.QuickerRpc)
+$expectedSemVer = Get-QuickerRpcSemVerFromVersion -Version (Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $versionJson)
 
 function Test-ElectronArtifacts {
     $setup = Get-ChildItem -LiteralPath $DistDir -Filter 'quicker-agent-*-x64-setup.exe' -ErrorAction SilentlyContinue |

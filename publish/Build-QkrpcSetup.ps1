@@ -38,9 +38,9 @@ if (-not (Test-Path -LiteralPath $versionFile)) {
 }
 
 $versionData = Get-Content -Raw -Path $versionFile | ConvertFrom-Json
-$quickerRpcVersion = if ($Version) { $Version.Trim() } else { [string]$versionData.QuickerRpc }
+$quickerRpcVersion = if ($Version) { $Version.Trim() } else { Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $versionData }
 if ([string]::IsNullOrWhiteSpace($quickerRpcVersion)) {
-    throw 'version.json missing QuickerRpc string.'
+    throw 'version.json missing QuickerRpc or release+build.'
 }
 
 $semver = Get-QuickerRpcSemVerFromVersion -Version $quickerRpcVersion

@@ -138,6 +138,12 @@ public static class InputParamWireCoercer
             return;
         }
 
+        AgentStepWireAliases.ToLegacySteps(steps);
+        ExpandStepsRecursiveCore(steps);
+    }
+
+    private static void ExpandStepsRecursiveCore(JArray steps)
+    {
         foreach (var token in steps)
         {
             if (token is not JObject step)
@@ -146,13 +152,29 @@ public static class InputParamWireCoercer
             }
 
             ExpandInputParamsObject(step["inputParams"] as JObject);
-            ExpandStepsRecursive(step["ifSteps"] as JArray);
-            ExpandStepsRecursive(step["elseSteps"] as JArray);
+            if (step["ifSteps"] is JArray ifSteps)
+            {
+                ExpandStepsRecursiveCore(ifSteps);
+            }
+
+            if (step["elseSteps"] is JArray elseSteps)
+            {
+                ExpandStepsRecursiveCore(elseSteps);
+            }
         }
     }
 
-    public static void CompactStepsRecursive(JArray? steps) =>
+    public static void CompactStepsRecursive(JArray? steps)
+    {
+        if (steps is null)
+        {
+            return;
+        }
+
+        AgentStepWireAliases.ToLegacySteps(steps);
         StepBranchWireCoercer.CompactStepBranchesRecursive(steps);
+        AgentStepWireAliases.ToShortSteps(steps);
+    }
 
     /// <summary>Expand compact wire in patch steps before apply.</summary>
     public static void NormalizePatch(JObject patch)
@@ -164,6 +186,7 @@ public static class InputParamWireCoercer
 
         if (patch["step"] is JObject singleStep)
         {
+            AgentStepWireAliases.ToLegacy(singleStep);
             ExpandInputParamsObject(singleStep["inputParams"] as JObject);
         }
 
@@ -280,7 +303,7 @@ public static class InputParamWireCoercer
     {
         var result = (JObject)obj.DeepClone();
         UnifyStringField(result, "varKey", "VarKey");
-        UnifyStringField(result, "value", "Value");
+        UnifyValueField(result, "value", "Value");
         UnifyStringField(result, "file", "File");
         return result;
     }
@@ -309,6 +332,39 @@ public static class InputParamWireCoercer
         }
 
         o.Remove(pascal);
+    }
+
+    /// <summary>
+    /// Prefer camelCase <c>value</c> when set; keep typed JSON (bool/number/array/object) — do not <c>ToString()</c> them.
+    /// </summary>
+    private static void UnifyValueField(JObject o, string camel, string pascal)
+    {
+        var camelTok = o[camel];
+        var pascalTok = o[pascal];
+        if (camelTok is null && pascalTok is null)
+        {
+            return;
+        }
+
+        var preferred = IsPresentValueToken(camelTok) ? camelTok! : pascalTok!;
+        o[camel] = preferred.DeepClone();
+        o.Remove(pascal);
+    }
+
+    private static bool IsPresentValueToken(JToken? token)
+    {
+        if (token is null || token.Type is JTokenType.Null or JTokenType.Undefined)
+        {
+            return false;
+        }
+
+        if (token.Type == JTokenType.String)
+        {
+            return true;
+        }
+
+        return token.Type is JTokenType.Boolean or JTokenType.Integer or JTokenType.Float
+            or JTokenType.Array or JTokenType.Object;
     }
 
     private static string? ReadOptionalStringToken(JToken? token)

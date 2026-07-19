@@ -85,10 +85,10 @@ qkrpc action run --id <guid> [--param <text>] --trace --json
 | 命令 / 工具 | 谁用 |
 |-------------|------|
 | `step-runner search` / `qkrpc_step_runner_search` | Agent：定 `key`、`controlField` |
-| `step-runner get` / `qkrpc_step_runner_get` | **Agent 唯一**：压缩 schema、`inputParams` 键名 |
+| `step-runner get` / `qkrpc_step_runner_get` | **Agent 唯一**：压缩 schema、`inputs` 键名 |
 | `step-runner get-ui` | **仅 action-editor UI**；Agent **禁止** |
 
-**禁止**：未 `step-runner get` 就猜 `inputParams`（wire 写法：`paramKey` / `paramKey.file` / `paramKey.var`）；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标；patch 写与目录 Default 相同的普通参数。**禁止** `action publish`/`action update` 发布全局子程序（用 `subprogram publish`/`update`）。表达式优先 **quicker-eval-expression** skill / `sys:evalexpression`；兜底见 `guide get --topic implementation-fallback`。
+**禁止**：未 `step-runner get` 就猜 `inputs`（wire：`key`/`inputs`/`outputs`；`paramKey` / `paramKey.file` / `paramKey.var`；禁止 `stepKey`）；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标；patch 写与目录 Default 相同的普通参数。**禁止** `action publish`/`action update` 发布全局子程序（用 `subprogram publish`/`update`）。表达式优先 **quicker-eval-expression** skill / `sys:evalexpression`；兜底见 `guide get --topic implementation-fallback`。领域专题（form-spec、图标、右键）仍在 docs，勿凭记忆编 formDef。
 
 **运行**：agent-gui `qkrpc_action` 要步骤输出用 `debug`（等价 `--trace`），不要用 `run`。CLI 退出码 0=成功、1=失败；脚本加 `--json`。
 

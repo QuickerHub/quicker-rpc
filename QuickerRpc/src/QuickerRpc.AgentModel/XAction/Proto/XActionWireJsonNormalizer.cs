@@ -45,40 +45,43 @@ internal static class XActionWireJsonNormalizer
 
     private static JObject ToNativeStepObject(JObject step)
     {
-        var result = new JObject();
-        CopyRename(result, step, "stepRunnerKey", "StepRunnerKey");
-        CopyRename(result, step, "StepRunnerKey", "StepRunnerKey");
-        CopyRename(result, step, "stepId", "StepId");
-        CopyRename(result, step, "StepId", "StepId");
-        CopyRename(result, step, "note", "Note");
-        CopyRename(result, step, "Note", "Note");
-        CopyRename(result, step, "disabled", "Disabled");
-        CopyRename(result, step, "Disabled", "Disabled");
-        CopyRename(result, step, "collapsed", "Collapsed");
-        CopyRename(result, step, "Collapsed", "Collapsed");
-        CopyRename(result, step, "delayMs", "DelayMs");
-        CopyRename(result, step, "DelayMs", "DelayMs");
+        var normalized = (JObject)step.DeepClone();
+        AgentStepWireAliases.ToLegacy(normalized);
 
-        if (step["inputParams"] is JObject inputParams || step["InputParams"] is JObject)
+        var result = new JObject();
+        CopyRename(result, normalized, "stepRunnerKey", "StepRunnerKey");
+        CopyRename(result, normalized, "StepRunnerKey", "StepRunnerKey");
+        CopyRename(result, normalized, "stepId", "StepId");
+        CopyRename(result, normalized, "StepId", "StepId");
+        CopyRename(result, normalized, "note", "Note");
+        CopyRename(result, normalized, "Note", "Note");
+        CopyRename(result, normalized, "disabled", "Disabled");
+        CopyRename(result, normalized, "Disabled", "Disabled");
+        CopyRename(result, normalized, "collapsed", "Collapsed");
+        CopyRename(result, normalized, "Collapsed", "Collapsed");
+        CopyRename(result, normalized, "delayMs", "DelayMs");
+        CopyRename(result, normalized, "DelayMs", "DelayMs");
+
+        if (normalized["inputParams"] is JObject || normalized["InputParams"] is JObject)
         {
-            var src = (JObject)(step["InputParams"] ?? step["inputParams"]!);
+            var src = (JObject)(normalized["InputParams"] ?? normalized["inputParams"]!);
             result["InputParams"] = ToNativeInputParamsObject(src);
         }
 
-        if (step["outputParams"] is JObject outputParams || step["OutputParams"] is JObject)
+        if (normalized["outputParams"] is JObject || normalized["OutputParams"] is JObject)
         {
-            var src = (JObject)(step["OutputParams"] ?? step["outputParams"]!);
+            var src = (JObject)(normalized["OutputParams"] ?? normalized["outputParams"]!);
             result["OutputParams"] = ToNativeOutputParamsObject(src);
         }
 
-        if (step["ifSteps"] is JArray ifSteps || step["IfSteps"] is JArray)
+        if (normalized["ifSteps"] is JArray || normalized["IfSteps"] is JArray)
         {
-            result["IfSteps"] = ToNativeStepsArray((JArray)(step["IfSteps"] ?? step["ifSteps"]!));
+            result["IfSteps"] = ToNativeStepsArray((JArray)(normalized["IfSteps"] ?? normalized["ifSteps"]!));
         }
 
-        if (step["elseSteps"] is JArray elseSteps || step["ElseSteps"] is JArray)
+        if (normalized["elseSteps"] is JArray || normalized["ElseSteps"] is JArray)
         {
-            result["ElseSteps"] = ToNativeStepsArray((JArray)(step["ElseSteps"] ?? step["elseSteps"]!));
+            result["ElseSteps"] = ToNativeStepsArray((JArray)(normalized["ElseSteps"] ?? normalized["elseSteps"]!));
         }
 
         return result;

@@ -5,6 +5,7 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.XAction.Compression;
+using QuickerRpc.AgentModel.XAction.Proto;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
 
@@ -17,6 +18,15 @@ public static class WorkspaceDataJsonNormalizer
         NormalizeVariablesForDisk(data["variables"] as JArray);
     }
 
+    /// <summary>
+    /// After short-form compact: drop presentation defaults and empty maps so checkout matches agent wire.
+    /// </summary>
+    public static void FinalizeCompactWire(JObject data)
+    {
+        FinalizeSteps(data["steps"] as JArray);
+        FinalizeVariables(data["variables"] as JArray);
+    }
+
     private static void NormalizeStepsForDisk(JArray? steps, StepRunnerCatalog? catalog)
     {
         if (steps is null)
@@ -24,6 +34,13 @@ public static class WorkspaceDataJsonNormalizer
             return;
         }
 
+        // Expand short-form / *.var / *.file so omit-default and compact operate on bind objects.
+        InputParamWireCoercer.ExpandStepsRecursive(steps);
+        NormalizeStepsForDiskCore(steps, catalog);
+    }
+
+    private static void NormalizeStepsForDiskCore(JArray steps, StepRunnerCatalog? catalog)
+    {
         foreach (var token in steps)
         {
             if (token is not JObject step)
@@ -32,9 +49,17 @@ public static class WorkspaceDataJsonNormalizer
             }
 
             RemoveStepIds(step);
+            OmitDefaultPresentationFields(step);
             OmitDefaultInputParams(step, catalog);
-            NormalizeStepsForDisk(step["ifSteps"] as JArray, catalog);
-            NormalizeStepsForDisk(step["elseSteps"] as JArray, catalog);
+            if (step["ifSteps"] is JArray ifSteps)
+            {
+                NormalizeStepsForDiskCore(ifSteps, catalog);
+            }
+
+            if (step["elseSteps"] is JArray elseSteps)
+            {
+                NormalizeStepsForDiskCore(elseSteps, catalog);
+            }
         }
     }
 
@@ -57,22 +82,104 @@ public static class WorkspaceDataJsonNormalizer
         }
     }
 
+    private static void FinalizeSteps(JArray? steps)
+    {
+        if (steps is null)
+        {
+            return;
+        }
+
+        foreach (var token in steps)
+        {
+            if (token is not JObject step)
+            {
+                continue;
+            }
+
+            OmitDefaultPresentationFields(step);
+            OmitEmptyMap(step, "inputs");
+            OmitEmptyMap(step, "outputs");
+            OmitEmptyMap(step, "inputParams");
+            OmitEmptyMap(step, "outputParams");
+            OmitEmptyArray(step, "ifSteps");
+            OmitEmptyArray(step, "elseSteps");
+
+            if (step["ifSteps"] is JArray ifSteps)
+            {
+                FinalizeSteps(ifSteps);
+            }
+
+            if (step["elseSteps"] is JArray elseSteps)
+            {
+                FinalizeSteps(elseSteps);
+            }
+        }
+    }
+
+    private static void FinalizeVariables(JArray? variables)
+    {
+        if (variables is null)
+        {
+            return;
+        }
+
+        foreach (var token in variables)
+        {
+            if (token is not JObject variable)
+            {
+                continue;
+            }
+
+            OmitBoolIfFalse(variable, "isLocked");
+            OmitBoolIfFalse(variable, "saveState");
+            OmitBoolIfFalse(variable, "isInput");
+            OmitBoolIfFalse(variable, "isOutput");
+            OmitStringIfEmpty(variable, "desc");
+            OmitStringIfEmpty(variable, "paramName");
+            OmitStringIfEmpty(variable, "group");
+            OmitEmptyMap(variable, "inputParamInfo");
+            OmitEmptyMap(variable, "outputParamInfo");
+            OmitEmptyMap(variable, "tableDef");
+        }
+    }
+
     private static void RemoveStepIds(JObject step)
     {
         step.Remove("stepId");
         step.Remove("StepId");
     }
 
+    private static void OmitDefaultPresentationFields(JObject step)
+    {
+        OmitBoolIfFalse(step, "disabled");
+        OmitBoolIfFalse(step, "Disabled");
+        OmitBoolIfFalse(step, "collapsed");
+        OmitBoolIfFalse(step, "Collapsed");
+
+        if (IsZeroNumber(step["delayMs"]) || IsZeroNumber(step["DelayMs"]))
+        {
+            step.Remove("delayMs");
+            step.Remove("DelayMs");
+        }
+
+        OmitStringIfEmpty(step, "note");
+        OmitStringIfEmpty(step, "Note");
+    }
+
     private static void OmitDefaultInputParams(JObject step, StepRunnerCatalog? catalog)
     {
-        if (catalog is null || step["inputParams"] is not JObject inputParams)
+        if (catalog is null)
         {
             return;
         }
 
-        var runnerKey = step.Value<string>("stepRunnerKey")
-            ?? step.Value<string>("StepRunnerKey")
-            ?? string.Empty;
+        var inputParams = AgentStepWireAliases.ReadInputMap(step);
+        if (inputParams is null)
+        {
+            return;
+        }
+
+        var runnerKey = AgentStepWireAliases.ReadRunnerKey(step);
         var runner = catalog.TryFind(runnerKey);
         if (runner is null)
         {
@@ -139,4 +246,42 @@ public static class WorkspaceDataJsonNormalizer
                 return false;
         }
     }
+
+    private static void OmitEmptyMap(JObject parent, string key)
+    {
+        if (parent[key] is JObject map && !map.Properties().Any())
+        {
+            parent.Remove(key);
+        }
+    }
+
+    private static void OmitEmptyArray(JObject parent, string key)
+    {
+        if (parent[key] is JArray array && array.Count == 0)
+        {
+            parent.Remove(key);
+        }
+    }
+
+    private static void OmitBoolIfFalse(JObject obj, string key)
+    {
+        if (obj[key]?.Type == JTokenType.Boolean && obj.Value<bool>(key) == false)
+        {
+            obj.Remove(key);
+        }
+    }
+
+    private static void OmitStringIfEmpty(JObject obj, string key)
+    {
+        if (obj[key]?.Type == JTokenType.String
+            && string.IsNullOrEmpty(obj.Value<string>(key)))
+        {
+            obj.Remove(key);
+        }
+    }
+
+    private static bool IsZeroNumber(JToken? token) =>
+        token is not null
+        && token.Type is JTokenType.Integer or JTokenType.Float
+        && Math.Abs(token.Value<double>()) < double.Epsilon;
 }

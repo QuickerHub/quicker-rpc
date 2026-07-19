@@ -29,6 +29,12 @@ public static class XActionCompressor
             VariableDefaultValueNormalizer.EnsureQuickerRuntimeDefaults(variablesOut);
         }
 
+        // Proto map emits { value|varKey }; agent/workspace wire flattens to scalar / .var / .file + short names.
+        if (result["steps"] is JArray stepsOut)
+        {
+            InputParamWireCoercer.CompactStepsRecursive(stepsOut);
+        }
+
         return result;
     }
 
@@ -327,6 +333,7 @@ public static class XActionCompressor
 
     private static void NormalizePropertyNames(JObject step)
     {
+        AgentStepWireAliases.ToLegacy(step);
         RenameIfPresent(step, "step_runner_key", "stepRunnerKey");
         RenameIfPresent(step, "input_params", "inputParams");
         RenameIfPresent(step, "output_params", "outputParams");
@@ -555,6 +562,7 @@ public static class XActionCompressor
         }
 
         OmitDefaultPresentationFields(result);
+        AgentStepWireAliases.ToShort(result);
         return result;
     }
 

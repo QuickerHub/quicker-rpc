@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { attachTaggedLogs } from "./log-multiplexer.mjs";
+import { readQuickerRpcVersionString } from "../lib/quicker-rpc-version.mjs";
 
 /**
  * Run the dev-supervisor hot-update path (supervisor owns serve restart).
@@ -35,13 +34,7 @@ export function runHotUpdateBuild(repoRoot, meta = {}) {
       if (code === 0) {
         let version = "";
         try {
-          const versionPaths = [
-            join(repoRoot, "QuickerRpc", "version.json"),
-            join(repoRoot, "version.json"),
-          ];
-          const versionPath = versionPaths.find((p) => existsSync(p));
-          const raw = versionPath ? readFileSync(versionPath, "utf8") : "";
-          version = raw ? JSON.parse(raw)?.QuickerRpc ?? "" : "";
+          version = readQuickerRpcVersionString(repoRoot);
         } catch {
           // ignore
         }

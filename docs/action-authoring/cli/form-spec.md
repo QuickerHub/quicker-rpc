@@ -14,8 +14,8 @@ Disk document uses `"$schema": "qkrpc.form.v1"` inside each `files/*.form.json`.
 
 ```json
 {
-  "stepRunnerKey": "sys:form",
-  "inputParams": {
+  "key": "sys:form",
+  "inputs": {
     "operation": "variables",
     "title": "Form title",
     "formDef.file": "files/login.form.json"

@@ -352,7 +352,7 @@ $quickerDependencyUpload = $qkMeta.Publish -and $qkMeta.NoVersion
 
 if ($qkMeta.Publish) {
     $versionJsonPath = Join-Path $ProductRoot 'version.json'
-    $versionFromFile = (Get-Content -Raw -Path $versionJsonPath | ConvertFrom-Json).QuickerRpc
+    $versionFromFile = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject (Get-Content -Raw -Path $versionJsonPath | ConvertFrom-Json)
     $explicitVersion = Get-QuickerRpcVersionFromQkbuildArgs -Tokens $qkbuildArgsResolved
     $candidateVersion = if ($explicitVersion) { $explicitVersion } else { [string]$versionFromFile }
     Assert-QuickerRpcVersionMonotonic `

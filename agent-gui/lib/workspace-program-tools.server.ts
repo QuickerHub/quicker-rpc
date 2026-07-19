@@ -375,7 +375,7 @@ export async function executeWorkspaceProgramWriteData(
   }
   return attachToolFeedback(withHint, {
     summary:
-      "Program data object normalized to wire shape (key/varType/default, stepRunnerKey/inputParams).",
+      "Program data object normalized to wire shape (key/varType/default; step key/inputs/outputs).",
     retryable: false,
   });
 }

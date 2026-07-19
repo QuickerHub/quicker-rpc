@@ -698,12 +698,13 @@ public static class XActionPatchApplier
         var newStep = (JObject)stepBody.DeepClone();
 
         StripStepLocatorFields(newStep);
+        AgentStepWireAliases.ToLegacy(newStep);
 
         if (string.IsNullOrEmpty(ReadNonEmptyString(newStep["stepRunnerKey"])))
 
         {
 
-            error = "add step requires stepRunnerKey.";
+            error = "add step requires key (or legacy stepRunnerKey).";
 
             return false;
 
@@ -1052,11 +1053,11 @@ public static class XActionPatchApplier
 
 
 
-        if (targetStepObj["stepRunnerKey"]?.Type != JTokenType.String)
+        if (string.IsNullOrEmpty(AgentStepWireAliases.ReadRunnerKey(targetStepObj)))
 
         {
 
-            error = "Patched step must keep stepRunnerKey.";
+            error = "Patched step must keep key (or legacy stepRunnerKey).";
 
             return false;
 
@@ -1073,16 +1074,20 @@ public static class XActionPatchApplier
 
 
     /// <summary>
-    /// Merges <c>inputParams</c> using case-insensitive key match so <c>maxLines</c> replaces <c>MaxLines</c>.
+    /// Merges <c>inputs</c>/<c>inputParams</c> using case-insensitive key match so <c>maxLines</c> replaces <c>MaxLines</c>.
     /// </summary>
     private static void ApplyInputParamsPatchFromMerge(JObject targetStepObj, JObject mergePatch)
     {
+        AgentStepWireAliases.ToLegacy(mergePatch);
+        AgentStepWireAliases.ToLegacy(targetStepObj);
+
         if (mergePatch["inputParams"] is not JObject inputParamsPatch)
         {
             return;
         }
 
         mergePatch.Remove("inputParams");
+        mergePatch.Remove("inputs");
 
         var targetInput = targetStepObj["inputParams"] as JObject;
         if (targetInput is null)
@@ -1635,12 +1640,13 @@ public static class XActionPatchApplier
         var flat = (JObject)entry.DeepClone();
 
         StripStepLocatorFields(flat);
+        AgentStepWireAliases.ToLegacy(flat);
 
         if (string.IsNullOrEmpty(ReadNonEmptyString(flat["stepRunnerKey"])))
 
         {
 
-            error = "add step requires stepRunnerKey at the op level (or inside legacy 'step' / 'stepPatch').";
+            error = "add step requires key (or legacy stepRunnerKey) at the op level (or inside legacy 'step' / 'stepPatch').";
 
             return false;
 

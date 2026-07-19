@@ -45,9 +45,9 @@ test("coerceProgramDataContent accepts object and normalizes agent wire mistakes
   assert.equal(coerced.normalized, true);
   const parsed = JSON.parse(coerced.text) as {
     variables: Array<{ key?: string }>;
-    steps: Array<{ stepRunnerKey?: string; inputParams?: unknown }>;
+    steps: Array<{ key?: string; inputs?: unknown }>;
   };
   assert.equal(parsed.variables[0]?.key, "clipText");
-  assert.equal(parsed.steps[0]?.stepRunnerKey, "sys:getClipboardText");
-  assert.ok(parsed.steps[0]?.inputParams);
+  assert.equal(parsed.steps[0]?.key, "sys:getClipboardText");
+  assert.ok(parsed.steps[0]?.inputs);
 });

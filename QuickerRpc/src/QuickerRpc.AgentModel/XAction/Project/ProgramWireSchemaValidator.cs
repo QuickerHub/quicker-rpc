@@ -8,8 +8,8 @@ namespace QuickerRpc.AgentModel.XAction.Project;
 
 /// <summary>
 /// Structural schema validation for workspace program wire (data.json steps/variables).
-/// Blocks save/patch on unknown or mistyped fields (e.g. <c>stepkey</c> instead of
-/// <c>stepRunnerKey</c>) with JSON-path + line positions and spelling suggestions.
+/// Blocks save/patch on unknown or mistyped fields (e.g. <c>stepKey</c> instead of
+/// <c>key</c>/<c>stepRunnerKey</c>) with JSON-path + line positions and spelling suggestions.
 /// Does NOT evaluate expressions or scripts — that is diagnostics' job.
 /// </summary>
 public static class ProgramWireSchemaValidator
@@ -18,7 +18,7 @@ public static class ProgramWireSchemaValidator
     {
         public string Code { get; set; } = string.Empty;
 
-        /// <summary>JSON path inside data.json, e.g. <c>steps[2].ifSteps[0].stepkey</c>.</summary>
+        /// <summary>JSON path inside data.json, e.g. <c>steps[2].ifSteps[0].stepKey</c>.</summary>
         public string Path { get; set; } = string.Empty;
 
         public int? Line { get; set; }
@@ -29,12 +29,15 @@ public static class ProgramWireSchemaValidator
             Line is int line ? $"{Path} (line {line}): {Message}" : $"{Path}: {Message}";
     }
 
-    /// <summary>Canonical step wire fields. Accepted spellings: exact camelCase or PascalCase.</summary>
+    /// <summary>Canonical step wire fields (short + legacy). Accepted spellings: exact camelCase or PascalCase.</summary>
     private static readonly string[] StepFields =
     {
+        "key",
         "stepRunnerKey",
         "stepId",
+        "inputs",
         "inputParams",
+        "outputs",
         "outputParams",
         "ifSteps",
         "elseSteps",
@@ -42,6 +45,13 @@ public static class ProgramWireSchemaValidator
         "disabled",
         "collapsed",
         "delayMs",
+    };
+
+    /// <summary>Model-invented names that must never be accepted (empty diamonds in designer).</summary>
+    private static readonly HashSet<string> ForbiddenStepFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "stepKey",
+        "StepKey",
     };
 
     /// <summary>
@@ -146,6 +156,13 @@ public static class ProgramWireSchemaValidator
 
             foreach (var prop in step.Properties())
             {
+                if (ForbiddenStepFields.Contains(prop.Name))
+                {
+                    Add(issues, "FORBIDDEN_STEP_FIELD", $"{stepPath}.{prop.Name}", prop,
+                        $"Do not use \"{prop.Name}\". Write \"key\" (runner id) — not stepKey/StepKey.");
+                    continue;
+                }
+
                 if (!AcceptedStepFields.Contains(prop.Name))
                 {
                     Add(issues, "UNKNOWN_STEP_FIELD", $"{stepPath}.{prop.Name}", prop,
@@ -170,24 +187,26 @@ public static class ProgramWireSchemaValidator
 
     private static void ValidateStepRunnerKey(JObject step, string stepPath, IList<SchemaIssue> issues)
     {
-        var token = ReadField(step, "stepRunnerKey");
+        var token = ReadField(step, "key") ?? ReadField(step, "stepRunnerKey");
         if (token is null)
         {
             Add(issues, "MISSING_STEP_RUNNER_KEY", stepPath, step,
-                "Step requires \"stepRunnerKey\" (from step-runner search/get — do not guess).");
+                "Step requires \"key\" (or legacy \"stepRunnerKey\") from step-runner search/get — do not guess.");
             return;
         }
 
         if (token.Type != JTokenType.String || string.IsNullOrWhiteSpace(token.Value<string>()))
         {
-            Add(issues, "MISSING_STEP_RUNNER_KEY", $"{stepPath}.stepRunnerKey", token,
-                "\"stepRunnerKey\" must be a non-empty string (from step-runner search/get).");
+            Add(issues, "MISSING_STEP_RUNNER_KEY", $"{stepPath}.key", token,
+                "\"key\" must be a non-empty string (from step-runner search/get).");
         }
     }
 
     private static void ValidateStepFieldTypes(JObject step, string stepPath, IList<SchemaIssue> issues)
     {
+        RequireType(step, "inputs", stepPath, issues, JTokenType.Object, "a JSON object");
         RequireType(step, "inputParams", stepPath, issues, JTokenType.Object, "a JSON object");
+        RequireType(step, "outputs", stepPath, issues, JTokenType.Object, "a JSON object");
         RequireType(step, "outputParams", stepPath, issues, JTokenType.Object, "a JSON object");
         RequireType(step, "ifSteps", stepPath, issues, JTokenType.Array, "a JSON array of steps");
         RequireType(step, "elseSteps", stepPath, issues, JTokenType.Array, "a JSON array of steps");
@@ -206,30 +225,45 @@ public static class ProgramWireSchemaValidator
                 "\"delayMs\" must be a number.");
         }
 
-        if (ReadField(step, "outputParams") is JObject outputParams)
+        ValidateOutputMap(step, stepPath, "outputs", issues);
+        ValidateOutputMap(step, stepPath, "outputParams", issues);
+        ValidateInputMap(step, stepPath, "inputs", issues);
+        ValidateInputMap(step, stepPath, "inputParams", issues);
+    }
+
+    private static void ValidateOutputMap(JObject step, string stepPath, string field, IList<SchemaIssue> issues)
+    {
+        if (ReadField(step, field) is not JObject outputParams)
         {
-            foreach (var prop in outputParams.Properties())
-            {
-                if (prop.Value.Type is JTokenType.Object or JTokenType.Array)
-                {
-                    Add(issues, "INVALID_OUTPUT_PARAM", $"{stepPath}.outputParams.{prop.Name}", prop,
-                        "outputParams value must be a target variable key string.");
-                }
-            }
+            return;
         }
 
-        if (ReadField(step, "inputParams") is JObject inputParams)
+        foreach (var prop in outputParams.Properties())
         {
-            foreach (var prop in inputParams.Properties())
+            if (prop.Value.Type is JTokenType.Object or JTokenType.Array)
             {
-                var isBindSuffix =
-                    prop.Name.EndsWith(".var", StringComparison.OrdinalIgnoreCase)
-                    || prop.Name.EndsWith(".file", StringComparison.OrdinalIgnoreCase);
-                if (isBindSuffix && prop.Value.Type != JTokenType.String)
-                {
-                    Add(issues, "INVALID_INPUT_PARAM_BIND", $"{stepPath}.inputParams.{prop.Name}", prop,
-                        $"\"{prop.Name}\" must be a plain string (variable key or files/… path).");
-                }
+                Add(issues, "INVALID_OUTPUT_PARAM", $"{stepPath}.{field}.{prop.Name}", prop,
+                    $"{field} value must be a target variable key string.");
+            }
+        }
+    }
+
+    private static void ValidateInputMap(JObject step, string stepPath, string field, IList<SchemaIssue> issues)
+    {
+        if (ReadField(step, field) is not JObject inputParams)
+        {
+            return;
+        }
+
+        foreach (var prop in inputParams.Properties())
+        {
+            var isBindSuffix =
+                prop.Name.EndsWith(".var", StringComparison.OrdinalIgnoreCase)
+                || prop.Name.EndsWith(".file", StringComparison.OrdinalIgnoreCase);
+            if (isBindSuffix && prop.Value.Type != JTokenType.String)
+            {
+                Add(issues, "INVALID_INPUT_PARAM_BIND", $"{stepPath}.{field}.{prop.Name}", prop,
+                    $"\"{prop.Name}\" must be a plain string (variable key or files/… path).");
             }
         }
     }

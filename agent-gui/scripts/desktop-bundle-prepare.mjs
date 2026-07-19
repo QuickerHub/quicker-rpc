@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
 import { prepareRemoteCipherPepper } from "./embed-remote-cipher-pepper.mjs";
-import { readQuickerRpcVersionJson, resolveQuickerRpcVersionJsonPath } from "../lib/repo-paths.mjs";
+import { readQuickerRpcSemverFromJson, readQuickerRpcVersionJson, resolveQuickerRpcVersionJsonPath } from "../lib/repo-paths.mjs";
 
 const defaultAgentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRepoRoot = join(defaultAgentGuiRoot, "..");
@@ -46,17 +46,10 @@ function run(cmd, args, opts = {}) {
   }
 }
 
-/** @returns {string} X.Y.Z from version.json QuickerRpc */
+/** @returns {string} X.Y.Z from version.json */
 export function readDesktopBundleSemver(repoRoot = defaultRepoRoot) {
   const data = readQuickerRpcVersionJson(repoRoot);
-  const parts = String(data.QuickerRpc ?? "0.0.0")
-    .trim()
-    .replace(/^v/, "")
-    .split(".");
-  if (parts.length < 3) {
-    throw new Error(`version.json QuickerRpc must have at least 3 segments`);
-  }
-  return parts.slice(0, 3).join(".");
+  return readQuickerRpcSemverFromJson(data);
 }
 
 function ensureQkrpcCli(repoRoot) {

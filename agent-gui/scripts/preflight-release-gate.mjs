@@ -6,7 +6,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { readQuickerRpcVersionJson } from "../lib/repo-paths.mjs";
+import { readQuickerRpcSemverFromJson, readQuickerRpcVersionJson } from "../lib/repo-paths.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,7 +47,7 @@ function runStep(label, fn) {
 function checkVersionNotes() {
   const versionJson = readQuickerRpcVersionJson(repoRoot);
   const pkg = readJson(join(agentGuiRoot, "package.json"));
-  const expected = semver3(versionJson.QuickerRpc);
+  const expected = semver3(readQuickerRpcSemverFromJson(versionJson));
   const current = String(pkg.version ?? "").trim();
 
   if (!current) {

@@ -57,9 +57,9 @@ P7  trust editVersion after save (NO verify re-get)
 
 - NO shell_exec for qkrpc connectivity (ping, probe, serve, build.ps1 -t, qkrpc CLI) — tell user on connectivity_failure
 - Search before guess; **docs get** for known topics (see Docs tool); **docs search** only when topic id unknown
-- NO guess inputParams without step_runner_search → get
+- NO guess **inputs** keys without step_runner_search → get
 - NO get-ui / step-runner.getUi
-- NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
+- NO inline program-body patch / whole-program `--patch-file`; write short `key`/`inputs`/`outputs` (never `stepKey`) per get → one Pretty data.json → patch
 - After patch trust editVersion; NO re-get to verify
 - P4: **sys:assign** single-var; **`$=`/`$$`/evalexpression** rules in preloaded **quicker-eval-expression** below; module → csscript last
 
@@ -108,7 +108,7 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 
 ## Steps & file externalization
 
-steps[] + inputParams: `paramKey` · `.file` · `.var` (one bind/key). **Literal `value` may be JSON string / number / boolean / array / object** per `step_runner_get` `valueType` — not only strings; expr still uses `$$`/`$=`.
+steps[] + **inputs** (short wire): `paramKey` · `.file` · `.var` (one bind/key). Write `"key"` for runner id — never `stepKey`. Legacy `stepRunnerKey`/`inputParams` read-only. **Literal values may be JSON string / number / boolean / array / object** per `step_runner_get` `valueType` — not only strings; expr still uses `$$`/`$=`.
 
 | intent | write | NOT |
 |--------|-------|-----|

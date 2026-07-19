@@ -5,6 +5,7 @@ import { isBundledAgentRuntime } from "@/lib/default-working-directory";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import {
   readQuickerRpcSemverFromRepo,
+  readQuickerRpcSemverFromJson,
   resolveQuickerRpcRepoRoot,
   resolveQuickerRpcVersionJsonPath,
 } from "@/lib/repo-root";
@@ -23,12 +24,8 @@ function readQuickerRpcVersionFromJson(dir: string): string | null {
   const versionPath = resolveQuickerRpcVersionJsonPath(dir);
   if (!versionPath) return null;
   try {
-    const data = JSON.parse(readFileSync(versionPath, "utf8")) as { QuickerRpc?: string };
-    const raw = String(data.QuickerRpc ?? "").trim();
-    if (!raw) return null;
-    const parts = formatDisplayVersion(raw).split(".");
-    if (parts.length >= 3) return parts.slice(0, 3).join(".");
-    return formatDisplayVersion(raw);
+    const data = JSON.parse(readFileSync(versionPath, "utf8"));
+    return readQuickerRpcSemverFromJson(data);
   } catch {
     return null;
   }

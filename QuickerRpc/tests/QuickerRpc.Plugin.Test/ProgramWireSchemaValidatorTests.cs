@@ -24,14 +24,34 @@ public sealed class ProgramWireSchemaValidatorTests
 
         var issues = ProgramWireSchemaValidator.Validate(data);
 
-        var unknown = issues.Single(i => i.Code == "UNKNOWN_STEP_FIELD");
-        Assert.AreEqual("steps[0].stepkey", unknown.Path);
-        Assert.IsNotNull(unknown.Line);
-        StringAssert.Contains(unknown.Message, "stepkey");
+        var forbidden = issues.Single(i => i.Code == "FORBIDDEN_STEP_FIELD");
+        Assert.AreEqual("steps[0].stepkey", forbidden.Path);
+        Assert.IsNotNull(forbidden.Line);
+        StringAssert.Contains(forbidden.Message, "key");
 
         var missing = issues.Single(i => i.Code == "MISSING_STEP_RUNNER_KEY");
         Assert.AreEqual("steps[0]", missing.Path);
-        StringAssert.Contains(missing.Message, "stepRunnerKey");
+        StringAssert.Contains(missing.Message, "key");
+    }
+
+    [TestMethod]
+    public void Short_wire_key_and_inputs_are_accepted()
+    {
+        var data = JObject.Parse("""
+            {
+              "steps": [
+                {
+                  "key": "sys:assign",
+                  "inputs": { "input": "$=1+1" },
+                  "outputs": { "output": "count" }
+                }
+              ],
+              "variables": [ { "key": "count" } ]
+            }
+            """);
+
+        var issues = ProgramWireSchemaValidator.Validate(data);
+        Assert.AreEqual(0, issues.Count, string.Join("\n", issues));
     }
 
     [TestMethod]
@@ -329,7 +349,7 @@ public sealed class ProgramWireSchemaValidatorTests
 
             Assert.IsFalse(result.Success);
             Assert.IsTrue(result.SchemaIssues.Count >= 1, result.ErrorMessage);
-            var unknown = result.SchemaIssues.Single(i => i.Code == "UNKNOWN_STEP_FIELD");
+            var unknown = result.SchemaIssues.Single(i => i.Code == "FORBIDDEN_STEP_FIELD");
             Assert.AreEqual(4, unknown.Line);
             StringAssert.Contains(result.ErrorMessage!, "steps[0]");
         }

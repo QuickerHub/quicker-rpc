@@ -7,7 +7,7 @@
     "formDocument": {
       "type": "object",
       "$ref": "#/definitions/formSpec",
-      "notes": "Content of files/*.form.json referenced by step inputParams formDef.file."
+      "notes": "Content of files/*.form.json referenced by step inputs formDef.file."
     },
     "formStep": {
       "type": "object",
@@ -90,8 +90,8 @@
     "formStep": {
       "type": "object",
       "properties": {
-        "stepRunnerKey": { "type": "string", "const": "sys:form" },
-        "inputParams": {
+        "key": { "type": "string", "const": "sys:form" },
+        "inputs": {
           "type": "object",
           "valueType": "Record<string, string>",
           "wireKeys": [
@@ -131,8 +131,8 @@
       "options": { "windowWidth": 520 }
     },
     "formStep": {
-      "stepRunnerKey": "sys:form",
-      "inputParams": {
+      "key": "sys:form",
+      "inputs": {
         "operation": "variables",
         "title": "Login",
         "formDef.file": "files/login.form.json"

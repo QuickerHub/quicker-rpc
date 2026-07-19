@@ -249,7 +249,7 @@ function Install-QkrpcFromDirectory {
         New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     }
 
-    # In-place overlay — never Remove-Item -Recurse the install dir (clrjit.dll stays locked while any qkrpc runs).
+    # In-place overlay �?never Remove-Item -Recurse the install dir (clrjit.dll stays locked while any qkrpc runs).
     try {
         Copy-Item -Path (Join-Path $sourcePath '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
     }
@@ -1241,7 +1241,10 @@ function ConvertTo-QuickerRpcFourPartVersion {
 function Resolve-QuickerRpcVersionStringFromJsonObject {
     param([Parameter(Mandatory = $true)]$JsonObject)
 
-    $legacy = [string]$JsonObject.QuickerRpc
+    $legacy = ''
+    if ($JsonObject.PSObject.Properties.Name -contains 'QuickerRpc') {
+        $legacy = [string]$JsonObject.QuickerRpc
+    }
     if (-not [string]::IsNullOrWhiteSpace($legacy)) {
         return $legacy.Trim()
     }
@@ -1307,7 +1310,7 @@ function Get-QuickerRpcVersionBaseline {
             }
 
             try {
-                $parsed = ([string](ConvertFrom-Json $raw).QuickerRpc)
+                $parsed = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject (ConvertFrom-Json $raw)
                 if (-not [string]::IsNullOrWhiteSpace($parsed)) {
                     $baselines.Add((ConvertTo-QuickerRpcFourPartVersion -Version $parsed)) | Out-Null
                 }
@@ -1346,7 +1349,7 @@ function Assert-QuickerRpcVersionMonotonic {
     $baseline = Get-QuickerRpcVersionBaseline -RepoRoot $RepoRoot
 
     if ($null -eq $baseline) {
-        Write-Host "Version baseline: (none) — first release or empty git history." -ForegroundColor DarkGray
+        Write-Host "Version baseline: (none) �?first release or empty git history." -ForegroundColor DarkGray
         return
     }
 
@@ -1369,7 +1372,7 @@ version.json may only move forward. See .cursor/skills/quicker-qkbuild-version-p
 $Context must be strictly greater than the last released/committed version for a new publish.
   Candidate: $candidate
   Baseline:  $baseline
-Bump version.json forward (official publish: third field +1, revision→0). Use -Publish -NoVersion only to re-upload the same version.
+Bump version.json forward (official publish: third field +1, revision�?). Use -Publish -NoVersion only to re-upload the same version.
 "@
     }
 

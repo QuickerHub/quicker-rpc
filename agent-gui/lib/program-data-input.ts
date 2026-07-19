@@ -76,17 +76,32 @@ function normalizeAgentVariableRecord(
 
 function normalizeAgentStepRecord(raw: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...raw };
-  if (typeof raw.runnerKey === "string" && out.stepRunnerKey == null) {
-    out.stepRunnerKey = raw.runnerKey;
+  // Prefer short wire names on write (key/inputs/outputs); accept aliases.
+  if (typeof raw.key === "string") {
+    out.key = raw.key;
+    delete out.stepRunnerKey;
     delete out.runnerKey;
+  } else if (typeof raw.runnerKey === "string") {
+    out.key = raw.runnerKey;
+    delete out.runnerKey;
+    delete out.stepRunnerKey;
+  } else if (typeof raw.stepRunnerKey === "string") {
+    out.key = raw.stepRunnerKey;
+    delete out.stepRunnerKey;
   }
-  if (raw.inputs != null && out.inputParams == null) {
-    out.inputParams = raw.inputs;
-    delete out.inputs;
+  if (raw.inputs != null) {
+    out.inputs = raw.inputs;
+    delete out.inputParams;
+  } else if (raw.inputParams != null) {
+    out.inputs = raw.inputParams;
+    delete out.inputParams;
   }
-  if (raw.outputs != null && out.outputParams == null) {
-    out.outputParams = raw.outputs;
-    delete out.outputs;
+  if (raw.outputs != null) {
+    out.outputs = raw.outputs;
+    delete out.outputParams;
+  } else if (raw.outputParams != null) {
+    out.outputs = raw.outputParams;
+    delete out.outputParams;
   }
   return out;
 }

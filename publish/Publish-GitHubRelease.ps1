@@ -45,7 +45,7 @@ if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent $PSScriptRoot
 }
 
-$versionFile = Join-Path $RepoRoot 'version.json'
+$versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $RepoRoot
 if (-not (Test-Path -LiteralPath $versionFile)) {
     throw "version.json not found: $versionFile"
 }

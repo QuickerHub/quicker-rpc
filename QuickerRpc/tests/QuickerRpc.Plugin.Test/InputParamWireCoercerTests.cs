@@ -151,11 +151,12 @@ public sealed class InputParamWireCoercerTests
         var catalog = new StepRunnerCatalog { Items = new System.Collections.Generic.List<StepRunnerDefinition>() };
         var compressed = XActionCompressor.Compress(steps, new JArray(), catalog, omitDefaultLiteralInputs: false);
         var step = (JObject)compressed["steps"]![0]!;
-        var inputParams = step["inputParams"] as JObject;
-        var keys = inputParams?.Properties().Select(p => p.Name).ToList() ?? new System.Collections.Generic.List<string>();
-        var varValue = inputParams?["var:value"] as JObject;
-        Assert.IsNotNull(varValue, $"var:value bind should survive wire scalar → compress; keys=[{string.Join(", ", keys)}]");
-        Assert.AreEqual("seed", varValue!["varKey"]?.ToString());
+        Assert.AreEqual("sys:subprogram", step["key"]?.ToString());
+        var inputs = step["inputs"] as JObject;
+        var keys = inputs?.Properties().Select(p => p.Name).ToList() ?? new System.Collections.Generic.List<string>();
+        Assert.IsNotNull(inputs, $"inputs map should survive wire scalar → compress; keys=[{string.Join(", ", keys)}]");
+        Assert.AreEqual("seed", inputs!["var:value.var"]?.ToString(), $"keys=[{string.Join(", ", keys)}]");
+        Assert.AreEqual("Double", inputs["subProgram"]?.ToString());
     }
 
     [TestMethod]
@@ -206,6 +207,10 @@ public sealed class InputParamWireCoercerTests
             QuickerProjectFiles.WriteData(dir, data);
 
             var json = File.ReadAllText(QuickerProjectLayout.GetDataPath(dir));
+            StringAssert.Contains(json, "\"key\": \"sys:evalexpression\"");
+            StringAssert.Contains(json, "\"inputs\"");
+            Assert.IsFalse(json.Contains("\"stepRunnerKey\""), json);
+            Assert.IsFalse(json.Contains("\"inputParams\""), json);
             StringAssert.Contains(json, "\"expression\": \"1+1\"");
             StringAssert.Contains(json, "\"code.file\": \"files/main.eval.cs\"");
             StringAssert.Contains(json, "\"outputVar.var\": \"lineCount\"");
@@ -214,6 +219,7 @@ public sealed class InputParamWireCoercerTests
 
             var loaded = QuickerProjectFiles.ReadData(dir);
             var inputParams = loaded["steps"]![0]!["inputParams"] as JObject;
+            Assert.AreEqual("sys:evalexpression", loaded["steps"]![0]!["stepRunnerKey"]!.Value<string>());
             Assert.AreEqual("1+1", inputParams!["expression"]!["value"]!.Value<string>());
             Assert.AreEqual("files/main.eval.cs", inputParams["code"]!["file"]!.Value<string>());
             Assert.AreEqual("lineCount", inputParams["outputVar"]!["varKey"]!.Value<string>());

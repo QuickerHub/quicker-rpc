@@ -50,15 +50,41 @@ export function resolveRepoRoot(): string {
   return resolveQuickerRpcRepoRoot() ?? resolveAgentGuiRoot();
 }
 
+export function resolveQuickerRpcVersionStringFromJson(json: unknown): string {
+  if (!json || typeof json !== "object") {
+    throw new Error("version.json missing 'QuickerRpc' or 'release'+'build'");
+  }
+
+  const record = json as { QuickerRpc?: unknown; release?: unknown; build?: unknown };
+  const legacy = typeof record.QuickerRpc === "string" ? record.QuickerRpc.trim() : "";
+  if (legacy) {
+    return legacy;
+  }
+
+  const release = typeof record.release === "string" ? record.release.trim() : "";
+  if (!release) {
+    throw new Error("version.json missing 'QuickerRpc' or 'release'+'build'");
+  }
+
+  const build = record.build == null ? 0 : Number(record.build);
+  return `${release}.${Number.isFinite(build) ? build : 0}`;
+}
+
+export function readQuickerRpcSemverFromJson(json: unknown): string {
+  const full = resolveQuickerRpcVersionStringFromJson(json);
+  const parts = full.replace(/^v/i, "").split(".");
+  if (parts.length < 3) {
+    throw new Error(`version must have at least three segments: ${full}`);
+  }
+  return parts.slice(0, 3).join(".");
+}
+
 export function readQuickerRpcSemverFromRepo(dir: string): string | null {
   const versionPath = resolveQuickerRpcVersionJsonPath(dir);
   if (!versionPath) return null;
   try {
-    const data = JSON.parse(readFileSync(versionPath, "utf8")) as { QuickerRpc?: string };
-    const raw = String(data.QuickerRpc ?? "").trim();
-    if (!raw) return null;
-    const parts = raw.replace(/^v/i, "").split(".");
-    return parts.length >= 3 ? parts.slice(0, 3).join(".") : raw;
+    const data = JSON.parse(readFileSync(versionPath, "utf8"));
+    return readQuickerRpcSemverFromJson(data);
   } catch {
     return null;
   }

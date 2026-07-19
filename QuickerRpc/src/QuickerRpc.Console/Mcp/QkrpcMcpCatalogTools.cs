@@ -12,7 +12,7 @@ public sealed class QkrpcMcpCatalogTools
 
     [McpServerTool(Name = "qkrpc_step_runner_search")]
     [Description(
-        "Search Quicker step modules. Space = AND (auto OR fallback when empty); | branches; * wildcard. Returns controlField hints — do not guess inputParams keys.")]
+        "Search Quicker step modules. Space = AND (auto OR fallback when empty); | branches; * wildcard. Returns controlField hints — do not guess inputs keys.")]
     public Task<string> QkrpcStepRunnerSearch(
         string query,
         int? limit = null,
@@ -31,9 +31,9 @@ public sealed class QkrpcMcpCatalogTools
 
     [McpServerTool(Name = "qkrpc_step_runner_get")]
     [Description(
-        "Get compressed step-runner schema for Agent editing (inputParams keys). "
-        + "Write inputParams as paramKey / paramKey.file / paramKey.var wire strings in data.json. "
-        + "Never use step-runner.getUi. Always search first for controlField.")]
+        "Get compressed step-runner schema for Agent editing (inputs keys). "
+        + "Write data.json steps with short wire: key / inputs / outputs. "
+        + "inputs values: paramKey / paramKey.file / paramKey.var. Never stepKey. Never step-runner.getUi. Always search first for controlField.")]
     public Task<string> QkrpcStepRunnerGet(
         string key,
         string? controlField = null,

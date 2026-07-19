@@ -39,10 +39,10 @@ internal static class QkrpcMcpWorkspaceReadme
 
         ## data.json 要点
 
-        - 仅含 `steps` + `variables`（无内联 `subPrograms` 数组）
-        - 长内容（>4 行）放 `files/`，引用：`"script": { "file": "files/main.cs" }`
-        - 插值：`$$` / `$=` 前缀；变量直接绑定用 `varKey`
-        - 保存前：`qkrpc_step_runner_get` 查 schema
+        - 仅含 `steps` + `variables`；步骤写出短名 **`key` / `inputs` / `outputs`**（禁止 `stepKey`；旧长名仅读兼容）
+        - `inputs`：`paramKey` / `paramKey.var` / `paramKey.file`；长内容（>4 行）放 `files/`
+        - 插值：`$$` / `$=` 前缀字符串；保存前：`qkrpc_step_runner_get` 查 schema
+        - 领域专题（formDef 等）见 docs **form-spec**，勿凭记忆编表单
 
         ## workspace_program（MCP）
 

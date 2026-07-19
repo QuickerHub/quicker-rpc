@@ -1,6 +1,19 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readdirSync } from "node:fs";
+import {
+  readQuickerRpcSemverFromJson,
+  readQuickerRpcVersionJson as readQuickerRpcVersionJsonFile,
+  readQuickerRpcVersionString,
+  resolveQuickerRpcVersionJsonPath as resolveQuickerRpcVersionJsonPathImpl,
+  resolveQuickerRpcVersionStringFromJson,
+} from "../../scripts/lib/quicker-rpc-version.mjs";
+
+export {
+  readQuickerRpcSemverFromJson,
+  readQuickerRpcVersionString,
+  resolveQuickerRpcVersionStringFromJson,
+};
 
 /**
  * Resolve QuickerRpc product version.json after layout migration.
@@ -8,11 +21,7 @@ import { readdirSync } from "node:fs";
  * @returns {string | null}
  */
 export function resolveQuickerRpcVersionJsonPath(repoRoot) {
-  const product = join(repoRoot, "QuickerRpc", "version.json");
-  if (existsSync(product)) return product;
-  const legacy = join(repoRoot, "version.json");
-  if (existsSync(legacy)) return legacy;
-  return null;
+  return resolveQuickerRpcVersionJsonPathImpl(repoRoot);
 }
 
 /** @param {string} dir */
@@ -25,13 +34,7 @@ export function isQuickerRpcMonorepoRoot(dir) {
 
 /** @param {string} repoRoot */
 export function readQuickerRpcVersionJson(repoRoot) {
-  const path = resolveQuickerRpcVersionJsonPath(repoRoot);
-  if (!path) {
-    throw new Error(
-      `version.json not found under ${repoRoot} (expected QuickerRpc/version.json)`,
-    );
-  }
-  return JSON.parse(readFileSync(path, "utf8"));
+  return readQuickerRpcVersionJsonFile(repoRoot);
 }
 
 /** dotnet publish / local dev Console Release output folders (new + legacy layout). */

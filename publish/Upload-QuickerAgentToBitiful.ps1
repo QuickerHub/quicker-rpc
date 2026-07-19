@@ -33,14 +33,14 @@ Copy publish/.env.example to publish/.env and set BITIFUL_ACCESS_KEY, BITIFUL_SE
 '@
 }
 
-$versionFile = Join-Path $RepoRoot 'version.json'
+$versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $RepoRoot
 if (-not $Version) {
     if (-not (Test-Path -LiteralPath $versionFile)) {
         throw "version.json not found: $versionFile"
     }
 
     $json = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
-    $Version = [string]$json.QuickerRpc
+    $Version = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $json
 }
 
 $semver = Get-QuickerRpcSemVerFromVersion -Version $Version

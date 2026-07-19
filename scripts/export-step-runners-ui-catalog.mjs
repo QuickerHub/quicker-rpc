@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readQuickerRpcVersionString } from "./lib/quicker-rpc-version.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outFile =
@@ -43,14 +44,7 @@ function qkrpcJson(args) {
 
 function readVersion() {
   try {
-    const candidates = [
-      join(root, "QuickerRpc", "version.json"),
-      join(root, "version.json"),
-    ];
-    const path = candidates.find((p) => existsSync(p));
-    if (!path) return "";
-    const v = JSON.parse(readFileSync(path, "utf8"));
-    return typeof v.QuickerRpc === "string" ? v.QuickerRpc : "";
+    return readQuickerRpcVersionString(root);
   } catch {
     return "";
   }

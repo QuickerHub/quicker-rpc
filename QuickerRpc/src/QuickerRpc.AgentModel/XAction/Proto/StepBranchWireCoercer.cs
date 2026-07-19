@@ -51,12 +51,12 @@ internal static class StepBranchWireCoercer
 
     private static void CompactInputParamsOnStep(JObject step)
     {
-        InputParamWireCoercer.CompactInputParamsObject(step["inputParams"] as JObject);
+        InputParamWireCoercer.CompactInputParamsObject(AgentStepWireAliases.ReadInputMap(step));
     }
 
     private static void CompactStepBranches(JObject step)
     {
-        var key = ReadStepRunnerKey(step);
+        var key = AgentStepWireAliases.ReadRunnerKey(step);
         var (hasIfBranch, hasElseBranch) = InferBranches(key);
 
         if (!hasIfBranch || IsEmptyArray(step["ifSteps"]))
@@ -92,11 +92,6 @@ internal static class StepBranchWireCoercer
 
         return (false, false);
     }
-
-    private static string ReadStepRunnerKey(JObject step) =>
-        step["stepRunnerKey"]?.Value<string>()
-        ?? step["StepRunnerKey"]?.Value<string>()
-        ?? string.Empty;
 
     private static string NormalizeStepRunnerKeyTail(string stepRunnerKey)
     {
