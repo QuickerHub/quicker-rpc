@@ -97,14 +97,18 @@ public sealed class PluginV2CompositionTests
     }
 
     [TestMethod]
-    public async Task V2ActionRunHost_trace_returns_v2_not_wired_message()
+    public async Task V2ActionRunHost_trace_outside_quicker_fails_gracefully()
     {
         var host = new V2ActionRunHost();
 
         var result = await host.RunTraceAsync("missing-action-id");
 
         Assert.IsFalse(result.Ok);
-        StringAssert.Contains(result.Message, "trace", StringComparison.OrdinalIgnoreCase);
+        Assert.IsTrue(
+            (result.Message ?? string.Empty).Contains("Not running inside Quicker", StringComparison.OrdinalIgnoreCase)
+            || (result.Message ?? string.Empty).Contains("unavailable", StringComparison.OrdinalIgnoreCase)
+            || (result.Message ?? string.Empty).Contains("not found", StringComparison.OrdinalIgnoreCase),
+            result.Message);
     }
 
     [TestMethod]

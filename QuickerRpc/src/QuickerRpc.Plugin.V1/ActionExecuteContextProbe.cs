@@ -263,8 +263,8 @@ internal static class ActionExecuteContextProbe
 
     private static ActionExecuteContext ResolveEffectiveContext(ActionExecuteContext context)
     {
-        var root = context.RootContext;
-        if (root is not null)
+        // V2 types RootContext as IActionExecuteContext; pattern match keeps both hosts compiling.
+        if (context.RootContext is ActionExecuteContext root)
         {
             return root;
         }

@@ -4,13 +4,19 @@ using System.Threading.Tasks;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
 using QuickerRpc.Plugin.Services;
+using QuickerRpc.Plugin.V2.Services;
+using QuickerRpc.Transport;
 
 namespace QuickerRpc.Plugin.V2.Adapters;
 
-/// <summary>Run local actions via shared V1 <see cref="ActionRunService"/> reflection.</summary>
+/// <summary>
+/// Run local actions via shared <see cref="ActionRunService"/> reflection;
+/// trace via V2 <see cref="V2XActionTraceRunService"/>.
+/// </summary>
 internal sealed class V2ActionRunHost : IQuickerRpcActionRunHost
 {
     private readonly ActionRunService _run = new();
+    private readonly V2XActionTraceRunService _trace = new();
 
     public Task<QuickerRpcActionRunResult> RunAsync(
         string actionId,
@@ -30,12 +36,8 @@ internal sealed class V2ActionRunHost : IQuickerRpcActionRunHost
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(new QuickerRpcActionTraceRunResult
-        {
-            Ok = false,
-            ActionId = actionId,
-            Message = V2StubMessage.TraceNotImplemented,
-        });
+        var streamCallbacks = QuickerRpcTraceSink.CurrentClientCallbacks;
+        return Task.FromResult(_trace.RunAction(actionId, inputParam, progress, streamCallbacks));
     }
 
     public Task<QuickerRpcActionTraceRunResult> RunXActionTraceAsync(
@@ -45,11 +47,8 @@ internal sealed class V2ActionRunHost : IQuickerRpcActionRunHost
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(new QuickerRpcActionTraceRunResult
-        {
-            Ok = false,
-            Message = V2StubMessage.TraceNotImplemented,
-        });
+        var streamCallbacks = QuickerRpcTraceSink.CurrentClientCallbacks;
+        return Task.FromResult(_trace.RunXAction(xActionJson, inputParam, progress, streamCallbacks));
     }
 
     public Task<QuickerRpcFloatActionResult> FloatAsync(

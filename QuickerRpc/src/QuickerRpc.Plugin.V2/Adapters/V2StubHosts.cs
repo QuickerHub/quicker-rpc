@@ -13,8 +13,6 @@ internal static class V2StubMessage
     public const string NotImplemented =
         "QuickerRpc V2 reflection host does not implement this port yet.";
 
-    public const string TraceNotImplemented =
-        "QuickerRpc V2 trace run is not wired yet; use action run (no --trace) or V1 Quicker for trace.";
 }
 
 internal sealed class V2ActionSharingHost : IQuickerRpcActionSharingHost

@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Match Quicker V2 host TFM (qkbuild dual-host injects -f net10.0-windows…). -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
+    <UseWPF>true</UseWPF>
     <!-- Public entry types live in QuickerRpc.Plugin (same as V1); internals stay under QuickerRpc.Plugin.V2.* -->
     <RootNamespace>QuickerRpc.Plugin.V2</RootNamespace>
     <AssemblyName>QuickerRpc.Plugin</AssemblyName>
@@ -22,6 +24,9 @@
     <ProjectReference Include="..\QuickerRpc.Transport\QuickerRpc.Transport.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionLibrarySearchService.cs" Link="Shared\ActionLibrarySearchService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\CodeSyntaxCheckService.cs" Link="Shared\CodeSyntaxCheckService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionEvalBinding.cs" Link="Shared\ExpressionEvalBinding.cs" />
@@ -31,6 +36,17 @@
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionVariableResolver.cs" Link="Shared\ExpressionVariableResolver.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionRunService.cs" Link="Shared\ActionRunService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\PluginAssemblyResolve.cs" Link="Shared\PluginAssemblyResolve.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Debugging\TerminalActionLogger.cs" Link="Shared\TerminalActionLogger.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Debugging\ActionTraceLocationResolver.cs" Link="Shared\ActionTraceLocationResolver.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\LauncherStartOptions.cs" Link="Shared\LauncherStartOptions.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\ActionExecuteContextProbe.cs" Link="Shared\ActionExecuteContextProbe.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentLaunchOutcome.cs" Link="Shared\QuickerAgentLaunchOutcome.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\SemVerUtility.cs" Link="Shared\SemVerUtility.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentProductionProcess.cs" Link="Shared\QuickerAgentProductionProcess.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentInstallProbe.cs" Link="Shared\QuickerAgentInstallProbe.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentWindowActivator.cs" Link="Shared\QuickerAgentWindowActivator.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentLaunchService.cs" Link="Shared\QuickerAgentLaunchService.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentKillService.cs" Link="Shared\QuickerAgentKillService.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Costura.Fody">
