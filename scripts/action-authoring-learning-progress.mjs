@@ -51,7 +51,7 @@ function summarize(data) {
         patternsTotal: patterns.length,
         queuePending: pending.length,
         queue: pending.map((q) => ({ id: q.id, type: q.type, title: q.title })),
-        plan: data.plan,
+        workflow: data.workflow,
         retro: data.authoringTasksEval?.retro,
       },
       null,

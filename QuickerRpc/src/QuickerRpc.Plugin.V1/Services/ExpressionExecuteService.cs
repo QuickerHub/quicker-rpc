@@ -3,13 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Newtonsoft.Json;
-using QuickerRpc.Contracts.Rpc;
+#if QKHOST_V2
+using Quicker.ExpressionEngine;
+using HostEvalContext = Quicker.ExpressionEngine.QkEvalContext;
+#else
 using Z.Expressions;
+using HostEvalContext = Z.Expressions.EvalContext;
+#endif
+using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Runs Quicker expressions ($= / sys:evalexpression) via Z.Expressions, aligned with EvalExpressionStepV2.
+/// Runs Quicker expressions ($= / sys:evalexpression) through the expression engine of the active host.
 /// </summary>
 public sealed class ExpressionExecuteService
 {
@@ -104,9 +110,13 @@ public sealed class ExpressionExecuteService
         return expression;
     }
 
-    private static EvalContext CreateExpressionEvalContext()
+    private static HostEvalContext CreateExpressionEvalContext()
     {
+#if QKHOST_V2
+        var eval = QkEval.DefaultContext.Clone();
+#else
         var eval = EvalManager.DefaultContext.Clone();
+#endif
         eval.UseLocalCache = true;
         return eval;
     }

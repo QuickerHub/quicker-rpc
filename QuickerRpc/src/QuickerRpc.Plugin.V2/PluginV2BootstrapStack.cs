@@ -21,6 +21,7 @@ internal static class PluginV2BootstrapStack
         var programs = new V2HeadlessActionProgramService();
         var subPrograms = new V2HeadlessSubProgramService(programs);
         var catalog = new V2HeadlessCatalogService();
+        var search = new V2SearchHost(catalog, programs);
 
         var quickerHost = new V2QuickerRpcHost(
             new V2SessionHost(),
@@ -29,11 +30,12 @@ internal static class PluginV2BootstrapStack
             new V2SubProgramHost(subPrograms),
             new V2ActionRunHost(),
             new V2ActionCatalogHost(),
-            new V2SearchHost(catalog, programs),
+            search,
             new V2SettingsHost(),
             new V2ActionDocHost(),
             new V2StepRunnerHost(programs),
-            new V2ExpressionHost());
+            new V2ExpressionHost(),
+            new V2LauncherHost(search));
 
         var runtimeDeps = new QuickerRpcRuntimeDependencies(
             QuickerV2StepRunnerCatalogBuilder.Build,

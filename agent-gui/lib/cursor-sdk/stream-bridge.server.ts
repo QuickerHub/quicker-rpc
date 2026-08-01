@@ -146,11 +146,12 @@ async function streamCursorSdkEventsToWriter(
     }
 
     if (event.type === "status" && event.status === "ERROR") {
+      const statusMessage = (event as { message?: string }).message;
       writer.write({
         type: "error",
         errorText:
-          typeof (event as { message?: string }).message === "string"
-            ? (event as { message?: string }).message
+          typeof statusMessage === "string"
+            ? statusMessage
             : "Cursor SDK run failed",
       });
     }

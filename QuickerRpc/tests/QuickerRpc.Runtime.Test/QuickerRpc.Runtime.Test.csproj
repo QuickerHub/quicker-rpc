@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
@@ -20,8 +20,16 @@
     <ProjectReference Include="..\..\src\QuickerRpc.Plugin.V2\QuickerRpc.Plugin.V2.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="Z.Expressions.Eval" Condition="Exists('..\..\..\..\quicker-host\net10\Z.Expressions.Eval.dll')">
-      <HintPath>..\..\..\..\quicker-host\net10\Z.Expressions.Eval.dll</HintPath>
+    <Reference Include="Quicker.ExpressionEngine" Condition="Exists('..\..\..\..\quicker-host\net10\Quicker.ExpressionEngine.dll')">
+      <HintPath>..\..\..\..\quicker-host\net10\Quicker.ExpressionEngine.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Quicker.Common" Condition="Exists('..\..\..\..\quicker-host\net10\Quicker.Common.dll')">
+      <HintPath>..\..\..\..\quicker-host\net10\Quicker.Common.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Quicker.Public.Abstractions" Condition="Exists('..\..\..\..\quicker-host\net10\Quicker.Public.Abstractions.dll')">
+      <HintPath>..\..\..\..\quicker-host\net10\Quicker.Public.Abstractions.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

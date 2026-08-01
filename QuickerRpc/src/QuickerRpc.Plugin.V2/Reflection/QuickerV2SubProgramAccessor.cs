@@ -22,6 +22,7 @@ internal sealed class QuickerV2SubProgramAccessor
     private readonly MethodInfo _lookupById;
     private readonly MethodInfo? _snapshotAll;
     private readonly MethodInfo _addOrUpdate;
+    private readonly MethodInfo? _removeById;
     private readonly Type _subProgramType;
     private readonly Type _helperType;
     private readonly Type _stepListType;
@@ -32,6 +33,7 @@ internal sealed class QuickerV2SubProgramAccessor
         MethodInfo lookupById,
         MethodInfo? snapshotAll,
         MethodInfo addOrUpdate,
+        MethodInfo? removeById,
         Type subProgramType,
         Type helperType,
         Type stepListType,
@@ -41,6 +43,7 @@ internal sealed class QuickerV2SubProgramAccessor
         _lookupById = lookupById;
         _snapshotAll = snapshotAll;
         _addOrUpdate = addOrUpdate;
+        _removeById = removeById;
         _subProgramType = subProgramType;
         _helperType = helperType;
         _stepListType = stepListType;
@@ -232,6 +235,93 @@ internal sealed class QuickerV2SubProgramAccessor
         }
     }
 
+    public bool TryCreate(
+        string name,
+        string? description,
+        string? icon,
+        out object? subProgram,
+        out string? error)
+    {
+        subProgram = null;
+        error = null;
+        var normalizedName = (name ?? string.Empty).Trim();
+        if (normalizedName.Length == 0)
+        {
+            error = "subProgram name is required.";
+            return false;
+        }
+
+        if (!IsValidName(normalizedName))
+        {
+            error = $"Invalid global subprogram name: {normalizedName}";
+            return false;
+        }
+
+        if (EnumerateAll().Any(item => string.Equals(
+                QuickerV2Reflection.ReadString(item, "Name"),
+                normalizedName,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            error = $"Global subprogram already exists: {normalizedName}";
+            return false;
+        }
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            subProgram = Activator.CreateInstance(_subProgramType)
+                         ?? throw new InvalidOperationException("Could not create V2 SubProgram instance.");
+            QuickerV2Reflection.WriteMember(subProgram, "Id", Guid.NewGuid().ToString("D"));
+            QuickerV2Reflection.WriteMember(subProgram, "Name", normalizedName);
+            QuickerV2Reflection.WriteMember(subProgram, "Description", NullIfWhiteSpace(description));
+            QuickerV2Reflection.WriteMember(subProgram, "Icon", NullIfWhiteSpace(icon));
+            QuickerV2Reflection.WriteMember(subProgram, "CreateTimeUtc", now);
+            QuickerV2Reflection.WriteMember(subProgram, "LastEditTimeUtc", now);
+            return TrySave(subProgram, out error);
+        }
+        catch (Exception ex)
+        {
+            subProgram = null;
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+    }
+
+    public bool TryDelete(object subProgram, out string? error)
+    {
+        error = null;
+        var id = GetId(subProgram);
+        if (id.Length == 0)
+        {
+            error = "Subprogram has no id.";
+            return false;
+        }
+
+        if (_removeById is null)
+        {
+            error = "GlobalSubProgramDataService.Remove(string) is unavailable.";
+            return false;
+        }
+
+        try
+        {
+            var removed = _removeById.Invoke(_dataService, [id]);
+            if (removed is not true)
+            {
+                error = $"Global subprogram was not removed: {id}";
+                return false;
+            }
+
+            QuickerV2CloudSyncTrigger.TryTriggerAfterPersist();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+    }
+
     private static JArray ToJArray(object? value)
     {
         if (value is null)
@@ -314,6 +404,12 @@ internal sealed class QuickerV2SubProgramAccessor
             binder: null,
             types: Type.EmptyTypes,
             modifiers: null);
+        var removeById = serviceType.GetMethod(
+            "Remove",
+            BindingFlags.Public | BindingFlags.Instance,
+            binder: null,
+            types: [typeof(string)],
+            modifiers: null);
         if (lookup is null || addOrUpdate is null)
         {
             return null;
@@ -326,9 +422,13 @@ internal sealed class QuickerV2SubProgramAccessor
             lookup,
             snapshotAll,
             addOrUpdate,
+            removeById,
             subProgramType,
             helperType,
             stepListType,
             variableListType);
     }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

@@ -1,7 +1,6 @@
 # QuickerAgent 浏览器自动化边界
 
-> 设计规格：`docs/superpowers/specs/2026-06-14-browser-automation-design.md`  
-> 实现计划：`docs/superpowers/plans/2026-06-14-browser-automation-unification.md`
+> 本文是浏览器工具与运行时边界的当前权威说明。
 
 Agent 侧只有 **两个** 浏览器相关工具；第三种（Electron 内嵌）是 `browser` 的运行时模式，不是独立工具。
 

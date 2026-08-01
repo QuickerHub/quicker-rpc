@@ -34,7 +34,6 @@ test("selectChatToolsFromRegistry benchMode hides web_search and browser", () =>
     enabledToolIds: pool,
     titleTest: false,
     benchMode: true,
-    userText: "做一个 Quicker 动作",
   });
   assert.equal("qkrpc_action_query" in tools, true);
   assert.equal("browser" in tools, false);

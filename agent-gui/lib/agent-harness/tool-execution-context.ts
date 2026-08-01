@@ -14,6 +14,7 @@ export type ToolExecutionContext = {
   artifactDir: string;
   lastUserText?: string;
   llmSelectionRaw?: string;
+  benchMode?: boolean;
 };
 
 export function buildToolExecutionContext(params: {
@@ -23,6 +24,7 @@ export function buildToolExecutionContext(params: {
   threadId?: string;
   lastUserText?: string;
   llmSelectionRaw?: string;
+  benchMode?: boolean;
 }): ToolExecutionContext {
   return {
     cwd: params.cwd.trim(),
@@ -32,6 +34,7 @@ export function buildToolExecutionContext(params: {
     artifactDir: AGENT_ARTIFACT_DIR,
     lastUserText: params.lastUserText?.trim() || undefined,
     llmSelectionRaw: params.llmSelectionRaw?.trim() || undefined,
+    benchMode: params.benchMode === true,
   };
 }
 
@@ -46,5 +49,6 @@ export function toolExecutionContextToAgentRequest(
     llmSelectionRaw: ctx.llmSelectionRaw,
     threadId: ctx.threadId,
     artifactDir: ctx.artifactDir,
+    benchMode: ctx.benchMode,
   };
 }

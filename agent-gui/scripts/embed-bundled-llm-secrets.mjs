@@ -10,6 +10,7 @@
  *   BUNDLED_LLM_PROVIDERS=bingleimuzi
  */
 import { readQuickerRpcSemverFromJson, readQuickerRpcVersionJson } from "../lib/repo-paths.mjs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodeSecret } from "./llm-secret-cipher.mjs";

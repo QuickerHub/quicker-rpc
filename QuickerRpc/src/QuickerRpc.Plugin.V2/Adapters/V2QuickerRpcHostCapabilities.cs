@@ -12,7 +12,7 @@ internal sealed class V2QuickerRpcHostCapabilities : IQuickerRpcHostCapabilities
 
     public bool DesignerUi => false;
 
-    public bool Launcher => false;
+    public bool Launcher => true;
 
     public bool EnforcesDesignerOpenGuard => true;
 }

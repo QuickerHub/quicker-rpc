@@ -27,7 +27,7 @@ export async function formatPreloadedSkillsCatalogForPrompt(
 ): Promise<string> {
   const lines = [
     "## Preloaded skills (catalog)",
-    "Full instructions on demand: docs search/get, Read `.cursor/skills/<name>/SKILL.md`, or list_tools action=bundles for tool packs.",
+    "Full instructions on demand: call `skill_load` with the exact name; use list_tools only for tool packs.",
     "",
   ];
   let any = false;
@@ -93,7 +93,7 @@ export async function formatPreloadedSkillsEssentialsForPrompt(
 
   const lines = [
     "## Preloaded skills (essentials)",
-    "Hard rules below; full skill via docs search/get or Read skill dir. Set HARNESS_PRELOAD_SKILLS=1 for full tier-2 body.",
+    "Hard rules below; call `skill_load` for the full skill. Set HARNESS_PRELOAD_SKILLS=1 for full tier-2 body.",
     "",
     "### quicker-authoring",
     PRELOADED_SKILL_SCOPES["quicker-authoring"] ?? "",

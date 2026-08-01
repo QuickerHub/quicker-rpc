@@ -16,7 +16,8 @@ internal sealed class V2QuickerRpcHost : IQuickerRpcHost
         V2SettingsHost settings,
         V2ActionDocHost actionDocs,
         V2StepRunnerHost stepRunners,
-        V2ExpressionHost expressions)
+        V2ExpressionHost expressions,
+        V2LauncherHost launcher)
     {
         Info = new QuickerRpcHostInfo
         {
@@ -39,7 +40,7 @@ internal sealed class V2QuickerRpcHost : IQuickerRpcHost
         ChromeControl = null;
         Triggers = null;
         Designer = null;
-        Launcher = null;
+        Launcher = launcher;
     }
 
     public QuickerRpcHostInfo Info { get; }

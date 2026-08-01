@@ -78,6 +78,14 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "编写指南：已知 topic→get（如 action-data-schema）；未知关键词→search snippet；index→目录",
   },
   {
+    id: "skill_load",
+    label: "加载 Skill",
+    group: "read",
+    category: "docs",
+    description: "按系统目录中的精确名称渐进加载 Skill 指令、references、examples 或 scripts 文件",
+    pickerHidden: true,
+  },
+  {
     id: "quicker_knowledge_search",
     label: "Quicker 官网知识库",
     group: "read",

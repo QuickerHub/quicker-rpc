@@ -1,23 +1,18 @@
-import type { UIMessage } from "ai";
-
 import type { ActionScopeHint } from "@/lib/action-scope";
-import { extractActionScopeFromMessages } from "@/lib/action-scope";
 import { CHAT_MODE_LAUNCHER, type ChatMode } from "@/lib/chat-mode";
 import { resolveTurnPlan } from "@/lib/agent-core/turn-plan";
-import { filterEnabledToolsForTurn } from "@/lib/tool-intent-filter";
 import { filterToolIdsForBenchMode } from "@/lib/bench-mode";
 import { LIST_TOOLS_TOOL } from "@/lib/list-tools-tool";
 import { pickChatTools } from "@/lib/tool-registry";
 import { SET_THREAD_TITLE_TOOL } from "@/lib/thread-title-tool-messages";
+
+const SKILL_LOAD_TOOL = "skill_load";
 
 export type SelectChatToolsParams = {
   chatMode: ChatMode;
   enabledToolIds: string[];
   titleTest: boolean;
   benchMode?: boolean;
-  userText?: string;
-  actionScope?: ActionScopeHint;
-  actionDesigner?: { entityId: string; isSubProgram?: boolean };
 };
 
 export function resolveToolBundleContext(params: {
@@ -44,7 +39,13 @@ export function resolveToolBundleContext(params: {
 }
 
 export function resolveFullSchemaToolIdsForTurn(
-  params: SelectChatToolsParams & { actionScope: ActionScopeHint; userText: string },
+  params: {
+    chatMode: ChatMode;
+    enabledToolIds: string[];
+    actionScope: ActionScopeHint;
+    userText: string;
+    actionDesigner?: { entityId: string; isSubProgram?: boolean };
+  },
 ): Set<string> {
   const { fullSchemaToolIds } = resolveToolBundleContext({
     chatMode: params.chatMode,
@@ -72,26 +73,9 @@ export function selectChatToolsFromRegistry<T extends Record<string, unknown>>(
   if (params.benchMode) {
     enabledIds = filterToolIdsForBenchMode(enabledIds);
   }
-  if (params.userText && params.actionScope) {
-    const turnPlan = resolveTurnPlan({
-      actionScope: params.actionScope,
-      chatMode: params.chatMode,
-      enabledToolIds: enabledIds,
-      messages: [],
-      userText: params.userText,
-      actionDesigner: params.actionDesigner,
-    });
-    enabledIds = filterEnabledToolsForTurn({
-      chatMode: params.chatMode,
-      enabledToolIds: enabledIds,
-      intent: turnPlan.legacyIntent,
-      actionScope: params.actionScope,
-      actionDesigner: params.actionDesigner,
-    });
-  }
-
   return pickChatTools(allTools, enabledIds, [
     LIST_TOOLS_TOOL,
+    ...(params.chatMode === CHAT_MODE_LAUNCHER ? [] : [SKILL_LOAD_TOOL]),
     ...(params.chatMode === CHAT_MODE_LAUNCHER ? [] : [SET_THREAD_TITLE_TOOL]),
   ]);
 }
@@ -101,10 +85,6 @@ export type ResolveChatToolIdsParams = {
   enabledToolIds: string[];
   titleTest?: boolean;
   benchMode?: boolean;
-  userText: string;
-  messages?: UIMessage[];
-  actionScope?: ActionScopeHint;
-  actionDesigner?: { entityId: string; isSubProgram?: boolean };
 };
 
 /** Mirrors /api/chat tool registration — sorted ids for assertions. */
@@ -112,20 +92,11 @@ export function resolveChatToolIdsFromRegistry(
   allTools: Record<string, unknown>,
   params: ResolveChatToolIdsParams,
 ): string[] {
-  const actionScope =
-    params.actionScope
-    ?? (params.messages
-      ? extractActionScopeFromMessages(params.messages)
-      : { pinnedLatest: undefined, pinnedLatestAll: [] });
-
   const tools = selectChatToolsFromRegistry(allTools, {
     chatMode: params.chatMode,
     enabledToolIds: params.enabledToolIds,
     titleTest: params.titleTest ?? false,
     benchMode: params.benchMode ?? false,
-    userText: params.userText,
-    actionScope,
-    actionDesigner: params.actionDesigner,
   });
 
   return Object.keys(tools).sort();

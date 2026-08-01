@@ -263,7 +263,9 @@ export async function executeQkrpcSubprogramCreateTool(
   input: QkrpcSubprogramCreateToolInput,
 ): Promise<Record<string, unknown>> {
   const programData =
-    input.data != null ? normalizeProgramDataInput(input.data) : undefined;
+    input.data != null
+      ? normalizeProgramDataInput(input.data) ?? undefined
+      : undefined;
   if (input.data != null && !programData) {
     return formatQkrpcResultForAgent(
       qkrpcValidationError("data must be an object with steps[] and variables[] arrays."),

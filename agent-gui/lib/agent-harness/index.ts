@@ -3,8 +3,17 @@ export type {
   PreparedModelContext,
   TurnContextReport,
   TurnContextReportCategory,
-  TurnRequest,
 } from "./types";
+export {
+  prepareTurnMessagesForModel,
+} from "./turn-message-preparation";
+export type {
+  ResolvedAgentTurnRequest,
+} from "./turn-request.server";
+export type {
+  PreparedAgentTurnRuntime,
+  ResolvedAgentTurnScope,
+} from "./turn-runtime.server";
 export { prepareContextPipeline } from "./context-pipeline";
 export { buildTurnContextReport } from "./context-report";
 export { runAgentChatTurn } from "./run-turn.server";

@@ -4,6 +4,8 @@
 
 Next.js + Vercel AI SDK；`qkrpc serve`（9477）或 CLI 子进程。系统提示：`lib/instructions.ts`；Launcher 单独；Skills：`lib/agent-skills/`、`docs/skills/`；预加载 `quicker-authoring`。
 
+修改功能前先查 [产品任务路由](../docs/agents/README.md)，只读 [产品能力与规划](../docs/product/README.md) 中对应功能域。
+
 ## Dev & build
 
 - 启动（仓库根）：`pwsh ./dev.ps1` → `:3000`；`-Electron`（默认）/ `-Tauri`（legacy）。勿同时占 `:3000`；切壳清 `.next`。
@@ -40,4 +42,4 @@ Next.js + Vercel AI SDK；`qkrpc serve`（9477）或 CLI 子进程。系统提�
 
 ## Docs
 
-[README.md](README.md)、[../docs/agent-gui-chat-storage.md](../docs/agent-gui-chat-storage.md)、[../docs/agent-gui-launcher.md](../docs/agent-gui-launcher.md)、[../docs/agent-gui-startup-performance.md](../docs/agent-gui-startup-performance.md)、[../docs/agent-gui-plugin-storage.md](../docs/agent-gui-plugin-storage.md)
+[产品功能地图](../docs/product/README.md)、[任务路由](../docs/agents/README.md)、[Agent 架构](../docs/agent-architecture.md)、[README.md](README.md)。存储、Launcher 和插件文档只作为所属功能域的深参考。

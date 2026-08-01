@@ -71,7 +71,8 @@ export function FileEditorPreviewPopup({
 }: FileEditorPreviewPopupProps) {
   const panelId = useId();
   const fileName = basenamePath(path);
-  const hasRawPayload = input !== undefined || output !== undefined;
+  const hasRawPayload = toolName !== undefined
+    && (input !== undefined || output !== undefined);
   const [tab, setTab] = useState<ToolPopupViewMode>("visual");
 
   const setTabPersisted = useCallback((next: ToolPopupViewMode) => {
@@ -175,7 +176,7 @@ export function FileEditorPreviewPopup({
         >
           {tab === "model" && hasRawPayload ? (
             <ToolModelPayloadPanel
-              toolName={toolName}
+              toolName={toolName ?? "workspace_file"}
               input={input}
               output={output}
             />

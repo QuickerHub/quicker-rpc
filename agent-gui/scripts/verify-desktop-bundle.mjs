@@ -3,7 +3,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -59,6 +59,8 @@ const required = [
   { rel: "app/node_modules/bindings/bindings.js", minBytes: 100 },
   { rel: "app/node_modules/file-uri-to-path/index.js", minBytes: 100 },
 ];
+
+const ALLOWED_SHARP_PACKAGES = new Set(["colour", "sharp-win32-x64"]);
 
 const bundledKeyEnv =
   process.env.BUNDLED_LLM_BINGLEIMUZI_API_KEY?.trim()
@@ -118,6 +120,18 @@ function verifyRoot({ label, dir }) {
     }
   }
 
+  const sharpScope = join(dir, "app", "node_modules", "@img");
+  if (existsSync(sharpScope)) {
+    const unexpected = readdirSync(sharpScope).filter(
+      (name) => !ALLOWED_SHARP_PACKAGES.has(name),
+    );
+    if (unexpected.length > 0) {
+      throw new Error(
+        `${label}: unsupported Sharp runtimes bundled for Windows x64: ${unexpected.join(", ")}`,
+      );
+    }
+  }
+
   // Load the native SQLite addon with the bundled Node to catch ABI mismatches.
   const bundledNode = join(dir, "node", "node.exe");
   if (process.platform === "win32" && existsSync(bundledNode)) {
@@ -163,9 +177,10 @@ function verifyRoot({ label, dir }) {
 const roots = [];
 
 if (args.resourcesDir) {
+  const resourcesDir = resolve(args.resourcesDir);
   roots.push({
     label: args.label ?? "staged",
-    dir: args.resourcesDir,
+    dir: resourcesDir,
   });
 } else {
   roots.push({
@@ -176,7 +191,7 @@ if (args.resourcesDir) {
 
 if (checkBundled) {
   const bundledDir = args.resourcesDir
-    ? join(dirname(args.resourcesDir), "target", "release", "resources")
+    ? join(dirname(resolve(args.resourcesDir)), "target", "release", "resources")
     : join(agentGuiRoot, "src-tauri", "target", "release", "resources");
   roots.push({ label: "bundled", dir: bundledDir });
 }

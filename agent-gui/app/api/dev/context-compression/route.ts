@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AgentUIMessage } from "@/lib/chat-types";
+import { prepareContextPipeline } from "@/lib/agent-harness/context-pipeline";
 import {
-  prepareContextPipeline,
   previewContextCompression,
   type ContextCompressionPreview,
 } from "@/lib/context-compression";

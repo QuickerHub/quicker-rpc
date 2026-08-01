@@ -2,12 +2,13 @@
  * Syntax-check all Electron main-process modules (no Next build required).
  */
 import { spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const electronRoot = join(agentGuiRoot, "electron");
+const allowedModuleRoots = [electronRoot, join(agentGuiRoot, "browser-runtime")];
 
 function collectMjsFiles(dir) {
   /** @type {string[]} */
@@ -36,8 +37,54 @@ function collectMjsFiles(dir) {
 const files = collectMjsFiles(electronRoot).sort();
 let failed = 0;
 
+const electronApiPath = join(electronRoot, "electron-api.mjs");
+const electronApiExports = new Set(
+  [...readFileSync(electronApiPath, "utf8").matchAll(/export\s+const\s+(\w+)/g)]
+    .map((match) => match[1]),
+);
+
+function checkModuleContracts(file) {
+  const src = readFileSync(file, "utf8");
+  const rel = relative(agentGuiRoot, file).replaceAll("\\", "/");
+
+  const importPatterns = [
+    /\b(?:import|export)\s+(?:[^;]*?\s+from\s+)?["'](\.[^"']+)["']/g,
+    /\bimport\s*\(\s*["'](\.[^"']+)["']\s*\)/g,
+  ];
+  for (const pattern of importPatterns) {
+    for (const match of src.matchAll(pattern)) {
+      const target = resolve(dirname(file), match[1]);
+      const isStagedSource = allowedModuleRoots.some(
+        (root) => target === root || target.startsWith(`${root}${sep}`),
+      );
+      if (!isStagedSource) {
+        console.error(`FAIL ${rel}: relative import escapes staged source roots: ${match[1]}`);
+        failed += 1;
+      } else if (!existsSync(target)) {
+        console.error(`FAIL ${rel}: missing relative import: ${match[1]}`);
+        failed += 1;
+      }
+    }
+  }
+
+  const apiImportPattern = /import\s*\{([^}]*)\}\s*from\s*["'][^"']*electron-api\.mjs["']/g;
+  for (const match of src.matchAll(apiImportPattern)) {
+    const names = match[1]
+      .split(",")
+      .map((name) => name.trim().split(/\s+as\s+/)[0])
+      .filter(Boolean);
+    for (const name of names) {
+      if (!electronApiExports.has(name)) {
+        console.error(`FAIL ${rel}: electron-api.mjs does not export ${name}`);
+        failed += 1;
+      }
+    }
+  }
+}
+
 for (const file of files) {
   const rel = relative(agentGuiRoot, file).replaceAll("\\", "/");
+  checkModuleContracts(file);
   const result = spawnSync(process.execPath, ["--check", file], {
     encoding: "utf8",
   });

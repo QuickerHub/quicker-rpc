@@ -144,7 +144,7 @@ export async function buildSystemInstructions(
         parts.push("", "### Post-patch summary", ACTION_LINK_SUMMARY_PROMPT);
       }
     }
-    const catalog = await formatSkillCatalogForPrompt();
+    const catalog = await formatSkillCatalogForPrompt(cwd);
     if (catalog) {
       parts.push("", catalog);
     }

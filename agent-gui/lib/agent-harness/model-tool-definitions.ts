@@ -10,6 +10,7 @@ export const CORE_FULL_SCHEMA_TOOL_IDS: ReadonlySet<string> = new Set([
   LIST_TOOLS_TOOL,
   SET_THREAD_TITLE_TOOL,
   "docs",
+  "skill_load",
   "Read",
   "Write",
   "StrReplace",

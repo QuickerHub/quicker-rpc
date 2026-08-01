@@ -57,7 +57,9 @@ export function resolveActionCreateManageInput(
     return { success: false, message: "info.title is required" };
   }
   const programData =
-    input.data != null ? normalizeProgramDataInput(input.data) : undefined;
+    input.data != null
+      ? normalizeProgramDataInput(input.data) ?? undefined
+      : undefined;
   if (input.data != null && !programData) {
     return {
       success: false,

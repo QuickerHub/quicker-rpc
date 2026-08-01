@@ -43,4 +43,4 @@ Deep references for Quicker action authoring — **not** generated from `action-
 - **生成物**：`npm run docs:gen` → `docs/skills/`（QuickerAgent on-demand）
 - **审核**：`registry.json` 的 `status`（非文件路径）
 
-流程全文：[learned-skills/SPEC.md](learned-skills/SPEC.md) · 计划：[superpowers/plans/2026-06-13-quicker-action-authoring-learning.md](../superpowers/plans/2026-06-13-quicker-action-authoring-learning.md)
+流程全文：[learning-workflow.md](learning-workflow.md) · Skill 审核：[learned-skills/SPEC.md](learned-skills/SPEC.md)

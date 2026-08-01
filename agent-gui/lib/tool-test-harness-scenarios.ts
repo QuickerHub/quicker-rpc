@@ -1,5 +1,6 @@
 import type { ModelMessage } from "ai";
 import { SHELL_ARTIFACT_THRESHOLD_CHARS } from "@/lib/agent-harness/artifacts/types";
+import { toolOutputToModelJson } from "@/lib/tool-model-output";
 
 export type HarnessScenarioKind =
   | "sliding-window"
@@ -56,7 +57,7 @@ function toolResultMessage(
       type: "tool-result",
       toolCallId,
       toolName,
-      output: { type: "json", value: output },
+      output: toolOutputToModelJson(output),
     }],
   };
 }

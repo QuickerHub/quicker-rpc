@@ -1,6 +1,11 @@
 import "server-only";
 
-import { stepCountIs, streamText, type UIMessageStreamWriter } from "ai";
+import {
+  stepCountIs,
+  ToolLoopAgent,
+  type ToolSet,
+  type UIMessageStreamWriter,
+} from "ai";
 import type { LanguageModel } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatMode } from "@/lib/chat-mode";
@@ -26,7 +31,7 @@ export type AgentStreamLoopParams = {
   model: LanguageModel;
   modelId: string;
   contextLimit: number;
-  tools: Record<string, { description?: string; inputSchema?: unknown }>;
+  tools: ToolSet;
   chatMode: ChatMode;
   titleTest: boolean;
   selection: LlmSelection;
@@ -39,7 +44,7 @@ export type AgentStreamLoopParams = {
   runtimeSnapshot: AgentRuntimeSnapshot;
 };
 
-/** streamText + reactive compaction retry + prepareStep microcompact. */
+/** AI SDK agent loop + project-specific reactive compaction retry. */
 export async function runAgentStreamLoop(
   params: AgentStreamLoopParams,
 ): Promise<PreparedModelContext> {
@@ -64,10 +69,10 @@ export async function runAgentStreamLoop(
       contextLimit: params.contextLimit,
     });
 
-    const result = streamText({
+    const agent = new ToolLoopAgent({
+      id: "quicker-agent",
       model: params.model,
-      system,
-      messages: preparedContext.modelMessages,
+      instructions: system,
       tools: params.tools,
       experimental_repairToolCall: createRepairToolCallHandler(params.tools),
       prepareStep: (options) => {
@@ -98,6 +103,9 @@ export async function runAgentStreamLoop(
           reasoningTokens: totalUsage.reasoningTokens,
         });
       },
+    });
+    const result = await agent.stream({
+      messages: preparedContext.modelMessages,
     });
 
     const uiStream = result.toUIMessageStream<AgentUIMessage>({

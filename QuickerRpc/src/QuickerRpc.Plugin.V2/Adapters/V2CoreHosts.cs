@@ -158,14 +158,72 @@ internal sealed class V2SubProgramHost : IQuickerRpcSubProgramHost
 
     public Task<QuickerRpcSubProgramWriteResult> TryCreateAsync(
         QuickerRpcSubProgramCreate create,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(QuickerRpcSubProgramWriteResult.Fail(create.Name, "Create subprogram is not implemented for V2 reflection host yet."));
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var accessor = QuickerV2SubProgramAccessor.Current;
+        if (accessor is null)
+        {
+            return Task.FromResult(QuickerRpcSubProgramWriteResult.Fail(
+                create.Name,
+                "Quicker V2 subprogram accessor unavailable."));
+        }
+
+        if (!accessor.TryCreate(create.Name, create.Description, create.Icon, out var subProgram, out var error)
+            || subProgram is null)
+        {
+            return Task.FromResult(QuickerRpcSubProgramWriteResult.Fail(
+                create.Name,
+                error ?? "Create failed."));
+        }
+
+        var id = accessor.GetId(subProgram);
+        return Task.FromResult(new QuickerRpcSubProgramWriteResult
+        {
+            Success = true,
+            IdOrName = create.Name,
+            SubProgramId = id,
+            EditVersion = accessor.GetEditVersionMs(subProgram),
+            Name = create.Name.Trim(),
+            CallIdentifier = accessor.GetCallIdentifier(subProgram),
+            Message = "Global subprogram created.",
+        });
+    }
 
     public Task<QuickerRpcHostMutationResult> TryDeleteAsync(
         string idOrName,
         bool skipConfirm,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(QuickerRpcHostMutationResult.Fail("Delete subprogram is not implemented for V2 reflection host yet.", idOrName));
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!skipConfirm)
+        {
+            return Task.FromResult(QuickerRpcHostMutationResult.Fail(
+                "Delete requires confirmed skipConfirm=true.",
+                idOrName));
+        }
+
+        var accessor = QuickerV2SubProgramAccessor.Current;
+        if (accessor is null)
+        {
+            return Task.FromResult(QuickerRpcHostMutationResult.Fail(
+                "Quicker V2 subprogram accessor unavailable.",
+                idOrName));
+        }
+
+        if (!accessor.TryGetByIdOrName(idOrName, out var subProgram, out var lookupError)
+            || subProgram is null)
+        {
+            return Task.FromResult(QuickerRpcHostMutationResult.Fail(
+                lookupError ?? "Global subprogram not found.",
+                idOrName));
+        }
+
+        var id = accessor.GetId(subProgram);
+        return Task.FromResult(accessor.TryDelete(subProgram, out var deleteError)
+            ? QuickerRpcHostMutationResult.Ok(id, "Global subprogram deleted.")
+            : QuickerRpcHostMutationResult.Fail(deleteError ?? "Delete failed.", id));
+    }
 
     public Task<QuickerRpcApplySubProgramPatchResult> TryApplyPatchAsync(
         string idOrName,

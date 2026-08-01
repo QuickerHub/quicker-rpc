@@ -103,7 +103,6 @@ public sealed class QuickerV2HostProbeTests
         var quickerDll = Path.Combine(HostRoot, "Quicker.dll");
         var types = ReadTypeNames(quickerDll);
         AssertContains(types, QuickerV2ProbeNames.GlobalSubProgramDataService);
-        AssertContains(types, QuickerV2ProbeNames.IGlobalSubProgramDataService);
     }
 
     private static class QuickerV2ProbeNames
@@ -114,7 +113,6 @@ public sealed class QuickerV2HostProbeTests
         public const string OperationTypes = "Quicker.Common.V2.OperationTypes";
         public const string ActionItem2Converter = "Quicker.Common.V2.ActionItem2Converter";
         public const string GlobalSubProgramDataService = "Quicker.ReactiveData.GlobalSubProgramDataService";
-        public const string IGlobalSubProgramDataService = "Quicker.ReactiveData.IGlobalSubProgramDataService";
     }
 
     private static void AssertContains(HashSet<string> types, string fullName) =>

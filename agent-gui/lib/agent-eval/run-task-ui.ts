@@ -83,7 +83,7 @@ export async function runAgentGuiUiEvalScenario(
       chatMode: scenario.chatMode,
       readOnly: scenario.readOnly,
       runtimeMetadata: ui.runtimeMetadata,
-      source: scenario.source,
+      source: scenario.source === "quickerbench" ? "authoring" : scenario.source,
       taskId: scenario.id,
     });
     const expect = evaluateTraceExpect(toolCalls, scenario.expect);

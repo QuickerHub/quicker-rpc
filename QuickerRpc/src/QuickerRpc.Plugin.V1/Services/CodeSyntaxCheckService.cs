@@ -5,12 +5,18 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Quicker.Public;
 using QuickerRpc.Contracts.Rpc;
+#if QKHOST_V2
+using Quicker.ExpressionEngine;
+using HostEvalContext = Quicker.ExpressionEngine.QkEvalContext;
+#else
 using Z.Expressions;
+using HostEvalContext = Z.Expressions.EvalContext;
+#endif
 
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Syntax validation for Quicker expressions (Z.Expressions) and C# script steps (Westwind Roslyn).
+/// Syntax validation for Quicker expressions and C# script steps (Westwind Roslyn).
 /// </summary>
 public sealed class CodeSyntaxCheckService
 {
@@ -39,7 +45,14 @@ public sealed class CodeSyntaxCheckService
             var eval = CreateExpressionEvalContext();
             RegisterExpressionVariables(eval);
             var prepared = PrepareExpressionForCompile(eval, expression, variableTypes);
+#if QKHOST_V2
+            if (!eval.TryValidate(prepared, out var diagnostics))
+            {
+                return Fail("expression", "COMPILE_ERROR", diagnostics.ToString());
+            }
+#else
             eval.Compile(prepared);
+#endif
             return Ok("expression");
         }
         catch (Exception ex)
@@ -195,14 +208,18 @@ public sealed class CodeSyntaxCheckService
         return normalized is "int" or "integer" or "long";
     }
 
-    private static EvalContext CreateExpressionEvalContext()
+    private static HostEvalContext CreateExpressionEvalContext()
     {
+#if QKHOST_V2
+        var eval = QkEval.DefaultContext.Clone();
+#else
         var eval = EvalManager.DefaultContext.Clone();
+#endif
         eval.UseLocalCache = true;
         return eval;
     }
 
-    private static void RegisterExpressionVariables(EvalContext eval)
+    private static void RegisterExpressionVariables(HostEvalContext eval)
     {
         eval.RegisterGlobalVariable("vv_cliptext", string.Empty);
         eval.RegisterGlobalVariable("quicker_in_param", string.Empty);
@@ -227,7 +244,7 @@ public sealed class CodeSyntaxCheckService
     }
 
     private static string PrepareExpressionForCompile(
-        EvalContext eval,
+        HostEvalContext eval,
         string expression,
         IDictionary<string, string>? variableTypes)
     {

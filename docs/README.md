@@ -1,195 +1,57 @@
-# 文档索引
+# 文档入口
 
-本仓库是 **QuickerAgent**（桌面 AI 助手）、**QuickerRpc 插件** 与 **`qkrpc` CLI** 的 monorepo。
+本目录只维护三类长期内容：产品当前能力、Agent 修改路由、工程与协议参考。代码和测试是行为事实源；文档负责解释功能边界、修改入口和验收方式。
 
-## 逻辑目录（Phase 3 索引）
+## 从哪里开始
 
-物理路径暂未搬迁（嵌入路径稳定）；按角色用子目录 README 导航：
+| 目的 | 入口 | 内容 |
+|---|---|---|
+| 了解产品现在能做什么、接下来补什么 | [product/README.md](product/README.md) | 唯一产品能力与规划文档 |
+| 接到代码任务，快速找到要读和要改的文件 | [agents/README.md](agents/README.md) | 按关键词路由到功能页、代码和测试 |
+| 理解 Agent 分层与 turn 生命周期 | [agent-architecture.md](agent-architecture.md) | 架构约束与 AI SDK 边界 |
+| 维护 Quicker 动作编写知识 | [authoring/README.md](authoring/README.md) | 文档生成管线与深参考 |
+| 开发、运行或发布各子项目 | [engineering/README.md](engineering/README.md) | agent-gui、QuickerRpc、运行时与发布入口 |
+| 使用 qkrpc CLI/MCP | [cli-commands.md](cli-commands.md) | 命令参考；运行时以 `qkrpc help --json` 为准 |
 
-| 分区 | 索引 | 内容 |
-|------|------|------|
-| 产品与集成 | [product/](product/) | 用户文档、MCP/CLI、插件 |
-| 工程开发 | [engineering/](engineering/) | agent-gui、dev、子项目 |
-| 动作编写 | [authoring/](authoring/) | 管线 + `action-authoring-src` / `authoring-references` |
-| Agent 资产 | [skills/](skills/) · [agent-rules/](agent-rules/) | setup 分发 skill / rules |
-| 内部设计 | [internal/](internal/) | `superpowers/` specs & plans |
-
----
-
-## 按角色选入口
-
-| 你是谁 | 从这里开始 |
-|--------|------------|
-| Quicker 用户，想用 AI 找 / 跑 / 改动作 | [quicker-agent.md](quicker-agent.md) → [下载安装包](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe) |
-| 在 Cursor / VS Code / Claude 等 Agent 里写动作 | [agent-mcp-integration.md](agent-mcp-integration.md)（`qkrpc agent setup`） |
-| 脚本、CI、自建集成 | [cli-commands.md](cli-commands.md)、`qkrpc help --json`、`qkrpc serve` HTTP |
-| 维护动作编写文档 / step 模块参考 | [authoring/README.md](authoring/README.md) → [PIPELINE.md](authoring/PIPELINE.md) |
-| 贡献代码 / Coding Agent | 根 [README.md](../README.md) §开发、[AGENTS.md](../AGENTS.md) |
-| 了解方向与优先级 | [ROADMAP.md](ROADMAP.md) |
-
----
-
-## 我想…改/读哪里？（速查）
-
-| 我想… | 读 / 改 | 不要改 |
-|--------|---------|--------|
-| 改 P1–P7 工作流、schema topic | [`action-authoring-src/`](action-authoring-src/) | `action-authoring/cli/`、`skills/.../references/` |
-| 改 step 模块深文档、JSON 示例 | [`authoring-references/step-modules/authored/`](authoring-references/step-modules/authored/) | `action-authoring/cli/*.md`（生成 topic） |
-| 改 Agent 默认 skill 正文 | `action-authoring-src/skills/` → `npm run docs:gen` | 直接改 `docs/skills/` 大段正文 |
-| 改构建 / 发布 / 前端检查 | [`.cursor/skills/`](../.cursor/skills/) | — |
-| 查 CLI 命令 | [cli-commands.md](cli-commands.md) 或 `qkrpc help --json` | — |
-| 看内部设计稿 | [internal/](internal/) → `superpowers/` | 当作用户文档 |
-| 运行时编写指南 | `qkrpc guide get --topic overview --json` | — |
-
-完整管线说明：[authoring/PIPELINE.md](authoring/PIPELINE.md) · 编写入口：[authoring/README.md](authoring/README.md)。
-
----
-
-## 文档管线（动作编写）
+## 文档分层
 
 ```text
-action-authoring-src/  ──docs:gen──►  action-authoring/cli/  +  docs/skills/
-authoring-references/  ──直接嵌入──►  AgentModel + QuickerAgent docs 搜索
+product/README.md        产品功能、当前状态、规划缺口
+agents/                  Coding Agent 任务路由（只做索引，不复制正文）
+engineering/             架构、存储、运行时、构建与发布参考
+authoring/                动作编写文档管线
+action-authoring-src/     动作编写源码
+authoring-references/     step、pattern、benchmark 等深参考
+skills/                   qkrpc agent setup 分发的生成/维护资产
 ```
 
-- **源码**：[`action-authoring-src/`](action-authoring-src/) — 唯一应改的 workflow / manifest
-- **深参考**：[`authoring-references/`](authoring-references/) — step-modules、patterns、learned-skills
-- **生成物**：[`action-authoring/cli/`](action-authoring/cli/)、[`skills/quicker-authoring/`](skills/quicker-authoring/) — CI 校验，勿手改正文
-- **生成**：`npm run docs:gen` / `npm run docs:check`
+根目录保留的专题文档是深参考或兼容入口，不再承担产品状态总表。产品是否可用，以 [产品能力与规划](product/README.md) 为准。
 
----
+## 事实优先级
 
-## 产品与集成
+1. 可执行代码、类型和测试。
+2. [`docs/product/README.md`](product/README.md) 中的当前能力与边界。
+3. 架构与协议参考。
+4. Git 历史、Issue 和 PR 中的一次性实施过程。
 
-索引：[product/README.md](product/README.md)
+若文档与代码冲突，同一修改中更新功能页；不要再新增日期命名的实施计划、完成情况快照或平行 roadmap。
 
-| 文档 | 说明 |
-|------|------|
-| [quicker-agent.md](quicker-agent.md) | QuickerAgent 产品介绍、下载与 FAQ |
-| [agent-mcp-integration.md](agent-mcp-integration.md) | 第三方 Agent 接入：`qkrpc agent setup`、MCP、HTTP serve |
-| [agent-mcp-self-install.md](agent-mcp-self-install.md) | Agent 自装流程（分宿主） |
-| [agent-skill-distribution.md](agent-skill-distribution.md) | Skills / rules 分发与版本 |
-| [agent-tool-granularity.md](agent-tool-granularity.md) | QuickerAgent vs MCP 工具面差异 |
-| [cli-commands.md](cli-commands.md) | `qkrpc` 命令参考（人类可读） |
-| [action-designer-agent-routing.md](action-designer-agent-routing.md) | 设计器打开时 get/patch 自动走内存 |
-
----
-
-## QuickerAgent 开发与运维
-
-索引：[engineering/README.md](engineering/README.md)
-
-| 文档 | 说明 |
-|------|------|
-| [agent-gui/README.md](../agent-gui/README.md) | 本地开发、Electron 发布、LLM 配置 |
-| [agent-gui/AGENTS.md](../agent-gui/AGENTS.md) | 改 UI 时的 Agent 约定 |
-| [agent-gui-launcher.md](agent-gui-launcher.md) | `Alt+Space` 启动器设计 |
-| [agent-gui-startup-performance.md](agent-gui-startup-performance.md) | 冷启动、splash、懒加载 |
-| [agent-gui-chat-storage.md](agent-gui-chat-storage.md) | 对话历史存储 |
-| [agent-gui-plugin-storage.md](agent-gui-plugin-storage.md) | 可选插件目录与下载 |
-| [agent-gui-prompt-structure.md](agent-gui-prompt-structure.md) | 系统提示与 Skill 加载 |
-| [browser-automation.md](browser-automation.md) | 浏览器自动化边界（Playwright / 内嵌 / 扩展） |
-| [agent-defs-spec.md](agent-defs-spec.md) | 工作区 `.quicker/commands|skills|agents` 规范 |
-| [quicker-agent-plugin-spec.md](quicker-agent-plugin-spec.md) | QuickerAgent Plugin manifest / Host API |
-| [dev-supervisor-design.md](dev-supervisor-design.md) | `dev.ps1` 监督进程设计 |
-| [agent-authoring-benchmark.md](agent-authoring-benchmark.md) | 编写评测任务集（含 [测试 prompt](agent-test-prompts.txt)） |
-| [voice-input-plugin.md](voice-input-plugin.md) | 语音输入 + WebSocket 协议 |
-| [voxtype-quicker-integration.md](voxtype-quicker-integration.md) | VoxType × Quicker |
-| [../voice-asr-runtime/README.md](../voice-asr-runtime/README.md) | 本地 ASR runtime |
-| [clipboard-history-plugin.md](clipboard-history-plugin.md) | 剪贴板历史插件 |
-| [../Quicker.ActionRuntime/docs/](../Quicker.ActionRuntime/docs/) | ActionRuntime 子项目工程文档 |
-
----
-
-## 动作编写与深参考
-
-索引：[authoring/README.md](authoring/README.md)
-
-| 文档 / 目录 | 说明 |
-|-------------|------|
-| [quicker-action-data-storage.md](quicker-action-data-storage.md) | 动作数据存储架构 |
-| [action-data-json-normalization.md](action-data-json-normalization.md) | 工作区 `data.json` 写盘规范与 get/patch 幂等约束 |
-| [action-authoring-src/](action-authoring-src/) | **源码**：指南模板与 manifest |
-| [authoring-references/](authoring-references/) | **深参考**：step-modules、patterns、learned-skills registry、benchmarks |
-| [authoring-references/learned-skills/SPEC.md](authoring-references/learned-skills/SPEC.md) | draft skill 创建与晋升流程 |
-| [authoring-references/learned-skills/registry.json](authoring-references/learned-skills/registry.json) | 当前 draft/review 子 skill 登记册 |
-| [action-authoring/cli/](action-authoring/cli/) | 生成物：`qkrpc guide get` |
-| [skills/quicker-authoring/](skills/quicker-authoring/) | 生成物：QuickerAgent / setup |
-
-运行时入口：`qkrpc guide get --topic overview --json`。
-
----
-
-## Agent Skills 对照
-
-| Skill | 路径 | `qkrpc agent setup` 默认 | 说明 |
-|-------|------|---------------------------|------|
-| `qkrpc` | `docs/skills/qkrpc/` | 是 | CLI/MCP 用法 |
-| `quicker-rpc-knowledge` | `docs/skills/quicker-rpc-knowledge/` | 是 | 架构、连不通诊断 |
-| `quicker-authoring` | `docs/skills/quicker-authoring/` | 是 | 无头编写 P0–P7 |
-| `quicker-eval-expression` | `docs/skills/quicker-eval-expression/` | 是 | `$=` / evalexpression |
-| `quicker-run` | `docs/skills/quicker-run/` | 是 | 运行/调试动作 |
-| `quicker-sync` | `docs/skills/quicker-sync/` | **否（deprecated）** | 已由 `workspace-editing` + host file tools 替代 |
-| **Scenario 子 skill**（12 个） | `docs/skills/quicker-authoring-*` 等 | **on-demand** | 父 skill Route 表；见下 |
-| `quicker-chromecontrol` | `docs/skills/quicker-chromecontrol/` | 否 | QuickerAgent 按需加载 |
-| `quicker-browser-script` | `docs/skills/quicker-browser-script/` | 否 | QuickerAgent 按需加载 |
-| `quicker-rpc-build-test` 等 | `.cursor/skills/` | 否 | **仓库贡献者**专用，不进 setup |
-
-### Scenario 子 skill（on-demand，2026-06 晋升）
-
-QuickerAgent catalog 自动发现；编写时按场景加载：
-
-| skill | 场景 |
-|-------|------|
-| `quicker-action-library-search` | 动作库搜索 / exemplar |
-| `quicker-authoring-selection-pipeline` | 选中文本流水线 |
-| `quicker-authoring-clipboard-pipeline` | 剪贴板流水线 |
-| `quicker-authoring-http-json-api` | HTTP + JSON |
-| `quicker-authoring-loop-control` | each / break / simpleIf |
-| `quicker-authoring-evalexpression-multi-var` | 多变量 evalexpression |
-| `quicker-authoring-subprogram-extract` | 子程序抽取 |
-| `quicker-authoring-file-batch` | 多文件批处理 |
-| `quicker-authoring-expression-first` | 表达式优先 |
-| `quicker-authoring-path-and-exists` | 路径存在检查 |
-| `quicker-authoring-delay-retry` | 延迟重试 |
-| `quicker-authoring-ui-automation-lite` | 前台窗口 + 按键 |
-| `quicker-authoring-run-action-delegate` | 委托运行动作 |
-
-新场景子 skill：直接写 [`action-authoring-src/skills/`](action-authoring-src/skills/) → `npm run docs:gen` → `docs/skills/`；登记 [`learned-skills/registry.json`](authoring-references/learned-skills/registry.json)（见 [SPEC](authoring-references/learned-skills/SPEC.md)）。
-
----
-
-## 架构速查
+## 动作编写生成物
 
 ```text
-QuickerAgent (agent-gui)  ──HTTP/CLI──►  qkrpc.exe  ──named pipe──►  QuickerRpc.Plugin  ──►  Quicker
-第三方 Agent (MCP)       ──stdio mcp──►  qkrpc mcp  ──同上──►
+action-authoring-src/  --docs:gen-->  action-authoring/cli/ + docs/skills/
+authoring-references/  ------------>  AgentModel + QuickerAgent docs search
 ```
 
-- 管道名：`QuickerRpc_Server_QRPC2026`
-- 高频 HTTP：`qkrpc serve` → `http://127.0.0.1:9477/health`
-- 插件加载：`load {packagePath}/QuickerRpc.Plugin.{version}.dll`（详见根 [README.md](../README.md)）
+- 修改 workflow/schema：改 [`action-authoring-src/`](action-authoring-src/)。
+- 修改 step 深参考：改 [`authoring-references/`](authoring-references/)。
+- 不直接修改生成目录中的大段正文。
+- 生成与检查：`npm run docs:gen`、`npm run docs:check`。
 
----
+## 文档治理
 
-## Agent 规则（机器可读）
-
-| 路径 | 用途 |
-|------|------|
-| [../AGENTS.md](../AGENTS.md) | 仓库根：构建、测试、无头编辑约定 |
-| [agent-rules/](agent-rules/) | 各宿主 rules 片段（如 Claude） |
-| [skills/](skills/) | `qkrpc agent setup` 分发的 Skill 源码 |
-| [../.cursor/skills/](../.cursor/skills/) | Cursor 仓库内贡献者 Skill |
-
----
-
-## 内部设计稿（superpowers）
-
-索引：[internal/README.md](internal/README.md) — 非最终用户文档。
-
-| 目录 | 说明 |
-|------|------|
-| [superpowers/specs/](superpowers/specs/) | 功能/集成设计 spec |
-| [superpowers/plans/](superpowers/plans/) | 实施计划 |
-
-例如：[agent-mock-verify-loop](superpowers/specs/2026-06-13-agent-mock-verify-loop-design.md)、[action-authoring-learning](superpowers/plans/2026-06-13-quicker-action-authoring-learning.md)。
+- 新用户能力或状态变化：只更新 `product/README.md` 的所属功能域。
+- 新的 Agent 修改入口：更新 `agents/README.md` 的任务路由，不复制功能说明。
+- 跨模块长期约束：更新架构或协议文档。
+- 一次性调查和实施过程：留在 Issue/PR/Git 历史，不进入 `docs/`。
+- 移动或删除文档：同一修改中用 `rg` 修复所有引用并执行文档检查。

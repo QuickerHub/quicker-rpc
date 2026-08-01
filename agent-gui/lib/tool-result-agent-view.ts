@@ -16,7 +16,6 @@ import {
   shapeStepRunnerGetResult,
   STEP_RUNNER_GET_SCHEMA_SOFT_CHARS,
 } from "@/lib/tool-result-always-shape";
-import type { ToolNextAction } from "@/lib/tool-result";
 import {
   formatTraceEventLine,
   parseActionTraceEvents,
@@ -877,17 +876,10 @@ function compressProgramGetResult(
 
   const label = refetchTool.includes("subprogram") ? "subprogram get" : "action get";
   const agentSummary = `${label} ${programId ?? "?"} · ${steps.length} steps (summary)`;
-  const anchors: Record<string, string> = {};
-  if (programId) {
-    anchors.actionId = programId;
-    if (payload.subProgramId) anchors.subProgramId = String(payload.subProgramId);
-  }
-
   return withCompressedResult(result, {
     data: compressedData,
     displayData: data,
     agentSummary,
-    anchors,
     refetch: {
       tool: refetchTool,
       reason: "detail_mode",
@@ -942,7 +934,7 @@ function compressSubprogramQueryResult(
           : undefined,
       };
     })
-    .filter((item): item is Record<string, unknown> => item != null);
+    .filter((item) => item != null);
 
   const compressedPayload: Record<string, unknown> = {
     ...payload,
@@ -1389,8 +1381,9 @@ export function formatToolResultForAgent(
 ): Record<string, unknown> {
   if (!isStructuredToolResult(result)) return result;
 
-  let next = applyAlwaysOnToolResultShape(toolName, input, result);
-  if (!isStructuredToolResult(next)) return next;
+  const shaped = applyAlwaysOnToolResultShape(toolName, input, result);
+  if (!isStructuredToolResult(shaped)) return shaped;
+  let next: StructuredToolResult = shaped;
 
   if (!isToolResultAgentViewCompressionEnabled()) return next;
 

@@ -25,7 +25,9 @@ function formatIoDescription(task: QuickerBenchTask): string {
 
 function loadCoreQuickerBenchTasks(): QuickerBenchTask[] {
   const catalog = quickerbenchData as QuickerBenchCatalog;
-  const order = new Map(QUICKERBENCH_CORE_TASK_IDS.map((id, index) => [id, index]));
+  const order = new Map<string, number>(
+    QUICKERBENCH_CORE_TASK_IDS.map((id, index) => [id, index]),
+  );
   return catalog.tasks
     .filter((task) => order.has(task.id as (typeof QUICKERBENCH_CORE_TASK_IDS)[number]))
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));

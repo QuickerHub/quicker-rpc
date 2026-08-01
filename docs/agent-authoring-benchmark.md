@@ -3,8 +3,7 @@
 用于评估 Agent **分析、规划、选型、检索、实现、流程遵守、可运行性**。任务以**自然语言**发出，不要在 prompt 里写工具名。
 
 **数据源**：[`agent-gui/benchmarks/authoring-tasks.json`](../agent-gui/benchmarks/authoring-tasks.json)  
-**代码**：[`agent-gui/lib/authoring-benchmark.ts`](../agent-gui/lib/authoring-benchmark.ts)  
-**复制用 prompt 列表**：[agent-test-prompts.txt](agent-test-prompts.txt)
+**代码**：[`agent-gui/lib/authoring-benchmark.ts`](../agent-gui/lib/authoring-benchmark.ts)
 
 ---
 
@@ -137,7 +136,7 @@ L2 主干等带 `verify.mockProfile` 的任务，用 deterministic mock 代替�
 
 **F=2**：`assertions.passed === true`；**F=1**：mock 跑通但断言部分失败；**F=0**：mock run 失败或 `unsupportedStepKeys`。
 
-响应字段：`outputVars`、`events[]`、`mockLedger`、`fixHints`（见 [mock verify 设计](superpowers/specs/2026-06-13-agent-mock-verify-loop-design.md)）。
+响应字段：`outputVars`、`events[]`、`mockLedger`、`fixHints`；运行与评分约定以本文和 benchmark schema 为准。
 
 开发者对照 mock synthetic trace 与 Plugin trace 步序：
 
@@ -158,9 +157,9 @@ qkrpc action mock-trace-diff --id <guid> --mock-profile clip-lines-expr --json
 
 ---
 
-## 与路线图
+## 产品质量归属
 
-对应 [ROADMAP.md](ROADMAP.md) P1「Agent 任务测试集」。L2 F 轴已接 mock assert；agent-gui 生产路径 E2E 见 [agent-gui-eval.md](agent-gui-eval.md)（`pnpm agent-eval` / `Invoke-AgentGuiEval.ps1`）。
+本评测是 [AUTHOR](product/README.md#p-author) 的质量门槛。L2 F 轴已接 mock assert；agent-gui 生产路径 E2E 见 [agent-gui-eval.md](agent-gui-eval.md)（`pnpm agent-eval` / `Invoke-AgentGuiEval.ps1`）。
 
 ---
 

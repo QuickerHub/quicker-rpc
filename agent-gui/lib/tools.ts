@@ -6,6 +6,8 @@ import { LIST_TOOLS_TOOL, LIST_TOOLS_TOOL_DEF } from "@/lib/list-tools-tool.serv
 
 import { DOCS_TOOL, DOCS_TOOL_DEF } from "@/lib/docs-tool.server";
 
+import { SKILL_LOAD_TOOL, SKILL_LOAD_TOOL_DEF } from "@/lib/skill-load-tool.server";
+
 import { QKRPC_FA_TOOL, QKRPC_FA_TOOL_DEF } from "@/lib/qkrpc-fa-tool";
 
 import { QKRPC_WAIT_TOOL, QKRPC_WAIT_TOOL_DEF } from "@/lib/qkrpc-wait-tool";
@@ -110,7 +112,11 @@ import {
   evaluateStepRunnerSearchGuard,
   formatBlockedStepRunnerSearchResult,
 } from "@/lib/step-runner-search-guard";
-import { attachToolFeedback, isStructuredToolResult } from "@/lib/tool-result";
+import {
+  attachToolFeedback,
+  formatLocalToolResult,
+  isStructuredToolResult,
+} from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 
 import { LLM_SETTINGS_TOOL, LLM_SETTINGS_TOOL_DEF } from "@/lib/llm-settings-tool";
@@ -187,6 +193,8 @@ import { applyModelFacingToolOutputToToolMap } from "@/lib/tool-model-output";
 
 
 const quickerToolsCore = {
+
+  [SKILL_LOAD_TOOL]: SKILL_LOAD_TOOL_DEF,
 
   [ASK_QUESTION_TOOL]: ASK_QUESTION_TOOL_DEF,
 
@@ -476,12 +484,11 @@ const quickerToolsCore = {
         return formatToolResultForAgent(
           "qkrpc_step_runner_get",
           { key, runnerKey, controlField },
-          formatQkrpcResultForAgent({
-            ok: false,
-            exitCode: 1,
-            source: "local",
-            data: { error: "key (or runnerKey) is required" },
-          }),
+          formatLocalToolResult(
+            { error: "key (or runnerKey) is required" },
+            false,
+            "key (or runnerKey) is required",
+          ),
         );
       }
 

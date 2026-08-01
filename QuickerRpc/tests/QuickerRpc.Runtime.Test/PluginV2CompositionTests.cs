@@ -83,6 +83,48 @@ public sealed class PluginV2CompositionTests
     }
 
     [TestMethod]
+    public async Task V2ExpressionHost_executes_qkeval_and_writes_variables_back()
+    {
+        var host = new V2ExpressionHost();
+
+        var result = await host.ExecuteExpressionAsync(
+            "{count} = {count} + 2; return {count};",
+            "{\"count\":3}");
+
+        Assert.IsTrue(result.Success, result.Message);
+        Assert.AreEqual("5", result.ResultJson);
+        Assert.AreEqual(5L, JObject.Parse(result.VariablesJson!)["count"]?.Value<long>());
+    }
+
+    [TestMethod]
+    public async Task V2ExpressionHost_reports_qkeval_syntax_diagnostics()
+    {
+        var host = new V2ExpressionHost();
+
+        var result = await host.CheckExpressionAsync("1 +");
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual("COMPILE_ERROR", result.ErrorCode);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(result.Message));
+    }
+
+    [TestMethod]
+    public async Task V2LauncherHost_ranks_action_and_subprogram_catalog_results()
+    {
+        var host = new V2LauncherHost(new StubSearchHost());
+
+        var result = await host.ResolveIntentAsync("clipboard", maxResults: 10);
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.AreEqual(2, result.Candidates.Count);
+        Assert.AreEqual("action", result.Candidates[0].Kind);
+        Assert.AreEqual("action-1", result.Candidates[0].ActionId);
+        Assert.AreEqual("subprogram", result.Candidates[1].Kind);
+        Assert.AreEqual("sub-1", result.Candidates[1].SubProgramId);
+        Assert.AreEqual(0, result.MissedTerms.Count);
+    }
+
+    [TestMethod]
     public async Task V2ActionRunHost_run_uses_shared_v1_service_boundary()
     {
         var host = new V2ActionRunHost();
@@ -109,6 +151,85 @@ public sealed class PluginV2CompositionTests
             || (result.Message ?? string.Empty).Contains("unavailable", StringComparison.OrdinalIgnoreCase)
             || (result.Message ?? string.Empty).Contains("not found", StringComparison.OrdinalIgnoreCase),
             result.Message);
+    }
+
+    [TestMethod]
+    public async Task V2ActionCatalogHost_create_outside_quicker_fails_gracefully()
+    {
+        var host = new V2ActionCatalogHost();
+
+        var result = await host.CreateActionAsync("New action");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "Not running inside Quicker");
+    }
+
+    [TestMethod]
+    public async Task V2ActionCatalogHost_delete_outside_quicker_fails_gracefully()
+    {
+        var host = new V2ActionCatalogHost();
+
+        var result = await host.DeleteActionAsync(Guid.NewGuid().ToString("D"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "unavailable");
+    }
+
+    [TestMethod]
+    public async Task V2ActionDocHost_rejects_non_guid_without_network_access()
+    {
+        var host = new V2ActionDocHost();
+
+        var result = await host.GetDetailHtmlAsync("not-a-shared-action-id");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "sharedActionId GUID");
+    }
+
+    [TestMethod]
+    public async Task V2ActionDocHost_reports_missing_quicker_session()
+    {
+        var host = new V2ActionDocHost();
+
+        var result = await host.PrepareWebSessionAsync(Guid.NewGuid().ToString("D"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "Not running inside Quicker");
+    }
+
+    [TestMethod]
+    public async Task V2SubProgramHost_delete_requires_explicit_confirmation()
+    {
+        var actionPrograms = new V2HeadlessActionProgramService();
+        var host = new V2SubProgramHost(new V2HeadlessSubProgramService(actionPrograms));
+
+        var result = await host.TryDeleteAsync("subprogram", skipConfirm: false);
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.Message, "skipConfirm=true");
+    }
+
+    [TestMethod]
+    public async Task V2SettingsHost_exposes_v2_catalog_without_quicker_runtime()
+    {
+        var host = new V2SettingsHost();
+
+        var result = await host.ListAsync("userSettings", maxResults: 20);
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.IsTrue(result.Items.Count > 0, "Expected UserSettings2 catalog entries.");
+        Assert.IsTrue(result.Items.All(item => item.Key.StartsWith("userSettings:", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task V2SettingsHost_get_outside_quicker_fails_gracefully()
+    {
+        var host = new V2SettingsHost();
+
+        var result = await host.GetAsync("userSettings:EnableCircleMenu");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "Not running inside Quicker");
     }
 
     [TestMethod]
@@ -192,6 +313,79 @@ public sealed class PluginV2CompositionTests
         public IQuickerRpcDesignerHost? Designer => null;
 
         public IQuickerRpcLauncherHost? Launcher => null;
+    }
+
+    private sealed class StubSearchHost : IQuickerRpcSearchHost
+    {
+        public Task<QuickerRpcSearchActionSummariesResult> SearchActionSummariesAsync(
+            string? query,
+            int maxResults = 30,
+            string? scope = null,
+            string? sort = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new QuickerRpcSearchActionSummariesResult
+            {
+                Success = true,
+                Items =
+                [
+                    new QuickerRpcActionSummaryItem
+                    {
+                        ActionId = "action-1",
+                        Title = "Clipboard history",
+                        Description = "Search clipboard entries",
+                        Score = 120,
+                    },
+                ],
+            });
+
+        public Task<QuickerRpcSubProgramSearchResult> SearchGlobalSubProgramsAsync(
+            string query,
+            int maxCount = 20,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new QuickerRpcSubProgramSearchResult
+            {
+                Ok = true,
+                Items =
+                [
+                    new QuickerRpcSubProgramSummary
+                    {
+                        Id = "sub-1",
+                        Name = "Clipboard normalize",
+                        Description = "Normalize clipboard text",
+                        Score = 80,
+                    },
+                ],
+            });
+
+        public Task<QuickerRpcActionSearchResult> SearchActionsAsync(
+            string query,
+            int maxCount = 20,
+            string? scope = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<QuickerRpcSubProgramSearchResult> ListGlobalSubProgramsAsync(
+            string? query,
+            int maxCount = 30,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<QuickerRpcSearchActionLibraryResult> SearchActionLibraryAsync(
+            string keyword,
+            int page = 1,
+            int? days = null,
+            int maxResults = 20,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<QuickerRpcSearchIndexStatusResult> GetSearchIndexStatusAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<QuickerRpcSearchIndexRebuildResult> RebuildSearchIndexAsync(
+            string? region = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class StubV2Capabilities : IQuickerRpcHostCapabilities

@@ -1,43 +1,45 @@
-# 工程与开发文档
+# 工程参考
 
-面向 **agent-gui / Electron 开发者**、**QuickerRpc 贡献者**、**Coding Agent** 的运维与设计说明。
+产品当前状态和修改入口不在本目录重复维护：先查 [产品功能地图](../product/README.md) 和 [Coding Agent 路由](../agents/README.md)，再按需打开下列深参考。
 
-> 逻辑分区索引：文件仍位于 `docs/` 根目录或子项目内（未物理搬迁）。
+## Agent 核心
 
-## QuickerAgent（agent-gui）
+| 文档 | 用途 |
+|---|---|
+| [agent-architecture.md](../agent-architecture.md) | 分层、turn 生命周期、AI SDK 与工具边界 |
+| [agent-gui-prompt-structure.md](../agent-gui-prompt-structure.md) | system prompt、skill 与上下文块 |
+| [browser-automation.md](../browser-automation.md) | 后台、内嵌与用户浏览器边界 |
 
-| 文档 | 说明 |
-|------|------|
-| [agent-gui/README.md](../../agent-gui/README.md) | 本地开发、Electron 发布、LLM 配置 |
-| [agent-gui/AGENTS.md](../../agent-gui/AGENTS.md) | 改 UI 时的 Agent 约定 |
-| [agent-gui-launcher.md](../agent-gui-launcher.md) | `Alt+Space` 启动器 |
-| [agent-gui-startup-performance.md](../agent-gui-startup-performance.md) | 冷启动、splash、懒加载 |
-| [agent-gui-chat-storage.md](../agent-gui-chat-storage.md) | 对话历史存储 |
-| [agent-gui-plugin-storage.md](../agent-gui-plugin-storage.md) | 可选插件目录 |
-| [agent-gui-prompt-structure.md](../agent-gui-prompt-structure.md) | 系统提示与 Skill 加载 |
-| [agent-defs-spec.md](../agent-defs-spec.md) | 工作区 `.quicker/commands\|skills\|agents` |
+## 桌面应用与数据
+
+| 文档 | 用途 |
+|---|---|
+| [agent-gui/README.md](../../agent-gui/README.md) | 本地开发、Electron 与发布 |
+| [agent-gui-chat-storage.md](../agent-gui-chat-storage.md) | SQLite 聊天与迁移 |
+| [agent-gui-plugin-storage.md](../agent-gui-plugin-storage.md) | 安装树、用户数据、插件与模型 |
+| [agent-gui-launcher.md](../agent-gui-launcher.md) | Launcher 直连、桥接与协议细节 |
 | [dev-supervisor-design.md](../dev-supervisor-design.md) | `dev.ps1` 监督进程 |
 
-## 评测与 Agent 资产
+## QuickerRpc
 
-| 文档 | 说明 |
-|------|------|
-| [agent-authoring-benchmark.md](../agent-authoring-benchmark.md) | 编写评测任务集 |
-| [agent-test-prompts.txt](../agent-test-prompts.txt) | 测试 prompt 列表 |
+| 文档 | 用途 |
+|---|---|
+| [quicker-rpc-core-architecture.md](../design/quicker-rpc-core-architecture.md) | Contracts/Runtime/Transport/Host 分层 |
+| [quicker-rpc-plugin-v2.md](../design/quicker-rpc-plugin-v2.md) | net10 对齐矩阵与完成门槛 |
+| [mcp-output-contract.md](../mcp-output-contract.md) | MCP compact output |
+| [cli-commands.md](../cli-commands.md) | CLI 人类可读参考 |
 
-## 子项目
+## 质量与评测
 
-| 文档 | 说明 |
-|------|------|
-| [voice-asr-runtime/README.md](../../voice-asr-runtime/README.md) | 本地 ASR runtime |
-| [Quicker.ActionRuntime/docs/](../../Quicker.ActionRuntime/docs/) | ActionRuntime 工程文档 |
+| 文档 | 用途 |
+|---|---|
+| [agent-gui-eval.md](../agent-gui-eval.md) | 真实 Agent 生产路径评测 |
+| [agent-authoring-benchmark.md](../agent-authoring-benchmark.md) | 动作编写任务集与评分 |
+| `agent-gui/benchmarks/`、`lib/agent-eval/`、`lib/quickerbench/` | 可执行 fixture、runner 与断言 |
 
-## 仓库贡献
+## 规则
 
-| 文档 | 说明 |
-|------|------|
-| [../README.md](../../README.md) | 根 README：安装、架构 |
-| [../AGENTS.md](../../AGENTS.md) | Coding Agent 构建/测试约定 |
-| [../.cursor/skills/](../../.cursor/skills/) | 贡献者专用 Skill（不进 setup） |
-
-返回总索引：[docs/README.md](../README.md)
+- 功能状态只更新 `docs/product/README.md`，工程文档不维护第二张 roadmap。
+- 代码入口或不变量变化时更新所属产品功能页，再更新必要的深参考。
+- 已完成实施过程由测试和 Git 历史承载，不新增 plan/spec 快照。
+- UI 改动遵循 `agent-gui/AGENTS.md`；插件改动遵循根 `AGENTS.md`。

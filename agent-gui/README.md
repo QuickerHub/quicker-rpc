@@ -5,6 +5,8 @@
 | 文档 | 受众 |
 |------|------|
 | [docs/quicker-agent.md](../docs/quicker-agent.md) | 终端用户：产品介绍、下载、FAQ |
+| [docs/product/README.md](../docs/product/README.md) | 产品能力、状态与规划 |
+| [docs/agents/README.md](../docs/agents/README.md) | Coding Agent：任务到功能页/代码/测试的路由 |
 | 本文 | 开发者：本地运行、Electron 发布、工具一览 |
 | [AGENTS.md](AGENTS.md) | Coding Agent（嵌套 [../AGENTS.md](../AGENTS.md)） |
 
@@ -47,7 +49,7 @@ pwsh ./dev.ps1 -Electron
 
 `package.json` 里的 `pnpm dev` / `electron:dev` 等由 `dev.ps1` 内部调用，日常不必手敲。
 
-**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话历史 JSON**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。**快速输入启动器**：[`docs/agent-gui-launcher.md`](../docs/agent-gui-launcher.md)。**启动性能**：[`docs/agent-gui-startup-performance.md`](../docs/agent-gui-startup-performance.md)。
+**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话存储**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。**快速输入启动器**：[`docs/agent-gui-launcher.md`](../docs/agent-gui-launcher.md)。
 
 ## 发布（Electron）
 
@@ -69,4 +71,4 @@ pnpm electron:verify-bundle   # staged resources only
 pnpm electron:build           # NSIS → electron/dist/
 ```
 
-设计说明：`docs/superpowers/specs/2026-06-11-agent-gui-electron-packaging-design.md`
+Agent 分层见 [`docs/agent-architecture.md`](../docs/agent-architecture.md)；桌面打包以本节命令和 `scripts/electron-*.mjs` 校验为准。

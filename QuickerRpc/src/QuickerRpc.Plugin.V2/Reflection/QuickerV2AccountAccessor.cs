@@ -53,12 +53,66 @@ internal static class QuickerV2AccountAccessor
     }
 
     public static QuickerRpcWebSessionInfo TryGetWebSessionInfo() =>
-        new()
+        BuildWebSessionInfo();
+
+    internal static string? TryGetBearerToken()
+    {
+        if (!QuickerV2Runtime.IsRunningInQuicker)
         {
-            Ok = false,
-            LoggedIn = false,
-            Message = "Web session probe is not implemented for Quicker V2 reflection host yet.",
+            return null;
+        }
+
+        try
+        {
+            var stateType = QuickerV2Runtime.ResolveType(QuickerV2TypeNames.InternalState);
+            var getToken = stateType?.GetMethod(
+                "GetToken",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+                binder: null,
+                types: Type.EmptyTypes,
+                modifiers: null);
+            var token = getToken?.Invoke(null, null)?.ToString()?.Trim();
+            return string.IsNullOrEmpty(token) ? null : token;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static QuickerRpcWebSessionInfo BuildWebSessionInfo()
+    {
+        var account = TryGetAccountInfo();
+        if (!account.LoggedIn || string.IsNullOrWhiteSpace(account.UserId))
+        {
+            return new QuickerRpcWebSessionInfo
+            {
+                Ok = account.Ok,
+                LoggedIn = false,
+                Message = account.Message ?? "Quicker account is not logged in.",
+            };
+        }
+
+        var token = TryGetBearerToken();
+        if (string.IsNullOrEmpty(token))
+        {
+            return new QuickerRpcWebSessionInfo
+            {
+                Ok = true,
+                LoggedIn = false,
+                UserId = account.UserId,
+                Message = "Quicker is logged in but web session token is unavailable.",
+            };
+        }
+
+        return new QuickerRpcWebSessionInfo
+        {
+            Ok = true,
+            LoggedIn = true,
+            UserId = account.UserId,
+            Token = token,
         };
+    }
 
     private static T? ReadProperty<T>(object target, string propertyName)
     {

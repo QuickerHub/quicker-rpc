@@ -2,8 +2,8 @@
 
 | Path | Audience |
 |------|----------|
-| [`action-authoring-src/`](action-authoring-src/) | **Edit here** — templates + `manifest/*.json` registry |
-| [`action-authoring/cli/`](action-authoring/cli/) | Generated for `qkrpc guide` (embedded in AgentModel) |
+| [`action-authoring-src/`](../action-authoring-src/) | **Edit here** — templates + `manifest/*.json` registry |
+| [`action-authoring/cli/`](cli/) | Generated for `qkrpc guide` (embedded in AgentModel) |
 | [`skills/quicker-authoring/`](../skills/quicker-authoring/) | Generated single [Agent Skill](https://agentskills.io/specification) + `references/` for QuickerAgent (`docs_get`) |
 
 ## Regenerate

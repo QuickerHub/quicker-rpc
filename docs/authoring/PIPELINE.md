@@ -68,7 +68,7 @@ npm run docs:modules:gen     # 分析 + crawl
 | 直接改 `action-authoring/cli/authoring-workflow.md` | 改 `action-authoring-src/workflows/`，再 `docs:gen` |
 | 期望在 `cli/references/` 找 module 正文 | 正文只在 `authoring-references/`；manifest 的 `path` 指向该目录 |
 | 维护两份 expressions 正文 | 只改 `action-authoring-src/partials/expressions-body.md`（见下节） |
-| 把 `superpowers/` 当用户文档 | 仅内部 spec/plan |
+| 新建日期命名的 spec/plan 跟踪实现 | 长期规则写权威规范；进度写 issue/PR 或 JSON 状态文件 |
 
 ## Expressions 文档（单一权威源）
 
@@ -109,7 +109,7 @@ IDE 续跑：`/learn-authoring` → `npm run docs:authoring:learning-next`。
 批量校验 / 标记 promoted：`node scripts/promote-learned-skills-from-registry.mjs [--promote]`。  
 子 skill 由 `generate-authoring-docs.mjs` 自动扫描（除 `quicker-authoring` / `quicker-eval-expression`）。
 
-## 逻辑目录（Phase 3）
+## 逻辑目录
 
 `docs/` 按角色分区索引，**文件路径未搬迁**（AgentModel / `docs:gen` 嵌入路径不变）：
 
@@ -118,7 +118,6 @@ IDE 续跑：`/learn-authoring` → `npm run docs:authoring:learning-next`。
 | [`product/README.md`](../product/README.md) | 用户、集成、插件 |
 | [`engineering/README.md`](../engineering/README.md) | agent-gui、dev、子项目 |
 | [`authoring/README.md`](README.md) | 本页 + PIPELINE |
-| [`internal/README.md`](../internal/README.md) | superpowers 内部稿 |
 
 物理 `mv`（如 `action-authoring-src` → `authoring/guide-src`）仅在需要时单独 PR，须同步 AgentModel、agent-gui、生成脚本。
 

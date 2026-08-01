@@ -323,7 +323,7 @@ export async function executeWorkspaceProgramTool(
     case "file_write": {
       const resolved = resolveProgramToolInput(input);
       if (!resolved.ok) return programInputError(resolved.error);
-      if (!input.path?.trim() || input.content == null) {
+      if (!input.path?.trim() || typeof input.content !== "string") {
         return programInputError("path and content are required for file_write.");
       }
       return executeWorkspaceProgramFileWrite({

@@ -12,6 +12,24 @@ declare module "@/lib/qkrpc-serve-discover.mjs" {
   ): Promise<{ baseUrl: string; port: number } | null>;
 }
 
+declare module "@/lib/cursor-sdk-runtime-lifecycle.mjs" {
+  export type CursorSdkRuntimeHealth = {
+    ok: boolean;
+    runtimeVersion?: string;
+    protocolVersion?: string;
+  };
+
+  export function resolveCursorSdkPort(): number;
+  export function fetchCursorSdkRuntimeHealth(
+    base: string,
+    timeoutMs?: number,
+  ): Promise<CursorSdkRuntimeHealth>;
+  export function ensureCursorSdkRuntime(
+    agentGuiRoot: string,
+    host: string,
+  ): Promise<import("node:child_process").ChildProcess | null>;
+}
+
 declare module "@/lib/voice-runtime-lifecycle.mjs" {
   export type VoiceRuntimeState = {
     pid: number;

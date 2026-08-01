@@ -1,197 +1,91 @@
-# QuickerAgent 插件与依赖资源存储
+# QuickerAgent 用户数据、插件与资源
 
-本文档说明 **QuickerAgent（agent-gui）可选插件**及其**依赖资源**在本机上的落盘位置、安装包内嵌配置，以及首次下载时的远程来源。**远程 URL 仅用于安装/更新；日常使用读本地磁盘。**
+> 状态：当前技术参考。产品入口和插件可用状态见 [EXT](product/README.md#p-ext)。
 
-契约与 Host API 总览见 [quicker-agent-plugin-spec.md](quicker-agent-plugin-spec.md)。设置页 **插件** Tab 提供安装与更新入口。
+QuickerAgent 把安装文件、用户数据和 Agent 工作区分开，避免升级覆盖数据，也避免 Agent 普通文件工具误改插件资源。
 
-**Agent 默认工作区与插件目录已分离**：工作区在 `Documents/QuickerAgent/workspace`；插件在 `%LOCALAPPDATA%/QuickerAgent/plugins/…`，避免 Agent 工具误读写插件文件。
+## 目录边界
 
-实现索引：
+| 类型 | Windows 默认路径 | 内容 |
+|---|---|---|
+| 安装目录 | `%LOCALAPPDATA%/QuickerAgent/` | exe、Electron/Next 资源、随包只读资源 |
+| 用户数据 | `%APPDATA%/QuickerAgent/` | `agent.db`、插件、缓存、模型、usage 等 |
+| Agent 工作区 | `Documents/QuickerAgent/workspace/` | 用户项目和默认 cwd |
+| 旧 WebView 数据 | `%LOCALAPPDATA%/ai.quicker.agent/` 等 | 只用于兼容扫描/迁移 |
+| 安装临时目录 | `%TEMP%/quicker-voice-asr-<pid>/` | 下载和解压缓冲，完成后删除 |
 
-| 模块 | 路径 |
-|------|------|
-| 路径常量（TS） | `agent-gui/lib/quicker-agent-paths.ts` |
-| 默认工作区 | `agent-gui/lib/default-working-directory.ts` |
-| 路径解析（Rust） | `agent-gui/src-tauri/src/quicker_agent_paths.rs` |
-| 语音插件安装 | `agent-gui/src-tauri/src/voice_plugin_install.rs` |
-| 语音插件运行 | `agent-gui/src-tauri/src/voice_plugin.rs` |
-| 语音插件设计 | [`docs/voice-input-plugin.md`](voice-input-plugin.md) |
-| 剪贴板插件设计 | [`docs/clipboard-history-plugin.md`](clipboard-history-plugin.md) |
-| Runtime 子项目 | [`voice-asr-runtime/`](../voice-asr-runtime/)、[`clipboard-history-runtime/`](../clipboard-history-runtime/) |
+路径事实源：`agent-gui/lib/quicker-agent-paths.ts` 和 `quicker-agent-persisted-data.ts`。不要在新模块中手写这些路径。
 
----
-
-## 1. 两类本机目录（总览）
-
-| 类型 | 典型路径 | 谁写入 | 用途 |
-|------|----------|--------|------|
-| **Agent 工作区** | `Documents/QuickerAgent/workspace/` | 用户 / Agent 工具 | 侧栏留空时的默认 cwd；项目文件、动作编辑工作区 |
-| **应用数据（插件等）** | `%LOCALAPPDATA%/QuickerAgent/` | 一键安装 / App | 插件 runtime、模型、manifest；**不在**默认工作区内 |
-| **安装包内嵌资源** | Tauri `$RESOURCE/resources/` | 构建 | 下载频道 URL、模型指纹（只读） |
-| **安装临时目录** | `%TEMP%/quicker-voice-asr-<pid>/` | 安装过程 | 下载 zip 缓冲；结束即删 |
-| **远程下载源** | GitHub / Bitiful / ModelScope | — | 仅安装/更新时拉取 |
-
----
-
-## 2. Agent 默认工作区
-
-Tauri **发布版**，侧栏工作目录留空时：
+## 用户数据结构
 
 ```text
-Windows:  Documents/QuickerAgent/workspace/
-          （Documents 解析见 quicker-agent-paths.ts，OneDrive 文档目录优先）
-
-Linux/macOS:  ~/Documents/QuickerAgent/workspace/
-```
-
-环境变量 `AGENT_GUI_DEFAULT_CWD` 可覆盖整个默认工作区路径。
-
-**开发模式**（monorepo 内 `pnpm dev`）：默认工作区为 **quicker-rpc 仓库根**，不使用上述 Documents 路径。
-
----
-
-## 3. 应用数据目录（插件）
-
-托管型资源（大体积 runtime、ONNX 模型）放在 **Local App Data**，与 Documents 工作区隔离：
-
-```text
-Windows:     %LOCALAPPDATA%/QuickerAgent/
-macOS:       ~/Library/Application Support/QuickerAgent/
-Linux:       $XDG_DATA_HOME/QuickerAgent/  或  ~/.local/share/QuickerAgent/
-```
-
-### 3.1 插件目录约定
-
-```text
-<app-data>/QuickerAgent/
-  cache/                  # 远程 plugin gallery 缓存（TTL 默认 6h）
-    voice-asr-channel.json
-    plugin-registry.json  # Phase 1
+%APPDATA%/QuickerAgent/
+  agent.db                 # SQLite：聊天 + app_kv
   plugins/
-    <plugin-id>/          # 例如 voice-asr
+    voice-asr/
       manifest.json
       settings.json
       runtime/
       models/
+  cache/
+  llm-usage/
 ```
 
-远程 channel/registry 由 Tauri `plugin_runtime` 在启动时拉取；内嵌 `plugin-registry-bootstrap.json` 仅提供 URL 与离线 fallback。Registry 条目可声明 `activationEvents`（如 `onStartup:channelRefresh`、`onStartup:runtime`、`onDemand:voice-input`）控制启动与按需激活。见 [`docs/superpowers/specs/2026-06-09-plugin-runtime-gallery-design.md`](superpowers/specs/2026-06-09-plugin-runtime-gallery-design.md)。
+旧版本安装目录内的 `.local/`、`local/`、plugins/cache 等数据由 persisted-data migration 合并到用户数据目录；已有目标文件优先，迁移不得覆盖新数据。
 
-### 3.2 旧版路径（兼容）
+## 插件状态
 
-v0.8.x 及更早一键安装曾写入：
+| pluginId | 状态 | 说明 |
+|---|---|---|
+| `voice-asr` | 可安装、可用 | 本地 runtime + SenseVoice 模型，音频和识别留在本机 |
+| `clipboard-history` | 已禁用 | runtime 代码保留，但 `CLIPBOARD_HISTORY_ENABLED=false`，不展示为可用产品能力 |
 
-```text
-Documents/QuickerAgent/plugins/voice-asr/
-```
+产品 catalog 事实源为 `agent-gui/lib/plugin-catalog.ts`。只有 `availability === "available"` 的插件可以提供安装/设置动作。
 
-若该处已有 `manifest.json`，Runtime 仍从此目录加载；**新安装**写入 `%LOCALAPPDATA%/QuickerAgent/plugins/voice-asr/`。无需用户手动迁移。
-
----
-
-## 4. `voice-asr` 插件
-
-### 4.1 本机安装目录（持久化）
-
-**新安装（推荐）**：
+## voice-asr
 
 ```text
-%LOCALAPPDATA%/QuickerAgent/plugins/voice-asr/
+plugins/voice-asr/
   manifest.json
   settings.json
   runtime/
     quicker-voice-runtime.exe
-    _internal/
-  models/
-    sensevoice/
-      model.int8.onnx
-      tokens.txt
+  models/sensevoice/
+    model.int8.onnx
+    tokens.txt
 ```
 
-### 4.2 锁定的模型身份（校验用）
+- Runtime 子项目：`voice-asr-runtime/`。
+- Host 安装/启动：`agent-gui/lib/voice-input/`、`plugin-runtime/` 及 Electron bridge。
+- 频道与模型指纹：`agent-gui` 随包资源和发布同步脚本。
+- 协议：[voice-input-plugin.md](voice-input-plugin.md)。
 
-| 文件 | 大小（字节） | SHA256 |
-|------|-------------|--------|
-| `model.int8.onnx` | 239 233 841 | `c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51` |
-| `tokens.txt` | 315 894 | `f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc` |
+安装或更新可以访问远程 channel、GitHub/对象存储和模型源；识别时只读本地 runtime 与模型。
 
-模型 ID：`sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17`
+## 数据库与配置
 
-源文件：`agent-gui/src-tauri/resources/voice-sensevoice-model-identity.json`
+- 聊天历史和大部分服务端配置进入 `%APPDATA%/QuickerAgent/agent.db`。
+- 结构化配置优先使用 `app_kv`；旧 JSON 文件只作为迁移来源。
+- LLM secret 只能位于用户数据目录或数据库中的受控存储，不进入 Git、安装资源或日志。
+- UI layout/local preference 可以继续使用 localStorage，但不能作为跨壳的业务事实源。
 
-### 4.3 首次安装：远程来源 → 本地路径
+聊天数据库详见 [agent-gui-chat-storage.md](agent-gui-chat-storage.md)。
 
-**模型**：ModelScope 逐文件 → 失败则 Bitiful / GitHub zip  
-**Runtime**：Bitiful 镜像 → GitHub Release  
+## 修改入口
 
-频道配置（运行时拉取，内嵌仅离线 fallback）：`plugin-registry-bootstrap.json` → 远程 `voice-plugin-channel.generated.json` / Bitiful `voice-plugin-channel.json`；legacy 内嵌 `voice-plugin-channel.json`
+| 想改 | 先看 |
+|---|---|
+| 路径 | `quicker-agent-paths.ts`、`quicker-agent-persisted-data.ts` 及测试 |
+| plugin catalog | `plugin-catalog.ts`，同步产品功能目录 |
+| 安装/升级 | `voice-input/`、Electron commands、channel 校验脚本 |
+| 数据迁移 | persisted-data migration、legacy DB/localStorage migration |
+| 打包资源 | `agent-gui/scripts/desktop-bundle-prepare.mjs` 与 bundle verify |
 
-### 4.4 安装过程临时文件
+## 不变量
 
-```text
-%TEMP%/quicker-voice-asr-<pid>/
-```
-
-### 4.5 开发环境回退
-
-| 用途 | 路径 |
-|------|------|
-| Python Runtime | `voice-asr-runtime/` |
-| 已构建 exe | `voice-asr-runtime/dist/quicker-voice-runtime/` |
-| 本地模型 | `voice-asr-runtime/models/sensevoice/` |
-
----
-
-## 5. 安装包内嵌资源（Tauri，只读）
-
-| 文件 | 作用 |
-|------|------|
-| `voice-plugin-manifest.json` | 安装后复制为插件 `manifest.json` |
-| `voice-plugin-channel.json` | Runtime / 备用模型 zip URL 与 SHA256 |
-| `voice-sensevoice-model-identity.json` | ModelScope 地址与模型指纹 |
-
-QuickerAgent 主程序运行时：`$RESOURCE/resources/app/`（Next）、`node/`、`qkrpc/`。
-
----
-
-## 6. 设置与服务器持久化数据（非插件）
-
-用户可写的服务器配置（设置 → 模型 API Key、自定义 Profile、Token 用量、启动器预设等）落在 **应用数据目录**，**不在**安装目录内，NSIS 就地更新不会删除：
-
-```text
-Windows:     %LOCALAPPDATA%/QuickerAgent/local/
-  chats.db                    # 对话主存储（SQLite，见 agent-gui-chat-storage.md）
-  llm-secrets.json
-  llm-endpoint-pref.json
-  llm-usage/
-  device-fingerprint.json
-  launcher-resolve-presets.json
-  launcher-command-cache.json
-```
-
-首次启动新版本时会从旧路径 **自动迁移**（若存在）：
-
-- 开发：`agent-gui/.local/`
-- 旧发布版：`{安装目录}/resources/app/.local/`
-
-`agent-gui/.local/frontend-*.json` 等 **仅开发诊断** 文件仍留在仓库/安装目录，不参与迁移。
-
-WebView UI 偏好与对话（`localStorage`）仍在 `%LOCALAPPDATA%/ai.quicker.agent/`（见 [agent-gui-chat-storage.md](agent-gui-chat-storage.md)）。
-
----
-
-## 7. 维护者
-
-1. 发布 runtime → 同步 `voice-plugin-channel.json`（`publish/Sync-VoicePluginChannel.ps1`）
-2. 模型变更时更新 `voice-sensevoice-model-identity.json` 指纹
-
----
-
-## 8. 远程 URL 速查
-
-| 资源 | 主源 | 备用 |
-|------|------|------|
-| Runtime zip | Bitiful | GitHub `voice-asr-runtime` |
-| 模型文件 | ModelScope | Bitiful / GitHub zip |
-
-识别过程仅读取本地插件目录，无需外网。
+1. 用户数据不写入 NSIS 安装树。
+2. 工作区不包含插件 runtime 或模型。
+3. 迁移采用合并且不覆盖已存在目标。
+4. disabled 插件不允许被 UI 或发布说明描述为可用。
+5. 远程下载必须校验版本/指纹，临时目录用后清理。
+6. 修改资源打包时单独核对 staged resources 与最终体积；不要用完整开发目录作为打包输入。

@@ -55,7 +55,7 @@ export function evaluateSessionRules(
       severity: "info",
       message: `Static context (system+tools) ≈ ${metrics.staticContextTokens} tokens on first user turn.`,
       optimizeHint:
-        "lib/agent-harness/model-tool-definitions.ts, lib/tool-intent-filter.ts — slim tools for authoring intent",
+        "lib/agent-core/turn-plan.ts, lib/agent-harness/model-tool-definitions.ts — narrow full-schema bundles",
     });
   }
 

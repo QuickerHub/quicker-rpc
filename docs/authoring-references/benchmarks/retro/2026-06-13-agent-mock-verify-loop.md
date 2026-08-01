@@ -1,6 +1,6 @@
 # Agent mock 验证闭环 — 2026-06-13
 
-> 规格：[`docs/superpowers/specs/2026-06-13-agent-mock-verify-loop-design.md`](../../../superpowers/specs/2026-06-13-agent-mock-verify-loop-design.md)  
+> 评测规范：[`docs/agent-authoring-benchmark.md`](../../../agent-authoring-benchmark.md)
 > 关联 retro：[`2026-06-13-sdk-l2-batch.md`](2026-06-13-sdk-l2-batch.md)
 
 ## 汇总

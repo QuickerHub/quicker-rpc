@@ -6,13 +6,13 @@
 
 | 组件 | 面向谁 | 一句话 |
 |------|--------|--------|
-| **[QuickerAgent](docs/quicker-agent.md)** | Quicker 终端用户 | 桌面 AI 副驾：找 / 跑 / 改 / 发动作，`Alt+Space` 秒开 |
+| **[QuickerAgent](docs/quicker-agent.md)** | Quicker 终端用户 | 桌面 AI 副驾：找 / 跑 / 改 / 发动作，全局快捷键秒开 |
 | **QuickerRpc 插件** | 同上（随动作安装） | 在 Quicker 进程内托管 RPC 服务 |
 | **`qkrpc` CLI** | 开发者、脚本、第三方 Agent | 命令行 + MCP + HTTP，无头读写 Quicker 动作 |
 
 底层统一：**命名管道 + StreamJsonRpc**，CLI 作客户端连插件内的 `IQuickerRpcService`。
 
-**完整文档索引** → [docs/README.md](docs/README.md) · **路线图** → [docs/ROADMAP.md](docs/ROADMAP.md)
+**完整文档索引** → [docs/README.md](docs/README.md) · **产品能力与规划** → [docs/product/README.md](docs/product/README.md)
 
 ---
 
@@ -29,7 +29,7 @@
 
 ## QuickerAgent
 
-专为 [Quicker](https://getquicker.net/) 打造的 AI 助手：内置动作编辑器与步骤知识库，描述用途即可搜索执行，复杂编排进主窗口，轻量操作走 **`Alt+Space`** 启动器。
+专为 [Quicker](https://getquicker.net/) 打造的 AI 助手：内置动作编辑器与步骤知识库，描述用途即可搜索执行，复杂编排进主窗口，轻量操作走可配置的全局启动器（默认 **Ctrl+Shift+Space**）。
 
 - **下载**：[quicker-agent-win-x64-setup.exe](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe)（落地页源码：[quicker-agent-web/](quicker-agent-web/)）
 - **前置**：本机 Quicker + [QuickerAgent 插件动作](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe)
@@ -218,9 +218,10 @@ getquicker 正式包须递增 `version.json` **第三段**（见 `.cursor/skills
 ## 延伸阅读
 
 - [docs/README.md](docs/README.md) — 文档总索引
+- [docs/product/README.md](docs/product/README.md) — 当前能力、状态与规划缺口
+- [docs/agents/README.md](docs/agents/README.md) — Coding Agent 任务路由
 - [docs/quicker-agent.md](docs/quicker-agent.md) — QuickerAgent 产品说明
 - [docs/agent-mcp-integration.md](docs/agent-mcp-integration.md) — MCP 与第三方 Agent
 - [docs/cli-commands.md](docs/cli-commands.md) — CLI 命令表
 - [docs/quicker-action-data-storage.md](docs/quicker-action-data-storage.md) — 动作数据存储
-- [docs/ROADMAP.md](docs/ROADMAP.md) — 产品路线图
 - [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases)

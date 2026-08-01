@@ -75,7 +75,10 @@ if (-not (Test-Path -LiteralPath $agentGuiDir)) {
     throw "agent-gui not found: $agentGuiDir"
 }
 $expectedSemVer = Get-QuickerAgentVersionFromJson -Root $RepoRoot
-$distDir = Join-Path $agentGuiDir 'electron\dist'
+$distBaseDir = Join-Path $agentGuiDir 'electron\dist'
+# electron-builder empties win-unpacked before packaging. A running preview,
+# antivirus, or indexer can keep an older app.asar open, so isolate each build.
+$distDir = Join-Path $distBaseDir ("build-{0}-{1}" -f $expectedSemVer, $PID)
 
 if (-not $SkipQkrpcBuild) {
     Write-Host 'Building qkrpc (publish/cli)...' -ForegroundColor Cyan
@@ -118,7 +121,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "electron:prepare failed ($LASTEXITCODE)" }
 
     Write-Host 'electron-builder (NSIS installer + latest.yml)...' -ForegroundColor Cyan
-    pnpm exec electron-builder --win nsis
+    $env:ELECTRON_BUILDER_OUTPUT_DIR = $distDir
+    $electronOutputArg = "--config.directories.output=$distDir"
+    pnpm exec electron-builder --win nsis $electronOutputArg
     if ($LASTEXITCODE -ne 0) { throw "electron-builder failed ($LASTEXITCODE)" }
 
     node scripts/verify-electron-asar.mjs

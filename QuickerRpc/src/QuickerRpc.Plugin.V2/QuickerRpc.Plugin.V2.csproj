@@ -47,6 +47,10 @@
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentWindowActivator.cs" Link="Shared\QuickerAgentWindowActivator.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentLaunchService.cs" Link="Shared\QuickerAgentLaunchService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\QuickerAgentKillService.cs" Link="Shared\QuickerAgentKillService.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\LauncherQueryParser.cs" Link="Shared\LauncherQueryParser.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionDocApiProbe.cs" Link="Shared\ActionDocApiProbe.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionDocFormParser.cs" Link="Shared\ActionDocFormParser.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionDocHttpClient.cs" Link="Shared\ActionDocHttpClient.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Costura.Fody">

@@ -4,6 +4,8 @@
 
 Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让外部命令行调用 Quicker 内能力。
 
+接 Agent/GUI/qkrpc 功能任务时，先按 [`docs/agents/README.md`](docs/agents/README.md) 的关键词定位功能域，再进入代码；产品状态以 [`docs/product/README.md`](docs/product/README.md) 为准。
+
 ## Quick routing（改什么 → 做什么）
 
 | 改了什么 | Agent 必做 | 不要 |
@@ -167,7 +169,8 @@ RPC 产品树：`QuickerRpc/`（打开 `QuickerRpc/QuickerRpc.slnx`）。`agent-
 
 - [README.md](README.md) — 安装、架构、人类快速开始
 - [docs/README.md](docs/README.md) — 文档总索引（按角色选入口）
-- [docs/ROADMAP.md](docs/ROADMAP.md) — QuickerAgent 路线图
+- [docs/product/README.md](docs/product/README.md) — 产品能力、状态与规划缺口
+- [docs/agents/README.md](docs/agents/README.md) — Coding Agent 任务路由
 - [agent-gui/README.md](agent-gui/README.md) — QuickerAgent 开发与发布
 - [docs/quicker-agent.md](docs/quicker-agent.md) — QuickerAgent 产品说明
 - [docs/agent-mcp-integration.md](docs/agent-mcp-integration.md) — 第三方 Agent MCP 接入

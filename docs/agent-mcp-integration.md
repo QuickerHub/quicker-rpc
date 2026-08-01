@@ -192,7 +192,7 @@ QuickerAgent 默认走此路径；其他语言 Agent 可 HTTP 封装，无需 MC
 3. **磁盘编辑**：用宿主文件工具改 `.quicker/` → `workspace_program` action=patch；勿 inline patch。
 4. **连通失败**：用 `qkrpc_wait`，勿 shell 连环 ping。
 
-详见 [AGENTS.md](../AGENTS.md)、[docs/agent-tool-granularity.md](agent-tool-granularity.md)。
+详见 [AGENTS.md](../AGENTS.md) 与 [Agent 架构的工具规范](agent-architecture.md#6-工具规范)。
 
 ---
 

@@ -16,8 +16,8 @@ export {
 const SKILL_CATALOG_DESC_MAX = 72;
 
 /** agentskills.io tier 1 — compact name + description catalog for on-demand skills. */
-export async function formatSkillCatalogForPrompt(): Promise<string> {
-  const skills = await discoverAgentSkills();
+export async function formatSkillCatalogForPrompt(cwd?: string): Promise<string> {
+  const skills = await discoverAgentSkills(cwd);
   const onDemand = skills.filter(
     (s) =>
       !PRELOADED_SKILL_NAMES.some(
@@ -28,7 +28,7 @@ export async function formatSkillCatalogForPrompt(): Promise<string> {
 
   const lines = [
     "## On-demand skills",
-    "Match task → name; load via docs search/get or Read `.cursor/skills/<name>/SKILL.md`.",
+    "Match task → exact name, then call `skill_load`. Load reference files only when the skill asks for them.",
     "",
   ];
   for (const skill of onDemand) {

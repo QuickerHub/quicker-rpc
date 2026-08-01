@@ -12,10 +12,15 @@ internal static class QuickerV2TypeNames
     public const string ActionRuntimeLookupService = "Quicker.Domain.Services.Actions.ActionRuntimeLookupService";
     public const string ActionItem2Store = "Quicker.Domain.Services.ActionItem2Store";
     public const string ActionEditingStateService = "Quicker.Domain.Services.ActionEditingStateService";
+    public const string ProfileManager = "Quicker.Domain.Profiles.ProfileManager";
+    public const string ActionPageCommandService = "Quicker.Infrastructure.Data.Services.ActionPageCommandService";
+    public const string ActionDeleteCommandService = "Quicker.Domain.Services.ActionDeleteCommandService";
+    public const string FloatActionService = "Quicker.Domain.Floating.FloatActionService";
     public const string ActionItem2Extensions = "Quicker.Utilities.Extensions.ActionItem2Extensions";
 
     public const string ActionItem2 = "Quicker.Common.V2.ActionItem2";
     public const string ActionMetadata = "Quicker.Common.V2.ActionMetadata";
+    public const string OperationPresentation = "Quicker.Common.V2.OperationPresentation";
     public const string ActionPresentation = "Quicker.Common.V2.ActionPresentation";
     public const string OperationTypes = "Quicker.Common.V2.OperationTypes";
     public const string IOperationPayload = "Quicker.Common.V2.IOperationPayload";
@@ -34,4 +39,9 @@ internal static class QuickerV2TypeNames
     public const string ActionLocation = "Quicker.Domain.Services.ActionLocation";
     public const string IActionSearchService = "Quicker.Domain.Services.IActionSearchService";
     public const string IUserInfoService = "Quicker.Domain.Services.IUserInfoService";
+    public const string IApplicationSettingsService = "Quicker.Domain.Services.IApplicationSettingsService";
+    public const string IExeSettingsService = "Quicker.Domain.Services.IExeSettingsService";
+    public const string UserSettings2 = "Quicker.Common.V2.Settings.UserSettings2";
+    public const string ExeSettings2 = "Quicker.Common.V2.ExeSettings2";
+    public const string InternalState = "Quicker.Domain.Services.InternalState";
 }

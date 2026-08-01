@@ -1,8 +1,6 @@
 # compile-verify-loop
 
-大规模 ActionRuntime **编译 + mock** 验证队列。设计规格：
-
-[`docs/superpowers/specs/2026-06-14-actionruntime-compile-verify-loop-design.md`](../../docs/superpowers/specs/2026-06-14-actionruntime-compile-verify-loop-design.md)
+大规模 ActionRuntime **编译 + mock** 验证队列。本文是当前运行手册，状态以 case manifest 和命令输出为准。
 
 ## 命令
 

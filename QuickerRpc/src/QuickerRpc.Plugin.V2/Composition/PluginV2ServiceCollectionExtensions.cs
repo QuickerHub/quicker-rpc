@@ -30,6 +30,7 @@ public static class PluginV2ServiceCollectionExtensions
         services.AddSingleton<V2ActionDocHost>();
         services.AddSingleton<V2StepRunnerHost>();
         services.AddSingleton<V2ExpressionHost>();
+        services.AddSingleton<V2LauncherHost>();
         services.AddSingleton<V2QuickerRpcHost>();
         services.AddSingleton<IQuickerRpcHost>(sp => sp.GetRequiredService<V2QuickerRpcHost>());
 

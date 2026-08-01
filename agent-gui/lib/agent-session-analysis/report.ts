@@ -16,10 +16,10 @@ const OPTIMIZATION_MAP: Record<
   "token-baseline-high": {
     targets: [
       "agent-gui/lib/agent-harness/model-tool-definitions.ts",
-      "agent-gui/lib/tool-intent-filter.ts",
+      "agent-gui/lib/agent-core/turn-plan.ts",
       "docs/agent-gui-prompt-structure.md",
     ],
-    suggestion: "Slim tool definitions for action_authoring intent on first turn.",
+    suggestion: "Narrow TurnPlan full-schema bundles while keeping enabled capabilities discoverable.",
   },
   "docs-call-heavy": {
     targets: ["agent-gui/lib/agent-skills/prompt.ts", "docs/skills/quicker-authoring/"],
@@ -82,7 +82,7 @@ export function buildOptimizationHints(
         message: violation,
       },
       targets: ["docs/agent-authoring-benchmark.md", "agent-gui/lib/agent-eval/trace-rubric.ts"],
-      suggestion: "Fix agent flow to satisfy E-axis rubric; add regression in tool-intent-scenarios if systemic.",
+      suggestion: "Fix agent flow to satisfy E-axis rubric; add a turn-plan or trace-rubric regression if systemic.",
     });
   }
 

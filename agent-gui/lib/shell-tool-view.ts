@@ -184,7 +184,7 @@ export function parseShellToolView(output: unknown): ShellToolView | null {
         ? root.totalOutputChars
         : undefined;
   const readHint =
-    readString(modelRoot, "readHint")
+    (modelRoot ? readString(modelRoot, "readHint") : "")
     || readString(root, "readHint")
     || undefined;
 

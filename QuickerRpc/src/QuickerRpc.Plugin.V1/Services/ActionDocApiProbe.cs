@@ -18,7 +18,8 @@ internal static class ActionDocApiProbe
     public static async Task<JObject> ProbeAsync(
         string sharedActionId,
         string bearerToken,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<CancellationToken, Task<(bool Ok, string? Message, string? Token)>>? tempTokenProvider = null)
     {
         using var client = CreateApiClient(bearerToken);
         var sharedId = sharedActionId.Trim();
@@ -67,7 +68,7 @@ internal static class ActionDocApiProbe
                 cancellationToken)
             .ConfigureAwait(false);
 
-        var formProbe = await ProbeEditFormAsync(sharedId, cancellationToken).ConfigureAwait(false);
+        var formProbe = await ProbeEditFormAsync(sharedId, cancellationToken, tempTokenProvider).ConfigureAwait(false);
 
         return new JObject
         {
@@ -188,10 +189,18 @@ internal static class ActionDocApiProbe
         };
     }
 
-    private static async Task<JObject> ProbeEditFormAsync(string sharedId, CancellationToken cancellationToken)
+    private static async Task<JObject> ProbeEditFormAsync(
+        string sharedId,
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task<(bool Ok, string? Message, string? Token)>>? tempTokenProvider)
     {
-        var (tokenOk, tokenMessage, tempToken) = await WebConnectorTempTokenAccessor.GetTempTokenAsync()
-            .ConfigureAwait(false);
+        (bool tokenOk, string? tokenMessage, string? tempToken) = tempTokenProvider is not null
+            ? await tempTokenProvider(cancellationToken).ConfigureAwait(false)
+#if QKHOST_V2
+            : (false, "V2 temp-token provider unavailable.", null);
+#else
+            : await WebConnectorTempTokenAccessor.GetTempTokenAsync().ConfigureAwait(false);
+#endif
         if (!tokenOk || string.IsNullOrEmpty(tempToken))
         {
             return new JObject

@@ -190,6 +190,11 @@ public sealed class QuickerV2SavePathProbeTests
     {
         using var fs = File.OpenRead(dllPath);
         using var pe = new PEReader(fs);
+        if (!pe.HasMetadata)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
         var reader = pe.GetMetadataReader();
         var set = new HashSet<string>(StringComparer.Ordinal);
         foreach (var handle in reader.TypeDefinitions)

@@ -6,10 +6,6 @@ import {
   formatActionScopeForSystem,
   type ActionScopeHint,
 } from "@/lib/action-scope";
-import {
-  buildAgentRuntimeSnapshot,
-  type AgentRuntimeSnapshot,
-} from "@/lib/agent-runtime-snapshot";
 import { buildSystemInstructions } from "@/lib/instructions";
 import { formatIntentMatchedSkillsForPrompt } from "@/lib/agent-skills/skill-intent-preload";
 import {
@@ -42,7 +38,6 @@ export async function createChatSystemBuilder(params: {
   launcherUserText: string;
   modelId: string;
   repairedMessages: AgentUIMessage[];
-  runtimeSnapshot?: AgentRuntimeSnapshot;
   slashCommandName?: string | null;
   titleManual: boolean;
   titleTest: boolean;

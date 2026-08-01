@@ -28,9 +28,11 @@ describe("tool-execution-context", () => {
       chatMode: CHAT_MODE_AGENT,
       actionScope: { pinnedLatest: undefined, pinnedLatestAll: [] },
       threadId: "t1",
+      benchMode: true,
     });
     const als = toolExecutionContextToAgentRequest(ctx);
     assert.equal(als.threadId, "t1");
     assert.equal(als.artifactDir, AGENT_ARTIFACT_DIR);
+    assert.equal(als.benchMode, true);
   });
 });

@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
 import { prepareRemoteCipherPepper } from "./embed-remote-cipher-pepper.mjs";
@@ -34,6 +34,7 @@ const NODE_VERSION = process.env.DESKTOP_BUNDLE_NODE_VERSION
 const RIPGREP_VERSION = process.env.DESKTOP_BUNDLE_RIPGREP_VERSION
   ?? process.env.TAURI_RIPGREP_VERSION
   ?? "15.1.0";
+const ALLOWED_SHARP_PACKAGES = new Set(["colour", "sharp-win32-x64"]);
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, {
@@ -89,6 +90,36 @@ function stripNestedBundleArtifacts(appRoot) {
     }
   }
   stripCursorSdkDevArtifacts(appRoot);
+  stripUnsupportedSharpRuntimes(appRoot);
+}
+
+/**
+ * `pnpm install --force` installs Sharp's optional binaries for every platform.
+ * Next standalone tracing then copies all of them, adding roughly 200 MiB to a
+ * Windows x64 installer. Keep only the runtime pair used by this bundle.
+ */
+function stripUnsupportedSharpRuntimes(appRoot) {
+  const imgScope = join(appRoot, "node_modules", "@img");
+  if (!existsSync(imgScope)) return;
+
+  const removed = [];
+  for (const entry of readdirSync(imgScope, { withFileTypes: true })) {
+    if (ALLOWED_SHARP_PACKAGES.has(entry.name)) continue;
+    rmSync(join(imgScope, entry.name), { recursive: true, force: true });
+    removed.push(entry.name);
+  }
+
+  if (removed.length > 0) {
+    console.log(
+      `Removed ${removed.length} unsupported Sharp runtimes from staged Windows x64 app`,
+    );
+  }
+}
+
+function shouldCopyStandaloneEntry(source, standaloneRoot) {
+  const imgScope = join(standaloneRoot, "node_modules", "@img");
+  if (dirname(source) !== imgScope) return true;
+  return ALLOWED_SHARP_PACKAGES.has(basename(source));
 }
 
 /** Dev-only Cursor SDK runtime must never ship in desktop installers. */
@@ -380,7 +411,10 @@ export function stageNextStandalone(ctx) {
   }
   mkdirSync(appDir, { recursive: true });
 
-  cpSync(standaloneSrc, appDir, { recursive: true });
+  cpSync(standaloneSrc, appDir, {
+    recursive: true,
+    filter: (source) => shouldCopyStandaloneEntry(source, standaloneSrc),
+  });
   stripNestedBundleArtifacts(appDir);
 
   const staticSrc = join(agentGuiRoot, ".next", "static");

@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage, ToolResultPart } from "ai";
 
 const PREVIEW_NOTE =
   "[older turn: tool output preview; re-run tool or Read if details needed]";
@@ -41,9 +41,9 @@ function findProtectedMessageIndex(
 }
 
 function previewToolResultOutput(
-  output: unknown,
+  output: ToolResultPart["output"],
   previewChars: number,
-): unknown {
+): ToolResultPart["output"] {
   const serialized = JSON.stringify(output ?? null);
   if (serialized.length <= previewChars) return output;
 
@@ -67,10 +67,13 @@ function previewToolResultOutput(
   }
 
   return {
-    preview: true,
-    note: PREVIEW_NOTE,
-    bytesOmitted: serialized.length - previewChars,
-    tailPreview: serialized.slice(-previewChars),
+    type: "json",
+    value: {
+      preview: true,
+      note: PREVIEW_NOTE,
+      bytesOmitted: serialized.length - previewChars,
+      tailPreview: serialized.slice(-previewChars),
+    },
   };
 }
 

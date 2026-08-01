@@ -47,7 +47,7 @@ async function fetchOk(url, timeoutMs = 2500) {
 }
 
 async function hasRunningFrontend() {
-  return fetchOk(pingUrl) || fetchOk(baseUrl);
+  return fetchOk(pingUrl);
 }
 
 function shouldReuseExistingDev() {

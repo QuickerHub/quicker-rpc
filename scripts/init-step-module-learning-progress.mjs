@@ -94,7 +94,7 @@ async function main() {
     version: 1,
     goal:
       "Learn every step-runner module (kc + step-runner get + optional live run) and distill into authored/<id>.md per SPEC.md, or record skip reason when get suffices",
-    plan: "docs/superpowers/plans/2026-06-13-step-module-learning.md",
+    workflow: "docs/authoring-references/learning-workflow.md",
     updatedAt: new Date().toISOString(),
     batchSize,
     modules,

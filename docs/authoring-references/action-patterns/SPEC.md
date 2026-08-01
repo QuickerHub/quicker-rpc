@@ -19,7 +19,37 @@
 
 ## 3. 结构
 
-见 [`docs/superpowers/plans/2026-06-13-quicker-action-authoring-learning.md`](../../superpowers/plans/2026-06-13-quicker-action-authoring-learning.md) §6。
+```markdown
+# <中文标题>
+
+> **场景**：… · **难度**：S/M/L · **exemplar**：[动作名](sharedId 或 local id)
+
+## 何时用
+
+≤3 行：任务特征，与相近 pattern 的差异。
+
+## 步骤骨架
+
+有序列表（模块 key + 职责），非完整 patch。
+
+## 变量约定
+
+输入/中间/输出变量命名建议。
+
+## 示例动作
+
+链接 1–2 个标杆；可选最小 `__pattern_learning__` 片段（≤25 行 JSON）。
+
+## 陷阱
+
+≤5 行：仅动作级（非单模块）问题。
+
+## 相关
+
+authored refs · workflow topics · 其他 pattern
+```
+
+维护流程见 [`../learning-workflow.md`](../learning-workflow.md)。
 
 ## 4. 信息源
 

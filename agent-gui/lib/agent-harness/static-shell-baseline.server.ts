@@ -14,7 +14,6 @@ import { isPreloadedSkillBodyInPromptEnabled } from "@/lib/agent-skills/prompt-c
 import { isWorkspaceRulesFullInPromptEnabled } from "@/lib/agent-defs/workspace-instructions-format";
 import { isToolResultAgentViewCompressionEnabled } from "@/lib/tool-result-agent-view";
 import { defaultEnabledToolIds } from "@/lib/tool-registry";
-import { buildAgentRuntimeSnapshot } from "@/lib/agent-runtime-snapshot";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import {
@@ -83,7 +82,7 @@ async function collectSystemSegments(
       );
     }
 
-    const catalog = await formatSkillCatalogForPrompt();
+    const catalog = await formatSkillCatalogForPrompt(cwd);
     if (catalog) {
       segments.push(
         segmentFromText("skills-available", "Available skills catalog", catalog),
@@ -186,13 +185,6 @@ export async function measureStaticShellBaseline(
       launcherUserText: authoringSampleUserText,
       modelId,
       repairedMessages: [],
-      runtimeSnapshot: buildAgentRuntimeSnapshot({
-        actionScope: { pinnedLatest: undefined, pinnedLatestAll: [] },
-        chatMode,
-        enabledToolIds,
-        messages: [],
-        userText: authoringSampleUserText,
-      }),
       titleManual: true,
       titleTest: false,
     });
@@ -202,13 +194,10 @@ export async function measureStaticShellBaseline(
       chatMode,
       enabledToolIds,
       titleTest: false,
-      userText: authoringSampleUserText,
-      actionScope: { pinnedLatest: undefined, pinnedLatestAll: [] },
     });
     const fullSchemaToolIds = resolveFullSchemaToolIdsForTurn({
       chatMode,
       enabledToolIds,
-      titleTest: false,
       userText: authoringSampleUserText,
       actionScope: { pinnedLatest: undefined, pinnedLatestAll: [] },
     });

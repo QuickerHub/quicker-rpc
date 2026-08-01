@@ -1,6 +1,4 @@
 import type { AgentUIMessage, ContextCompressionMetadata } from "@/lib/chat-types";
-import type { ChatMode } from "@/lib/chat-mode";
-import type { LlmSelection } from "@/lib/llm-selection";
 import type { ModelMessage } from "ai";
 
 export type TurnContextReportCategory = {
@@ -45,12 +43,4 @@ export type ChatPostBody = {
   /** True only for scoped Action Designer WebView embed (`embed=action-designer&entityId=…`). */
   designerEmbedScoped?: boolean;
   actionDesigner?: { entityId: string; isSubProgram?: boolean };
-};
-
-export type TurnRequest = ChatPostBody & {
-  chatMode: ChatMode;
-  cwd: string;
-  selection: LlmSelection;
-  titleTest: boolean;
-  benchMode: boolean;
 };

@@ -1,517 +1,70 @@
-# qkrpc 命令参考
+# qkrpc CLI 导航
 
-人类可读的 CLI 命令列表。机器可读版本：`qkrpc help --json`。
-
-当前版本：**0.4.3** · 命名管道：`QuickerRpc_Server_QRPC2026`
-
-## 通用约定
-
-| 项 | 说明 |
-|----|------|
-| `--json` | 结构化 stdout，适合脚本与 Agent |
-| 退出码 | `0` 成功，`1` 失败 |
-| `--timeout N` | 连接与 RPC 超时（秒），默认 10（step-runner 默认 30） |
-| `--no-bootstrap` | 跳过 `quicker:runaction` 自动拉起插件 |
-| stdin | 大 JSON 可用 `--patch-file -` / `--xaction-file -` |
-
-Agent 写动作流程：`guide get --topic authoring-workflow --json`（**勿**先 `ping`）  
-公共子程序：`guide get --topic subprogram-workflow --json`
-
----
-
-## 连接与指南
-
-### `qkrpc help`
-
-输出 CLI 自描述（Agent 优先读 `--json`）。
+命令、参数和示例的运行时事实源是：
 
 ```powershell
 qkrpc help --json
+qkrpc <command> --help
 ```
 
-### `qkrpc guide get`
+本文只保留命令族和安全工作流，不复制完整参数表。
 
-读取内置 ActionAuthoring 文档。
+## 约定
 
-```powershell
-qkrpc guide get --topic <id> [--json]
-```
+- 自动化与 Agent 使用 `--json`；成功退出码为 `0`，失败为 `1`。
+- 连接失败使用 `qkrpc wait --json`，不要循环调用 shell probe。
+- 大 JSON 使用 `--patch-file`、`--xaction-file` 或磁盘项目，不放在命令行参数中。
+- 动作编写先读 `qkrpc guide get --topic authoring-workflow --json`。
+- step 参数固定走 `step-runner search -> step-runner get`，禁止猜键名。
 
-常用 topic：`authoring-workflow`、`patch-workflow`、`step-runner-search`、`implementation-fallback`
+## 命令族
 
-### `qkrpc guide search`
+| 命令族 | 用途 |
+|---|---|
+| `help`、`wait`、`serve` | 自描述、连接等待、HTTP 服务 |
+| `agent setup`、`mcp` | Agent 插件/MCP 安装与 stdio server |
+| `guide`、`step-runner` | 动作编写指南和步骤 schema |
+| `action` | 创建、查询、workspace 同步、运行、调试、分享 |
+| `subprogram` | 全局子程序查询、workspace 同步和分享 |
+| `profile`、`process` | Quicker 动作页与虚拟场景布局 |
+| `settings`、`launcher` | 设置读写、打开设置页、统一意图解析 |
+| `trigger` | 事件触发器查询与维护 |
+| `chrome` | 通过 Quicker Connector 控制用户浏览器 |
 
-```powershell
-qkrpc guide search [--query <keyword>] [--limit 10] [--json]
-```
+## 本地编写工作流
 
----
-
-## 动作：创建与读写
-
-### `qkrpc action create`
-
-无头创建 XAction。自动使用 `@qkrpc` 虚拟动作页（页满自动扩页）；Agent 创建的动作不在 Quicker 场景树中显示，用 `action list --scope agent` 查找。
-
-```powershell
-qkrpc action create [--title <text>] [--description <text>] [--icon <spec>] [--profile-id <guid>] [--json]
-```
-
-返回 `actionId`、`editVersion`、`profileName`、`exeFile` 等。
-
-### `qkrpc action get`
-
-读取压缩 XAction 程序。
+Coding Agent 优先使用 MCP 的同名能力；CLI 示例用于人工诊断和脚本：
 
 ```powershell
-qkrpc action get --id <guid> [--return-mode full|structure|metadata] [--json]
-```
+qkrpc wait --json
+qkrpc guide get --topic authoring-workflow --json
 
-| return-mode | 用途 |
-|-------------|------|
-| `structure` | 步骤树、stepId，无 inputParams |
-| `full` | 写 patch 前读非默认参数 |
-| `metadata` | 标题、步骤概要 |
-
-**Action Designer 已打开**且 id 匹配时，从设计器内存读取（含未保存草稿）；响应 `readSource` 为 `action-designer`，否则为 `catalog`。详见 [action-designer-agent-routing.md](action-designer-agent-routing.md)。
-
-### `qkrpc action patch`
-
-局部 patch。**设计器未打开**时一次调用 = 一次 catalog 保存；**设计器已打开**时写入设计器内存（`persisted: false`，需在 Quicker 点保存才落库）。
-
-Patch JSON 除 `steps` / `variables` 外，可在**同一 patch** 中附带元数据：`title`、`description`、`icon`、`contextMenuData`（省略的键不修改；`description` / `icon` 可传空字符串清空）。设计器打开时 metadata 与 program 均支持。
-
-```powershell
-qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]
-```
-
-响应含 `readSource`、`appliedToDesigner`、`persisted`、`presentationUpdated`；设计器模式成功时 `warnings` 含 `applied_to_action_designer_memory; save in Quicker to persist to catalog`。
-
-仅改图标示例：
-
-```powershell
-qkrpc action patch --id <guid> --patch "{\"icon\":\"fa:Light_Flask\"}" --expected-edit-version <N> --json
-```
-
-### `qkrpc action set-metadata`
-
-只更新动作的**标题 / 说明 / 图标**，不修改步骤与变量程序体。
-
-```powershell
-qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <fa:spec|url>] [--expected-edit-version N] [--force] [--json]
-```
-
-| 选项 | 说明 |
-|------|------|
-| `--title` | 新标题（不可传空） |
-| `--description` | 新说明；空字符串清空 |
-| `--icon` | `fa:Light_AddressBook` / `fa:Light_AddressBook:#3b82f6`（枚举见 `fa search`），或绝对 `http(s)://` 图片 URL（恢复设计器图片图标时原样写回） |
-
-### `qkrpc action replace`
-
-整体替换 steps/variables。
-
-```powershell
-qkrpc action replace --id <guid> --xaction-file <path|-> [--expected-edit-version N] [--force] [--json]
-```
-
----
-
-## 动作：搜索与列表
-
-### `qkrpc serve`
-
-本机桥接服务，**维持一条到 Quicker 命名管道的连接**，供 agent-gui 调用（避免每次 `spawn qkrpc`）。
-
-```powershell
-qkrpc serve [--host 127.0.0.1] [--port 9477] [--timeout 120] [--no-bootstrap]
-```
-
-| 端点 | 说明 |
-|------|------|
-| `GET http://127.0.0.1:9477/health` | 管道连通性（`Ping` + 协议版本） |
-| `GET http://127.0.0.1:9477/openapi.json` | OpenAPI 3.1 描述（HTTP 自建 Agent） |
-| `POST http://127.0.0.1:9477/v1/invoke` | JSON 体 `{ "op": "...", "args": { ... } }`（**agent-gui 默认**） |
-
-`op` 与 agent-gui 工具一致：`guide.get`、`action.list`、`action.patch`、`fa.search` 等。消息体契约见 `QuickerRpc.AgentModel/Protos/agent_api.proto`（仅生成 model，线上为 camelCase JSON）。
-
-离线导出 OpenAPI：
-
-```powershell
-qkrpc serve openapi --json
-qkrpc serve openapi --out openapi.json
-```
-
-### `qkrpc agent setup`
-
-在 Cursor / VS Code / Claude 等第三方 Agent 中一键接入 MCP + skills + rules（**默认用户级**）。
-
-```powershell
-qkrpc agent setup
-qkrpc agent setup --check
-qkrpc agent setup --check --json   # 机器可读校验报告
-qkrpc agent setup --upgrade
-qkrpc agent setup --all
-qkrpc agent setup --project
-qkrpc mcp install    # 向后兼容别名
-```
-
-`--check` 会校验 manifest 版本、MCP 配置路径、`qkrpc.exe` 是否一致，以及 skills/rules 是否已安装；失败时 stderr 列出修复命令。
-
-详见 [agent-mcp-integration.md](agent-mcp-integration.md)、[agent-skill-distribution.md](agent-skill-distribution.md)。
-
-### `qkrpc mcp`
-
-stdio MCP 服务（供 Cursor 等 MCP 宿主调用）。
-
-```powershell
-qkrpc mcp [--timeout 120] [--no-bootstrap]
-```
-
-### `qkrpc action list`
-
-列出/筛选本地 XAction（Agent 摘要）。
-
-```powershell
-qkrpc action list [--query <keyword|uses:SubName>] [--scope <scope>] [--limit 30] [--sort relevance|lastEdit|title] [--json]
-```
-
-无 `--query` 时默认 `--sort lastEdit`（全库按最后编辑时间取前 N 条）。有 `--query` 时默认按相关度排序。
-
-**引用查找**（查找调用了某公共子程序的动作）：
-
-```powershell
-qkrpc action list --query uses:CeaCore_Run --json
-qkrpc action search --query uses-only:CeaCore_Run --scope global --json
-```
-
-| 查询前缀 | 含义 |
-|----------|------|
-| `uses:<idOrName>` / `ref:<idOrName>` | 任一步调用该公共子程序（`sys:subprogram`） |
-| `uses-only:<idOrName>` | 所有步骤均为对该子程序的专用包装 |
-
-### `qkrpc action search`
-
-按 Quicker 主搜索框评分搜索；同样支持 `uses:` / `uses-only:` 引用查找。
-
-```powershell
-qkrpc action search --query <keyword|uses:SubName> [--scope <scope>] [--limit 20] [--json]
-```
-
-### `--scope` 取值
-
-| 值 | 含义 |
-|----|------|
-| `global` / `全局` | 全局面板 |
-| `common` / `通用` | 通用面板 |
-| `default` / `默认` | 默认面板 |
-| `chrome` / `chrome.exe` | 指定进程下的动作页（含附加通用页） |
-| `taskbar` / `desktop` | 任务栏 / 桌面 |
-| `agent` / `qkrpc` | qkrpc 自动创建的虚拟页 |
-| `_` 开头的 ExeFile（如 `_ceacore_run`） | 自定义虚拟进程（见 `process ensure`） |
-| 动作页 GUID 或名称 | 指定单个动作页 |
-
-列表/搜索响应含 `exeFile`、`profileName`、`profileId`。
-
-### `qkrpc process ensure`
-
-创建或确保 Quicker **虚拟进程**（场景与动作管理左侧自定义进程）及首个动作页。
-
-```powershell
-qkrpc process ensure --exe <key> --name <displayName> --profile-prefix "<prefix> " [--json]
-
-# 可选：将调用某公共子程序的动作迁入该虚拟页
-qkrpc process ensure --exe _ceacore_run --name "CeaCore Run" --profile-prefix "@CeaCore " `
-  --collect-subprogram CeaCore_Run --move-actions --json
-```
-
-| 参数 | 说明 |
-|------|------|
-| `--exe` | 虚拟进程键（ExeFile），建议 `_` 前缀，如 `_my_app` |
-| `--name` | 左侧列表显示名 |
-| `--profile-prefix` | 动作页名前缀（会自动加 `001` 序号） |
-| `--collect-subprogram` | 与 `--move-actions` 联用：要归集的公共子程序 id/名 |
-| `--move-actions` | 迁移匹配动作到新建页（需 `--collect-subprogram`） |
-| `--move-any` | 默认仅迁移「专用包装」动作；加此开关则迁移任一步调用者 |
-
-查找调用方：`qkrpc action search --query uses:<SubName> --json`
-
----
-
-## 动作：运维
-
-### `qkrpc action run`
-
-```powershell
-qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json]
-qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]
-```
-
-| 模式 | 参数 | 说明 |
-|------|------|------|
-| 直接运行 | （默认） | 触发动作；`--wait` 等待结束 |
-| 终端调试 | `--trace` | 插件侧 XAction 结构化输出（步骤/输入/输出/变量/耗时）；与 `--debug` **互斥** |
-| 内联程序 trace | `--xaction` / `--xaction-file` + `--trace` | 不保存 Quicker 动作，直接运行 steps/variables JSON（与 `--id` 互斥） |
-| Quicker 调试器 | `--debug` | 打开 Quicker 原生步骤调试 UI；与 `--trace` **互斥** |
-
-**agent-gui（QuickerAgent）对应关系**（Agent 工具 `qkrpc_action`，非 CLI 子命令）：
-
-| 工具 `action` | 等价 CLI | 说明 |
-|---------------|----------|------|
-| `run` | `action run` | 直接运行 |
-| `debug` | `action run --trace` | 逐步终端调试；侧栏时间线；需要步骤输出时用 **debug**，不要用 run |
-
-旧写法 `{ action: "run", trace: true }` / `{ action: "trace" }` 会自动归一化为 `debug`。CLI 的 `--debug`（Quicker 调试器）**未**暴露给 Agent 工具。
-
-serve SSE：`POST /v1/action/trace/stream`（agent-gui 调试流与 MCP 共用）。
-
-### `qkrpc action edit`
-
-打开 Quicker 动作设计器 UI。
-
-```powershell
-qkrpc action edit --id <guid> [--json]
-```
-
-### `qkrpc action edit-var`
-
-通过无头 patch 修改变量默认值（支持本地动作与公共子程序，不打开设计器）。
-
-```powershell
-qkrpc action edit-var --id <id> --var <key> --value <val> [--json]
-```
-
-### `qkrpc action publish`
-
-分享或更新 getquicker 动作库条目（自动判断首次分享 vs 更新已有分享）。
-
-```powershell
-# 首次分享（需 title + description，可用动作元数据默认值）
-qkrpc action publish --id <localActionGuid> [--title <text>] [--description <text>] [--html-file <path>] [--tags a,b] [--private] [--json]
-
-# 更新已分享动作（changelog 必填）
-qkrpc action publish --id <localOrSharedGuid> --changelog "v1.1: 修复超时" [--json]
-```
-
-Agent 工作流详见 `qkrpc guide get --topic action-publish-workflow --json`。
-
-### `qkrpc action update`
-
-`action publish` 的别名（更新路径；须 `--changelog`）。
-
-```powershell
-qkrpc action update --id <sharedActionGuid> [--changelog <text>] [--json]
-```
-
-### `qkrpc action delete`
-
-```powershell
-qkrpc action delete --id <guid> --yes [--json]
-```
-
----
-
-## 步骤类型（StepRunner）
-
-### `qkrpc step-runner search`
-
-搜索步骤类型目录。空格 AND（无结果时自动 OR 回退）；`|` 显式分支；`*` 通配。
-
-```powershell
-qkrpc step-runner search --query <keyword> [--limit 40] [--json]
-```
-
-### `qkrpc step-runner get`
-
-**Agent 专用**：压缩 schema（无 `icon`、省略冗余 control 选项）。**写 patch 的 inputParams 前必查**，禁止猜键名。
-
-```powershell
-qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]
-```
-
-### `qkrpc step-runner get-ui`
-
-**前端 action-editor 专用**：完整 schema（含 `icon`、control 枚举选项）。**不要**给 LLM 工具用。
-
-```powershell
-qkrpc step-runner get-ui --key <stepRunnerKey> [--control-field <value>] [--json]
-```
-
----
-
-## Font Awesome 图标
-
-> **Agent 编辑链路**：`qkrpc guide get --topic overview --json`（P0–P7）→ `authoring-workflow`。图标：`fa search` + `action set-metadata` / patch 顶层 `icon`。
-
-### `qkrpc fa search`
-
-在 Quicker 已加载的 Font Awesome 目录中搜索图标。
-
-**默认（压缩）**：Solid/Regular/Light 同图形合并为 **`Light_{图形id}`**；品牌为 **`Brands_{图形id}`**。`names[]` 为枚举名；写入时用 **`fa:{enumName}`** 或 **`fa:{enumName}:{#color}`**。
-
-**`--expand`**：不合并，返回全部样式行（`Solid_*`、`Regular_*`、`Light_*` …）。`--all-styles` 同义。
-
-```powershell
-qkrpc fa search [--query <keyword>] [--limit 40] [--expand] [--json]
-```
-
-| 模式 | 说明 |
-|------|------|
-| 默认 | `Light_*` + `Brands_*`，每图形一条 |
-| `--expand` | 全部样式枚举名 |
-| `address book` | 默认 → `["Light_AddressBook"]`；expand → Solid/Regular/Light 各行 |
-
-JSON 默认：`{ "names": ["Light_AddressBook"], "defaultStyle": "Light", "expand": false }` → 写入 `fa:Light_AddressBook` 或 `fa:Light_AddressBook:#rrggbb`  
-JSON expand：`{ "names": ["Solid_AddressBook", "Regular_AddressBook", "Light_AddressBook"], "expand": true }`
-
----
-
-## 子程序
-
-### `qkrpc subprogram search` / `list`
-
-搜索或列出公共子程序。响应含 **`callIdentifier`**（供 `sys:subprogram` 步骤使用）。
-
-```powershell
-qkrpc subprogram search --query <keyword> [--limit 20] [--json]
-qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]
-```
-
-**引用查找与来源过滤**（与 `action list/search` 对齐）：
-
-```powershell
-qkrpc subprogram search --query uses:CeaCore_Run --json       # 哪些公共子程序调用了它
-qkrpc subprogram search --query uses-only:CeaCore_Run --json  # 所有步骤均为对它的专用包装
-qkrpc subprogram search --query "source:published" --json     # 已分享（有 sharedId）
-qkrpc subprogram search --query "source:local 关键词" --json   # 未分享 + 关键词
-qkrpc subprogram search --query shared:<sharedId> --json      # 按 sharedId 精确查找
-```
-
-| 查询前缀 | 含义 |
-|----------|------|
-| `uses:<idOrName>` / `ref:<idOrName>` | 任一步调用该公共子程序（`sys:subprogram`） |
-| `uses-only:<idOrName>` | 所有步骤均为对该子程序的专用包装 |
-| `source:published` / `source:local` | 已分享 / 未分享 |
-| `shared:<sharedId>` | 按分享库 id 查找 |
-
-> 查找调用某子程序的**动作**用 `qkrpc action search --query uses:<SubName>`；本命令查找的是调用它的**其他公共子程序**。`source:library` 仅动作支持。
-
-### `qkrpc subprogram create`
-
-```powershell
-qkrpc subprogram create --name <name> [--description <text>] [--icon <spec>] [--json]
-```
-
-### `qkrpc subprogram get` / `patch` / `replace`
-
-无头读写公共子程序（patch 语法与 `action patch` 相同）。**Action Designer 已打开**时 get/patch 自动走设计器内存（`readSource`、`persisted` 等同 action）；见 [action-designer-agent-routing.md](action-designer-agent-routing.md)。
-
-```powershell
-qkrpc subprogram get --id <idOrName> [--return-mode full|structure|metadata] [--json]
-qkrpc subprogram patch --id <idOrName> --patch-file <path|-> [--expected-edit-version N] [--json]
-qkrpc subprogram replace --id <idOrName> --program-file <path|-> [--json]
-```
-
-### `qkrpc subprogram edit` / `edit-var` / `delete`
-
-```powershell
-qkrpc subprogram edit --id <idOrName> [--json]
-qkrpc subprogram edit-var --id <idOrName> --var <key> --value <val> [--json]
-qkrpc subprogram delete --id <idOrName> --yes [--json]
-```
-
-在动作中调用公共子程序：见 [subprogram-workflow](action-authoring/subprogram-workflow.md) 或 `guide get --topic subprogram-workflow --json`。
-
----
-
-## 事件触发器（自动化）
-
-通过事件（窗口/进程/剪贴板/文件/定时等）自动运行动作，对应 Quicker 设置中的「场景 → 事件动作」（`UserSettings.TriggerTasks`）。保存后 Quicker 会自动重载所有触发监控器，立即生效。
-
-### `qkrpc trigger events`
-
-列出支持的事件类型、每个事件可用的 `params` 键（含说明/类型/默认值）以及事件输出变量（可在动作中接收、用于 `--filter` 过滤表达式）。**add/update 前必查**，事件类型与参数键均大小写敏感。
-
-```powershell
-qkrpc trigger events [--event FileSystemChange] [--json]
-```
-
-### `qkrpc trigger list`
-
-```powershell
-qkrpc trigger list [--query <keyword>] [--event WindowActivated] [--json]
-```
-
-### `qkrpc trigger add` / `update`
-
-`update` 仅修改提供的选项；`--params` 整体替换事件参数（JSON object）。
-
-```powershell
-qkrpc trigger add --event ProcessStarted --action <actionIdOrName> `
-  --params '{"ProcessName":"notepad"}' [--note <text>] [--action-param <text>] `
-  [--filter <expr>] [--debounce ms] [--throttle ms] [--delay ms] `
-  [--skip-further] [--machines <names>] [--disabled] [--json]
-
-qkrpc trigger update --id <guid> [--params '{...}'] [--enabled|--disabled] [--note <text>] [--json]
-```
-
-### `qkrpc trigger enable` / `disable` / `delete`
-
-```powershell
-qkrpc trigger enable --id <guid> [--json]
-qkrpc trigger disable --id <guid> [--json]
-qkrpc trigger delete --id <guid> [--json]
-```
-
-serve / MCP：`trigger.list` / `trigger.events` / `trigger.save` / `trigger.delete` / `trigger.enable` / `trigger.disable`；MCP 工具 `quicker_trigger`。Agent 工作流：`docs get --topic trigger-workflow`（或 `docs({ action: "get", topic: "trigger-workflow" })`）。
-
----
-
-## 诊断（可选）
-
-### `qkrpc ping`
-
-手动检测插件是否在线（**非** Agent 编辑链路步骤；agent-gui 用 `serve` + `/health` 或页头状态）。
-
-```powershell
-qkrpc ping [--json] [--timeout 10] [--no-bootstrap]
-```
-
----
-
-## 常用示例
-
-```powershell
-# 环境（推荐）
-qkrpc help --json
-qkrpc serve   # 另开终端；GET http://127.0.0.1:9477/health
-
-# 新建动作（Agent）
-qkrpc action create --title "我的动作" --json
-
-# 在 Chrome 场景下搜索
-qkrpc action search --scope chrome --query "复制" --json
-
-# 列出 agent 虚拟页上的动作
-qkrpc action list --scope agent --json
-
-# 无头写动作
 qkrpc action get --id <guid> --return-mode full --json
-qkrpc step-runner get --key sys:MsgBox --json
-qkrpc fa search --query "clipboard" --json
-qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
+qkrpc action apply --dir .quicker/actions/<project> --json
+qkrpc action run --id <guid> --wait --json
 
-# 运行与发布
-qkrpc action run --id "我的动作" --wait --json
-qkrpc action update --id <sharedGuid> --changelog "说明" --json
+qkrpc subprogram get --id <idOrName> --return-mode full --json
+qkrpc subprogram apply --dir .quicker/subprograms/<project> --json
 ```
 
----
+磁盘程序体由宿主文件工具修改，再用 `workspace_program patch` 或对应 `apply` 保存；
+不要把 inline steps JSON 直接传给工具，也不要在 patch 后再次 full get。
 
-## 安装 CLI
+## 分享与危险操作
 
-从 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 下载 **`qkrpc-win-x64-setup.exe`** 并运行（推荐）。
+- 只有用户明确要求发布时才执行 `action publish` 或 `subprogram publish`。
+- 更新已分享内容必须提供 changelog；子程序不能用 `action update` 更新。
+- 删除、覆盖、强制写入前先核对准确 id、目标和 `editVersion`。
+- 公开动作库搜索与 shared get 是只读发现，不等于本地安装或修改权限。
 
-安装后新开终端。插件需在本机 Quicker 中加载 [QuickerRpc 分享动作](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe) 并至少运行一次。
+```powershell
+qkrpc action publish --id <guid> --preflight --json
+qkrpc action publish --id <guid> --changelog "..." --json
 
-更多见 [README](../README.md) 与 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases)。
+qkrpc subprogram publish --id <idOrName> --preflight --json
+qkrpc subprogram publish --id <idOrName> --changelog "..." --json
+```
+
+动作编写的程序结构、表达式与文件引用以生成指南为准：
+[`action-authoring/README.md`](action-authoring/README.md)。外部 Agent 接入见
+[`agent-mcp-integration.md`](agent-mcp-integration.md)。

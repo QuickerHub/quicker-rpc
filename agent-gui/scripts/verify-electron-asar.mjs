@@ -2,14 +2,20 @@
  * Post-build guard: app.asar must stay a thin Electron shell (not duplicate Next deps).
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const distRoot = join(agentGuiRoot, "electron", "dist", "win-unpacked", "resources");
+const configuredOutputDir = process.env.ELECTRON_BUILDER_OUTPUT_DIR?.trim();
+const outputDir = configuredOutputDir
+  ? isAbsolute(configuredOutputDir)
+    ? configuredOutputDir
+    : join(agentGuiRoot, configuredOutputDir)
+  : join(agentGuiRoot, "electron", "dist");
+const distRoot = join(outputDir, "win-unpacked", "resources");
 
 const MAX_ASAR_BYTES = 40 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 5 * 1024 * 1024;

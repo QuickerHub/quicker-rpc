@@ -48,14 +48,26 @@ function Test-DevAgentGuiFrontendHealthy {
         [int]$TimeoutSec = 3
     )
     $base = "http://${BindHost}:$Port"
-    foreach ($path in @('/api/ping', '/')) {
-        try {
-            $resp = Invoke-WebRequest -Uri "$base$path" -UseBasicParsing -TimeoutSec $TimeoutSec
-            if ($resp.StatusCode -eq 200) { return $true }
-        }
-        catch { continue }
+    try {
+        $resp = Invoke-WebRequest -Uri "$base/api/ping" -UseBasicParsing -TimeoutSec $TimeoutSec
+        return $resp.StatusCode -eq 200
     }
-    return $false
+    catch { return $false }
+}
+
+function Get-DevAgentGuiInfoPort {
+    param([string]$AgentGuiRoot)
+    $infoPath = Join-Path $AgentGuiRoot '.local/dev-server.json'
+    if (-not (Test-Path -LiteralPath $infoPath)) { return $null }
+    try {
+        $info = Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
+        $port = 0
+        if ([int]::TryParse([string]$info.port, [ref]$port) -and $port -gt 0) {
+            return $port
+        }
+    }
+    catch { }
+    return $null
 }
 
 function Get-DevAgentGuiBundler {
@@ -253,12 +265,12 @@ function Invoke-DevDesktopLauncherCore {
     if (-not $NoReuse) {
         $portListening = Test-DevAgentGuiPortListening -Port $devPort
         $frontendHealthy = Test-DevAgentGuiFrontendHealthy -Port $devPort
-        $devInfoPath = Join-Path $agentGui '.local/dev-server.json'
-        $hasDevInfo = Test-Path -LiteralPath $devInfoPath
+        $devInfoPort = Get-DevAgentGuiInfoPort -AgentGuiRoot $agentGui
+        $hasDevInfoForPort = $devInfoPort -eq $devPort
         if ($frontendHealthy) {
             $reuseDev = $true
         }
-        elseif ($portListening -and $hasDevInfo) {
+        elseif ($portListening -and $hasDevInfoForPort) {
             Write-Host "Port $devPort is up but still compiling; waiting for frontend health..." -ForegroundColor DarkGray
             foreach ($attempt in 1..30) {
                 Start-Sleep -Seconds 2
@@ -276,8 +288,10 @@ function Invoke-DevDesktopLauncherCore {
             $devPort = Resolve-DevAgentGuiPortAvoidingProduction -PreferredPort $devPort
         }
         elseif ($portListening) {
-            Write-Warning "Port $devPort is in use but not a healthy agent-gui dev — stopping stale listener."
-            $stalePortOnly = $true
+            $occupiedPort = $devPort
+            $devPort = Get-NextFreeDevAgentGuiPort -StartPort ($occupiedPort + 1)
+            $env:AGENT_GUI_PORT = [string]$devPort
+            Write-Host "Port $occupiedPort belongs to another app; agent-gui dev will use :$devPort." -ForegroundColor DarkCyan
         }
     }
 
