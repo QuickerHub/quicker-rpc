@@ -6,7 +6,6 @@ export const BENCH_EXPORT_NOTICE_HEADING = "QuickerBench 对话已导出";
 
 export function buildBenchExportNoticeText(
   result: ChatThreadExportResult,
-  options?: { mockSummary?: string | null },
 ): string {
   const lines = [
     `**${BENCH_EXPORT_NOTICE_HEADING}**`,
@@ -16,9 +15,6 @@ export function buildBenchExportNoticeText(
   ];
   if (result.exportsDirectory) {
     lines.push(`- 目录：\`${result.exportsDirectory}\``);
-  }
-  if (options?.mockSummary) {
-    lines.push(`- Mock：${options.mockSummary}`);
   }
   lines.push("", "可将 JSON 用于 session-analysis 或 Cursor 会话复盘。");
   return lines.join("\n");
@@ -39,7 +35,6 @@ export function isBenchExportNoticeMessage(
 export function appendBenchExportNotice(
   messages: AgentUIMessage[],
   result: ChatThreadExportResult,
-  options?: { mockSummary?: string | null },
 ): AgentUIMessage[] {
   const last = messages[messages.length - 1];
   if (last && isBenchExportNoticeMessage(last, result.path)) {
@@ -50,7 +45,7 @@ export function appendBenchExportNotice(
     {
       id: generateId(),
       role: "assistant",
-      parts: [{ type: "text", text: buildBenchExportNoticeText(result, options) }],
+      parts: [{ type: "text", text: buildBenchExportNoticeText(result) }],
     },
   ];
 }

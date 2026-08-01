@@ -1,8 +1,7 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
-import type { ActionRuntimeInvokeResult } from "@/lib/action-runtime-client";
 import type { ChatThreadExportResult } from "@/components/chat/ChatThreadExportDialog";
 
-export type QuickerBenchRunStatus = "idle" | "preparing" | "running" | "verifying" | "done" | "error";
+export type QuickerBenchRunStatus = "idle" | "preparing" | "running" | "done" | "error";
 
 export type QuickerBenchRunEntry = {
   id: string;
@@ -12,9 +11,7 @@ export type QuickerBenchRunEntry = {
   tier: string;
   status: QuickerBenchRunStatus;
   workspacePath?: string;
-  mockProfile?: string;
   actionId?: string;
-  mockVerify?: ActionRuntimeInvokeResult;
   exportResult?: ChatThreadExportResult;
   error?: string;
   chatMessages?: AgentUIMessage[];

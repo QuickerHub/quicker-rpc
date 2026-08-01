@@ -34,7 +34,7 @@ pwsh -NoProfile -File ./scripts/Invoke-CursorSdk.ps1 -Script install
 | 冒烟 + qkrpc MCP | `pwsh ./scripts/Invoke-CursorSdk.ps1 -WithQkrpc` |
 | 单条 benchmark | `pwsh ./scripts/Invoke-CursorSdk.ps1 -Script benchmark -TaskId discover-step-expr` |
 | L2 写动作 | `pwsh ./scripts/Invoke-CursorSdk.ps1 -Script benchmark -TaskId clip-lines-expr` |
-| L2 + mock F 轴 | `pwsh ./scripts/Invoke-CursorSdk.ps1 -Script benchmark -TaskId multi-var-assign -VerifyMock` |
+| L2 + 真实宿主 F 轴 | 先运行 benchmark，再用 `qkrpc action run --id <guid> --debug --wait --json` 验证 |
 | L2 主干批量 | `pwsh ./scripts/Invoke-CursorSdk.ps1 -Script benchmark-batch -Preset l2-core -Limit 3` |
 | JSON 结果 | 加 `-Json`；落盘 `.local/cursor-sdk/<task>-<ts>.json` |
 | 类型检查 | `pwsh ./scripts/Invoke-CursorSdk.ps1 -Script check` |
@@ -44,20 +44,18 @@ npm（已 dot-source env）：
 ```powershell
 . ./scripts/cursor-agent-env.ps1
 cd scripts/sdk
-npm run benchmark -- clip-lines-expr --verify-mock --json
+npm run benchmark -- clip-lines-expr --json
 npm run benchmark:batch -- --preset l2-core --limit 1
 ```
 
-## Mock 闭环（F 轴）
+## 真实 Quicker 验证（F 轴）
 
 ```powershell
-qkrpc action run --id <guid> --mock --mock-profile multi-var-assign --assert --json
-npm run benchmark -- multi-var-assign --verify-mock --json
+npm run benchmark -- multi-var-assign --json
+qkrpc action run --id <guid> --debug --wait --json
 ```
 
-MCP：`qkrpc_action_run(id, mode="mock", mockProfile="…", assert=true)`。
-
-Profile：`agent-gui/benchmarks/mock-profiles/`。规格：`docs/superpowers/specs/2026-06-13-agent-mock-verify-loop-design.md`。
+MCP 场景优先调用 `qkrpc_action_debug` 并检查真实步骤 trace 与返回值；表单、文件选择、窗口等交互任务在 Quicker UI 中验证。
 
 固定模型：`$env:CURSOR_SDK_MODEL = "composer-2.5"`（默认可 `auto`）。
 

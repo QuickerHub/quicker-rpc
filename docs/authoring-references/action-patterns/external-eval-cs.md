@@ -72,7 +72,7 @@ try {
 - **勿** `outputParams.isSuccess` 映射到业务 `ok`；业务 `ok` 仅在 eval.cs 内 `{ok}=`。
 - extract 拉取后若内联 `{}`，需改回 `expression.file` 再 apply。
 - trace 前用 `writeClipboard` 写入样本 JSON，避免剪贴板污染。
-- **ActionRuntime mock**：eval.cs 内 **Newtonsoft / System.Text.Json** 在 Z.Expressions 不可用；mock bench 用 `.local/ws-external-eval-bench/` 简化 formatter；live/trace 仍用 `.local/ws-external-eval/` + Newtonsoft。
+- **验证**：在真实 Quicker 宿主中运行 `.local/ws-external-eval/`，并检查合法/非法 JSON 两条分支。
 
 ## 相关
 

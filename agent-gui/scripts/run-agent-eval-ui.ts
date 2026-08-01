@@ -13,7 +13,6 @@ import { runAgentGuiUiEvalTaskById } from "@/lib/agent-eval/run-task-ui";
 function parseArgs(argv: string[]): {
   taskId: string;
   json: boolean;
-  verifyMock: boolean;
   judge: boolean;
   headed: boolean;
 } {
@@ -21,20 +20,19 @@ function parseArgs(argv: string[]): {
   const taskId = positional[0];
   if (!taskId) {
     throw new Error(
-      "Usage: pnpm agent-eval:ui -- <scenario-id> [--json] [--verify-mock] [--judge] [--headed]",
+      "Usage: pnpm agent-eval:ui -- <scenario-id> [--json] [--judge] [--headed]",
     );
   }
   return {
     taskId,
     json: argv.includes("--json"),
-    verifyMock: argv.includes("--verify-mock"),
     judge: argv.includes("--judge"),
     headed: argv.includes("--headed"),
   };
 }
 
 async function main(): Promise<void> {
-  const { taskId, json, verifyMock, judge, headed } = parseArgs(
+  const { taskId, json, judge, headed } = parseArgs(
     process.argv.slice(2),
   );
 
@@ -42,10 +40,7 @@ async function main(): Promise<void> {
     `agent-gui UI eval: scenario=${taskId} base=${defaultAgentGuiBaseUrl()} headless=${!headed}`,
   );
 
-  let report = await runAgentGuiUiEvalTaskById(taskId, {
-    verifyMock,
-    headless: !headed,
-  });
+  let report = await runAgentGuiUiEvalTaskById(taskId, { headless: !headed });
 
   if (judge && report.outPath) {
     const judged = runJudgeOnReport(report.outPath);
@@ -74,7 +69,7 @@ async function main(): Promise<void> {
     }
   }
 
-  if (!isAgentEvalReportPassing(report, { verifyMock, requireJudge: judge })) {
+  if (!isAgentEvalReportPassing(report, { requireJudge: judge })) {
     process.exitCode = 1;
   }
 }

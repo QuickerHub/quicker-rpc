@@ -32,7 +32,7 @@ Required fields: `thread`, `stats`, `messages[]` with assistant `tool-*` parts a
    - E-axis trace rubric: `agent-gui/lib/agent-eval/trace-rubric.ts`
 4. **Match** user prompt to `authoring-tasks.json` when possible.
 5. **Report** markdown + optimization hints mapped to repo paths.
-6. **Optional F-axis**: if action id known and task has `verify.mockProfile`, run `qkrpc action run --mock --assert`.
+6. **Optional F-axis**: if an action id is known, run it through the real Quicker host with `qkrpc action run --id <guid> --debug --wait --json` and inspect the trace/output.
 
 ## CLI (deterministic)
 
@@ -67,7 +67,7 @@ Exit code 1 when trace rubric fails or severity=error findings exist.
 ## Scoring reference
 
 - **E-axis (auto)**: `docs/agent-authoring-benchmark.md` — patch/get order, inline patch, step_runner_get
-- **A–D, F**: human or `pnpm agent-eval -- <task> --verify-mock --judge`
+- **A–D**: human or judge-assisted scoring; **F** requires real Quicker debug/trace or manual UI evidence
 - **Outcome oracle**: `docs/quickerbench-design.md` when task is IO-focused
 
 ## Optimization map (common findings)

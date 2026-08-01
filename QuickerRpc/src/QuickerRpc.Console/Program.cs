@@ -270,12 +270,6 @@ internal static partial class Program
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
             "run" => await RunActionRunAsync(options).ConfigureAwait(false),
-            "runtime-check" => await RunActionRuntimeCheckAsync(options).ConfigureAwait(false),
-            "runtime-compile" => await RunActionRuntimeCompileAsync(options).ConfigureAwait(false),
-            "runtime-benchmark" => await RunActionRuntimeBenchmarkAsync(options).ConfigureAwait(false),
-            "runtime-keys" => await RunActionRuntimeKeysAsync(options).ConfigureAwait(false),
-            "mock-profiles" => await RunActionMockProfilesAsync(options).ConfigureAwait(false),
-            "mock-trace-diff" => await RunActionMockTraceDiffAsync(options).ConfigureAwait(false),
             "float" => await RunActionFloatAsync(options).ConfigureAwait(false),
             "edit-var" => await RunActionEditVarAsync(options).ConfigureAwait(false),
             "shared-info-get" => await RunActionSharedInfoGetAsync(options).ConfigureAwait(false),
@@ -832,16 +826,6 @@ internal static partial class Program
 
     private static async Task<int> RunActionRunAsync(ActionOptions options)
     {
-        if (options.Mock)
-        {
-            return await RunActionMockAsync(options).ConfigureAwait(false);
-        }
-
-        if (options.Standalone)
-        {
-            return await RunActionStandaloneAsync(options).ConfigureAwait(false);
-        }
-
         var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
         var hasXAction = !string.IsNullOrWhiteSpace(options.XAction)
                          || !string.IsNullOrWhiteSpace(options.XActionFile);
@@ -1716,44 +1700,8 @@ public sealed class ActionOptions
     [Option("trace-file", HelpText = "Also write human-readable trace lines to a UTF-8 file (avoids PowerShell redirect encoding issues).")]
     public string? TraceFile { get; set; }
 
-    [Option("standalone", HelpText = "Run via Quicker.ActionRuntime (no Quicker process or RPC pipe).")]
-    public bool Standalone { get; set; }
-
-    [Option("mock", HelpText = "Run via ActionRuntime with deterministic mocks (benchmark verify).")]
-    public bool Mock { get; set; }
-
-    [Option("mock-profile", HelpText = "Mock profile id (agent-gui/benchmarks/mock-profiles/<id>.json).")]
-    public string? MockProfile { get; set; }
-
-    [Option("mock-profile-file", HelpText = "Explicit mock profile JSON file path.")]
-    public string? MockProfileFile { get; set; }
-
-    [Option("assert", HelpText = "Evaluate mock profile assertions (default when profile has assertions).")]
-    public bool Assert { get; set; }
-
-    [Option("package-file", HelpText = "ActionExecutionPackage JSON for standalone run/check/compile.")]
-    public string? PackageFile { get; set; }
-
     [Option("compressed-file", HelpText = "Quicker compressed XAction JSON (shared get / action get wire format).")]
     public string? CompressedFile { get; set; }
-
-    [Option("out", HelpText = "runtime-compile: write csharpScript to UTF-8 file.")]
-    public string? Out { get; set; }
-
-    [Option("script-out", HelpText = "runtime-compile: write intermediate JavaScript to UTF-8 file.")]
-    public string? ScriptOut { get; set; }
-
-    [Option("warmup", Default = 0, HelpText = "runtime-benchmark: warmup iterations before timing (default 3).")]
-    public int BenchmarkWarmup { get; set; }
-
-    [Option("iterations", Default = 0, HelpText = "runtime-benchmark: measurement iterations (default 20).")]
-    public int BenchmarkIterations { get; set; }
-
-    [Option("benchmark-force-gc", HelpText = "runtime-benchmark: force GC between JSON and C# timing.")]
-    public bool BenchmarkForceGc { get; set; }
-
-    [Option("verbose-host", HelpText = "Standalone: log IHostServices callbacks to stdout/stderr.")]
-    public bool VerboseHost { get; set; }
 
     [Option("wait", HelpText = "Wait for action completion and return ReturnResult.")]
     public bool Wait { get; set; }

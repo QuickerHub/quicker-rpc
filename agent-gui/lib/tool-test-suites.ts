@@ -115,6 +115,12 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
     input: { action: "search", query: "authoring workflow P1", limit: 3 },
   },
   {
+    toolName: "skill_load",
+    group: "docs",
+    input: { name: "quicker-authoring", offset: 0, limit: 1024 },
+    description: "Load the first page of a discovered skill",
+  },
+  {
     toolName: "quicker_knowledge_search",
     group: "docs",
     optional: true,

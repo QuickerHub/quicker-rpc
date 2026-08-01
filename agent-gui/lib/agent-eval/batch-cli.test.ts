@@ -21,7 +21,6 @@ describe("agent-eval batch-cli", () => {
         preset: "gui-smoke",
         limit: 2,
         json: true,
-        verifyMock: false,
         ui: true,
         headed: true,
       },
@@ -35,7 +34,6 @@ describe("agent-eval batch-cli", () => {
         "--tier",
         "l2",
         "clip-lines-expr",
-        "--verify-mock",
       ]),
       {
         ids: ["discover-step-expr", "clip-lines-expr"],
@@ -43,7 +41,6 @@ describe("agent-eval batch-cli", () => {
         preset: undefined,
         limit: undefined,
         json: false,
-        verifyMock: true,
         ui: false,
         headed: false,
       },

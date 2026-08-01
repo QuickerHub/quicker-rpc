@@ -4,7 +4,6 @@ export type AgentEvalBatchCliArgs = {
   preset?: string;
   limit?: number;
   json: boolean;
-  verifyMock: boolean;
   ui: boolean;
   headed: boolean;
 };
@@ -13,7 +12,6 @@ export function parseAgentEvalBatchArgs(
   argv: readonly string[],
 ): AgentEvalBatchCliArgs {
   const json = argv.includes("--json");
-  const verifyMock = argv.includes("--verify-mock");
   const ui = argv.includes("--ui");
   const headed = argv.includes("--headed");
   const tierIdx = argv.indexOf("--tier");
@@ -37,7 +35,6 @@ export function parseAgentEvalBatchArgs(
     preset,
     limit: Number.isFinite(limit) ? limit : undefined,
     json,
-    verifyMock,
     ui,
     headed,
   };

@@ -41,13 +41,13 @@ pnpm agent-eval -- discover-step-expr --json   # 或设置 AGENT_EVAL_LLM_SELECT
 | 场景 | 命令 |
 |------|------|
 | 冒烟（只读 L0） | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Preset smoke` |
-| **QuickerBench IO 核心** | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset quickerbench-core -VerifyMock` |
+| **QuickerBench IO 核心** | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset quickerbench-core` |
 | Launcher 栈 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset gui-launcher` |
 | GUI 冒烟 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset gui-smoke` |
 | agent-defs（slash / 子代理） | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset gui-agent-defs` |
 | Nightly 编排 | `pwsh ./scripts/Invoke-AgentEvalNightly.ps1 -Preset gui-smoke` |
 | 单条任务 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -TaskId discover-step-expr` |
-| L2 + mock F 轴 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -TaskId multi-var-assign -VerifyMock` |
+| L2 动作编写 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -TaskId multi-var-assign` |
 | LLM Judge | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -TaskId discover-step-expr -Judge` |
 | 批量 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script batch -Preset l2-core -Limit 1` |
 | 确定性单测 | `pwsh ./scripts/Invoke-AgentGuiEval.ps1 -Script test` |
@@ -75,8 +75,7 @@ pnpm agent-eval:ui -- launcher-open-hotkeys --headed
 
 1. **Run 状态** — stream 完成且有 assistant 消息
 2. **Trace rubric（E 轴）** — `lib/agent-eval/trace-rubric.ts` 确定性检查
-3. **Mock F 轴** — `--verify-mock` 时调用 `qkrpc action run --mock --assert`
-4. **LLM Judge（可选）** — `--judge` 时调用 `scripts/sdk` Cursor SDK 评委（需 `CURSOR_API_KEY`）
+3. **LLM Judge（可选）** — `--judge` 时调用 `scripts/sdk` Cursor SDK 评委（需 `CURSOR_API_KEY`）
 
 ### Launcher 场景 rubric（`expect.launcher`）
 

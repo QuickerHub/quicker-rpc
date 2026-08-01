@@ -37,10 +37,6 @@ export type QuickerBenchTask = {
     snapshot?: { capturedAt?: string; note?: string };
     note?: string;
   };
-  verify: {
-    mockProfile: string;
-    modes?: Array<"mock-oracle" | "compile-only">;
-  };
   skills: string[];
 };
 

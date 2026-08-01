@@ -2,7 +2,3 @@
 	path = voice-asr-runtime
 	url = https://github.com/QuickerHub/voice-asr-runtime.git
 	branch = master
-[submodule "Quicker.ActionRuntime"]
-	path = QuickerRpc/lib/Quicker.ActionRuntime
-	url = https://github.com/QuickerOrg/Quicker.ActionRuntime.git
-	branch = main

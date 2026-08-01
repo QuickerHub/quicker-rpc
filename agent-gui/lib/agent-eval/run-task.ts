@@ -13,13 +13,10 @@ import {
 } from "@/lib/agent-eval/chat-client";
 import { buildAgentEvalCapabilitySummary } from "@/lib/agent-eval/capability-summary";
 import { formatAgentEvalChatError } from "@/lib/agent-eval/eval-chat-error";
-import { runMockVerify } from "@/lib/agent-eval/mock-verify";
 import {
   extractAssistantText,
-  extractLastActionId,
   extractToolTrace,
 } from "@/lib/agent-eval/trace-extract";
-import { extractBenchActionIdFromMessages } from "@/lib/bench-mode";
 import { evaluateTraceExpect, mergeTraceRubrics } from "@/lib/agent-eval/trace-expect";
 import { evaluateTraceRubric } from "@/lib/agent-eval/trace-rubric";
 import type { AgentEvalJudgeResult, AgentEvalReport } from "@/lib/agent-eval/types";
@@ -28,14 +25,9 @@ function evalOutDir(): string {
   return join(defaultWorkspaceRoot(), ".local", "agent-eval");
 }
 
-function resolveMockProfile(scenario: AgentEvalScenario): string {
-  return scenario.mockProfile?.trim() || scenario.id;
-}
-
 export type RunAgentGuiEvalOptions = {
   baseUrl?: string;
   llmSelection?: string;
-  verifyMock?: boolean;
   skipTraceRubric?: boolean;
   judge?: AgentEvalJudgeResult;
 };
@@ -94,26 +86,6 @@ export async function runAgentGuiEvalScenario(
     traceRubric: report.traceRubric,
   });
 
-  if (options.verifyMock && !scenario.readOnly && status === "finished") {
-    const actionId =
-      extractBenchActionIdFromMessages(chat.messages)
-      ?? extractLastActionId(assistantText);
-    const profileId = resolveMockProfile(scenario);
-    if (actionId) {
-      report.mockVerify = runMockVerify({
-        actionId,
-        mockProfile: profileId,
-      });
-    } else {
-      report.mockVerify = {
-        ok: false,
-        profileId,
-      };
-      error = error ?? "mock verify skipped: no action id in assistant text";
-      report.error = error;
-    }
-  }
-
   if (options.judge) {
     report.judge = options.judge;
   }
@@ -137,13 +109,10 @@ export async function runAgentGuiEvalTaskById(
 
 export function isAgentEvalReportPassing(
   report: AgentEvalReport,
-  options: { verifyMock?: boolean; requireJudge?: boolean } = {},
+  options: { requireJudge?: boolean } = {},
 ): boolean {
   if (report.status !== "finished") return false;
   if (report.traceRubric && !report.traceRubric.passed) return false;
-  if (options.verifyMock && report.mockVerify && !report.mockVerify.ok) {
-    return false;
-  }
   if (options.requireJudge && report.judge && report.judge.passed === false) {
     return false;
   }

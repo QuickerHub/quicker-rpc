@@ -36,7 +36,7 @@
     "test:docs-search:eval": "tsx scripts/eval-docs-search.ts",
     "test:workspace-grep:eval": "tsx scripts/eval-workspace-grep.ts",
     "test:tool-suites": "tsx --test lib/tool-test-suites.test.ts",
-    "test:tools": "tsx --test lib/chat-tool-selection.test.ts lib/qkrpc-merged-tools.test.ts lib/qkrpc-subprogram-tool.test.ts lib/tool-registry.test.ts lib/tool-registry-snapshot.test.ts lib/tool-routing-registry.test.ts lib/tool-test-suites.test.ts lib/tool-test-chat-cleanup.test.ts lib/action-scope.test.ts",
+    "test:tools": "tsx --test lib/agent-tool-policy.test.ts lib/agent-tool-catalog.test.ts lib/agent-mcp/config.test.ts lib/agent-skills/content-page.test.ts lib/tool-model-output.test.ts lib/tool-result-model-messages.test.ts lib/chat-tool-selection.test.ts lib/qkrpc-merged-tools.test.ts lib/qkrpc-subprogram-tool.test.ts lib/tool-registry.test.ts lib/tool-registry-snapshot.test.ts lib/tool-routing-registry.test.ts lib/tool-test-suites.test.ts lib/tool-test-chat-cleanup.test.ts lib/action-scope.test.ts",
     "test:authoring-benchmark": "tsx --test lib/authoring-benchmark.test.ts lib/empty-chat-prompts.test.ts lib/agent-runtime-eval.test.ts lib/agent-runtime-sequence-eval.test.ts",
     "test:agent-eval": "tsx --test lib/agent-eval/batch-cli.test.ts lib/agent-eval/nightly-cli.test.ts lib/agent-eval/capability-summary.test.ts lib/agent-eval/trace-extract.test.ts lib/agent-eval/trace-rubric.test.ts lib/agent-eval/eval-scenario.test.ts lib/agent-eval/tool-test-ui-runner.test.ts lib/agent-eval/launcher-expect.test.ts lib/agent-eval/chat-stream.test.ts lib/agent-eval/eval-chat-error.test.ts lib/agent-harness/static-shell-baseline.test.ts lib/agent-harness/model-tool-definitions.test.ts lib/agent-harness/harness-preview.test.ts lib/agent-harness/tool-execution-context.test.ts",
     "measure:static-shell": "tsx scripts/measure-static-shell-tokens.ts",
@@ -78,7 +78,7 @@
     "prebuild": "pnpm docs:gen"
   },
   "dependencies": {
-    "@ai-sdk/mcp": "^2.0.22",
+    "@ai-sdk/mcp": "1.0.46",
     "@ai-sdk/openai": "^2.0.0",
     "@ai-sdk/openai-compatible": "^2.0.48",
     "@ai-sdk/react": "^3.0.195",

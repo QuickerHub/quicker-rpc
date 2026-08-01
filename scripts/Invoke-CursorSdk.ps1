@@ -24,9 +24,7 @@ param(
 
     [switch] $Minimal,
 
-    [switch] $Json,
-
-    [switch] $VerifyMock
+    [switch] $Json
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,7 +57,6 @@ try {
         'benchmark' {
             $args = @('run', 'benchmark', '--', $TaskId)
             if ($Json) { $args += '--json' }
-            if ($VerifyMock) { $args += '--verify-mock' }
             npm @args
         }
         'benchmark-batch' {

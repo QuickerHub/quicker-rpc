@@ -46,8 +46,8 @@ node scripts/action-authoring-learning-progress.mjs --next
 
 ### `sdk-benchmark`
 
-按 `agent-gui/benchmarks/authoring-tasks.json` 执行指定 task；存在 mock profile 时必须
-`assert=true` 通过，再记录 retro。
+按 `agent-gui/benchmarks/authoring-tasks.json` 执行指定 task；需要运行证据时必须通过
+真实 Quicker 宿主 debug/trace 或人工交互验证，再记录 retro。
 
 ## 硬规则
 
@@ -55,7 +55,7 @@ node scripts/action-authoring-learning-progress.mjs --next
 - 程序体在 `.quicker/` 磁盘编辑后走 `workspace_program patch`，禁止内联 steps JSON。
 - patch 后信任返回的 `editVersion`，禁止立即 full get。
 - 动作库/shared 只读；临时学习动作完成后删除。
-- 有 mock profile 时，mock assert 是完成和 skill 晋升的门槛。
+- 真实宿主运行证据是 F 轴完成和 skill 晋升的门槛。
 - 修改 `action-authoring-src/skills/` 后必须运行 `npm run docs:gen`。
 
 ## 完成一项 queue

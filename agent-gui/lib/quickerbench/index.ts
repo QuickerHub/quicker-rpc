@@ -3,7 +3,6 @@ export {
   loadQuickerBenchCatalog,
   loadQuickerBenchTask,
   QUICKERBENCH_CORE_TASK_IDS,
-  resolveQuickerBenchMockProfile,
   resolveQuickerBenchTaskIds,
   syncTaskOracleFromManifest,
   type FixtureManifest,

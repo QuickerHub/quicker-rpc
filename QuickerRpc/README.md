@@ -5,7 +5,6 @@ RPC 产品目录（插件 + `qkrpc` CLI + wire 技术栈）。打开 **`QuickerR
 ```text
 QuickerRpc/
   src/          # QuickerRpc.* 源码项目
-  lib/          # Quicker.ActionRuntime 子模块（Console 编译依赖）
   tests/        # 单元 / 集成测试
   build.yaml    # qkbuild 插件
   build.ps1     # 热更新（monorepo 根 build.ps1 转发至此）

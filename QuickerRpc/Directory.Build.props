@@ -3,15 +3,6 @@
     <RepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'version.json'))))</RepoRoot>
     <MonorepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(RepoRoot), 'Directory.Packages.props'))))</MonorepoRoot>
     <AppendAssemblyVersionFileNameSuffix Condition="'$(AppendAssemblyVersionFileNameSuffix)' == ''">true</AppendAssemblyVersionFileNameSuffix>
-    <QuickerActionRuntimeRootDefault>$([MSBuild]::EnsureTrailingSlash($(RepoRoot)lib\Quicker.ActionRuntime\))</QuickerActionRuntimeRootDefault>
-  </PropertyGroup>
-
-  <Import Project="$(MonorepoRoot)build\Quicker.ActionRuntime.Root.props" Condition="Exists('$(MonorepoRoot)build\Quicker.ActionRuntime.Root.props')" />
-
-  <!-- A user override may outlive its source checkout. Keep release and agent builds
-       reproducible by falling back to the repository submodule in that case. -->
-  <PropertyGroup Condition="!Exists('$(QuickerActionRuntimeRoot)Quicker.ActionRuntime.Integration\Quicker.ActionRuntime.Integration.csproj') and Exists('$(QuickerActionRuntimeRootDefault)Quicker.ActionRuntime.Integration\Quicker.ActionRuntime.Integration.csproj')">
-    <QuickerActionRuntimeRoot>$(QuickerActionRuntimeRootDefault)</QuickerActionRuntimeRoot>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">

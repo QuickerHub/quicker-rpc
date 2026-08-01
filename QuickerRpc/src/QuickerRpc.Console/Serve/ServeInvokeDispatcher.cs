@@ -86,11 +86,6 @@ internal static class ServeInvokeDispatcher
             "action.move" => await ActionMoveAsync(rpc, args, token).ConfigureAwait(false),
             "action.delete" => await ActionDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "action.run" => await ActionRunAsync(rpc, args, token).ConfigureAwait(false),
-            "action.runtime.run" => await ActionRuntimeServeOps.RunAsync(rpc, args, token).ConfigureAwait(false),
-            "action.runtime.check" => await ActionRuntimeServeOps.CheckAsync(rpc, args, token).ConfigureAwait(false),
-            "action.runtime.compile" => await ActionRuntimeServeOps.CompileAsync(rpc, args, token).ConfigureAwait(false),
-            "action.runtime.keys" => ActionRuntimeServeOps.Keys(),
-            "action.mock.profiles.list" => ActionRuntimeMockProfilesList(),
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
@@ -1287,39 +1282,11 @@ internal static class ServeInvokeDispatcher
         });
     }
 
-    private static bool IsMockRun(JsonElement args) =>
-        ServeJsonArgs.GetBool(args, "mock")
-        || string.Equals(
-            ServeJsonArgs.GetString(args, "mode"),
-            "mock",
-            StringComparison.OrdinalIgnoreCase);
-
     private static async Task<ServeInvokeResponse> ActionRunAsync(
         IQuickerRpcService rpc,
         JsonElement args,
         CancellationToken token)
     {
-        if (IsMockRun(args))
-        {
-            if (ServeJsonArgs.GetBool(args, "trace") || ServeJsonArgs.GetBool(args, "debug"))
-            {
-                return Fail("MOCK_MODE_CONFLICT", "mock run cannot be combined with trace or debug.");
-            }
-
-#if ACTION_RUNTIME_MOCK
-            return await ActionRuntimeMockServeOps.RunAsync(rpc, args, token).ConfigureAwait(false);
-#else
-            return Fail(
-                "MOCK_NOT_AVAILABLE",
-                "ActionRuntime mock is only available in dev qkrpc builds (EnableActionRuntimeMock=true).");
-#endif
-        }
-
-        if (ServeJsonArgs.GetBool(args, "standalone"))
-        {
-            return await ActionRuntimeServeOps.RunAsync(rpc, args, token).ConfigureAwait(false);
-        }
-
         var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
         var xactionEl = ServeJsonArgs.GetObject(args, "xaction");
         var hasXaction = xactionEl is not null;
@@ -2435,14 +2402,4 @@ internal static class ServeInvokeDispatcher
                || id.StartsWith("inline:", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static ServeInvokeResponse ActionRuntimeMockProfilesList()
-    {
-#if ACTION_RUNTIME_MOCK
-        return ActionRuntimeMockServeOps.ListProfiles();
-#else
-        return Fail(
-            "MOCK_NOT_AVAILABLE",
-            "ActionRuntime mock is only available in dev qkrpc builds (EnableActionRuntimeMock=true).");
-#endif
-    }
 }

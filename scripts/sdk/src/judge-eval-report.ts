@@ -35,7 +35,7 @@ function loadAuthoringMeta(taskId: string): AuthoringTaskMeta | null {
   try {
     loadTask(taskId);
     const catalog = JSON.parse(readFileSync(AUTHORING_PATH, "utf8")) as {
-      tasks: AuthoringTaskMeta & { id: string }[];
+      tasks: Array<AuthoringTaskMeta & { id: string }>;
     };
     const task = catalog.tasks.find((t) => t.id === taskId);
     return task ?? null;
@@ -127,9 +127,6 @@ ${JSON.stringify(report.toolCalls, null, 2)}
 
 Trace rubric violations:
 ${JSON.stringify(report.traceRubric?.violations ?? [])}
-
-Mock verify:
-${JSON.stringify(report.mockVerify ?? null)}
 `;
 
   await using agent = await Agent.create({

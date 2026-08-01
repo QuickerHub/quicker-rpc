@@ -189,6 +189,8 @@ import {
 
 import { TASK_TOOL, TASK_TOOL_DEF } from "@/lib/task-tool.server";
 import { applyModelFacingToolOutputToToolMap } from "@/lib/tool-model-output";
+import { assertValidAgentToolCatalog } from "@/lib/agent-tool-catalog";
+import { QKRPC_TOOL_REGISTRY } from "@/lib/tool-registry";
 
 
 
@@ -526,6 +528,8 @@ const quickerToolsCore = {
   }),
 
 };
+
+assertValidAgentToolCatalog(QKRPC_TOOL_REGISTRY, quickerToolsCore);
 
 /** Chat tools: execute keeps full output for UI; toModelOutput strips displayData for LLM. */
 export const quickerTools = applyModelFacingToolOutputToToolMap(quickerToolsCore);

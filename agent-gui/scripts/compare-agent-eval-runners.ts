@@ -60,21 +60,19 @@ async function main(): Promise<void> {
   const rows = taskIds.map((taskId) => {
     const sdk = latestReport(sdkDir, taskId);
     const gui = latestReport(guiDir, taskId);
-    const sdkOk = sdk?.status === "finished" && (sdk.mockVerify?.ok ?? true);
+    const sdkOk = sdk?.status === "finished";
     const guiOk =
       gui?.status === "finished"
-      && (gui.traceRubric?.passed ?? true)
-      && (gui.mockVerify?.ok ?? true);
+      && (gui.traceRubric?.passed ?? true);
     return {
       taskId,
       sdk: sdk
-        ? { status: sdk.status, mockOk: sdk.mockVerify?.ok, tools: sdk.toolCalls?.length }
+        ? { status: sdk.status, tools: sdk.toolCalls?.length }
         : null,
       gui: gui
         ? {
             status: gui.status,
             traceOk: gui.traceRubric?.passed,
-            mockOk: gui.mockVerify?.ok,
             tools: gui.toolCalls?.length,
           }
         : null,

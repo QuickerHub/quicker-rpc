@@ -83,8 +83,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
-          # Private submodule QuickerOrg/Quicker.ActionRuntime — sync via publish/Sync-ActionRuntimeSubmodulePat.ps1
-          token: ${{ secrets.ACTIONRUNTIME_SUBMODULE_PAT }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -155,8 +153,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
-          # electron-prepare runs publish-rpc.ps1 when publish/cli is absent; needs ActionRuntime.
-          token: ${{ secrets.ACTIONRUNTIME_SUBMODULE_PAT }}
 
       - name: Isolate USERPROFILE for Windows builds
         shell: pwsh

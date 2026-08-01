@@ -50,6 +50,5 @@ test("quickerbench tasks declare ioContract outputs", () => {
     const task = loadQuickerBenchTask(id);
     assert.ok(task.ioContract.inputs.length > 0, id);
     assert.ok(task.ioContract.outputs.length > 0, id);
-    assert.ok(task.verify.mockProfile.length > 0, id);
   }
 });

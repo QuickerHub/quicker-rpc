@@ -10,8 +10,8 @@
 | 动作、子程序、workspace_program、步骤、变量、设计器、trace | [AUTHOR](../product/README.md#p-author) | `agent-gui/lib/action-editor/`、`workspace-program-*`、`QuickerRpc/src/` | `test:step-editor`、`test:tools` |
 | 启动器、快捷键、快速指令、command cache、resolve direct | [LAUNCH](../product/README.md#p-launch) | `agent-gui/lib/launcher/`、`components/launcher/`、`electron/commands/launcher.mjs` | `test:launcher` |
 | 文件、Grep、Shell、终端、浏览器、网页搜索、浏览器转动作 | [WORK](../product/README.md#p-work) | `workspace-*-tool*`、`shell-*`、`terminal-*`、`browser-*` | 对应单测、`test:tools` |
-| 模型、API Key、Skills、Commands、Agents、task 子代理、语音、插件 | [EXT](../product/README.md#p-ext) | `llm-*`、`agent-defs/`、`agent-skills/`、`task-tool.server.ts`、`voice-*` | 领域单测 |
-| MCP、CLI、serve、Contracts、Transport、Runtime、net472/net10 | [RPC](../product/README.md#p-rpc) | `QuickerRpc/src/` | 对应 .NET tests；改插件后按根 AGENTS 热更新 |
+| 模型、API Key、Skills、Commands、Agents、task 子代理、外部 MCP 工具、mcp.json、语音、插件 | [EXT](../product/README.md#p-ext) | `llm-*`、`agent-defs/`、`agent-skills/`、`agent-mcp/`、`task-tool.server.ts`、`voice-*` | `test:tools` + 领域单测 |
+| qkrpc MCP server、CLI、serve、Contracts、Transport、Runtime、net472/net10 | [RPC](../product/README.md#p-rpc) | `QuickerRpc/src/` | 对应 .NET tests；改插件后按根 AGENTS 热更新 |
 | V2、net10、能力对齐、stub、capability | [V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | `QuickerRpc.Plugin.V2/Adapters`、`Reflection`、Runtime tests | V2 composition/probe + 活进程验证 |
 | Prompt、TurnPlan、工具选择、SDK 框架边界 | [Agent 架构](../agent-architecture.md) | `agent-core/turn-plan.ts`、`agent-harness/`、`tools.ts` | tools/eval/context tests |
 | 动作编写指南、schema、step 模块知识 | [动作编写管线](../authoring/README.md) | `action-authoring-src/`、`authoring-references/` | `npm run docs:check` |

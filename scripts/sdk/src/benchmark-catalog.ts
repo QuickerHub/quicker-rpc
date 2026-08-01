@@ -10,7 +10,6 @@ export type BenchmarkTask = {
   readOnly?: boolean;
   label?: string;
   verify?: {
-    mockProfile?: string;
     manual?: string[];
     auto?: string[];
   };
@@ -79,9 +78,4 @@ export function resolveTaskIds(options: {
 
   const limit = options.limit ?? ids.length;
   return ids.slice(0, limit);
-}
-
-/** Default mock profile id equals task id when `agent-gui/benchmarks/mock-profiles/<id>.json` exists. */
-export function resolveMockProfileId(task: BenchmarkTask): string {
-  return task.verify?.mockProfile?.trim() || task.id;
 }

@@ -32,7 +32,6 @@
           "pattern": "^[a-z0-9-]+$",
           "description": "Subdir under benchmarks/fixtures/ used as workingDirectory"
         },
-        "mockProfile": { "type": "string", "pattern": "^[a-z0-9-]+$" },
         "expect": {
           "type": "object",
           "properties": {

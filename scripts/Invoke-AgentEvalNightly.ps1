@@ -16,8 +16,6 @@ param(
 
     [int] $Limit = 0,
 
-    [switch] $VerifyMock,
-
     [switch] $Json,
 
     [switch] $SkipLive,
@@ -39,7 +37,6 @@ try {
 
     $args = @('agent-eval:nightly', '--', '--preset', $Preset)
     if ($Limit -gt 0) { $args += @('--limit', $Limit) }
-    if ($VerifyMock) { $args += '--verify-mock' }
     if ($Json) { $args += '--json' }
     if ($SkipLive) { $args += '--skip-live' }
     pnpm @args

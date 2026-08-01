@@ -115,10 +115,15 @@ export async function runAgentChatTurn(body: ChatPostBody): Promise<Response> {
             scope,
             ...modelResolution,
           });
+          const { dispose, ...streamRuntime } = runtime;
           const stream = createUIMessageStream<AgentUIMessage>({
             originalMessages: request.repairedMessages,
             execute: async ({ writer }) => {
-              await runAgentStreamLoop({ writer, ...runtime });
+              try {
+                await runAgentStreamLoop({ writer, ...streamRuntime });
+              } finally {
+                await dispose();
+              }
             },
           });
 

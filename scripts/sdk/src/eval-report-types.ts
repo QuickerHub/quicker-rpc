@@ -6,14 +6,6 @@ export type AgentEvalToolCall = {
   input?: Record<string, unknown>;
 };
 
-export type AgentEvalMockVerify = {
-  ok: boolean;
-  actionId?: string;
-  profileId: string;
-  exitCode?: number;
-  assertionsPassed?: boolean;
-};
-
 export type AgentEvalTraceRubric = {
   passed: boolean;
   violations: string[];
@@ -41,7 +33,6 @@ export type AgentEvalReport = {
   assistantText: string;
   toolCalls: AgentEvalToolCall[];
   traceRubric?: AgentEvalTraceRubric;
-  mockVerify?: AgentEvalMockVerify;
   judge?: AgentEvalJudgeResult;
   error?: string;
   outPath?: string;

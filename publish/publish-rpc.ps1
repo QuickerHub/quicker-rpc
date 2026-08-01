@@ -6,9 +6,7 @@ param(
     [switch]$SkipPath,
     [switch]$SkipSetup,
     # Test build (-t): skip zip, setup.exe, and publish/plugin (plugin already from qkbuild).
-    [switch]$SkipPackaging,
-    # Dev-only: bundle agent-gui/benchmarks/mock-profiles into publish/cli (not for QuickerAgent).
-    [switch]$IncludeMockProfiles
+    [switch]$SkipPackaging
 )
 
 # Backward-compatible alias for Publish-GitHubRelease.ps1 and older docs.
@@ -187,16 +185,6 @@ if (Test-Path -LiteralPath $codexPluginSource) {
     }
     Copy-Item -LiteralPath $codexPluginSource -Destination $codexPluginDest -Recurse -Force
     Write-Host "Bundled Codex plugin -> $codexPluginDest" -ForegroundColor Cyan
-}
-
-$mockProfilesSource = Join-Path $monorepoRoot 'agent-gui\benchmarks\mock-profiles'
-$mockProfilesDest = Join-Path $publishDir 'benchmarks\mock-profiles'
-if ($IncludeMockProfiles -and (Test-Path -LiteralPath $mockProfilesSource)) {
-    if (Test-Path -LiteralPath $mockProfilesDest) {
-        Remove-Item -LiteralPath $mockProfilesDest -Recurse -Force
-    }
-    Copy-Item -LiteralPath $mockProfilesSource -Destination $mockProfilesDest -Recurse -Force
-    Write-Host "Bundled mock profiles (dev) -> $mockProfilesDest" -ForegroundColor Cyan
 }
 
 if (-not $SkipPackaging) {

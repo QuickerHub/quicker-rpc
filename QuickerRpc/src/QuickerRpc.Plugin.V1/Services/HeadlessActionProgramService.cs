@@ -105,18 +105,6 @@ public sealed class HeadlessActionProgramService
                     contextMenuData: contextMenuData,
                     subProgramCount: subPrograms.Count);
                 break;
-            case XActionGetReturnMode.Runtime:
-                compressedRoot = new JObject
-                {
-                    ["steps"] = steps,
-                    ["variables"] = variables,
-                };
-                if (subPrograms.Count > 0)
-                {
-                    compressedRoot["subPrograms"] = subPrograms;
-                }
-
-                break;
             default:
                 compressedRoot = XActionProgramService.Compress(mode, steps, variables, catalog, omitDefaultLiteralInputs: true);
                 omitApplied = true;
@@ -271,18 +259,6 @@ public sealed class HeadlessActionProgramService
                     icon: icon,
                     contextMenuData: string.Empty,
                     subProgramCount: subPrograms.Count);
-                break;
-            case XActionGetReturnMode.Runtime:
-                compressedRoot = new JObject
-                {
-                    ["steps"] = steps,
-                    ["variables"] = variables,
-                };
-                if (subPrograms.Count > 0)
-                {
-                    compressedRoot["subPrograms"] = subPrograms;
-                }
-
                 break;
             default:
                 compressedRoot = XActionProgramService.Compress(mode, steps, variables, catalog, omitDefaultLiteralInputs: true);

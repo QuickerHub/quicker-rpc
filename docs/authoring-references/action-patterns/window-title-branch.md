@@ -49,8 +49,7 @@ Patch：`.local/patch-window-title-branch.json`
 
 - 需要 **else** 分支时用 **`sys:if`**，不用 `simpleIf`。
 - `getWindowTitle` 的 `which: foreground`；`handle` → `hWnd.var`。
-- trace 依赖真实前台窗口；mock 用 `--mock-profile window-vscode-branch`。
-- ActionRuntime：`sys:if` 的 `$=` 条件须走表达式求值（`ReadConditionBoolean`）；勿把 `$={var}` 当成单变量名查找。
+- 验证依赖真实前台窗口；使用 `qkrpc_action_debug` 或在 Quicker UI 中运行。
 - 勿激活 Quicker 自身窗口做 UI 测试。
 
 ## 相关

@@ -12,7 +12,6 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import { CHAT_MODE_AGENT } from "@/lib/chat-mode";
 import { extractBenchActionIdFromMessages } from "@/lib/bench-mode";
 import { appendBenchExportNotice } from "@/lib/bench-export-notice";
-import { invokeActionRuntimeDev } from "@/lib/action-runtime-client";
 import { createDevTempWorkspaceClient } from "@/lib/dev-temp-workspace.client";
 import { loadStoredEnabledTools } from "@/lib/tool-registry";
 import { loadStoredLlmSelectionRaw, storeLlmSelectionRaw } from "@/lib/llm-prefs";
@@ -31,12 +30,8 @@ import {
 const BENCH_CHAT_THREAD_ID = "bench-chat-main";
 const BENCH_MAX_AUTO_NUDGES = 2;
 const BENCH_CONTINUE_USER_MESSAGE =
-  "请继续完成该评测任务：创建新动作、编写步骤，并完成 mock 调试验证。";
+  "请继续完成该评测任务：创建新动作、编写步骤，并通过 Quicker 调试确认结果。";
 const catalog = quickerbenchData as unknown as QuickerBenchCatalog;
-
-function resolveMockProfile(task: QuickerBenchTask): string {
-  return task.verify.mockProfile.trim() || task.id;
-}
 
 export function buildQuickerBenchExportMeta(
   run: QuickerBenchRunEntry,
@@ -48,20 +43,6 @@ export function buildQuickerBenchExportMeta(
     workingDirectory: run.workspacePath ?? workspacePath,
     startedAt: run.at,
   };
-}
-
-export function formatBenchMockSummary(run: QuickerBenchRunEntry): string | null {
-  if (!run.mockVerify) return null;
-  if (!run.mockVerify.ok) {
-    return run.mockVerify.message ?? run.mockVerify.error ?? "mock 断言失败";
-  }
-  const data = run.mockVerify.data;
-  if (typeof data === "object" && data !== null) {
-    const row = data as Record<string, unknown>;
-    const assertions = row.assertions as Record<string, unknown> | undefined;
-    if (assertions?.passed === true) return "mock assert PASS";
-  }
-  return "mock assert OK";
 }
 
 export type UseBenchChatControllerOptions = {
@@ -164,7 +145,6 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
     async (
       runId: string,
       snapshot: AgentUIMessage[],
-      mockSummary?: string | null,
       runEntry?: QuickerBenchRunEntry | null,
     ) => {
       if (snapshot.length === 0 || autoExportedRunIdsRef.current.has(runId)) {
@@ -185,54 +165,13 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
         return;
       }
 
-      const withNotice = appendBenchExportNotice(snapshot, result, { mockSummary });
+      const withNotice = appendBenchExportNotice(snapshot, result);
       patchRun(runId, { exportResult: result, chatMessages: withNotice });
       if (activeRunIdRef.current === runId || selectedRunId === runId) {
         setMessages(withNotice);
       }
     },
     [benchWorkspace, exportMessages, patchRun, runs, selectedRunId, setMessages],
-  );
-
-  const runMockVerify = useCallback(
-    async (
-      runId: string,
-      task: QuickerBenchTask,
-      actionId: string,
-      chatSnapshot: AgentUIMessage[],
-      runEntry?: QuickerBenchRunEntry | null,
-    ) => {
-      patchRun(runId, { status: "verifying", actionId });
-      const mockProfile = resolveMockProfile(task);
-      try {
-        const result = await invokeActionRuntimeDev("mockRun", {
-          id: actionId,
-          mockProfile,
-          assert: true,
-        });
-        const nextStatus = result.ok ? "done" : "error";
-        patchRun(runId, {
-          status: nextStatus,
-          mockVerify: result,
-          mockProfile,
-          error: result.ok ? undefined : result.message ?? result.error,
-          chatMessages: chatSnapshot,
-        });
-        const mockSummary = result.ok
-          ? "mock assert PASS"
-          : result.message ?? result.error ?? "mock 断言失败";
-        await finalizeBenchExport(runId, chatSnapshot, mockSummary, runEntry);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        patchRun(runId, {
-          status: "error",
-          error: message,
-          chatMessages: chatSnapshot,
-        });
-        await finalizeBenchExport(runId, chatSnapshot, message, runEntry);
-      }
-    },
-    [finalizeBenchExport, patchRun],
   );
 
   useEffect(() => {
@@ -256,7 +195,7 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
         error: "用户停止",
         chatMessages: messages,
       });
-      void finalizeBenchExport(runId, messages, "用户停止");
+      void finalizeBenchExport(runId, messages);
       clearActiveRun();
       return;
     }
@@ -266,7 +205,7 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
         error: error?.message ?? "chat error",
         chatMessages: messages,
       });
-      void finalizeBenchExport(runId, messages, error?.message ?? "chat error");
+      void finalizeBenchExport(runId, messages);
       clearActiveRun();
       return;
     }
@@ -283,8 +222,9 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
 
     if (actionId) {
       const runEntry = activeRunRef.current;
+      patchRun(runId, { status: "done", actionId, chatMessages: messages });
       clearActiveRun();
-      void runMockVerify(runId, task, actionId, messages, runEntry);
+      void finalizeBenchExport(runId, messages, runEntry);
       return;
     }
 
@@ -302,7 +242,7 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
       error: "Agent 在未创建动作前停止",
       chatMessages: messages,
     });
-    void finalizeBenchExport(runId, messages, "未完成：未解析到 actionId");
+    void finalizeBenchExport(runId, messages);
     clearActiveRun();
   }, [
     activeTaskId,
@@ -312,7 +252,6 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
     finalizeBenchExport,
     messages,
     patchRun,
-    runMockVerify,
     sendMessageSafe,
     status,
   ]);
@@ -331,7 +270,6 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
         taskLabel: task.label,
         tier: task.tier,
         status: "preparing",
-        mockProfile: resolveMockProfile(task),
       };
       appendRun(run);
       activeRunIdRef.current = run.id;
@@ -357,27 +295,6 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
       }
     },
     [appendRun, chatBusy, disabled, patchRun, sendMessageSafe, setMessages],
-  );
-
-  const runMockOnly = useCallback(
-    async (taskId: string, actionId: string) => {
-      const task = catalog.tasks.find((t) => t.id === taskId);
-      if (!task) return;
-      const run: QuickerBenchRunEntry = {
-        id: createQuickerBenchRunId(),
-        at: Date.now(),
-        taskId: task.id,
-        taskLabel: task.label,
-        tier: task.tier,
-        status: "verifying",
-        actionId,
-        mockProfile: resolveMockProfile(task),
-      };
-      appendRun(run);
-      setSelectedRunId(run.id);
-      await runMockVerify(run.id, task, actionId, []);
-    },
-    [appendRun, runMockVerify],
   );
 
   const cleanupSession = useCallback(async () => {
@@ -424,13 +341,10 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
   const exportActiveConversation = useCallback(async () => {
     if (!selectedRun || displayMessages.length === 0) return;
     const meta = buildQuickerBenchExportMeta(selectedRun, benchWorkspace);
-    const mockSummary = formatBenchMockSummary(selectedRun);
     const result = await exportMessages(meta, displayMessages, { silent: true });
     if (!result) return;
 
-    const withNotice = appendBenchExportNotice(displayMessages, result, {
-      mockSummary,
-    });
+    const withNotice = appendBenchExportNotice(displayMessages, result);
     patchRun(selectedRun.id, { exportResult: result, chatMessages: withNotice });
     if (!viewingHistory) {
       setMessages(withNotice);
@@ -459,7 +373,6 @@ export function useBenchChatController(options: UseBenchChatControllerOptions = 
     latestRun,
     activeRunId,
     runTask,
-    runMockOnly,
     chatBusy,
     disabled,
     benchWorkspace,

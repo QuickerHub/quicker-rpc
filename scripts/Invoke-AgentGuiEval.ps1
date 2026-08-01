@@ -3,8 +3,6 @@
 # Examples:
 #   pwsh -NoProfile -File ./scripts/Invoke-AgentGuiEval.ps1 -Preset smoke
 #   pwsh -NoProfile -File ./scripts/Invoke-AgentGuiEval.ps1 -TaskId discover-step-expr -Json
-#   pwsh -NoProfile -File ./scripts/Invoke-AgentGuiEval.ps1 -TaskId multi-var-assign -VerifyMock
-
 #   pwsh -NoProfile -File ./scripts/Invoke-AgentGuiEval.ps1 -Script ui -TaskId launcher-open-hotkeys
 
 [CmdletBinding()]
@@ -24,8 +22,6 @@ param(
 
     [switch] $Json,
 
-    [switch] $VerifyMock,
-
     [switch] $Judge
 )
 
@@ -44,7 +40,6 @@ try {
         'eval' {
             $args = @('agent-eval', '--', $TaskId)
             if ($Json) { $args += '--json' }
-            if ($VerifyMock) { $args += '--verify-mock' }
             if ($Judge) { $args += '--judge' }
             pnpm @args
         }
@@ -55,7 +50,6 @@ try {
             if ($Limit -gt 0) { $args += @('--limit', $Limit) }
             if ($TaskIds.Count -gt 0) { $args += $TaskIds }
             if ($Json) { $args += '--json' }
-            if ($VerifyMock) { $args += '--verify-mock' }
             pnpm @args
         }
         'compare' {
@@ -71,7 +65,6 @@ try {
         'ui' {
             $args = @('agent-eval:ui', '--', $TaskId)
             if ($Json) { $args += '--json' }
-            if ($VerifyMock) { $args += '--verify-mock' }
             if ($Judge) { $args += '--judge' }
             pnpm @args
         }

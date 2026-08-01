@@ -31,7 +31,6 @@ export type AgentEvalScenario = {
   readOnly?: boolean;
   tier?: string;
   category?: string;
-  mockProfile?: string;
   /** Subdirectory under benchmarks/fixtures/ */
   fixture?: string;
   expect?: AgentEvalScenarioExpect;
@@ -47,7 +46,6 @@ export type AgentGuiScenarioCatalog = {
     userPrompt: string;
     chatMode: "agent" | "launcher";
     readOnly?: boolean;
-    mockProfile?: string;
     fixture?: string;
     expect?: AgentEvalScenarioExpect;
   }>;
@@ -127,7 +125,6 @@ export function loadGuiScenario(
     chatMode: row.chatMode,
     readOnly: row.readOnly,
     category: row.category,
-    mockProfile: row.mockProfile,
     fixture: row.fixture,
     expect: row.expect,
     source: "agent-gui",
@@ -145,7 +142,6 @@ export function authoringTaskToScenario(
     readOnly: task.readOnly,
     tier: task.tier,
     category: task.category,
-    mockProfile: task.verify?.mockProfile,
     source: "authoring",
   };
 }
@@ -185,7 +181,6 @@ export function listGuiScenariosByCategory(
       chatMode: row.chatMode,
       readOnly: row.readOnly,
       category: row.category,
-      mockProfile: row.mockProfile,
       fixture: row.fixture,
       expect: row.expect,
       source: "agent-gui" as const,

@@ -351,33 +351,9 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action GUID."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
 
-                Cmd("action run", "Run action via Quicker RPC, standalone ActionRuntime, or mock verify.", "qkrpc action run --id <idOrName> [--param <text>] [--mock --mock-profile <id>] [--assert] [--debug|--trace] [--wait] [--json] | qkrpc action run --standalone --dir <project> [--param <text>] [--json] | qkrpc action run --standalone --package-file <path> [--json] | qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]",
+                Cmd("action run", "Run an action through the Quicker host.", "qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json] | qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]",
 
-                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("mock", "Deterministic ActionRuntime mock run."), Option("mock-profile", "Benchmark mock profile id."), Option("mock-profile-file", "Explicit mock profile JSON path."), Option("assert", "Evaluate mock profile assertions."), Option("standalone", "Run via Quicker.ActionRuntime (no Quicker)."), Option("package-file", "ActionExecutionPackage JSON (standalone)."), Option("dir", "Local .quicker project dir (standalone)."), Option("verbose-host", "Standalone: log host callbacks."), Option("debug", "Debug run (Quicker UI or runtime flag)."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
-
-                Cmd("action mock-profiles", "List built-in benchmark mock profiles.", "qkrpc action mock-profiles list [--json]",
-
-                    opts: new[] { Option("json", "Structured output.") }),
-
-                Cmd("action mock-trace-diff", "Compare mock synthetic step spine vs plugin trace (developer tool).", "qkrpc action mock-trace-diff --id <guid> --mock-profile <id> [--param <text>] [--json]",
-
-                    opts: new[] { Option("id", "Action id."), Option("mock-profile", "Benchmark mock profile id."), Option("mock-profile-file", "Explicit mock profile JSON path."), Option("param", "Input param.", shortName: "p"), Option("json", "Structured output.") }),
-
-                Cmd("action runtime-check", "Check whether a program is fully supported by ActionRuntime.", "qkrpc action runtime-check --dir <project> [--json] | qkrpc action runtime-check --package-file <path> [--json] | qkrpc action runtime-check --compressed-file <path> [--json] | qkrpc action runtime-check --id <guid> [--json]",
-
-                    opts: new[] { Option("id", "Action id (resolve .quicker project)."), Option("dir", "Local .quicker project dir."), Option("package-file", "ActionExecutionPackage JSON."), Option("xaction-file", "Program JSON file."), Option("json", "Structured output.") }),
-
-                Cmd("action runtime-compile", "Compile action JSON to Script SDK JS and Roslyn C# via ActionToScriptCompiler.", "qkrpc action runtime-compile --id <guid> [--json] [--out <file.cs>] [--script-out <file.js>] | qkrpc action runtime-compile --dir <project> [--json] | qkrpc action runtime-compile --package-file <path> [--json] | qkrpc action runtime-compile --xaction-file <path|-> [--json]",
-
-                    opts: new[] { Option("id", "Action id (fetch from Quicker when no local project)."), Option("dir", "Local .quicker project dir."), Option("package-file", "ActionExecutionPackage JSON."), Option("xaction-file", "Program JSON file or -."), Option("out", "Write csharpScript to UTF-8 file."), Option("script-out", "Write intermediate JavaScript to UTF-8 file."), Option("json", "Structured output with script + csharpScript.") }),
-
-                Cmd("action runtime-benchmark", "Mock-mode benchmark: JSON step dispatch vs Roslyn C# script (compile timed separately; Roslyn runner cached).", "qkrpc action runtime-benchmark --id <guid> [--json] [--warmup N] [--iterations N] | qkrpc action runtime-benchmark --package-file <path> [--json] | qkrpc action runtime-benchmark --xaction-file <path|-> [--json]",
-
-                    opts: new[] { Option("id", "Action id (fetch from Quicker when no local project)."), Option("package-file", "ActionExecutionPackage JSON."), Option("xaction-file", "Program JSON file or -."), Option("warmup", "Warmup iterations (default 3)."), Option("iterations", "Measurement iterations (default 20)."), Option("benchmark-force-gc", "Force GC between modes."), Option("json", "Structured timing output.") }),
-
-                Cmd("action runtime-keys", "List stepRunnerKey values supported by ActionRuntime.", "qkrpc action runtime-keys [--json]",
-
-                    opts: new[] { Option("json", "Structured output.") }),
+                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("debug", "Debug run in Quicker."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
 
                 Cmd("action float", "Show a local action as a floating button.", "qkrpc action float --id <idOrName> [--json]",
 

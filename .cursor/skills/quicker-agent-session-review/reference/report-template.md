@@ -48,5 +48,5 @@ Generated automatically by `pnpm agent-session -- export.json`.
 Human reviewer adds:
 
 - **A–D axis** scores (0/1/2) per `docs/agent-authoring-benchmark.md`
-- **F-axis** mock assert result if applicable
+- **F-axis** real Quicker debug/trace or manual UI result if applicable
 - **Acceptance**: whether the delivered action meets user intent

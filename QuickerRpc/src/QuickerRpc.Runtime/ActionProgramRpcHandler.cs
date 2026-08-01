@@ -96,18 +96,6 @@ public sealed class ActionProgramRpcHandler
                     contextMenuData: presentation.ContextMenuData,
                     subProgramCount: subPrograms.Count);
                 break;
-            case XActionGetReturnMode.Runtime:
-                compressedRoot = new JObject
-                {
-                    ["steps"] = steps,
-                    ["variables"] = variables,
-                };
-                if (subPrograms.Count > 0)
-                {
-                    compressedRoot["subPrograms"] = subPrograms;
-                }
-
-                break;
             default:
                 compressedRoot = XActionProgramService.Compress(mode, steps, variables, catalog, omitDefaultLiteralInputs: true);
                 omitApplied = true;

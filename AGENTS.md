@@ -147,7 +147,6 @@ RPC 产品树：`QuickerRpc/`（打开 `QuickerRpc/QuickerRpc.slnx`）。`agent-
 | `QuickerRpc/src/QuickerRpc.Plugin.V1` | net472 插件：V1 host adapters + DI + WPF scheduler（输出 DLL 名仍为 `QuickerRpc.Plugin`） |
 | `QuickerRpc/src/QuickerRpc.Plugin.V2` | net10 插件（反射 V2 宿主）；`build.net10.yaml` → `quicker.rpc.net10` |
 | `QuickerRpc/src/QuickerRpc.Console` | `qkrpc.exe` |
-| `QuickerRpc/lib/Quicker.ActionRuntime` | Console 编译依赖（子模块） |
 | `agent-gui/` | Next.js + AI SDK；见 [agent-gui/AGENTS.md](agent-gui/AGENTS.md) |
 
 ## Cursor skills & commands

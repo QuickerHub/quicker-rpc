@@ -10,7 +10,7 @@ being folded into the HTTP route or reimplemented as a second agent framework.
 app/api/chat/route.ts
   -> run-turn.server.ts              orchestration and HTTP errors
      -> turn-request.server.ts       normalize UI/request input
-     -> turn-runtime.server.ts       scope, tools, policy, prompt, context budget
+     -> turn-runtime.server.ts       scope, static/MCP tools, policy, prompt, context budget
      -> stream-loop.server.ts        ToolLoopAgent + reactive compact retry
         -> AI SDK                    model/tool loop and UI message stream
 ```
@@ -21,9 +21,12 @@ app/api/chat/route.ts
 | --- | --- | --- |
 | Route | decode request, release preview | model/tool policy |
 | Turn request | modes, slash expansion, repaired/model messages, LLM selection | model calls |
-| Turn runtime | designer scope, tool selection, turn plan, system prompt, initial compaction | stream transport |
+| Turn runtime | designer scope, static/MCP tool loading, turn plan, call limits, system prompt, initial compaction | model/tool loop |
 | Stream loop | `ToolLoopAgent`, per-step microcompaction, usage metadata, reactive retry | request parsing |
 | Tool execution context | explicit per-turn fields mirrored into ALS for compatibility | policy inference |
+
+`PreparedAgentTurnRuntime.dispose` owns per-turn resources. The stream executor must
+call it in `finally`; currently this closes every MCP client even on model/tool failure.
 
 When adding behavior, prefer extending the narrowest owning layer. Keep
 `runAgentChatTurn` as a readable phase sequence rather than adding another

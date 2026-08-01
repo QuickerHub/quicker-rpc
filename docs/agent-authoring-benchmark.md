@@ -12,13 +12,13 @@
 1. 启动 `pwsh ./dev.ps1`，确认 Quicker + 插件已加载。
 2. 新开 Agent 线程，从 JSON 或下表复制 **`userPrompt`**（仅用户话术）。
 3. 等 Agent 完成后，按 [评分](#评分) 填分表。
-4. 对需要运行的任务，优先用 **`/tool-test` → ActionRuntime → Benchmark Mock 断言**，或 CLI：
+4. 对需要运行的任务，通过真实 Quicker 宿主调试并检查步骤输出：
 
 ```powershell
-qkrpc action run --id <guid> --mock --mock-profile <profile-id> --assert --json
+qkrpc action run --id <guid> --debug --wait --json
 ```
 
-Profile 与任务关联见 `authoring-tasks.json` 的 `verify.mockProfile`（默认同 task id）。仍可在 Quicker 中手动执行或使用 `action_debug` 作补充。
+Agent/MCP 场景优先调用 `qkrpc_action_debug`；涉及表单、文件选择或真实窗口的任务在 Quicker 中完成交互验证。
 
 建议首轮跑 **L2 主干**（`tier: L2` 且 `category: authoring`）共 7 条，再看 L0/L3/L4。
 
@@ -33,7 +33,7 @@ Profile 与任务关联见 `authoring-tasks.json` 的 `verify.mockProfile`（默
 | C | 检索 | 15% | search → get，键名与 controlField |
 | D | 实现 | 15% | patch 成功、逻辑接通 |
 | E | 流程 | 15% | 禁 patch 后 get、禁内联 patch JSON 等 |
-| F | 可运行 | 15% | mock assert 通过或手动/trace 验证输出 |
+| F | 可运行 | 15% | 真实 Quicker debug/trace 或手动验证输出 |
 
 每条任务只评其 `axes` 列出的维度。每轴：**0** 失败 · **1** 部分 · **2** 达标。
 
@@ -123,26 +123,16 @@ task id | tier | A | B | C | D | E | F | % | notes
 
 ## 半自动检查（可选）
 
-### F 轴：mock assert（推荐）
-
-L2 主干等带 `verify.mockProfile` 的任务，用 deterministic mock 代替真实 IO：
+### F 轴：真实宿主验证
 
 | 入口 | 说明 |
 |------|------|
-| `/tool-test` → ActionRuntime → **Benchmark Mock 断言** | 填动作 id，一键 `--mock --assert` |
-| CLI | `qkrpc action run --id … --mock --mock-profile … --assert --json` |
-| SDK | `scripts/sdk` `--verify-mock` |
+| MCP | `qkrpc_action_debug`，读取真实步骤 trace 与返回值 |
+| CLI | `qkrpc action run --id … --debug --wait --json` |
+| Quicker UI | 完成表单、文件选择、窗口等交互场景 |
 | agent-gui（产品栈） | `scripts/Invoke-AgentGuiEval.ps1` 或 `pnpm agent-eval` — 见 [agent-gui-eval.md](agent-gui-eval.md) |
 
-**F=2**：`assertions.passed === true`；**F=1**：mock 跑通但断言部分失败；**F=0**：mock run 失败或 `unsupportedStepKeys`。
-
-响应字段：`outputVars`、`events[]`、`mockLedger`、`fixHints`；运行与评分约定以本文和 benchmark schema 为准。
-
-开发者对照 mock synthetic trace 与 Plugin trace 步序：
-
-```powershell
-qkrpc action mock-trace-diff --id <guid> --mock-profile clip-lines-expr --json
-```
+**F=2**：真实宿主运行成功且输出符合任务；**F=1**：主体跑通但部分输出或交互未核验；**F=0**：运行失败或无法给出执行证据。
 
 ### 流程轴（E）trace 粗查
 
@@ -159,7 +149,7 @@ qkrpc action mock-trace-diff --id <guid> --mock-profile clip-lines-expr --json
 
 ## 产品质量归属
 
-本评测是 [AUTHOR](product/README.md#p-author) 的质量门槛。L2 F 轴已接 mock assert；agent-gui 生产路径 E2E 见 [agent-gui-eval.md](agent-gui-eval.md)（`pnpm agent-eval` / `Invoke-AgentGuiEval.ps1`）。
+本评测是 [AUTHOR](product/README.md#p-author) 的质量门槛。L2 F 轴以真实 Quicker 宿主为准；agent-gui 生产路径 E2E 见 [agent-gui-eval.md](agent-gui-eval.md)（`pnpm agent-eval` / `Invoke-AgentGuiEval.ps1`）。
 
 ---
 

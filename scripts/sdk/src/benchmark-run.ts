@@ -2,15 +2,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SDKAgent } from "@cursor/sdk";
 import { wrapBenchmarkPrompt } from "./benchmark-prompt.js";
-import {
-  extractActionIdFromBenchmarkResult,
-  parseMockRunJson,
-  runMockVerify,
-} from "./benchmark-mock-verify.js";
 import { REPO_ROOT } from "./config.js";
 import { createQuickerRpcAgent } from "./create-agent.js";
 import { logStreamEvent } from "./stream-log.js";
-import { loadTask, resolveMockProfileId, type BenchmarkTask } from "./benchmark-catalog.js";
+import type { BenchmarkTask } from "./benchmark-catalog.js";
 
 export type BenchmarkRunPayload = {
   taskId: string;
@@ -21,17 +16,11 @@ export type BenchmarkRunPayload = {
   result: string;
   toolCalls: Array<{ name: string; status: string }>;
   outPath: string;
-  mockVerify?: {
-    ok: boolean;
-    actionId?: string;
-    profileId: string;
-    report?: { ok?: boolean; assertions?: { passed?: boolean } };
-  };
 };
 
 export async function runBenchmarkTask(
   task: BenchmarkTask,
-  options: { json?: boolean; agent?: SDKAgent; verifyMock?: boolean } = {},
+  options: { json?: boolean; agent?: SDKAgent } = {},
 ): Promise<BenchmarkRunPayload> {
   const startedAt = Date.now();
   const toolCalls: Array<{ name: string; status: string }> = [];
@@ -66,21 +55,6 @@ export async function runBenchmarkTask(
       outPath,
     };
 
-    if (options.verifyMock && !task.readOnly) {
-      const actionId = extractActionIdFromBenchmarkResult(payload.result);
-      if (actionId) {
-        const mock = runMockVerify({
-          actionId,
-          mockProfile: resolveMockProfileId(task),
-        });
-        payload.mockVerify = {
-          ok: mock.ok,
-          actionId,
-          profileId: resolveMockProfileId(task),
-        };
-      }
-    }
-
     writeFileSync(
       outPath,
       `${JSON.stringify(
@@ -92,7 +66,6 @@ export async function runBenchmarkTask(
           durationMs: payload.durationMs,
           result: payload.result,
           toolCalls: payload.toolCalls,
-          mockVerify: payload.mockVerify,
         },
         null,
         2,

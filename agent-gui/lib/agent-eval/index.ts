@@ -1,7 +1,4 @@
 export type {
-
-  AgentEvalMockVerify,
-
   AgentEvalReport,
 
   AgentEvalRunner,
@@ -29,8 +26,6 @@ export {
   loadBenchmarkTask,
 
   resolveBenchmarkTaskIds,
-
-  resolveMockProfileId,
 
   L2_CORE_TASK_IDS,
 
@@ -118,10 +113,6 @@ export {
   type LauncherEvalExpect,
   type LauncherSettingsOpenExpect,
 } from "@/lib/agent-eval/launcher-expect";
-
-export { runMockVerify } from "@/lib/agent-eval/mock-verify";
-
-
 
 export {
 

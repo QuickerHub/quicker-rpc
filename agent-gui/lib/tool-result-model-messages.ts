@@ -32,10 +32,9 @@ function projectLargeOutput(output: unknown, serialized: string): unknown {
     exitCode: output.exitCode,
     source: output.source,
     data: projection,
-    stderr: output.stderr,
+    stderr: output.stderr?.slice(0, 512),
     truncated: true,
-    summary: output.summary,
-    nextActions: output.nextActions,
+    summary: output.summary?.slice(0, 512),
     retryable: output.retryable,
     userDecisionRequired: output.userDecisionRequired,
   };

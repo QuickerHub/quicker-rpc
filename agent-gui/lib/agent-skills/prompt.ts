@@ -53,7 +53,7 @@ export async function formatPreloadedSkillBlock(
   const title = loaded.name.replace(/-/g, " ");
   const scope =
     PRELOADED_SKILL_SCOPES[loaded.name]
-    ?? "see instructions below. Workflows: docs get; references/: docs search when stuck.";
+    ?? `see instructions below; use skill_load name=${loaded.name} for paged source files.`;
   const lines = [`## Skill: ${title}`, `Scope: ${scope}`, "", loaded.body];
   if (options?.topicIndex) {
     lines.push("", options.topicIndex);

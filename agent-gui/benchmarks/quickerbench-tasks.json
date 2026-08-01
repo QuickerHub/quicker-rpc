@@ -2,7 +2,7 @@
   "$schema": "./quickerbench-tasks.schema.json",
   "version": 1,
   "title": "QuickerBench — agent task completion",
-  "description": "Subprogram-style I/O tasks only: action params in, output vars out. No msgbox/form/selectfile as primary path. Verified via mock initialVars + outputVars assert.",
+  "description": "Subprogram-style I/O tasks only: action params in, output vars out. No msgbox/form/selectfile as primary path. Verified through Quicker host debug traces and rubric/judge output.",
   "tiers": {
     "Q3": "External integration (paginated web)"
   },
@@ -16,10 +16,10 @@
     ]
   },
   "passRules": {
-    "mockAssertRequired": true,
+    "traceRubricRequired": true,
     "oracleScriptPreferred": true,
     "outputVarsOnly": true,
-    "note": "Pass when qkrpc action run --mock --assert succeeds. Oracle values maintained by scripts/quickerbench/*.mjs (no reference action required)."
+    "note": "Use qkrpc_action_debug against the real Quicker host when execution evidence is needed. Oracle values are maintained by scripts/quickerbench/*.mjs."
   },
   "coreTaskIds": [
     "user-action-likes-total"
@@ -63,10 +63,6 @@
           "capturedAt": "2026-06-19",
           "note": "Computed by scripts/quickerbench/oracle-user-action-likes-total.mjs from frozen fixtures."
         }
-      },
-      "verify": {
-        "mockProfile": "user-action-likes-total",
-        "modes": ["mock-oracle"]
       },
       "skills": ["http", "html-parse", "pagination", "loop", "aggregate"]
     }

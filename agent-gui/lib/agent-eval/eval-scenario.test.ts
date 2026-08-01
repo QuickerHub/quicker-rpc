@@ -27,7 +27,6 @@ describe("agent-eval eval-scenario", () => {
   it("resolves quickerbench task by id", () => {
     const scenario = loadEvalScenario("user-action-likes-total");
     assert.equal(scenario.source, "quickerbench");
-    assert.equal(scenario.mockProfile, "user-action-likes-total");
     assert.equal(scenario.fixture, "bench-empty");
     assert.match(scenario.userPrompt, /getquicker/);
   });

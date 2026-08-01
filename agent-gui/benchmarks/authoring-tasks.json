@@ -164,7 +164,6 @@
         "mustNot": ["sys:csscript 承担主逻辑", "未 get 就写 inputParams"]
       },
       "verify": {
-        "mockProfile": "clip-lines-expr",
         "manual": ["剪贴板多行含重复/空行时结果正确"],
         "auto": ["trace: no sys:csscript as main transform"]
       }
@@ -181,7 +180,7 @@
         "must": ["单个 evalexpression 写多变量", "get 后写入", "显示 c"],
         "mustNot": ["拆成 csscript", "多个 assign 废弃步骤"]
       },
-      "verify": { "mockProfile": "multi-var-assign", "manual": ["运行显示 3"], "auto": ["action_debug exit 0"] }
+      "verify": { "manual": ["运行显示 3"], "auto": ["action_debug exit 0"] }
     },
     {
       "id": "http-json-origin",
@@ -197,7 +196,7 @@
         "should": ["HTTP 与解析分步或逻辑清晰"],
         "mustNot": ["猜 http 模块键名"]
       },
-      "verify": { "mockProfile": "http-json-origin", "manual": ["显示 IP 或 origin 字符串"], "auto": ["needs network"] }
+      "verify": { "manual": ["显示 IP 或 origin 字符串"], "auto": ["needs network"] }
     },
     {
       "id": "window-vscode-branch",
@@ -213,7 +212,7 @@
         "should": ["if 与 simpleIf 选型正确（需要 else 用 if）"],
         "mustNot": ["无分支的单一路径"]
       },
-      "verify": { "mockProfile": "window-vscode-branch", "manual": ["VS Code 前台时最大化；否则提示"] }
+      "verify": { "manual": ["VS Code 前台时最大化；否则提示"] }
     },
     {
       "id": "form-to-clipboard",
@@ -227,7 +226,7 @@
         "must": ["表单步骤", "写剪贴板", "get form 与 clipboard 相关步骤"],
         "mustNot": ["猜表单字段 wire 键名"]
       },
-      "verify": { "mockProfile": "form-to-clipboard", "manual": ["填表后剪贴板为 Markdown 清单"] }
+      "verify": { "manual": ["填表后剪贴板为 Markdown 清单"] }
     },
     {
       "id": "file-copy-timestamp",
@@ -241,7 +240,7 @@
         "must": ["文件选择或路径输入", "复制到 .local/", "文件名含时间戳", "get fileOperation 等"],
         "should": [".local 目录存在或自动创建"]
       },
-      "verify": { "mockProfile": "file-copy-timestamp", "manual": [".local 下出现带时间戳的副本"] }
+      "verify": { "manual": [".local 下出现带时间戳的副本"] }
     },
     {
       "id": "delay-step",
@@ -285,8 +284,7 @@
         "mustNot": ["超长表达式全塞 inputParams"]
       },
       "verify": {
-        "mockProfile": "external-eval-cs",
-        "manual": ["合法 JSON 格式化；非法报错", "mock 用 --dir .local/ws-external-eval-bench"]
+        "manual": ["在 Quicker 中验证合法 JSON 格式化与非法 JSON 报错"]
       }
     },
     {
@@ -330,7 +328,7 @@
         "should": ["规划清晰，非单步 csscript 糊完"],
         "mustNot": ["主逻辑用 csscript 替代 evalexpression"]
       },
-      "verify": { "mockProfile": "csv-parse-aggregate", "manual": ["示例 CSV 结果正确"] }
+      "verify": { "manual": ["示例 CSV 结果正确"] }
     },
     {
       "id": "conditional-http-cache",
@@ -345,7 +343,7 @@
         "must": ["判断 url 是否为空", "分支内 HTTP GET", "body 变量赋值", "空 url 有提示"],
         "should": ["变量与分支结构清楚"]
       },
-      "verify": { "mockProfile": "conditional-http-cache", "manual": ["有 url 时 body 有内容"] }
+      "verify": { "manual": ["有 url 时 body 有内容"] }
     },
     {
       "id": "conditional-http-textwindow",
@@ -366,7 +364,7 @@
         "should": ["create 后 write_data，不 read 空 data.json", "docs get quicker-authoring-conditional-http 而非多次 docs search"],
         "mustNot": ["qkrpc_action_create 把 info 传成字符串", "patch 后 qkrpc_action_get full"]
       },
-      "verify": { "mockProfile": "conditional-http-cache", "manual": ["有 url 时窗口/变量可见响应片段"] }
+      "verify": { "manual": ["有 url 时窗口/变量可见响应片段"] }
     },
     {
       "id": "regression-no-get-after-patch",

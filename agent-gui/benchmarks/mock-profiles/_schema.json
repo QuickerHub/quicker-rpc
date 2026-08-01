@@ -1,5 +1,0 @@
-{
-  "$schema": "./_schema.json",
-  "version": 1,
-  "description": "Mock profile fields for qkrpc action run --mock."
-}

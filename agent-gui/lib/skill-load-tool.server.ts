@@ -6,6 +6,7 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import { loadSkillInstructions } from "@/lib/agent-skills/load";
+import { pageSkillContent } from "@/lib/agent-skills/content-page";
 import { formatLocalToolResult } from "@/lib/tool-result";
 
 export const SKILL_LOAD_TOOL = "skill_load";
@@ -56,30 +57,6 @@ async function listSkillFiles(skillDir: string): Promise<string[]> {
     await listFilesRecursively(resolve(skillDir, dir), skillDir, files);
   }
   return files.sort((a, b) => a.localeCompare(b));
-}
-
-export type SkillPage = {
-  content: string;
-  offset: number;
-  nextOffset: number | null;
-  totalChars: number;
-  truncated: boolean;
-};
-
-export function pageSkillContent(
-  content: string,
-  offset: number,
-  limit: number,
-): SkillPage {
-  const start = Math.min(Math.max(0, offset), content.length);
-  const end = Math.min(content.length, start + limit);
-  return {
-    content: content.slice(start, end),
-    offset: start,
-    nextOffset: end < content.length ? end : null,
-    totalChars: content.length,
-    truncated: end < content.length,
-  };
 }
 
 export const SKILL_LOAD_TOOL_DEF = tool({
@@ -149,4 +126,3 @@ export const SKILL_LOAD_TOOL_DEF = tool({
     });
   },
 });
-

@@ -6,8 +6,8 @@
 
 | 目标 | 命令 | 说明 |
 |------|------|------|
-| **开始 / 续跑动作编写学习** | **`/learn-authoring`** | IDE 内：读进度 → 动作库解构 / pattern / skill 晋升 → mock 验证 |
-| L3 benchmark（写动作 + mock） | **`/cursor-sdk`** | Headless：`@cursor/sdk` + qkrpc MCP，`‑VerifyMock` 自动 F 轴 |
+| **开始 / 续跑动作编写学习** | **`/learn-authoring`** | IDE 内：读进度 → 动作库解构 / pattern / skill 晋升 → 真实宿主验证 |
+| L3 benchmark（写动作） | **`/cursor-sdk`** | Headless：`@cursor/sdk` + qkrpc MCP；F 轴使用真实 Quicker 调试证据 |
 | L1 单模块维护（143/143 已完成） | **`/learn-modules`** | 新 step-runner 或 schema 变更时补 `authored/` |
 | qkrpc MCP / skills 安装 | **`/agent-setup`** | `qkrpc agent setup --upgrade` |
 | 改 Plugin/CLI 后热更新 | **`/hot-update`** | `build.ps1 -t` |
@@ -23,7 +23,7 @@
 ```text
 /learn-authoring   L2 pattern + 动作库 + skill 晋升（IDE，可读可写）
 /learn-modules     L1 单模块 schema（维护态）
-/cursor-sdk        L3 authoring-tasks 实写 + mock assert（headless）
+/cursor-sdk        L3 authoring-tasks 实写（headless）+ 真实 Quicker 验证
 ```
 
 进度文件：
@@ -44,8 +44,8 @@
 | IDE 内学动作、改文档 | `/learn-authoring` | headless（缺交互、难审 retro） |
 
 ```powershell
-# SDK benchmark + mock（推荐 headless 入口）
-pwsh -NoProfile -File ./scripts/Invoke-CursorSdk.ps1 -Script benchmark -TaskId clip-lines-expr -VerifyMock -Json
+# SDK benchmark（推荐 headless 入口；完成后按 actionId 在真实 Quicker 中调试）
+pwsh -NoProfile -File ./scripts/Invoke-CursorSdk.ps1 -Script benchmark -TaskId clip-lines-expr -Json
 
 # 通用 agent 包装（会话复用 .cursor/agent-cli/last-chat-id.txt）
 pwsh -NoProfile -File ./scripts/Invoke-CursorAgent.ps1 -Prompt "分析 action-patterns 进度" -Force

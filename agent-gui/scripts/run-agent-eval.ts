@@ -8,7 +8,7 @@
 
  *   pnpm agent-eval -- launcher-open-hotkeys --json
 
- *   pnpm agent-eval -- clip-lines-expr --verify-mock --judge --json
+ *   pnpm agent-eval -- clip-lines-expr --judge --json
 
  */
 
@@ -31,8 +31,6 @@ function parseArgs(argv: string[]): {
 
   json: boolean;
 
-  verifyMock: boolean;
-
   judge: boolean;
 
 } {
@@ -45,7 +43,7 @@ function parseArgs(argv: string[]): {
 
     throw new Error(
 
-      "Usage: pnpm agent-eval -- <scenario-id> [--json] [--verify-mock] [--judge]",
+      "Usage: pnpm agent-eval -- <scenario-id> [--json] [--judge]",
 
     );
 
@@ -57,8 +55,6 @@ function parseArgs(argv: string[]): {
 
     json: argv.includes("--json"),
 
-    verifyMock: argv.includes("--verify-mock"),
-
     judge: argv.includes("--judge"),
 
   };
@@ -69,19 +65,19 @@ function parseArgs(argv: string[]): {
 
 async function main(): Promise<void> {
 
-  const { taskId, json, verifyMock, judge } = parseArgs(process.argv.slice(2));
+  const { taskId, json, judge } = parseArgs(process.argv.slice(2));
 
 
 
   console.error(
 
-    `agent-gui eval: scenario=${taskId} base=${defaultAgentGuiBaseUrl()} verifyMock=${verifyMock} judge=${judge}`,
+    `agent-gui eval: scenario=${taskId} base=${defaultAgentGuiBaseUrl()} judge=${judge}`,
 
   );
 
 
 
-  let report = await runAgentGuiEvalTaskById(taskId, { verifyMock });
+  let report = await runAgentGuiEvalTaskById(taskId);
 
 
 
@@ -124,12 +120,6 @@ async function main(): Promise<void> {
 
     }
 
-    if (report.mockVerify) {
-
-      console.error(`mockVerify ok=${report.mockVerify.ok}`);
-
-    }
-
     if (report.judge) {
 
       console.error(
@@ -150,7 +140,7 @@ async function main(): Promise<void> {
 
 
 
-  if (!isAgentEvalReportPassing(report, { verifyMock, requireJudge: judge })) {
+  if (!isAgentEvalReportPassing(report, { requireJudge: judge })) {
 
     process.exitCode = 1;
 

@@ -310,7 +310,7 @@ export function extractSkillBriefForPreload(
   const sections = extractMarkdownSections(body, PATTERN_SKILL_BRIEF_SECTIONS);
   const trimmed = (sections || body.replace(/^#\s+.+\n+/m, "").trim()).trim();
   if (trimmed.length <= maxChars) return trimmed;
-  return `${trimmed.slice(0, maxChars).trimEnd()}\n\n_(truncated — docs get or Read skill for full body)_`;
+  return `${trimmed.slice(0, maxChars).trimEnd()}\n\n_(truncated — call skill_load with this exact skill name for the full body)_`;
 }
 
 export type FormatIntentMatchedSkillsParams = {

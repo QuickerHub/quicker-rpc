@@ -21,7 +21,7 @@ export function isPreloadedSkillBodyInPromptEnabled(): boolean {
   return false;
 }
 
-/** Short catalog for preloaded skills — full body via docs search/get or Read skill dir. */
+/** Short catalog for preloaded skills — full body via skill_load. */
 export async function formatPreloadedSkillsCatalogForPrompt(
   cwd?: string,
 ): Promise<string> {

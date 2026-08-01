@@ -15,11 +15,10 @@ test("appendBenchExportNotice appends assistant text with export path", () => {
   const next = appendBenchExportNotice(
     [{ id: "u1", role: "user", parts: [{ type: "text", text: "hello" }] }],
     result,
-    { mockSummary: "mock assert PASS" },
   );
   assert.equal(next.length, 2);
   assert.equal(next[1]?.role, "assistant");
-  const text = buildBenchExportNoticeText(result, { mockSummary: "mock assert PASS" });
+  const text = buildBenchExportNoticeText(result);
   assert.equal(
     next[1]?.parts[0] && "text" in next[1].parts[0] ? next[1].parts[0].text : "",
     text,

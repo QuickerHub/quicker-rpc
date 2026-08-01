@@ -303,10 +303,6 @@ internal static class QkrpcMcpActionExecutor
         string id,
         string? param = null,
         bool wait = false,
-        string? mode = null,
-        string? mockProfile = null,
-        string? mockProfileFile = null,
-        bool assert = false,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -314,7 +310,6 @@ internal static class QkrpcMcpActionExecutor
             return Task.FromResult(ValidationError("id is required"));
         }
 
-        var mock = string.Equals(mode, "mock", StringComparison.OrdinalIgnoreCase);
         return runtime.InvokeOpAsync(
             "action.run",
             QkrpcMcpJson.ToElement(new
@@ -324,11 +319,6 @@ internal static class QkrpcMcpActionExecutor
                 wait,
                 debug = false,
                 trace = false,
-                mock,
-                mode,
-                mockProfile,
-                mockProfileFile,
-                assert,
             }),
             cancellationToken);
     }

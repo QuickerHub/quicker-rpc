@@ -9,11 +9,8 @@ import {
 } from "@/lib/agent-eval/eval-scenario";
 import { defaultAgentGuiBaseUrl } from "@/lib/agent-eval/chat-client";
 import { buildAgentEvalCapabilitySummary } from "@/lib/agent-eval/capability-summary";
-import { runMockVerify } from "@/lib/agent-eval/mock-verify";
-import { extractBenchActionIdFromMessages } from "@/lib/bench-mode";
 import {
   extractAssistantText,
-  extractLastActionId,
   extractToolTrace,
 } from "@/lib/agent-eval/trace-extract";
 import { evaluateTraceExpect, mergeTraceRubrics } from "@/lib/agent-eval/trace-expect";
@@ -25,13 +22,8 @@ function evalOutDir(): string {
   return join(defaultWorkspaceRoot(), ".local", "agent-eval");
 }
 
-function resolveMockProfile(scenario: AgentEvalScenario): string {
-  return scenario.mockProfile?.trim() || scenario.id;
-}
-
 export type RunAgentGuiUiEvalOptions = {
   baseUrl?: string;
-  verifyMock?: boolean;
   skipTraceRubric?: boolean;
   judge?: AgentEvalJudgeResult;
   timeoutMs?: number;
@@ -95,26 +87,6 @@ export async function runAgentGuiUiEvalScenario(
     toolCalls,
     traceRubric: report.traceRubric,
   });
-
-  if (options.verifyMock && !scenario.readOnly && status === "finished") {
-    const actionId =
-      extractBenchActionIdFromMessages(ui.messages)
-      ?? extractLastActionId(assistantText);
-    const profileId = resolveMockProfile(scenario);
-    if (actionId) {
-      report.mockVerify = runMockVerify({
-        actionId,
-        mockProfile: profileId,
-      });
-    } else {
-      report.mockVerify = {
-        ok: false,
-        profileId,
-      };
-      error = error ?? "mock verify skipped: no action id in assistant text";
-      report.error = error;
-    }
-  }
 
   if (options.judge) {
     report.judge = options.judge;

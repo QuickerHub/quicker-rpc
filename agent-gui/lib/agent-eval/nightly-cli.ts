@@ -2,7 +2,6 @@ export type AgentEvalNightlyCliArgs = {
   preset: string;
   limit?: number;
   skipLive: boolean;
-  verifyMock: boolean;
   json: boolean;
   ui: boolean;
   headed: boolean;
@@ -20,7 +19,6 @@ export function parseAgentEvalNightlyArgs(
     preset,
     limit: Number.isFinite(limit) ? limit : undefined,
     skipLive: argv.includes("--skip-live"),
-    verifyMock: argv.includes("--verify-mock"),
     json: argv.includes("--json"),
     ui: argv.includes("--ui"),
     headed: argv.includes("--headed"),

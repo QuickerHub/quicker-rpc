@@ -63,7 +63,7 @@ test("agent mode adds stable internal tools", () => {
   });
   assert.deepEqual(
     ids,
-    ["docs", LIST_TOOLS_TOOL, SET_THREAD_TITLE_TOOL].sort(),
+    ["docs", LIST_TOOLS_TOOL, SET_THREAD_TITLE_TOOL, "skill_load"].sort(),
   );
 });
 

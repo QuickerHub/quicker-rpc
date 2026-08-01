@@ -18,7 +18,7 @@ const IGNORE_PATH_RE =
 
 // qkbuild / dotnet publish output — not hand-edited sources
 const PROJECT_PUBLISH_OUTPUT_RE =
-  /^(?:QuickerRpc\.(?:Plugin|Console|Contracts|AgentModel)|Quicker\.ActionRuntime\/[^/]+)\/publish\//i;
+  /^QuickerRpc\.(?:Plugin|Console|Contracts|AgentModel)\/publish\//i;
 
 const ROOT_PUBLISH_SOURCE_RE =
   /^publish\/(?:[^/]+\.(?:ps1|psm1|mjs|js|ts|yaml|yml|md)|templates\/|scripts\/)/i;
@@ -73,7 +73,6 @@ export function startHotUpdateWatch(options) {
     "QuickerRpc.Console",
     "QuickerRpc.Contracts",
     "QuickerRpc.AgentModel",
-    "Quicker.ActionRuntime",
     "docs/action-authoring-src",
   ];
 

@@ -28,4 +28,4 @@ node ./scripts/quickerbench-sync-oracle.mjs
 
 See `manifest.json`: `totalLikes`, `actionCount` (117 actions, 5 pages).
 
-Mock profile: `agent-gui/benchmarks/mock-profiles/user-action-likes-total.json`
+Runtime verification uses the real Quicker host; the frozen fixture is only the deterministic input oracle.

@@ -62,14 +62,11 @@ async function main(): Promise<void> {
     console.error(`\n=== ${scenario.id} cwd-fixture=${scenario.fixture ?? "repo"} ===`);
     const report = args.ui
       ? await runAgentGuiUiEvalScenario(scenario, {
-          verifyMock: args.verifyMock,
           headless: !args.headed,
         })
-      : await runAgentGuiEvalScenario(scenario, {
-          verifyMock: args.verifyMock,
-        });
+      : await runAgentGuiEvalScenario(scenario);
     reports.push(report);
-    if (!isAgentEvalReportPassing(report, { verifyMock: args.verifyMock })) {
+    if (!isAgentEvalReportPassing(report)) {
       failed += 1;
     }
     if (args.json) {

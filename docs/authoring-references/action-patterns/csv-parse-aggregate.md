@@ -45,7 +45,7 @@ Patch：`.local/patch-csv-parse-aggregate.json`
 - trace 用 `writeClipboard` 先写入样本 CSV。
 - 列缺失：`parseOk=false` + `message`；`sys:if` else 提示。
 - 简单 CSV 无引号转义；复杂 CSV 再考虑专用解析或 csscript。
-- **ActionRuntime mock**：避免 `Split(new[] {'\n','\r'})`（`'\n'` 可能被当变量）；用 `Replace("\r","").Split(new string[] { "\n" }, …)`；**勿用 LINQ**（`Select`/`Where`/`FindIndex` 在 mock eval 易失败）→ 用 `for` 循环。
+- **兼容性**：优先用 `Replace("\r", "").Split(new string[] { "\n" }, …)` 和显式 `for` 循环，减少表达式引擎差异。
 - `$={parseOk}` 在 **旧 CLI** if 条件可能恒 false（`$=` 被当变量名）；`build.ps1 -t` 后 `ReadConditionBoolean` 已修复。csv bench 仍用无条件 `writeClipboard` 亦可。
 
 ## 相关

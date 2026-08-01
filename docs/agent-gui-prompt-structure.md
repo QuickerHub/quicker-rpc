@@ -65,7 +65,7 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 | Communication | 用户语言（默认中文）；不对用户暴露工具名/CLI/JSON |
 | Runtime | qkrpc serve；侧栏 cwd = shell / qkrpc / workspace 根；`<qka id="uuid">` |
 | Capabilities | 按域列出工具族（run、settings、local、layout、safety、dev UI） |
-| Skills | action authoring 预加载；`docs get/search/index` 按需深读 |
+| Skills | action authoring essentials 预加载；`skill_load` 按精确名称分页深读 |
 
 ### Launcher 基座差异
 
@@ -89,17 +89,17 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 | 2 Full | 完整 tier-2 body | `HARNESS_PRELOAD_SKILLS=1` | `formatAuthoringSkillForPrompt()` |
 | 2t Turn | pattern skill 步骤骨架 | 编写意图 / `/author` / @ pin | `skill-intent-preload.ts` |
 | 1.5 Search-first | `search-strategy-prompt.ts` | Agent 每次 chat | `SEARCH_STRATEGY_PROMPT` |
-| 3 Deep read | skill/topic 全文 | `docs get` / Read skill 路径 | 运行时按需 |
+| 3 Deep read | skill 正文/reference | `skill_load` 精确名称 + 分页 | 运行时按需 |
 
 ### 预加载：quicker-authoring + quicker-eval-expression
 
 | 项 | 说明 |
 |----|------|
 | 默认 | **Essentials** — Pattern traps、P0–P7、Hard rules、P4 pick（~60 行） |
-| 全文 | `HARNESS_PRELOAD_SKILLS=1` 或 `docs get` |
+| 全文 | `HARNESS_PRELOAD_SKILLS=1` 或 `skill_load` 分页 |
 | 源 | `docs/skills/quicker-authoring/prompt-tier0.md`、`quicker-eval-expression/prompt-tier2.md` |
 
-**设计原则**：session 开头 **不要** 批量 `docs get`；索引已在 system 中，卡住再读一个 topic。
+**设计原则**：session 开头不批量加载 Skill；目录已在 system 中，任务命中后只调用一个 `skill_load`，需要时继续 offset 或读取它列出的 reference。`docs` 保留给 Quicker 编写专题，不再兼任通用 Skill loader。
 
 ### Post-patch summary
 

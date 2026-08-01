@@ -2,7 +2,7 @@
 
 > 当前只维护已经进入代码的最小契约。产品状态见 [EXT](product/README.md#p-ext)，目录与迁移见 [用户数据与插件](agent-gui-plugin-storage.md)。
 
-本规范只覆盖 QuickerAgent sidecar runtime，不包括 Quicker 内的 `QuickerRpc.Plugin`、ActionRuntime modules 或 qkrpc MCP。
+本规范只覆盖 QuickerAgent sidecar runtime，不包括 Quicker 内的 `QuickerRpc.Plugin` 或 qkrpc MCP。
 
 ## 当前目录
 

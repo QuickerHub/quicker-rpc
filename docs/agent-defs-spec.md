@@ -1,6 +1,6 @@
 # QuickerAgent 能力定义规范
 
-QuickerAgent 通过工作区 `.quicker/` 命名空间声明 **commands**、**skills**、**subagents**，并支持根目录 **AGENTS.md** 工作区指令。
+QuickerAgent 通过工作区 `.quicker/` 命名空间声明 **commands**、**skills**、**subagents**、**MCP servers**，并支持根目录 **AGENTS.md** 工作区指令。
 
 ## 目录结构
 
@@ -11,15 +11,17 @@ QuickerAgent 通过工作区 `.quicker/` 命名空间声明 **commands**、**ski
     commands/<name>.md      # 斜杠命令
     skills/<name>/SKILL.md  # agentskills.io 技能
     agents/<name>.md        # 子代理（task 工具）
+    mcp.json                # Agent 外部 MCP 工具（显式 enabled）
 ```
 
 用户级定义（全局，所有工作区可用）：
 
 ```
-%LOCALAPPDATA%/QuickerAgent/agent-defs/
+%APPDATA%/QuickerAgent/agent-defs/
   commands/
   skills/
   agents/
+  mcp.json
 ```
 
 内置 **skills**（`docs/skills/`）、**commands** 与 **subagents**（`agent-gui/lib/agent-defs/bundled/`）随 QuickerAgent 分发。工作区自定义能力见本文；规范全文即本文档。
@@ -70,7 +72,11 @@ model: deepseek                    # 可选，覆盖本轮 LLM 选择
 
 目录：`.quicker/skills/<name>/SKILL.md`
 
-遵循 [agentskills.io](https://agentskills.io/specification) frontmatter（`name`、`description`、`allowed-tools`、`metadata` 等）。通过 `docs` 工具 `action=get` 按需加载完整正文。
+遵循 [agentskills.io](https://agentskills.io/specification) frontmatter（`name`、`description`、`allowed-tools`、`metadata` 等）。Agent 通过 `skill_load` 按精确名称分页加载正文，再按返回的精确相对路径读取 reference/example/script 文件。
+
+## MCP servers
+
+配置格式、安全限制和生命周期见 [Agent 架构：Skills 与 MCP 扩展](agent-architecture.md#8-skills-与-mcp-扩展)。工作区 server 同名覆盖用户级 server；仅 `enabled: true` 的条目加载。这里的配置表示 **QuickerAgent 作为 MCP client 加载外部工具**，不同于 qkrpc 自身向 Cursor/Codex 暴露的 MCP server。
 
 ## Subagents
 
@@ -107,3 +113,4 @@ model: auto
 - 系统提示注入：`agent-gui/lib/instructions.ts`
 - 斜杠命令展开：`agent-gui/app/api/chat/route.ts`
 - 子代理运行时：`agent-gui/lib/task-tool.server.ts`
+- MCP 配置与加载：`agent-gui/lib/agent-mcp/`

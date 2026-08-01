@@ -53,17 +53,14 @@ async function main(): Promise<void> {
 
     const report = args.ui
       ? await runAgentGuiUiEvalScenario(scenario, {
-          verifyMock: args.verifyMock,
           headless: !args.headed,
         })
-      : await runAgentGuiEvalScenario(scenario, {
-          verifyMock: args.verifyMock,
-        });
+      : await runAgentGuiEvalScenario(scenario);
     summary.push(report);
 
 
 
-    if (!isAgentEvalReportPassing(report, { verifyMock: args.verifyMock })) {
+    if (!isAgentEvalReportPassing(report)) {
 
       failed += 1;
 

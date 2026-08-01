@@ -21,7 +21,7 @@ UI / HTTP adapters
 | HTTP | `app/api/chat/route.ts` | 请求解码、release preview、调用应用层 |
 | Application | `lib/agent-harness/run-turn.server.ts` | 串联 turn 阶段、把错误转换为响应 |
 | Request | `lib/agent-harness/turn-request.server.ts` | 模式、slash、消息修复、LLM selection 标准化 |
-| Runtime preparation | `lib/agent-harness/turn-runtime.server.ts` | scope、tools、TurnPlan、prompt、context budget |
+| Runtime preparation | `lib/agent-harness/turn-runtime.server.ts` | scope、tools/Skills/MCP、TurnPlan、调用策略、prompt、context budget |
 | Agent loop | `lib/agent-harness/stream-loop.server.ts` | `ToolLoopAgent`、step hook、stream metadata、压缩重试 |
 | Domain | `lib/agent-core/`、`agent-recovery-policy.ts` | 无 IO 的决策与值对象 |
 | Tool adapters | `lib/tools.ts` 及各 `*-tool.server.ts` | 调用外部能力并返回统一结果 |
@@ -47,9 +47,9 @@ UI / HTTP adapters
 2. `direct route`：Launcher 可命中无需模型的确定性快捷路径。
 3. `resolve model`：检查配置并创建 AI SDK `LanguageModel`。
 4. `resolve scope`：合并消息引用和 Action Designer 默认目标。
-5. `prepare runtime`：生成唯一 `TurnPlan`、工具集、system、上下文预算。
+5. `prepare runtime`：生成唯一 `TurnPlan`，加载内置工具与已启用 MCP，应用调用策略，生成 system 和上下文预算。
 6. `run agent`：`ToolLoopAgent` 执行多步模型/工具循环。
-7. `present`：转换为 AI SDK UI message stream，记录 usage 与运行时元数据。
+7. `present`：转换为 AI SDK UI message stream，记录 usage 与运行时元数据；流结束后释放 MCP transport。
 
 任何绕过这些阶段的快捷路径必须是确定性的，并在名称中带 `direct`。
 
@@ -72,7 +72,8 @@ QuickerAgent 负责：
 - UI metadata、持久化和评测。
 
 不得再实现第二套通用 agent loop，也不得仅为“框架化”引入 LangChain、Mastra 等
-与 AI SDK 重叠的编排层。
+与 AI SDK 重叠的编排层。当前需要的 Skills、MCP、审批和多 step 已能在 AI SDK 边界内实现；
+只有出现现有内核无法表达、且有基准证明收益的产品需求时才重新评估框架迁移。
 
 ## 5. 核心契约
 
@@ -101,6 +102,16 @@ context”。
 执行函数不得同时承担工具选择或 UI 渲染。工具失败应返回结构化错误和可执行的
 `nextAction`；仅真正的基础设施异常才抛出异常。
 
+对应实现：
+
+| 策略 | 权威入口 | 不变量 |
+|---|---|---|
+| 静态目录 | `tool-registry.ts` + `agent-tool-catalog.ts` | id 唯一；目录与可执行定义一一对应；description/schema 非空 |
+| 每 turn 调用限制 | `agent-tool-policy.ts` | 默认限制总次数和相同输入次数；等待、删除、task、MCP 可覆盖 |
+| 模型输出 | `tool-result-model-messages.ts` | 去除 `displayData`；超过 8KB 固定保留 head 6KB + tail 1KB |
+| UI 输出 | 原始 tool result / `displayData` | 不受模型视图裁剪影响 |
+| Schema 暴露 | `agent-harness/model-tool-definitions.ts` | 核心/当前 bundle/MCP 保留完整 schema，其余提供发现提示 |
+
 工具以用户意图、权限和副作用为边界。不要只为减少 tool 数量合并不同风险或不同
 工作流阶段；模型可见 schema 保持 provider 兼容的扁平对象。需要降低 prompt 成本时，
 优先使用 `TurnPlan` 选择相关工具子集、瘦身 schema 和压缩工具结果，不牺牲稳定 tool id。
@@ -114,7 +125,45 @@ context”。
 
 Prompt 的块结构见 [agent-gui-prompt-structure.md](agent-gui-prompt-structure.md)。
 
-## 8. 验证门槛
+## 8. Skills 与 MCP 扩展
+
+Skills 遵循 catalog → `skill_load` 分页正文 → 精确 reference 文件的渐进披露流程。发现优先级为
+workspace `.quicker/skills` → user `agent-defs/skills` → bundled `docs/skills`。Skill 正文不再借用
+`docs` 或猜测磁盘路径加载。
+
+Agent 作为 MCP client 时使用同一优先级读取配置：
+
+- user：`%APPDATA%/QuickerAgent/agent-defs/mcp.json`
+- workspace：`<cwd>/.quicker/mcp.json`（同名 server 覆盖 user）
+
+```json
+{
+  "mcpServers": {
+    "example": {
+      "enabled": true,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@example/mcp-server"],
+      "tools": ["search", "get"],
+      "requireApproval": true,
+      "maxCallsPerTurn": 6
+    },
+    "remote": {
+      "enabled": true,
+      "transport": "http",
+      "url": "https://example.test/mcp",
+      "headers": { "Authorization": "Bearer ${EXAMPLE_MCP_TOKEN}" }
+    }
+  }
+}
+```
+
+规则：server 必须显式 `enabled: true`；远程工具名暴露为 `mcp__<server>__<tool>`；stdio 不经过
+shell；密钥只允许通过 `${ENV_NAME}` 展开；可写/外部工具建议设置 `requireApproval` 和 `tools`
+allowlist。Launcher、title test 与 benchmark 不加载 MCP。实现位于 `lib/agent-mcp/`，客户端依赖锁定
+到与 AI SDK 6 同代的 `@ai-sdk/mcp`，不引入第二套 Agent 框架。
+
+## 9. 验证门槛
 
 Agent 核心改动至少执行：
 
@@ -129,7 +178,7 @@ pnpm test:context-compression
 涉及工具选择时增加 `chat-tool-selection`/`turn-plan` 契约测试；涉及 Agent loop 时使用
 mock model 覆盖多 step、tool error 和 stop condition。
 
-## 9. 文档治理
+## 10. 文档治理
 
 - 本文是 Agent 架构唯一权威入口。
 - 长期行为写规范或运行手册；实现进度写 issue/PR，不在仓库保留日期命名的计划快照。
@@ -138,7 +187,7 @@ mock model 覆盖多 step、tool error 和 stop condition。
 - Agent harness 的文件级导航见
   [`agent-gui/lib/agent-harness/README.md`](../agent-gui/lib/agent-harness/README.md)。
 
-## 10. 相关文档
+## 11. 相关文档
 
 - [agent-gui-prompt-structure.md](agent-gui-prompt-structure.md)：prompt 与 skill 拼装。
 - [agent-gui-eval.md](agent-gui-eval.md)：生产路径评测。

@@ -20,7 +20,7 @@ QuickerAgent (Electron + Next.js + AI SDK)
 | AUTHOR | 动作/子程序搜索、同步、编辑、diagnostics、patch、run/trace | 已实现，持续补齐高级编辑 | `action-editor/`、`workspace-program-*`、QuickerRpc Runtime |
 | LAUNCH | 全局快捷键、临时会话、command cache/resolve direct | 已实现 | `lib/launcher/`、`electron/commands/launcher.mjs` |
 | WORK | 文件、Grep、Shell、终端、后台/用户浏览器、网络搜索、浏览器转动作 | 已实现 | `workspace-*-tool*`、`shell-*`、`browser-*` |
-| EXT | 模型配置、Commands、Skills、Agents、`task` 子代理 | 已实现 | `llm-*`、`agent-defs/`、`agent-skills/`、`task-tool.server.ts` |
+| EXT | 模型配置、Commands、Skills、Agents、`task` 子代理、外部 MCP 工具 | 已实现（MCP 配置入口实验性） | `llm-*`、`agent-defs/`、`agent-skills/`、`agent-mcp/`、`task-tool.server.ts` |
 | VOICE | 本地 ASR 输入插件 | 已实现，可选安装 | `voice-input/`、`voice-asr-runtime/` |
 | VOICE-CHAT | `/voice-chat` 全双工语音页 | 实验性 | `components/voice-chat/`、`lib/voice-chat/` |
 | CLIPBOARD | 剪贴板历史 | 已禁用 | `CLIPBOARD_HISTORY_ENABLED = false` |
@@ -79,7 +79,9 @@ Coding Agent 修改前按 [任务路由](../agents/README.md) 进入代码。
 
 - 模型 profile、选择和密钥存入用户数据，不能进入 Git 或安装资源。
 - `.quicker/commands`、`skills`、`agents` 由统一 discovery 加载。
+- Skill 通过 `skill_load` 按名称和 offset 渐进加载；不把全部正文塞入初始 prompt。
 - `task` 子代理使用允许工具列表且不递归暴露自身。
+- 外部 MCP 从 user/workspace `mcp.json` 加载，server 必须显式 enabled；工具 namespaced、可 allowlist/审批/限流，并在 turn 结束关闭连接。配置入口暂按实验性管理。
 - plugin catalog 的 `availability` 是产品入口事实源。
 
 语音输入可用；全双工语音页仍实验性；剪贴板历史保持禁用。验证使用 LLM、agent-defs/skills/task、voice-input/voice-chat 对应测试。资源边界见 [用户数据与插件](../agent-gui-plugin-storage.md)。

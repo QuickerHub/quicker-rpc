@@ -67,10 +67,6 @@ export function resolveQuickerBenchTaskIds(options: {
   return ids.slice(0, limit);
 }
 
-export function resolveQuickerBenchMockProfile(task: QuickerBenchTask): string {
-  return task.verify.mockProfile.trim() || task.id;
-}
-
 export function loadFixtureManifest(fixtureSet: string): FixtureManifest {
   const manifestPath = join(
     process.cwd(),

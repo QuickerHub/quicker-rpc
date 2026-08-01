@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useMemo } from "react";
 import type { QuickerBenchTask } from "@/lib/quickerbench/catalog-types";
 import type { QuickerBenchRunEntry } from "@/lib/tool-test-quickerbench-runs";
-import { formatBenchMockSummary } from "@/lib/use-bench-chat-controller";
 import { useBenchChat } from "./BenchChatProvider";
 
 function tierLabel(tier: string): string {
@@ -19,8 +18,7 @@ function tierLabel(tier: string): string {
 function runStatusLabel(run: QuickerBenchRunEntry): string {
   if (run.status === "preparing") return "准备中";
   if (run.status === "running") return "对话中";
-  if (run.status === "verifying") return "Mock 断言";
-  if (run.status === "done") return formatBenchMockSummary(run) ?? "完成";
+  if (run.status === "done") return "完成";
   if (run.status === "error") return run.error ?? "失败";
   return run.status;
 }
@@ -28,7 +26,7 @@ function runStatusLabel(run: QuickerBenchRunEntry): string {
 function runStatusClass(run: QuickerBenchRunEntry): string {
   if (run.status === "error") return "bench-run-status--error";
   if (run.status === "done") return "bench-run-status--pass";
-  if (run.status === "verifying" || run.status === "running" || run.status === "preparing") {
+  if (run.status === "running" || run.status === "preparing") {
     return "bench-run-status--busy";
   }
   return "";
@@ -177,7 +175,7 @@ export function BenchTaskSidebar() {
       </div>
 
       <p className="bench-sidebar__hint">
-        点击任务：隔离空工作区 → 完整对话 → 自动 Mock 断言与导出
+        点击任务：隔离空工作区 → 完整对话 → Quicker 调试验证与导出
       </p>
     </aside>
   );

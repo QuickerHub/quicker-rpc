@@ -9,7 +9,6 @@ export type AgentEvalBenchmarkTask = {
   readOnly?: boolean;
   label?: string;
   verify?: {
-    mockProfile?: string;
     manual?: string[];
     auto?: string[];
   };
@@ -84,8 +83,4 @@ export function resolveBenchmarkTaskIds(options: {
 
   const limit = options.limit ?? ids.length;
   return ids.slice(0, limit);
-}
-
-export function resolveMockProfileId(task: AgentEvalBenchmarkTask): string {
-  return task.verify?.mockProfile?.trim() || task.id;
 }

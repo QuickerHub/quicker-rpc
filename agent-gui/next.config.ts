@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
     "*": ["./drizzle/migrations/**/*"],
   },
   serverExternalPackages: [
+    "@ai-sdk/mcp",
     "@tauri-apps/api",
     "@tauri-apps/plugin-dialog",
     "@tauri-apps/plugin-global-shortcut",

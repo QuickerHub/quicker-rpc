@@ -130,33 +130,17 @@ public sealed class QkrpcMcpActionTools
             cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_run")]
-    [Description("Run one action and wait for completion. mode=mock uses deterministic ActionRuntime verify (mockProfile + assert). NOT debug — qkrpc_action_debug.")]
+    [Description("Run one action through the Quicker host. NOT debug — qkrpc_action_debug.")]
     public Task<string> QkrpcActionRun(
         string id,
         string? param = null,
         bool wait = false,
-        string? mode = null,
-        string? mockProfile = null,
-        string? mockProfileFile = null,
-        bool assert = false,
         CancellationToken cancellationToken = default) =>
         QkrpcMcpActionExecutor.RunAsync(
             _runtime,
             id,
             param,
             wait,
-            mode,
-            mockProfile,
-            mockProfileFile,
-            assert,
-            cancellationToken);
-
-    [McpServerTool(Name = "qkrpc_action_mock_profiles")]
-    [Description("List benchmark mock profile ids for qkrpc_action_run(mode=mock).")]
-    public Task<string> QkrpcActionMockProfiles(CancellationToken cancellationToken = default) =>
-        _runtime.InvokeOpAsync(
-            "action.mock.profiles.list",
-            QkrpcMcpJson.ToElement(new { }),
             cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_debug")]

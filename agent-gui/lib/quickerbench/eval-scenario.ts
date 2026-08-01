@@ -1,6 +1,5 @@
 import type { AgentEvalScenario } from "@/lib/agent-eval/eval-scenario";
 import type { QuickerBenchTask } from "./catalog";
-import { resolveQuickerBenchMockProfile } from "./catalog";
 
 export function quickerBenchTaskToEvalScenario(  task: QuickerBenchTask,
 ): AgentEvalScenario {
@@ -11,7 +10,6 @@ export function quickerBenchTaskToEvalScenario(  task: QuickerBenchTask,
     chatMode: "agent",
     tier: task.tier,
     category: task.category,
-    mockProfile: resolveQuickerBenchMockProfile(task),
     fixture: "bench-empty",
     expect: {},
     source: "quickerbench",
