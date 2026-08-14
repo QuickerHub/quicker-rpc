@@ -95,6 +95,10 @@ internal static class QkrpcAgentSetupVerification
     {
         var issues = new List<AgentSetupCheckIssue>();
         var nextSteps = new List<string>();
+        var projectScope = string.Equals(manifest?.Scope, "project", StringComparison.OrdinalIgnoreCase);
+        var workspaceRoot = string.IsNullOrWhiteSpace(manifest?.WorkspaceRoot)
+            ? null
+            : Path.GetFullPath(manifest!.WorkspaceRoot);
 
         if (manifest is null || string.IsNullOrWhiteSpace(manifest.CliVersion))
         {
@@ -120,7 +124,7 @@ internal static class QkrpcAgentSetupVerification
         }
 
         var mcpChecks = new List<AgentSetupMcpCheck>();
-        var targets = manifest?.Targets ?? ["cursor"];
+        var targets = manifest?.Targets ?? (projectScope ? ["cursor-project"] : ["cursor"]);
         foreach (var targetId in targets.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (string.Equals(targetId, "codex", StringComparison.OrdinalIgnoreCase))
@@ -128,7 +132,7 @@ internal static class QkrpcAgentSetupVerification
                 continue;
             }
 
-            var target = ResolveTargetById(targetId);
+            var target = ResolveTargetById(targetId, workspaceRoot);
             if (target is null)
             {
                 continue;
@@ -155,12 +159,12 @@ internal static class QkrpcAgentSetupVerification
                 {
                     Code = "mcp_missing",
                     Message = $"MCP server '{ServerName}' not configured for {target.DisplayName}",
-                    Remediation = "qkrpc agent setup",
+                    Remediation = "qkrpc agent setup --workspace <path>",
                     Path = configPath,
                 });
-                if (!nextSteps.Contains("qkrpc agent setup"))
+                if (!nextSteps.Contains("qkrpc agent setup --workspace <path>"))
                 {
-                    nextSteps.Add("qkrpc agent setup");
+                    nextSteps.Add("qkrpc agent setup --workspace <path>");
                 }
             }
             else if (!commandMatches)
@@ -169,44 +173,90 @@ internal static class QkrpcAgentSetupVerification
                 {
                     Code = "mcp_exe_mismatch",
                     Message = $"MCP command does not match current qkrpc.exe for {target.DisplayName}",
-                    Remediation = "qkrpc agent setup",
+                    Remediation = "qkrpc agent setup --workspace <path>",
                     Path = configPath,
                 });
-                if (!nextSteps.Contains("qkrpc agent setup"))
+                if (!nextSteps.Contains("qkrpc agent setup --workspace <path>"))
                 {
-                    nextSteps.Add("qkrpc agent setup");
+                    nextSteps.Add("qkrpc agent setup --workspace <path>");
                 }
             }
         }
 
         var skillChecks = new List<AgentSetupSkillCheck>();
-        var skillNames = manifest?.Skills?.Count > 0
-            ? manifest.Skills
-            : QkrpcAgentSetupDefaults.DefaultSkillNames;
-        var userSkillsDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".cursor",
-            "skills");
-
-        foreach (var skillName in skillNames.Distinct(StringComparer.OrdinalIgnoreCase))
+        if (!projectScope)
         {
-            var skillPath = Path.Combine(userSkillsDir, skillName);
-            var installed = Directory.Exists(skillPath) && File.Exists(Path.Combine(skillPath, "SKILL.md"));
-            skillChecks.Add(new AgentSetupSkillCheck
-            {
-                Name = skillName,
-                Path = skillPath,
-                Installed = installed,
-            });
+            var skillNames = manifest?.Skills?.Count > 0
+                ? manifest.Skills
+                : Array.Empty<string>();
+            var userSkillsDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".cursor",
+                "skills");
 
-            if (!installed)
+            foreach (var skillName in skillNames.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var skillPath = Path.Combine(userSkillsDir, skillName);
+                var installed = Directory.Exists(skillPath) && File.Exists(Path.Combine(skillPath, "SKILL.md"));
+                skillChecks.Add(new AgentSetupSkillCheck
+                {
+                    Name = skillName,
+                    Path = skillPath,
+                    Installed = installed,
+                });
+
+                if (!installed)
+                {
+                    issues.Add(new AgentSetupCheckIssue
+                    {
+                        Code = "skill_missing",
+                        Message = $"Skill '{skillName}' not installed under ~/.cursor/skills",
+                        Remediation = "qkrpc agent setup --project-skills --workspace <path>",
+                        Path = skillPath,
+                    });
+                }
+            }
+        }
+        else if (manifest?.Skills?.Count > 0 && !string.IsNullOrWhiteSpace(workspaceRoot))
+        {
+            var projectSkillsDir = Path.Combine(workspaceRoot, ".cursor", "skills");
+            foreach (var skillName in manifest.Skills.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var skillPath = Path.Combine(projectSkillsDir, skillName);
+                var installed = Directory.Exists(skillPath) && File.Exists(Path.Combine(skillPath, "SKILL.md"));
+                skillChecks.Add(new AgentSetupSkillCheck
+                {
+                    Name = skillName,
+                    Path = skillPath,
+                    Installed = installed,
+                });
+
+                if (!installed)
+                {
+                    issues.Add(new AgentSetupCheckIssue
+                    {
+                        Code = "skill_missing",
+                        Message = $"Skill '{skillName}' not installed under project .cursor/skills",
+                        Remediation = "qkrpc agent setup --project-skills --workspace <path>",
+                        Path = skillPath,
+                    });
+                }
+            }
+        }
+
+        var rulesInstalled = false;
+        if (projectScope && !string.IsNullOrWhiteSpace(workspaceRoot))
+        {
+            var projectRulesPath = Path.Combine(workspaceRoot, ".cursor", "rules", RulesFileName);
+            rulesInstalled = File.Exists(projectRulesPath);
+            if (!rulesInstalled)
             {
                 issues.Add(new AgentSetupCheckIssue
                 {
-                    Code = "skill_missing",
-                    Message = $"Skill '{skillName}' not installed under ~/.cursor/skills",
-                    Remediation = "qkrpc agent setup --upgrade",
-                    Path = skillPath,
+                    Code = "rules_missing",
+                    Message = "Project Cursor rule qkrpc.mdc not installed",
+                    Remediation = "qkrpc agent setup --upgrade --workspace <path>",
+                    Path = projectRulesPath,
                 });
                 if (!nextSteps.Contains("qkrpc agent setup --upgrade"))
                 {
@@ -215,20 +265,15 @@ internal static class QkrpcAgentSetupVerification
             }
         }
 
-        var rulesPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".cursor",
-            "rules",
-            RulesFileName);
-        var rulesInstalled = File.Exists(rulesPath);
-        if (!rulesInstalled)
+        if (QkrpcCursorPluginInstaller.IsLocalPluginInstalled() && projectScope)
         {
+            var pluginPath = QkrpcCursorPluginInstaller.GetLocalPluginDirectory();
             issues.Add(new AgentSetupCheckIssue
             {
-                Code = "rules_missing",
-                Message = "Cursor rule qkrpc.mdc not installed",
-                Remediation = "qkrpc agent setup --upgrade",
-                Path = rulesPath,
+                Code = "cursor_plugin_global",
+                Message = "User-global Cursor plugin is installed and pollutes other workspaces",
+                Remediation = "qkrpc agent setup --upgrade  (removes ~/.cursor/plugins/local/quicker-rpc)",
+                Path = pluginPath,
             });
             if (!nextSteps.Contains("qkrpc agent setup --upgrade"))
             {
@@ -373,7 +418,7 @@ internal static class QkrpcAgentSetupVerification
         File.WriteAllText(configPath, json + Environment.NewLine, System.Text.Encoding.UTF8);
     }
 
-    private static McpInstallTarget? ResolveTargetById(string targetId)
+    private static McpInstallTarget? ResolveTargetById(string targetId, string? workspaceRoot)
     {
         foreach (var target in McpInstallTarget.AllUserTargets)
         {
@@ -383,12 +428,24 @@ internal static class QkrpcAgentSetupVerification
             }
         }
 
-        foreach (var target in McpInstallTarget.AllProjectTargetIds)
+        if (string.IsNullOrWhiteSpace(workspaceRoot))
         {
-            if (string.Equals(target.Id, targetId, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
+            return null;
+        }
+
+        if (string.Equals(targetId, "cursor-project", StringComparison.OrdinalIgnoreCase))
+        {
+            return McpInstallTarget.CursorProject(workspaceRoot);
+        }
+
+        if (string.Equals(targetId, "vscode-project", StringComparison.OrdinalIgnoreCase))
+        {
+            return McpInstallTarget.VscodeProject(workspaceRoot);
+        }
+
+        if (string.Equals(targetId, "claude-code-project", StringComparison.OrdinalIgnoreCase))
+        {
+            return McpInstallTarget.ClaudeCodeProject(workspaceRoot);
         }
 
         return null;

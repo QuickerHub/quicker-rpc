@@ -110,9 +110,18 @@ internal static class QkrpcAgentSetup
                 results.Add($"terminal PATH: {Path.Combine(workspace, ".vscode", "settings.json")}");
             }
 
+            if (options.Project)
+            {
+                results.AddRange(InstallRules(options, workspace));
+            }
+
             if (options.CursorPlugin)
             {
                 results.AddRange(QkrpcCursorPluginInstaller.TryInstallPlugin());
+            }
+            else
+            {
+                results.AddRange(QkrpcCursorPluginInstaller.TryUninstallPlugin());
             }
 
             if (options.CodexPlugin)
@@ -141,12 +150,13 @@ internal static class QkrpcAgentSetup
             if (options.Project)
             {
                 global::System.Console.Error.WriteLine($"Project manifest: {Path.Combine(workspace, ".qkrpc", "agent-setup.json")}");
+                global::System.Console.Error.WriteLine("Cursor scope: project (.cursor/mcp.json + .cursor/rules) — other repos are not affected.");
             }
 
             global::System.Console.Error.WriteLine("Restart your MCP host (Cursor / VS Code / Claude / Codex) to load servers.");
             if (options.UsesCursorPlugin())
             {
-                global::System.Console.Error.WriteLine("Cursor: local plugin reloads automatically after install.");
+                global::System.Console.Error.WriteLine("Cursor: user-global local plugin installed (applies to all workspaces).");
             }
             global::System.Console.Error.WriteLine("Verify: qkrpc agent setup --check [--json]");
             global::System.Console.Error.WriteLine("Agent self-install: docs/agent-mcp-self-install.md");
@@ -370,10 +380,30 @@ internal static class QkrpcAgentSetup
 
         var cliVersion = ResolveCliVersion();
         var workspace = ResolveWorkspaceForUpgrade(options, manifest);
-        var results = new List<string> { "MCP: skipped (--upgrade preserves existing config)" };
+        var results = new List<string>();
         var installedSkillNames = new List<string>();
 
-        if (options.Project && options.ProjectSkills)
+        var useProject =
+            options.Project
+            || string.Equals(manifest.Scope, "project", StringComparison.OrdinalIgnoreCase);
+
+        if (useProject)
+        {
+            var qkrpcExe = ResolveQkrpcExecutable();
+            var projectTarget = McpInstallTarget.CursorProject(workspace);
+            QkrpcAgentSetupVerification.MergeMcpConfigFile(
+                Path.GetFullPath(projectTarget.ResolveConfigPath()),
+                projectTarget.Format,
+                qkrpcExe,
+                workspace,
+                cliVersion);
+            results.Add($"MCP {projectTarget.DisplayName}: {projectTarget.ResolveConfigPath()}");
+            results.AddRange(InstallRules(
+                new QkrpcAgentSetupOptions { Project = true },
+                workspace));
+        }
+
+        if (useProject && options.ProjectSkills)
         {
             var projectSkillsDir = Path.Combine(workspace, ".cursor", "skills");
             foreach (var line in InstallSkills(options, projectSkillsDir, "project skills", installedSkillNames))
@@ -382,8 +412,20 @@ internal static class QkrpcAgentSetup
             }
         }
 
-        results.AddRange(QkrpcCursorPluginInstaller.TryInstallPlugin());
-        results.AddRange(QkrpcCodexPluginInstaller.TryInstallPlugin());
+        if (options.CursorPlugin)
+        {
+            results.AddRange(QkrpcCursorPluginInstaller.TryInstallPlugin());
+        }
+        else
+        {
+            results.AddRange(QkrpcCursorPluginInstaller.TryUninstallPlugin());
+        }
+
+        if (options.CodexPlugin || options.Codex)
+        {
+            results.AddRange(QkrpcCodexPluginInstaller.TryInstallPlugin());
+        }
+
         results.AddRange(QkrpcAgentSetupGuidance.InstallClaudeCodeGuidance(options, workspace));
         if (options.Codex)
         {
@@ -394,13 +436,20 @@ internal static class QkrpcAgentSetup
             ? installedSkillNames.Distinct().ToList()
             : manifest.Skills.ToList();
 
+        var scope = useProject ? "project" : manifest.Scope;
+        IReadOnlyList<string> targets = manifest.Targets;
+        if (useProject && (targets is null || targets.Count == 0 || targets.All(t => string.Equals(t, "cursor", StringComparison.OrdinalIgnoreCase))))
+        {
+            targets = ["cursor-project"];
+        }
+
         WriteManifest(
-            scope: options.Project ? "project" : manifest.Scope,
+            scope: scope,
             workspace: workspace,
             cliVersion: cliVersion,
-            targets: manifest.Targets,
+            targets: targets,
             skills: skills,
-            writeProjectManifest: options.Project);
+            writeProjectManifest: useProject);
 
         global::System.Console.Error.WriteLine("qkrpc agent setup --upgrade completed:");
         foreach (var line in results)
@@ -410,7 +459,7 @@ internal static class QkrpcAgentSetup
 
         global::System.Console.Error.WriteLine();
         global::System.Console.Error.WriteLine($"CLI version: {cliVersion}");
-        global::System.Console.Error.WriteLine("MCP configs unchanged. Cursor plugin refreshed (auto-reload; confirm qkrpc in Settings → MCP).");
+        global::System.Console.Error.WriteLine("Project MCP/rules refreshed; user-global Cursor plugin removed unless --cursor-plugin.");
 
         await Task.CompletedTask.ConfigureAwait(false);
         return ExitCodes.Success;
@@ -529,47 +578,37 @@ internal static class QkrpcAgentSetup
 
         if (options.All)
         {
+            // Never write ~/.cursor/mcp.json (global pollution). Cursor uses project MCP or --cursor-plugin.
             foreach (var target in McpInstallTarget.AllUserTargets)
             {
+                if (string.Equals(target.Id, "cursor", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 yield return target;
             }
         }
         else
         {
-            var explicitUser =
-                options.Cursor
-                || options.Claude
-                || options.Vscode
-                || options.Windsurf
-                || options.Cline
-                || options.Codex;
-
-            if (!explicitUser)
+            if (options.Claude)
             {
-                // Default: Cursor via plugin (no ~/.cursor/mcp.json).
-                yield break;
+                yield return McpInstallTarget.ClaudeDesktop;
             }
-            else
+
+            if (options.Vscode)
             {
-                if (options.Claude)
-                {
-                    yield return McpInstallTarget.ClaudeDesktop;
-                }
+                yield return McpInstallTarget.VscodeUser;
+            }
 
-                if (options.Vscode)
-                {
-                    yield return McpInstallTarget.VscodeUser;
-                }
+            if (options.Windsurf)
+            {
+                yield return McpInstallTarget.Windsurf;
+            }
 
-                if (options.Windsurf)
-                {
-                    yield return McpInstallTarget.Windsurf;
-                }
-
-                if (options.Cline)
-                {
-                    yield return McpInstallTarget.Cline;
-                }
+            if (options.Cline)
+            {
+                yield return McpInstallTarget.Cline;
             }
         }
 
@@ -689,23 +728,17 @@ internal static class QkrpcAgentSetup
             yield break;
         }
 
-        var userRulesDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".cursor",
-            "rules");
-        Directory.CreateDirectory(userRulesDir);
-        var userDest = Path.Combine(userRulesDir, RulesFileName);
-        File.Copy(source, userDest, overwrite: true);
-        yield return $"rules (user): {userDest}";
-
-        if (options.Project)
+        if (!options.Project)
         {
-            var projectRulesDir = Path.Combine(workspace, ".cursor", "rules");
-            Directory.CreateDirectory(projectRulesDir);
-            var projectDest = Path.Combine(projectRulesDir, RulesFileName);
-            File.Copy(source, projectDest, overwrite: true);
-            yield return $"rules (project): {projectDest}";
+            yield return "rules: skipped (project scope required; avoid ~/.cursor/rules pollution)";
+            yield break;
         }
+
+        var projectRulesDir = Path.Combine(workspace, ".cursor", "rules");
+        Directory.CreateDirectory(projectRulesDir);
+        var projectDest = Path.Combine(projectRulesDir, RulesFileName);
+        File.Copy(source, projectDest, overwrite: true);
+        yield return $"rules (project): {projectDest}";
     }
 
     private static string? ResolveRulesSource()

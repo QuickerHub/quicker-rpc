@@ -6,6 +6,17 @@ internal static class QkrpcCursorPluginInstaller
 
     internal static bool IsBundleAvailable() => ResolvePluginBundleSource() is not null;
 
+    internal static string GetLocalPluginDirectory() =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".cursor",
+            "plugins",
+            "local",
+            PluginLinkName);
+
+    internal static bool IsLocalPluginInstalled() =>
+        File.Exists(Path.Combine(GetLocalPluginDirectory(), ".cursor-plugin", "plugin.json"));
+
     internal static IEnumerable<string> TryInstallPlugin()
     {
         var source = ResolvePluginBundleSource();
@@ -17,12 +28,7 @@ internal static class QkrpcCursorPluginInstaller
             };
         }
 
-        var dest = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".cursor",
-            "plugins",
-            "local",
-            PluginLinkName);
+        var dest = GetLocalPluginDirectory();
 
         try
         {
@@ -43,7 +49,8 @@ internal static class QkrpcCursorPluginInstaller
 
             return new[]
             {
-                $"Cursor plugin: {dest}",
+                $"Cursor plugin (user-global): {dest}",
+                "Warning: this plugin applies to every Cursor workspace. Prefer project .cursor/mcp.json unless you need global skills.",
                 "Plugin installed. Cursor reloads local plugins automatically; enable qkrpc in Settings → MCP if needed.",
             };
         }
@@ -53,6 +60,36 @@ internal static class QkrpcCursorPluginInstaller
             {
                 $"Cursor plugin: failed ({ex.Message})",
                 "Fallback: reinstall qkrpc from GitHub release and run qkrpc agent setup",
+            };
+        }
+    }
+
+    /// <summary>
+    /// Remove user-global local plugin so other repos are not polluted by qkrpc rules/MCP/skills.
+    /// </summary>
+    internal static IEnumerable<string> TryUninstallPlugin()
+    {
+        var dest = GetLocalPluginDirectory();
+        if (!Directory.Exists(dest))
+        {
+            return new[] { "Cursor plugin: not installed (nothing to remove)" };
+        }
+
+        try
+        {
+            Directory.Delete(dest, recursive: true);
+            return new[]
+            {
+                $"Cursor plugin removed: {dest}",
+                "Use project MCP: qkrpc agent setup --workspace <quicker-workspace root>",
+            };
+        }
+        catch (Exception ex)
+        {
+            return new[]
+            {
+                $"Cursor plugin uninstall failed ({ex.Message}): {dest}",
+                "Delete the folder manually, then Reload Window.",
             };
         }
     }

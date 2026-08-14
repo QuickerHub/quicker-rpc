@@ -1,12 +1,22 @@
 ---
-description: Quicker/qkrpc routing and hard rules for MCP agents (not QuickerAgent).
+description: Quicker/qkrpc headless authoring. Use only when editing Quicker actions/subprograms, .quicker/, or calling qkrpc MCP. Do not apply in QuickerOrg/Quicker app source or unrelated repos.
 globs:
-alwaysApply: true
+alwaysApply: false
 ---
 
 # qkrpc agent rules
 
-**Canonical file** — copied to workspace `.cursor/rules/` via `scripts/Sync-QkrpcAgentRules.ps1` and to Cursor plugin via `qkrpc agent setup --upgrade`.
+**Canonical file** — copied to workspace `.cursor/rules/` via `scripts/Sync-QkrpcAgentRules.ps1` and to Cursor plugin via `qkrpc agent setup --cursor-plugin`.
+
+## Scope gate
+
+Apply this rule **only** when:
+
+- the user is editing Quicker **actions / subprograms**, or
+- files under the qkrpc disk root (`.quicker/`), or
+- you are calling `qkrpc_*` MCP / `qkrpc` CLI for authoring
+
+**Do not** treat QuickerOrg/Quicker (or other product repos) as `QKRPC_WORKSPACE_ROOT`. Disk edits belong in the configured workspace (usually `quicker-workspace`). Prefer project `.cursor/mcp.json` over a user-global Cursor plugin.
 
 ## Before editing
 
@@ -22,11 +32,19 @@ alwaysApply: true
 | **Remote** publish **action** (动作库) | — | `action publish` / `action update` (`--changelog` on update) |
 | **Remote** publish **subprogram** (子程序库) | — | `subprogram publish` / `subprogram update` (`--changelog` on update) |
 | Run / debug with step output | `qkrpc_action` `mode=debug` | `action run --trace` |
-| Step `inputParams` schema | `qkrpc_step_runner_search` → `qkrpc_step_runner_get` | `step-runner search` → `step-runner get` |
+
+On trace failure read `failureLocation`, `stackTrace`, `logExcerpt` (auto tail from `quicker.log`). See `tools/qkrpc/docs/agent-action-debug-workflow.md`.
+| Step `inputs` schema | `qkrpc_step_runner_search` → `qkrpc_step_runner_get` | `step-runner search` → `step-runner get` |
 | Icons (WPF / WebView) | `qkrpc_fa` | `fa search` / `fa resolve` |
 | Connectivity | `qkrpc_health` → on failure `qkrpc_wait` | `health` / `wait` |
 
-**Never** `action publish` / `action update` for **subprograms** (wrong API). **Never** guess `inputParams` without `step-runner get`.
+**Never** `action publish` / `action update` for **subprograms** (wrong API). **Never** guess `inputs` without `step-runner get`.
+
+**data.json wire (write)**: short names only — `key` / `inputs` / `outputs`. Never `stepKey`. Legacy long names are read-compatible only. Domain topics (form-spec, icons, context-menu) stay in docs — do not invent formDef without **form-spec**.
+
+## MCP output (compact)
+
+MCP tools return **flat compact JSON** — not `{ ok, data: { action, payload } }`. Fields like `actionId`, `editVersion`, `compressed` sit at the top level. `workspaceSync` is only `{ ok, projectDir, editVersion }`; read files from disk under `projectDir`. Verbose legacy: `QKRPC_MCP_VERBOSE=1`. See `tools/qkrpc/docs/mcp-output-contract.md`.
 
 ## Hard rules
 

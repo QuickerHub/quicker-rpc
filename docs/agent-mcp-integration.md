@@ -17,26 +17,26 @@
 
 ## 一键安装
 
-**Cursor（推荐）**：安装 qkrpc 后默认装 **本地插件**（含 MCP、skills、rules），**不写** `~/.cursor/mcp.json` 与用户级 `~/.cursor/skills/`。
+**Cursor（推荐）**：默认写**项目级** `.cursor/mcp.json` + `.cursor/rules/qkrpc.mdc`（固定 `QKRPC_WORKSPACE_ROOT`），**不**安装用户全局 `~/.cursor/plugins/local/quicker-rpc`，避免污染 QuickerOrg/Quicker 等其它仓库。
 
 ```powershell
 # 交互式向导
 qkrpc agent install
 
-# 默认：仅 Cursor 插件
-qkrpc agent setup
+# 默认：当前目录项目级 MCP + rules（并卸载旧全局插件）
+qkrpc agent setup --workspace D:\my-quicker-workspace
 
 # 其它宿主
 qkrpc agent setup --codex --project --workspace D:\my-quicker-workspace
-qkrpc agent setup --all          # 全部 MCP；Cursor 仍走插件
+qkrpc agent setup --all --project --workspace D:\my-quicker-workspace
 
 # 检查 / 刷新
 qkrpc agent setup --check
 qkrpc agent setup --check --json
-qkrpc agent setup --upgrade      # 刷新 Cursor 插件 + Claude 指引
+qkrpc agent setup --upgrade   # 刷新项目 MCP/rules；移除旧全局 Cursor 插件
 
-# 团队 opt-in：项目级 MCP（可 commit）
-qkrpc agent setup --project --workspace D:\my-quicker-workspace
+# 显式 opt-in：用户全局 Cursor 插件（一般不要）
+qkrpc agent setup --cursor-plugin
 
 # 向后兼容别名
 qkrpc mcp install
@@ -44,26 +44,33 @@ qkrpc mcp install
 
 | 标志 | 行为 |
 |------|------|
-| 默认 / `--cursor` / `--cursor-plugin` | Cursor 本地插件 `~/.cursor/plugins/local/quicker-rpc` |
+| 默认 / `--project` | 项目 `.cursor/mcp.json` + `.cursor/rules/qkrpc.mdc`；卸载全局 local 插件 |
+| `--cursor-plugin` / `--cursor` | **Opt-in** 用户全局插件 `~/.cursor/plugins/local/quicker-rpc`（污染其它仓库） |
 | `--codex` / `--codex-plugin` | Codex 本地插件 `~/.codex/plugins/quicker-rpc` + 个人 marketplace |
 | `--claude` | `%APPDATA%\Claude\claude_desktop_config.json` |
-| `--vscode` | VS Code 用户 `mcp.json` |
+| `--vscode` | VS Code 用户 `mcp.json`；与 `--project` 合用时另写 `.vscode/mcp.json` |
 | `--windsurf` | `~/.codeium/windsurf/mcp_config.json` |
 | `--cline` | Cline `cline_mcp_settings.json` |
-| `--codex` | `codex mcp add`；`--project` 合并 `AGENTS.md`（插件已含 MCP 时通常无需手配） |
-| `--all` | 上表 MCP 宿主 + Cursor 插件 |
-| `--project` | 当前目录 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json` |
+| `--all` | 上表非 Cursor 用户级 MCP；Cursor 仍走项目级（除非再加 `--cursor-plugin`） |
+| `--project-skills` | 复制 skills 到项目 `.cursor/skills/` |
 
 安装还会：
 
 - 非 Cursor 宿主：写入对应 `mcp.json` / Codex TOML，env 含 `QKRPC_WORKSPACE_ROOT`
-- Cursor：插件内 `mcp.json` + skills + rules（**勿**再手动复制到 `~/.cursor/skills`）
+- Cursor 默认：项目 MCP + rules；**勿**再装用户级 `~/.cursor/skills`
 - Claude Code：`~/.claude/CLAUDE.md` 指引段
-- manifest：`~/.qkrpc/agent-setup.json`
+- manifest：`~/.qkrpc/agent-setup.json`（`scope: project`）
 
-**仅 `--project` 时**额外：项目 MCP、`.vscode/settings.json` PATH、`.quicker/` bootstrap；可选 `--project-skills` 复制到项目 `.cursor/skills/`。
+**Cursor**：`qkrpc agent setup --upgrade` 后 Reload Window；在 Settings → MCP 确认本仓库的 qkrpc 已启用。其它宿主重载 MCP 面板即可。
 
-**Cursor**：重新安装或 `qkrpc agent setup --upgrade` 后插件会自动加载，无需退出 Cursor；在 Settings → MCP 确认 qkrpc 已启用。其它宿主重载 MCP 面板即可。
+### 跨仓库干扰
+
+若曾装过旧版全局插件，在其它项目里仍看到 qkrpc 规则/工具：
+
+```powershell
+qkrpc agent setup --upgrade --workspace D:\my-quicker-workspace
+# 或手动删除 %USERPROFILE%\.cursor\plugins\local\quicker-rpc 后 Reload Window
+```
 
 ---
 

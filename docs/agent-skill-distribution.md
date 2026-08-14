@@ -5,14 +5,14 @@
 ## 推荐路径（Windows 开发者）
 
 ```powershell
-# 安装 CLI 后（默认装 Cursor 插件）
-qkrpc agent setup
+# 安装 CLI 后（默认：项目级 MCP，不装全局 Cursor 插件）
+qkrpc agent setup --workspace <quicker-workspace>
 
-# CLI 升级后刷新插件
+# CLI 升级后刷新项目配置并清理旧全局插件
 qkrpc agent setup --upgrade
 ```
 
-Cursor 走插件，**不再**复制到 `~/.cursor/skills/` / `~/.cursor/rules/`。其它宿主见 [agent-mcp-integration.md](agent-mcp-integration.md)。
+Cursor 走**项目** `.cursor/mcp.json` + rules，**不再**默认复制到 `~/.cursor/plugins/local/`。其它宿主见 [agent-mcp-integration.md](agent-mcp-integration.md)。
 
 ## MCP 分发
 

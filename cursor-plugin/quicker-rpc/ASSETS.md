@@ -14,4 +14,4 @@ pwsh -NoProfile -File ./scripts/sync-cursor-plugin.ps1
 pwsh -NoProfile -File ./scripts/install-cursor-plugin.ps1   # runs sync automatically
 ```
 
-User install: `qkrpc agent setup` or `qkrpc agent setup --upgrade` (Cursor plugin).
+User install: `qkrpc agent setup --workspace <root>` (project MCP). Global plugin only: `qkrpc agent setup --cursor-plugin`.

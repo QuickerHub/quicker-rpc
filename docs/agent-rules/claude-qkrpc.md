@@ -10,7 +10,7 @@ You have `qkrpc` MCP tools when this project or `~/.claude/` is configured via `
 
 **Disk edit:** read layout via MCP resource `quicker://workspace/readme` or `docs` topic `workspace-editing`. Edit `.quicker/` `data.json` / `files/` with your **file tools** → `workspace_program` action=patch.
 
-**Refresh skills/rules after CLI upgrade:** `qkrpc agent setup --upgrade`
+**Refresh skills/rules after CLI upgrade:** `qkrpc agent setup --upgrade` (project MCP/rules; removes stale user-global Cursor plugin)
 
 Guide: `docs/agent-mcp-integration.md` in quicker-rpc repo.
 

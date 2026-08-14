@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using QuickerRpc.Console;
 using QuickerRpc.Console.Mcp;
 
 namespace QuickerRpc.Console.Test;
@@ -44,13 +45,41 @@ public sealed class QkrpcAgentInstallSelectionTests
     }
 
     [TestMethod]
-    public void ToSetupOptions_CursorMapsToPlugin()
+    public void ToSetupOptions_CursorMapsToProjectMcpNotGlobalPlugin()
     {
         var selection = QkrpcAgentInstallSelection.ParseChoices("1", false, false, false, false, null);
         var options = selection.ToSetupOptions();
         Assert.IsFalse(options.Cursor);
-        Assert.IsTrue(options.CursorPlugin);
+        Assert.IsFalse(options.CursorPlugin);
+        Assert.IsTrue(options.Project);
         Assert.IsTrue(options.SkipSkill);
+    }
+
+    [TestMethod]
+    public void ToSetupOptions_ExplicitCursorPlugin()
+    {
+        var selection = QkrpcAgentInstallSelection.ParseChoices("1", false, true, false, false, null);
+        var options = selection.ToSetupOptions();
+        Assert.IsTrue(options.CursorPlugin);
+        Assert.IsFalse(options.Project);
+    }
+
+    [TestMethod]
+    public void FromAgent_BareSetup_DefaultsToProjectNotCursorPlugin()
+    {
+        var options = QkrpcAgentSetupOptions.FromAgent(new AgentSetupFlagsOptions());
+        Assert.IsTrue(options.Project);
+        Assert.IsFalse(options.CursorPlugin);
+        Assert.IsTrue(options.DefaultProjectScope);
+    }
+
+    [TestMethod]
+    public void FromAgent_CursorPluginFlag_DoesNotImplyProject()
+    {
+        var options = QkrpcAgentSetupOptions.FromAgent(new AgentSetupFlagsOptions { CursorPlugin = true });
+        Assert.IsTrue(options.CursorPlugin);
+        Assert.IsFalse(options.Project);
+        Assert.IsFalse(options.DefaultProjectScope);
     }
 
     [TestMethod]

@@ -87,7 +87,7 @@ internal static class QkrpcCliHelp
                 Cmd("agent install", "Interactive wizard: pick Cursor / Codex / Claude / VS Code / etc.", "qkrpc agent install",
                     opts: new object[] { }),
 
-                Cmd("agent setup", "Install qkrpc for AI agents (default: Cursor plugin).", "qkrpc agent setup [--interactive] [--cursor] [--cursor-plugin] [--claude] [--vscode] [--windsurf] [--cline] [--codex] [--all] [--project] [--project-skills] [--workspace <path>] [--check]",
+                Cmd("agent setup", "Install qkrpc for AI agents (default: project .cursor/mcp.json).", "qkrpc agent setup [--interactive] [--cursor-plugin] [--claude] [--vscode] [--windsurf] [--cline] [--codex] [--all] [--project] [--project-skills] [--workspace <path>] [--check] [--upgrade]",
 
                     opts: AgentSetupOptions()),
 

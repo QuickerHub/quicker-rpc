@@ -129,6 +129,55 @@ public sealed class QkrpcAgentSetupVerificationTests
     }
 
     [TestMethod]
+    public void RunCheck_ProjectScope_ChecksProjectMcpAndRules()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "qkrpc-setup-test-" + Guid.NewGuid().ToString("N"));
+        var workspace = Path.Combine(temp, "ws");
+        Directory.CreateDirectory(Path.Combine(workspace, ".cursor", "rules"));
+        var qkrpcExe = Path.Combine(temp, "qkrpc.exe");
+        File.WriteAllText(qkrpcExe, string.Empty);
+        File.WriteAllText(
+            Path.Combine(workspace, ".cursor", "rules", "qkrpc.mdc"),
+            "---\nalwaysApply: false\n---\n");
+
+        QkrpcAgentSetupVerification.MergeMcpConfigFile(
+            Path.Combine(workspace, ".cursor", "mcp.json"),
+            McpConfigFormat.McpServers,
+            qkrpcExe,
+            workspace,
+            "3.0.0");
+
+        var manifest = new AgentSetupManifest
+        {
+            CliVersion = "3.0.0",
+            WorkspaceRoot = workspace,
+            Targets = ["cursor-project"],
+            Skills = [],
+            Scope = "project",
+        };
+
+        try
+        {
+            var result = QkrpcAgentSetupVerification.RunCheck(
+                qkrpcExe,
+                "3.0.0",
+                manifest,
+                Path.Combine(temp, "agent-setup.json"));
+
+            var blocking = result.Issues
+                .Where(i => i.Code != "cursor_plugin_global")
+                .ToList();
+            Assert.AreEqual(0, blocking.Count, string.Join("; ", blocking.Select(i => i.Code + ":" + i.Message)));
+            Assert.IsTrue(result.RulesInstalled);
+            Assert.IsTrue(result.McpConfigs.Any(m => m.Target == "cursor-project" && m.Installed));
+        }
+        finally
+        {
+            Directory.Delete(temp, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void RunCheck_DetectsOutdatedManifest()
     {
         var temp = Path.Combine(Path.GetTempPath(), "qkrpc-setup-test-" + Guid.NewGuid().ToString("N"));
@@ -139,8 +188,10 @@ public sealed class QkrpcAgentSetupVerificationTests
         var manifest = new AgentSetupManifest
         {
             CliVersion = "1.0.0",
-            Targets = ["cursor"],
-            Skills = ["qkrpc"],
+            Targets = ["cursor-project"],
+            Skills = [],
+            Scope = "project",
+            WorkspaceRoot = temp,
         };
 
         try

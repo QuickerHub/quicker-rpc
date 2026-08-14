@@ -59,13 +59,13 @@ public sealed class AgentSetupFlagsOptions
     [Option("check", HelpText = "Verify ~/.qkrpc/agent-setup.json matches CLI version.")]
     public bool Check { get; set; }
 
-    [Option("upgrade", HelpText = "Refresh skills, rules, and Claude guidance only (skip MCP config).")]
+    [Option("upgrade", HelpText = "Refresh project MCP/rules; remove user-global Cursor plugin unless --cursor-plugin.")]
     public bool Upgrade { get; set; }
 
     [Option("interactive", HelpText = "Interactive wizard (when no --cursor/--codex/--all flags).")]
     public bool Interactive { get; set; }
 
-    [Option("cursor", HelpText = "Install Cursor plugin (~/.cursor/plugins/local/quicker-rpc).")]
+    [Option("cursor", HelpText = "Alias of --cursor-plugin (opt-in user-global local plugin).")]
     public bool Cursor { get; set; }
 
     [Option("claude", HelpText = "Write Claude Desktop config.")]
@@ -101,7 +101,7 @@ public sealed class AgentSetupFlagsOptions
     [Option("skip-skill", HelpText = "Do not copy skills.")]
     public bool SkipSkill { get; set; }
 
-    [Option("cursor-plugin", HelpText = "Install Cursor plugin (~/.cursor/plugins/local/quicker-rpc). Bundled with qkrpc release.")]
+    [Option("cursor-plugin", HelpText = "Opt-in: user-global Cursor plugin (~/.cursor/plugins/local/quicker-rpc). Prefer default project MCP.")]
     public bool CursorPlugin { get; set; }
 
     [Option("codex-plugin", HelpText = "Install Codex plugin (~/.agents/plugins/quicker-rpc). Bundled with qkrpc release.")]

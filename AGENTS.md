@@ -17,7 +17,7 @@ Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让�
 | `voice-asr-runtime/**` 发布 / 用户说 **voice runtime 发布** | `quicker-voice-runtime-publish` / `/publish-voice-runtime`；tag `vX.Y.Z` → 同步两处 `voice-plugin-channel.json` | 勿改 `version.json`；勿仅用 `-t` |
 | 仅 `README.md`、`AGENTS.md`、`.cursor/**`（未动 C#） | 无构建 | — |
 | `docs/agent-mcp-integration.md` 等纯文档 | 无构建 | — |
-| 第三方 Agent 接入（MCP/skills） | **Agent 自执行** [docs/agent-mcp-self-install.md](docs/agent-mcp-self-install.md)；Cursor `qkrpc agent setup`；Codex `--codex --project` | 只把命令丢给用户 |
+| 第三方 Agent 接入（MCP/skills） | **Agent 自执行** [docs/agent-mcp-self-install.md](docs/agent-mcp-self-install.md)；Cursor `qkrpc agent setup --workspace <root>`（项目级）；全局插件仅 `--cursor-plugin`；Codex `--codex --project` | 只把命令丢给用户 |
 | 公开发布 / getquicker 正式包 | `/publish`；第三段 +1，见 [quicker-qkbuild-version-publish](.cursor/skills/quicker-qkbuild-version-publish/SKILL.md) | 仅用 `-t` revision 代替发布 |
 
 **热更新后验证**：`Invoke-RestMethod http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`。

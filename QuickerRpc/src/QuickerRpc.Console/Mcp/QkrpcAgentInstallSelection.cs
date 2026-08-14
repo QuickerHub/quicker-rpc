@@ -19,8 +19,11 @@ internal sealed class QkrpcAgentInstallSelection
 
     internal QkrpcAgentSetupOptions ToSetupOptions()
     {
-        var cursorPlugin = CursorPlugin || Cursor || AllHosts;
+        // Cursor host default → project MCP. User-global plugin only when CursorPlugin is true.
+        var cursorPlugin = CursorPlugin;
         var codexPlugin = CodexPlugin || Codex || AllHosts;
+        var project = ProjectMcp || (Cursor && !cursorPlugin);
+
         return new QkrpcAgentSetupOptions
         {
             Cursor = false,
@@ -30,7 +33,7 @@ internal sealed class QkrpcAgentInstallSelection
             Cline = AllHosts || Cline,
             Codex = Codex || AllHosts,
             All = AllHosts,
-            Project = ProjectMcp,
+            Project = project,
             ProjectSkills = ProjectSkills,
             Workspace = Workspace,
             SkipSkill = true,

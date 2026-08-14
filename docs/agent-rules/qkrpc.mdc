@@ -1,12 +1,22 @@
 ---
-description: Quicker/qkrpc routing and hard rules for MCP agents (not QuickerAgent).
+description: Quicker/qkrpc headless authoring. Use only when editing Quicker actions/subprograms, .quicker/, or calling qkrpc MCP. Do not apply in QuickerOrg/Quicker app source or unrelated repos.
 globs:
-alwaysApply: true
+alwaysApply: false
 ---
 
 # qkrpc agent rules
 
-**Canonical file** — copied to workspace `.cursor/rules/` via `scripts/Sync-QkrpcAgentRules.ps1` and to Cursor plugin via `qkrpc agent setup --upgrade`.
+**Canonical file** — copied to workspace `.cursor/rules/` via `scripts/Sync-QkrpcAgentRules.ps1` and to Cursor plugin via `qkrpc agent setup --cursor-plugin`.
+
+## Scope gate
+
+Apply this rule **only** when:
+
+- the user is editing Quicker **actions / subprograms**, or
+- files under the qkrpc disk root (`.quicker/`), or
+- you are calling `qkrpc_*` MCP / `qkrpc` CLI for authoring
+
+**Do not** treat QuickerOrg/Quicker (or other product repos) as `QKRPC_WORKSPACE_ROOT`. Disk edits belong in the configured workspace (usually `quicker-workspace`). Prefer project `.cursor/mcp.json` over a user-global Cursor plugin.
 
 ## Before editing
 

@@ -8,7 +8,7 @@
 
 | 宿主 | MCP 配置方式 | 规则/技能 |
 |------|----------------|-----------|
-| **Cursor** | `qkrpc agent setup` → 本地插件 | 插件内 skills + `qkrpc.mdc` |
+| **Cursor** | `qkrpc agent setup --workspace <root>` → 项目 `.cursor/mcp.json` | 项目 `.cursor/rules/qkrpc.mdc`；可选 `--project-skills` |
 | **Codex** | `qkrpc agent setup --codex` → 本地插件 + 个人 marketplace | 插件内 skills；项目规则见 `codex-qkrpc.md` → `AGENTS.md` |
 | **Claude Code** | `claude mcp add` 或 `qkrpc agent setup --claude` | `CLAUDE.md` 段（setup 可写） |
 | **其他** | 见 [agent-mcp-integration.md](agent-mcp-integration.md) 手动 JSON | 阅读 `docs/skills/qkrpc/` |
@@ -41,14 +41,16 @@ $workspace = (Get-Location).Path   # bootstrap / manifest 用；MCP 默认不写
 ## 2. Cursor（最快）
 
 ```powershell
-qkrpc agent setup
-# 团队共享项目 MCP：
-# qkrpc agent setup --project --workspace $workspace
+qkrpc agent setup --workspace $workspace
+# 可选：复制 skills 到项目
+# qkrpc agent setup --workspace $workspace --project-skills
+# 一般不要：用户全局插件（会干扰其它仓库）
+# qkrpc agent setup --cursor-plugin
 
 qkrpc agent setup --check
 ```
 
-完成后在 Settings → MCP 确认 qkrpc 已启用（重新安装后 Cursor 会自动加载本地插件，无需退出）。
+完成后 Reload Window，在 Settings → MCP 确认**本仓库**的 qkrpc 已启用。若仍看到全局插件干扰其它项目，再跑一次 `--upgrade`（会删除 `~/.cursor/plugins/local/quicker-rpc`）。
 
 ---
 

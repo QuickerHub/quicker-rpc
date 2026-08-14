@@ -23,11 +23,17 @@ internal sealed class QkrpcAgentSetupOptions
     public bool SkipSkill { get; init; }
     public bool Json { get; init; }
 
-    /// <summary>Install Cursor plugin (~/.cursor/plugins/local/quicker-rpc).</summary>
+    /// <summary>
+    /// Opt-in: install user-global Cursor plugin (~/.cursor/plugins/local/quicker-rpc).
+    /// Default setup uses project .cursor/mcp.json instead (avoids polluting other repos).
+    /// </summary>
     public bool CursorPlugin { get; init; }
 
     /// <summary>Install Codex plugin (~/.agents/plugins/quicker-rpc).</summary>
     public bool CodexPlugin { get; init; }
+
+    /// <summary>True when bare <c>qkrpc agent setup</c> implied project scope (no host flags).</summary>
+    public bool DefaultProjectScope { get; init; }
 
     internal bool UsesCursorPlugin() => CursorPlugin;
 
@@ -123,8 +129,11 @@ internal sealed class QkrpcAgentSetupOptions
             && !cursorPluginFlag
             && !codexPluginFlag;
 
-        var cursorPlugin = cursorPluginFlag || cursor || all || defaultNoHostFlags;
+        // Global local plugin is opt-in only (--cursor-plugin or legacy --cursor).
+        // Bare setup defaults to project MCP so other repos (e.g. QuickerOrg/Quicker) stay clean.
+        var cursorPlugin = cursorPluginFlag || cursor;
         var codexPlugin = codexPluginFlag || codex || all;
+        var projectEffective = project || defaultNoHostFlags;
 
         return new QkrpcAgentSetupOptions
         {
@@ -138,7 +147,7 @@ internal sealed class QkrpcAgentSetupOptions
             Cline = cline,
             Codex = codex,
             All = all,
-            Project = project,
+            Project = projectEffective,
             ProjectSkills = projectSkills,
             Workspace = workspace,
             SkillSource = skillSource,
@@ -146,6 +155,7 @@ internal sealed class QkrpcAgentSetupOptions
             Json = json,
             CursorPlugin = cursorPlugin,
             CodexPlugin = codexPlugin,
+            DefaultProjectScope = defaultNoHostFlags,
         };
     }
 }

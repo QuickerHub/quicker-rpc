@@ -65,7 +65,7 @@ internal static class QkrpcAgentSetupInteractive
         global::System.Console.Error.WriteLine("  qkrpc Agent 安装向导");
         global::System.Console.Error.WriteLine("  ====================");
         global::System.Console.Error.WriteLine();
-        global::System.Console.Error.WriteLine("  为 AI 编程助手安装 qkrpc（Cursor 走本地插件包）。");
+        global::System.Console.Error.WriteLine("  为 AI 编程助手安装 qkrpc（Cursor 默认项目级 MCP，避免污染其它仓库）。");
         global::System.Console.Error.WriteLine("  前置: Quicker 已运行且已加载 QuickerRpc 插件。");
         global::System.Console.Error.WriteLine();
     }
@@ -73,13 +73,13 @@ internal static class QkrpcAgentSetupInteractive
     private static QkrpcAgentInstallSelection PromptSelection()
     {
         global::System.Console.Error.WriteLine("选择要配置的宿主（输入编号，逗号分隔，默认 1）:");
-        global::System.Console.Error.WriteLine("  1) Cursor          — 本地插件 (MCP + skills + rules)");
+        global::System.Console.Error.WriteLine("  1) Cursor          — 项目 .cursor/mcp.json（推荐）");
         global::System.Console.Error.WriteLine("  2) Codex           — 本地插件 (MCP + skills)");
         global::System.Console.Error.WriteLine("  3) Claude Desktop  — claude_desktop_config.json");
         global::System.Console.Error.WriteLine("  4) VS Code Copilot — 用户 mcp.json");
         global::System.Console.Error.WriteLine("  5) Windsurf        — mcp_config.json");
         global::System.Console.Error.WriteLine("  6) Cline           — cline_mcp_settings.json");
-        global::System.Console.Error.WriteLine("  7) 全部用户级 MCP（Cursor 仍走插件）");
+        global::System.Console.Error.WriteLine("  7) 全部用户级 MCP（不含 Cursor 全局）");
         global::System.Console.Error.WriteLine();
 
         var hostsInput = PromptLine("宿主 [1]", "1");
@@ -98,14 +98,32 @@ internal static class QkrpcAgentSetupInteractive
         catch (FormatException ex)
         {
             global::System.Console.Error.WriteLine(ex.Message);
-            global::System.Console.Error.WriteLine("使用默认: Cursor 插件");
+            global::System.Console.Error.WriteLine("使用默认: Cursor 项目级 MCP");
             selection = QkrpcAgentInstallSelection.ParseChoices("1", false, false, false, false, null);
         }
 
         var cursorSelected = selection.AllHosts || selection.Cursor;
-        var cursorPlugin = cursorSelected;
+        var cursorPlugin = false;
+        var projectMcp = cursorSelected;
+        if (cursorSelected)
+        {
+            cursorPlugin = PromptYesNo(
+                "安装用户全局 Cursor 插件?（会干扰其它仓库，一般选 N）[y/N]",
+                defaultYes: false);
+            if (cursorPlugin)
+            {
+                projectMcp = PromptYesNo("同时写入项目 .cursor/mcp.json? [Y/n]", defaultYes: true);
+            }
+            else
+            {
+                projectMcp = true;
+            }
+        }
+        else
+        {
+            projectMcp = PromptYesNo("写入当前目录 .cursor/mcp.json（项目级 MCP）? [y/N]", defaultYes: false);
+        }
 
-        var projectMcp = PromptYesNo("写入当前目录 .cursor/mcp.json（项目级 MCP）? [y/N]", defaultYes: false);
         var projectSkills = false;
         if (projectMcp)
         {
@@ -114,26 +132,60 @@ internal static class QkrpcAgentSetupInteractive
 
         global::System.Console.Error.WriteLine();
         global::System.Console.Error.WriteLine("工作区根目录 (QKRPC_WORKSPACE_ROOT):");
+        if (projectMcp)
+        {
+            global::System.Console.Error.WriteLine("  1) 固定为当前目录（推荐，避免其它仓库误用）");
+            global::System.Console.Error.WriteLine("  2) 跟随编辑器打开的项目 ${workspaceFolder}");
+            global::System.Console.Error.WriteLine("  3) 自定义路径");
+            var workspaceChoice = PromptLine("选择 [1]", "1");
+            string? workspace = null;
+            switch (workspaceChoice.Trim())
+            {
+                case "1":
+                case "":
+                    workspace = Directory.GetCurrentDirectory();
+                    break;
+                case "2":
+                    workspace = null;
+                    break;
+                case "3":
+                    workspace = PromptLine("路径", Directory.GetCurrentDirectory());
+                    break;
+                default:
+                    global::System.Console.Error.WriteLine("无效选择，使用当前目录。");
+                    workspace = Directory.GetCurrentDirectory();
+                    break;
+            }
+
+            return QkrpcAgentInstallSelection.ParseChoices(
+                hostsInput,
+                installSkills: false,
+                cursorPlugin,
+                projectMcp,
+                projectSkills,
+                workspace);
+        }
+
         global::System.Console.Error.WriteLine("  1) 跟随编辑器打开的项目 ${workspaceFolder}（推荐）");
         global::System.Console.Error.WriteLine("  2) 固定为当前目录");
         global::System.Console.Error.WriteLine("  3) 自定义路径");
-        var workspaceChoice = PromptLine("选择 [1]", "1");
-        string? workspace = null;
-        switch (workspaceChoice.Trim())
+        var workspaceChoiceLegacy = PromptLine("选择 [1]", "1");
+        string? workspaceLegacy = null;
+        switch (workspaceChoiceLegacy.Trim())
         {
             case "1":
             case "":
-                workspace = null;
+                workspaceLegacy = null;
                 break;
             case "2":
-                workspace = Directory.GetCurrentDirectory();
+                workspaceLegacy = Directory.GetCurrentDirectory();
                 break;
             case "3":
-                workspace = PromptLine("路径", Directory.GetCurrentDirectory());
+                workspaceLegacy = PromptLine("路径", Directory.GetCurrentDirectory());
                 break;
             default:
                 global::System.Console.Error.WriteLine("无效选择，使用跟随编辑器。");
-                workspace = null;
+                workspaceLegacy = null;
                 break;
         }
 
@@ -143,7 +195,7 @@ internal static class QkrpcAgentSetupInteractive
             cursorPlugin,
             projectMcp,
             projectSkills,
-            workspace);
+            workspaceLegacy);
     }
 
     private static void WriteSummary(QkrpcAgentInstallSelection selection)
@@ -182,17 +234,17 @@ internal static class QkrpcAgentSetupInteractive
             }
         }
 
-        if (selection.CursorPlugin || selection.Cursor || selection.AllHosts)
+        if (selection.CursorPlugin)
         {
-            global::System.Console.Error.WriteLine("  • Cursor 本地插件包");
+            global::System.Console.Error.WriteLine("  • Cursor 用户全局本地插件（影响所有仓库）");
         }
         if (selection.CodexPlugin || selection.Codex || selection.AllHosts)
         {
             global::System.Console.Error.WriteLine("  • Codex 本地插件包");
         }
-        if (selection.ProjectMcp)
+        if (selection.ProjectMcp || (selection.Cursor && !selection.CursorPlugin))
         {
-            global::System.Console.Error.WriteLine("  • 项目级 .cursor/mcp.json");
+            global::System.Console.Error.WriteLine("  • 项目级 .cursor/mcp.json + rules");
         }
         if (selection.ProjectSkills)
         {

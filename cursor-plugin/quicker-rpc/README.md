@@ -6,7 +6,15 @@
 
 **前置**：Windows、[qkrpc CLI](https://github.com/QuickerHub/quicker-rpc/releases/latest)、Quicker 已加载 QuickerRpc 插件。
 
-### 方式 A — 一条命令（推荐）
+**推荐（项目级，不污染其它仓库）**：
+
+```powershell
+qkrpc agent setup --workspace D:\path\to\quicker-workspace
+```
+
+用户全局 local 插件（`~/.cursor/plugins/local/quicker-rpc`）仅在明确需要时使用：`qkrpc agent setup --cursor-plugin`。
+
+### 方式 A — 一条命令（全局插件，一般不推荐）
 
 ```powershell
 pwsh -NoProfile -Command "& { git clone --depth 1 https://github.com/QuickerHub/quicker-rpc `"$env:USERPROFILE\.cursor\plugins\repos\quicker-rpc`"; pwsh -NoProfile -File `"$env:USERPROFILE\.cursor\plugins\repos\quicker-rpc\scripts\install-cursor-plugin.ps1`" }"

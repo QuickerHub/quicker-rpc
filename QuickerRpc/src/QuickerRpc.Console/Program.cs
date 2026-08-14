@@ -1432,13 +1432,13 @@ public sealed class McpOptions
     [Option("check", HelpText = "Install: verify agent-setup.json matches CLI version.")]
     public bool Check { get; set; }
 
-    [Option("upgrade", HelpText = "Install: refresh skills/rules/Claude guidance only (skip MCP).")]
+    [Option("upgrade", HelpText = "Install: refresh project MCP/rules; remove user-global Cursor plugin unless --cursor-plugin.")]
     public bool Upgrade { get; set; }
 
     [Option("interactive", HelpText = "Install: interactive wizard when no host flags.")]
     public bool Interactive { get; set; }
 
-    [Option("cursor", HelpText = "Install: Cursor plugin (~/.cursor/plugins/local/quicker-rpc).")]
+    [Option("cursor", HelpText = "Alias of --cursor-plugin (opt-in user-global local plugin).")]
     public bool Cursor { get; set; }
 
     [Option("claude", HelpText = "Install: write Claude Desktop config")]
@@ -1459,7 +1459,7 @@ public sealed class McpOptions
     [Option("all", HelpText = "Install: all supported user-level MCP configs")]
     public bool All { get; set; }
 
-    [Option("project", HelpText = "Install: write project .cursor/mcp.json only; add --vscode for .vscode/mcp.json")]
+    [Option("project", HelpText = "Install: write project .cursor/mcp.json (default for bare setup). Add --vscode for .vscode/mcp.json")]
     public bool Project { get; set; }
 
     [Option("project-skills", HelpText = "Install: with --project, also copy skills to .cursor/skills/")]
@@ -1474,7 +1474,7 @@ public sealed class McpOptions
     [Option("skip-skill", HelpText = "Install: do not copy skills")]
     public bool SkipSkill { get; set; }
 
-    [Option("cursor-plugin", HelpText = "Install: Cursor plugin (~/.cursor/plugins/local/quicker-rpc)")]
+    [Option("cursor-plugin", HelpText = "Opt-in: install user-global Cursor plugin (~/.cursor/plugins/local/quicker-rpc). Pollutes other repos; prefer default project MCP.")]
     public bool CursorPlugin { get; set; }
 
     [Option("codex-plugin", HelpText = "Install: Codex plugin (~/.agents/plugins/quicker-rpc)")]
