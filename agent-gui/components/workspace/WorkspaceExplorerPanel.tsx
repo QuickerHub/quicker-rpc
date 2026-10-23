@@ -6,6 +6,7 @@ import { WorkspaceEmbeddedBrowser } from "@/components/browser/WorkspaceEmbedded
 import { WorkspaceEmbeddedTerminal } from "@/components/terminal/WorkspaceEmbeddedTerminal";
 import { ActionTracePanel } from "@/components/action-trace/ActionTracePanel";
 import { WorkspaceExplorerEditorArea } from "@/components/workspace/WorkspaceExplorerEditorArea";
+import type { WorkspaceDocumentChatPresentation } from "./WorkspaceDocumentHost";
 import { WorkspaceResourceManager } from "@/components/workspace/WorkspaceResourceManager";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { storeChatColumnWidth } from "@/lib/explorer-prefs";
@@ -26,7 +27,7 @@ import {
   workspaceExplorerActionsRef,
 } from "@/lib/workspace-explorer";
 
-export function WorkspaceExplorerPanel() {
+export function WorkspaceExplorerPanel({ chatPresentation }: { chatPresentation: WorkspaceDocumentChatPresentation }) {
   const { panelOpen, chatColumnWidth, setChatColumnWidth, activeSideView } =
     useWorkspaceExplorerShell();
   const { activeTab } = useWorkspaceExplorerEditor();
@@ -156,6 +157,7 @@ export function WorkspaceExplorerPanel() {
             className={`workspace-side-panel-editor workspace-main-editor workspace-main-editor--fill${actionDataEditorOpen ? " workspace-side-panel-editor--action-data" : ""}`}
           >
             <WorkspaceExplorerEditorArea
+              chatPresentation={chatPresentation}
               onRefreshTree={() => {
                 workspaceExplorerActionsRef.current.refreshTree();
               }}

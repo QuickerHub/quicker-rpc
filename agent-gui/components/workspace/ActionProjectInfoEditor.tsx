@@ -26,6 +26,7 @@ import {
 import type { ProgramProjectDeleteKind } from "@/lib/use-program-project-delete";
 
 type ActionProjectInfoEditorProps = {
+  active?: boolean;
   path: string;
   content: string;
   cwd: string;
@@ -91,8 +92,10 @@ function CopyableText({
 
 function ProjectInfoMetaPopup({
   data,
+  active,
 }: {
   data: ParsedActionProjectInfo;
+  active: boolean;
 }) {
   const popupId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -105,7 +108,7 @@ function ProjectInfoMetaPopup({
   }, [data.icon]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!active || !open) return;
 
     const onPointerDown = (e: PointerEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) {
@@ -122,7 +125,7 @@ function ProjectInfoMetaPopup({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, close]);
+  }, [active, open, close]);
 
   const displayIconSpec = resolveActionProjectIconSpec(data.icon);
   const hasStoredIcon = Boolean(data.icon?.trim());
@@ -156,7 +159,7 @@ function ProjectInfoMetaPopup({
           {iconButton}
         </button>
 
-        {open ? (
+        {open && active ? (
           <div
             id={popupId}
             className="composer-popup project-info-meta-popup"
@@ -194,6 +197,7 @@ function InfoField({
 }
 
 function InfoBody({
+  active,
   data,
   path,
   content,
@@ -202,6 +206,7 @@ function InfoBody({
   onSaved,
   onSynced,
 }: {
+  active: boolean;
   data: ParsedActionProjectInfo;
   path: string;
   content: string;
@@ -336,7 +341,7 @@ function InfoBody({
   ]);
 
   const handleSave = useCallback(async () => {
-    if (!isDirty || saving || hostSyncBusy) return;
+    if (!active || !isDirty || saving || hostSyncBusy) return;
     setSaving(true);
     setSaveError(null);
 
@@ -365,6 +370,7 @@ function InfoBody({
     setHasSavedLocalChanges(true);
     onSaved?.();
   }, [
+    active,
     buildPatchedContent,
     isDirty,
     onSave,
@@ -376,14 +382,14 @@ function InfoBody({
   const noopCommit = useCallback(async () => {}, []);
 
   return (
-    <article className="project-info-editor">
+    <article className="project-info-editor" inert={!active}>
         <div
           className={`project-info-main-card${isDirty ? " project-info-main-card--dirty" : ""}`}
           inert={hostSyncBusy || saving}
           aria-busy={hostSyncBusy || saving}
         >
           <header className="project-info-header">
-            <ProjectInfoMetaPopup data={data} />
+            <ProjectInfoMetaPopup data={data} active={active} />
             <div className="project-info-heading">
               <EditableInline
                 className="project-info-title project-info-title--editable"
@@ -401,6 +407,7 @@ function InfoBody({
             </div>
             {deleteTarget ? (
               <ProgramProjectDeleteControl
+                active={active}
                 kind={deleteTarget.kind}
                 quickerId={deleteTarget.quickerId}
                 projectPath={deleteTarget.projectPath}
@@ -430,7 +437,7 @@ function InfoBody({
               <button
                 type="button"
                 className="project-info-save-btn"
-                disabled={saving || hostSyncBusy}
+                disabled={!active || saving || hostSyncBusy}
                 onClick={() => void handleSave()}
               >
                 {saving ? "保存中…" : "保存到工作区"}
@@ -467,11 +474,12 @@ function InfoBody({
         {data.kind === "action" && linkedActionId ? (
           <>
             <ActionProjectSyncBar
+              active={active}
               key={ownerKey}
               cwd={cwd}
               actionId={linkedActionId}
               projectDirectory={projectDirectory}
-              blocked={isDirty || saving}
+              blocked={!active || isDirty || saving}
               blockReason="请先保存当前修改，再同步到 Quicker"
               hasLocalChanges={isDirty || hasSavedLocalChanges}
               onSynced={() => { setHasSavedLocalChanges(false); onSynced?.(); }}
@@ -489,6 +497,7 @@ function InfoBody({
 }
 
 export function ActionProjectInfoEditor({
+  active = true,
   path,
   content,
   cwd,
@@ -510,6 +519,7 @@ export function ActionProjectInfoEditor({
   return (
     <div className="project-info-editor-wrap">
       <InfoBody
+        active={active}
         key={path}
         data={parsed.data}
         path={path}

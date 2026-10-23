@@ -12,7 +12,10 @@ import { isActionProjectInfoPath } from "@/lib/action-project-info-parse";
 import type { ExplorerFileTab } from "@/lib/workspace-explorer";
 import { fetchWorkspaceFile, formatWorkspaceFetchError } from "@/lib/workspace-explorer-api";
 import { invalidateWorkspaceFileReadCache } from "@/lib/workspace-file-read-cache";
+import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult } from "@/lib/program-document-save";
 type WorkspaceExplorerEditorPaneProps = {
+  active?: boolean;
   showDoc: boolean;
   activeTab: ExplorerFileTab | null;
   selectedIsDirectory?: boolean;
@@ -23,10 +26,13 @@ type WorkspaceExplorerEditorPaneProps = {
     content: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
   onRefreshTree: () => void;
-  onActionProjectSynced: () => void;
+  onActionProjectSynced: () => void | Promise<void>;
+  onPinStepToChat?: (tag: ProgramStepTag) => void;
+  onSaveDocument?: (request: ProgramDocumentSaveRequest) => Promise<ProgramDocumentSaveResult>;
 };
 
 export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditorPane({
+  active = true,
   showDoc,
   activeTab,
   selectedIsDirectory = false,
@@ -35,6 +41,8 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
   onSaveWorkspaceFile,
   onRefreshTree,
   onActionProjectSynced,
+  onPinStepToChat,
+  onSaveDocument,
 }: WorkspaceExplorerEditorPaneProps) {
   if (showDoc) {
     return <DocsViewerPanel />;
@@ -48,7 +56,7 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
     );
   }
 
-  if (activeTab.error) {
+  if (activeTab.error && !activeTab.content) {
     return (
       <p className="workspace-explorer-hint workspace-explorer-hint--err">
         {formatWorkspaceFetchError(new Error(activeTab.error))}
@@ -94,10 +102,11 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
         />
       ) : null}
 
-      {activeTab.content ? (
+      {activeTab.content || actionDataEditor || isActionProjectInfoPath(activeTab.path) ? (
         isActionProjectInfoPath(activeTab.path) ? (
           <>
             <ActionProjectInfoEditor
+              active={active}
               path={activeTab.path}
               content={activeTab.content}
               cwd={cwd}
@@ -109,9 +118,10 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
                 const body = await fetchWorkspaceFile(cwd, dataPath);
                 if (!body.ok) return body;
                 if (body.truncated) return { ok: false, error: "动作正文未完整加载，无法保存属性" };
-                return saveProgramDocumentClient(cwd, { path: dataPath, content: body.content, expectedContent: body.content,
+                const request = { path: dataPath, content: body.content, expectedContent: body.content,
                   metadata: { content: nextContent, expectedContent: activeTab.content ?? "" },
-                });
+                };
+                return onSaveDocument ? onSaveDocument(request) : saveProgramDocumentClient(cwd, request);
               }}
               onSaved={onActionProjectSynced}
               onSynced={onActionProjectSynced}
@@ -128,13 +138,15 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
         ) : isActionProjectDataPath(activeTab.path) ? (
           <>
             <ActionProjectDataEditor
+              active={active}
+              onPinStepToChat={onPinStepToChat}
               path={activeTab.path}
               content={activeTab.content}
               truncated={activeTab.truncated}
               totalChars={activeTab.totalChars}
               cwd={cwd}
               onSave={(nextContent) => onSaveWorkspaceFile(activeTab.path, nextContent)}
-              onSaveDocument={(request) => saveProgramDocumentClient(cwd, request)}
+              onSaveDocument={onSaveDocument ?? ((request) => saveProgramDocumentClient(cwd, request))}
               onSaved={onActionProjectSynced}
               onSynced={onActionProjectSynced}
             />

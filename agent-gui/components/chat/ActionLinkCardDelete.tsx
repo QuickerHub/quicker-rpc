@@ -53,7 +53,6 @@ export function ActionLinkCardDelete({
 
   const handleDeleted = useCallback(
     (message: string) => {
-      workspaceExplorerActionsRef.current.notifyProjectRemoved();
       pushAppMessage({
         id: TOAST_ID,
         kind: "success",
@@ -70,7 +69,10 @@ export function ActionLinkCardDelete({
     projectPath: projectPath ?? "",
     cwd,
     displayTitle,
-    onDeleted: () => handleDeleted("已删除"),
+    onDeleted: () => {
+      if (projectPath) workspaceExplorerActionsRef.current.notifyProjectRemoved({ cwd, projectPath });
+      handleDeleted("已删除");
+    },
   });
 
   const setBusy = useCallback(

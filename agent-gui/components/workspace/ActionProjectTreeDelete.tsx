@@ -16,6 +16,7 @@ import {
 } from "@/lib/action-explorer-tree";
 import { computeFloatingMenuLayout } from "@/lib/floating-menu-layout";
 import { useActionProjectDelete } from "@/lib/use-action-project-delete";
+import { workspaceExplorerActionsRef } from "@/lib/workspace-explorer";
 
 const DELETE_MENU_WIDTH_PX = 208;
 
@@ -60,13 +61,17 @@ export function ActionProjectTreeDelete({
   const actionId = resolveActionProjectId(node);
   const projectPath = node.path.replace(/\\/g, "/");
   const displayTitle = displayNodeLabel(node, rootPath);
+  const handleWorkspaceDeleted = useCallback(() => {
+    workspaceExplorerActionsRef.current.notifyProjectRemoved({ cwd, projectPath });
+    onDeleted?.();
+  }, [cwd, projectPath, onDeleted]);
 
   const { disabled, deleteInWorkspaceOnly, deleteDirect } = useActionProjectDelete({
     actionId: actionId ?? projectPath.split("/").pop() ?? projectPath,
     projectPath,
     cwd,
     displayTitle,
-    onWorkspaceDeleted: onDeleted,
+    onWorkspaceDeleted: handleWorkspaceDeleted,
     onQuickerDeleted: onDeleted,
   });
 

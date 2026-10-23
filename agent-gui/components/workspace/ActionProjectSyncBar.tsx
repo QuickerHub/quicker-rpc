@@ -29,6 +29,7 @@ import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from
 import { actionProjectSyncTargetKey, type ActionProjectSyncTarget } from "@/lib/action-project-sync-target";
 
 type ActionProjectSyncBarProps = {
+  active?: boolean;
   cwd: string;
   actionId: string;
   /** Relative `.quicker/actions/...` for extract into an existing title-named folder. */
@@ -89,6 +90,7 @@ function syncButtonTitle(
 }
 
 export function ActionProjectSyncBar({
+  active = true,
   cwd,
   actionId,
   projectDirectory,
@@ -357,7 +359,7 @@ export function ActionProjectSyncBar({
   );
 
   const runSmartSync = useCallback(async () => {
-    if (busy || blocked || !targetReady || !isCurrent()) return;
+    if (!active || busy || blocked || !targetReady || !isCurrent()) return;
     if (!cwd.trim()) {
       applyStatusResult({ ok: false, error: "未设置工作目录" });
       return;
@@ -393,6 +395,7 @@ export function ActionProjectSyncBar({
     setBusy(false);
     await executeDecision(decision);
   }, [
+    active,
     actionId,
     applyStatusResult,
     blocked,
@@ -404,20 +407,20 @@ export function ActionProjectSyncBar({
   ]);
 
   const handleConflictUseQuicker = useCallback(() => {
-    if (busy) return;
+    if (!active || busy) return;
     void (async () => {
       const ok = await pull();
       if (ok) setConflictStatus(null);
     })();
-  }, [busy, pull]);
+  }, [active, busy, pull]);
 
   const handleConflictUseWorkspace = useCallback(() => {
-    if (busy) return;
+    if (!active || busy) return;
     void (async () => {
       const ok = await push({ force: true });
       if (ok) setConflictStatus(null);
     })();
-  }, [busy, push]);
+  }, [active, busy, push]);
 
   const blockHint =
     blocked && blockReason
@@ -443,7 +446,7 @@ export function ActionProjectSyncBar({
           className={`project-info-sync-btn project-info-sync-btn--smart${
             inSync ? " project-info-sync-btn--in-sync" : ""
           }`}
-          disabled={busy || blocked || !targetReady}
+          disabled={!active || busy || blocked || !targetReady}
           onClick={() => void runSmartSync()}
           title={syncButtonTitle(syncState, hasLocalChanges, blockHint)}
         >
@@ -461,7 +464,7 @@ export function ActionProjectSyncBar({
         </p>
       ) : null}
       <ActionProjectSyncConflictDialog
-        open={conflictStatus != null}
+        open={active && conflictStatus != null}
         status={conflictStatus}
         busy={busy}
         onCancel={() => setConflictStatus(null)}

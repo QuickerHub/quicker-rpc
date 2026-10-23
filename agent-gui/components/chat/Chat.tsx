@@ -104,6 +104,7 @@ import {
   useWorkspaceExplorerShell,
 } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
+import { WorkspaceDocumentHost } from "@/components/workspace/WorkspaceDocumentHost";
 import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
 import { EmbeddedBrowserProvider } from "@/lib/embedded-browser-context";
 import { EmbeddedTerminalProvider } from "@/lib/embedded-terminal-context";
@@ -766,6 +767,25 @@ function ChatPanel({
     [editAnchorMessageId, clearError],
   );
 
+  // A retained file uses the currently presented Chat, never the Chat that first opened it.
+  const workspacePresentationKey = JSON.stringify([visible, ephemeral, editAnchorMessageId]);
+  const workspacePresentationOwnerRef = useRef({ key: workspacePresentationKey, active: visible && !ephemeral && !editAnchorMessageId });
+  if (workspacePresentationOwnerRef.current.key !== workspacePresentationKey) {
+    workspacePresentationOwnerRef.current = { key: workspacePresentationKey, active: visible && !ephemeral && !editAnchorMessageId };
+  }
+  const workspaceChatPresentation = useMemo(() => ({
+    threadId,
+    pinStep: (tag: ProgramStepTag) => {
+      const owner = workspacePresentationOwnerRef.current;
+      if (!owner.active) return;
+      clearError();
+      composerRef.current?.insertProgramStepTag(tag);
+      requestAnimationFrame(() => {
+        if (workspacePresentationOwnerRef.current === owner && owner.active) composerRef.current?.focusAtEnd();
+      });
+    },
+  }), [threadId, clearError]);
+
   useEffect(() => {
     if (ephemeral || !visible) return;
     registerChatComposerActions(threadId, {
@@ -1233,7 +1253,7 @@ function ChatPanel({
         designerEmbed={designerEmbed}
       />
       }
-      dock={visible ? <WorkspaceExplorerPanel /> : null}
+      dock={visible ? <WorkspaceExplorerPanel chatPresentation={workspaceChatPresentation} /> : null}
     />
     {exportDialog}
     </ChatToolActionsProvider>
@@ -1555,6 +1575,7 @@ export function Chat() {
               <EmbeddedTerminalTabsProvider>
               <EmbeddedTerminalProvider>
               <EmbeddedBrowserTabsProvider>
+              <WorkspaceDocumentHost>
               {showMainChrome ? (
                 <ThreadSidePanelSync activeThreadId={activeThread.id} />
               ) : null}
@@ -1647,6 +1668,7 @@ export function Chat() {
                 focusProviderId={settingsFocusProviderId}
                 initialTab={settingsInitialTab}
               />
+              </WorkspaceDocumentHost>
               </EmbeddedBrowserTabsProvider>
               </EmbeddedTerminalProvider>
               </EmbeddedTerminalTabsProvider>
