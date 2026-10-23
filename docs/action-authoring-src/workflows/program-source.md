@@ -119,7 +119,7 @@ steps:
 
 ### Values and resources
 
-Use indented block mappings/lists. Bind the whole parameter with one of `var`,
+Use indented block mappings/lists. For **step inputs**, bind the whole parameter with one of `var`,
 `file`, `expr`, `interp`, or `lit`. Avoid YAML flow maps, anchors, aliases, and
 merge keys. Binds cannot be nested inside an object snapshot; wrap a literal
 object containing reserved bind keys in `lit`.
@@ -130,6 +130,20 @@ inputs:
     file: files/count.eval.cs
   input:
     var: title
+```
+
+Variable defaults use an inline scalar `default` or the flat `default.file`
+field for external text. Step-input bind mappings do not apply to variable
+defaults: do not write `default: { file: files/default.txt }` or a nested
+`default` mapping. For a V1-bound bundle, dry-run rejects object/array defaults
+before contacting the host. Keep structured literal content as text in the
+default or its referenced file.
+
+```yaml
+variables:
+  - key: template
+    varType: text
+    default.file: files/template.html
 ```
 
 - `$=` expressions and `$$` interpolation retain their existing meaning; quote

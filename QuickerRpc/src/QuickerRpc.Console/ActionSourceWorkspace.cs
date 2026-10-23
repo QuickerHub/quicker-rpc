@@ -109,7 +109,33 @@ internal static class ActionSourceWorkspace
         if (!JToken.DeepEquals(identity["hostBinding"], checkpoint["hostBinding"]))
             throw new InvalidOperationException("Source host binding/checkpoint mismatch. Reopen into a new directory.");
         var binding = identity["hostBinding"] is JObject bindingJson ? bindingJson.ToObject<QuickerRpcHostBinding>() : null;
+        if (string.Equals(binding?.HostKind, "v1", StringComparison.OrdinalIgnoreCase))
+            RequireV1VariableDefaultScalars(native);
         return new Prepared(dir, actionId!, version, native, caw, binding, storage);
+    }
+
+    private static void RequireV1VariableDefaultScalars(JObject program, string path = "")
+    {
+        var variables = program.Properties().FirstOrDefault(p => string.Equals(p.Name, "variables", StringComparison.OrdinalIgnoreCase));
+        if (variables?.Value is JArray items)
+        {
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i] is not JObject variable) continue;
+                foreach (var value in variable.Properties().Where(p => string.Equals(p.Name, "DefaultValue", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (value.Value.Type is not (JTokenType.Object or JTokenType.Array)) continue;
+                    var key = variable.GetValue("Key", StringComparison.OrdinalIgnoreCase)?.Value<string>() ?? "";
+                    throw new ProgramSourceException(ProgramSourceCodes.CawInvalid,
+                        $"{path}{variables.Name}[{i}].{value.Name} (variable {JsonConvert.SerializeObject(key)}) must be a scalar for V1. "
+                        + "Use default.file: files/... for an external text default. Nested file bindings apply to step inputs, not variable defaults.");
+                }
+            }
+        }
+        var subPrograms = program.Properties().FirstOrDefault(p => string.Equals(p.Name, "subPrograms", StringComparison.OrdinalIgnoreCase));
+        if (subPrograms?.Value is not JArray children) return;
+        for (var i = 0; i < children.Count; i++)
+            if (children[i] is JObject child) RequireV1VariableDefaultScalars(child, $"{path}{subPrograms.Name}[{i}].");
     }
 
     internal static void Checkpoint(Prepared prepared, long editVersion, QuickerRpcActionStorageIdentity? storageIdentity = null)
