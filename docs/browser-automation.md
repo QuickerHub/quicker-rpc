@@ -51,6 +51,17 @@ Agent 侧只有 **两个** 浏览器相关工具；第三种（Electron 内嵌�
 | Electron embedded | 6018 | `quicker-embedded-browser-v1` |
 | Quicker 扩展 | — | `qkrpc chrome run` / `chrome.tabs` |
 
+## 取消边界
+
+`browser` 继承当前 turn 的 AbortSignal，也接受 AI SDK 提供的显式 signal；显式 signal
+只能缩小本次调用的生命期。已取消时不发起探测、session.ensure 或页面操作；运行中取消
+会中止本次 HTTP 请求与等待，迟到响应不作为成功、不生成录制，也不回退到另一浏览器。
+共享 runtime 的启动和其它调用继续由各自 owner 管理，取消单次工具不会关闭共享 session。
+
+这覆盖调用与连接取消，尚不保证 runtime 撤销已经收到的 click/evaluate。后续需为 runtime
+队列增加 request owner 和合作取消检查；已发生的网页副作用无法回滚，也不能通过关闭用户
+浏览器或共享 context 冒充取消完成。
+
 ## 相关 Skill
 
 - `quicker-chromecontrol` — 扩展与用户浏览器

@@ -13,6 +13,7 @@ export type ResolveBrowserTargetInput = {
 };
 
 export type ExecuteBrowserAutomationOptions = {
+  abortSignal?: AbortSignal;
   audience?: "agent" | "panel";
   fallbackFromNative?: boolean;
   showPanel?: boolean;

@@ -37,6 +37,10 @@ benchmark 工作区中的 `.quicker` 命令与子代理是版本控制内的测�
 不执行整个 solution。先检查生成知识，再禁止 MSBuild 自动生成，避免构建修复生成物
 掩盖漂移。共享 Runtime/Transport 构建覆盖 net472、netstandard2.0 和 net10.0。
 
+同一 Windows job 也执行 CLI overlay 安装的生成目录与共享文件锁 fixture：相同内容跳过，
+不同内容复制失败必须向调用者抛错，额外文件保留；进程停止与 PATH helper 均替换为 fake，
+不会改动真实安装。
+
 Runtime 测试显式设置 `IncludeV2HostTests=false`，移除 Plugin.V2 引用以及
 composition、catalog 和三类宿主 probe 共五个测试文件。这不是 V2 插件编译验证。
 V1/V2 插件、Plugin.Test 仍需合法的 Quicker 宿主引用；真实 QuickerRpc.Test 还会创建

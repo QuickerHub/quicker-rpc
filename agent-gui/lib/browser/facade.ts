@@ -15,6 +15,7 @@ import {
 import { normalizeEmbeddedBrowserUrl } from "@/lib/embedded-browser-url";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import type { BrowserToolInput } from "@/lib/browser/input-types";
+import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 
 function sessionId(input: BrowserToolInput): string {
   return input.sessionId?.trim() || "default";
@@ -129,7 +130,7 @@ async function executeEmbeddedBrowserTool(
         : opForBrowserAction(input.action);
 
   if (SESSION_ENSURE_ACTIONS.has(input.action) && input.action !== "navigate") {
-    const ensured = await invokeEmbeddedBrowserRuntime("session.ensure", {}, sid, 60_000);
+    const ensured = await invokeEmbeddedBrowserRuntime("session.ensure", {}, sid, 60_000, options);
     if (!ensured.ok) {
       return formatLocalToolResult(
         {
@@ -171,6 +172,7 @@ async function executeEmbeddedBrowserTool(
     args,
     sid,
     input.timeoutMs ?? 120_000,
+    options,
   );
 
   if (!result.ok) {
@@ -288,7 +290,7 @@ async function executeHeadlessBrowserTool(
     && (input.action === "evaluate" || input.action === "content" || input.action === "search");
 
   if (SESSION_ENSURE_ACTIONS.has(input.action) && !urlBootstrapsSession) {
-    await invokeBrowserRuntime("session.ensure", {}, sid, 60_000);
+    await invokeBrowserRuntime("session.ensure", {}, sid, 60_000, options);
   }
 
   const args: Record<string, unknown> = {};
@@ -313,7 +315,7 @@ async function executeHeadlessBrowserTool(
   if (input.limit != null) args.limit = input.limit;
   args.includePreview = audience === "panel";
 
-  const result = await invokeBrowserRuntime(op, args, sid, input.timeoutMs ?? 120_000);
+  const result = await invokeBrowserRuntime(op, args, sid, input.timeoutMs ?? 120_000, options);
   if (!result.ok) {
     return formatLocalToolResult(
       {
@@ -353,7 +355,7 @@ async function executePanelBrowserTool(
     return executeHeadlessBrowserTool(input, options);
   }
 
-  if (await isEmbeddedBrowserRuntimeAvailable()) {
+  if (await isEmbeddedBrowserRuntimeAvailable(options?.abortSignal)) {
     const nativeResult = await executeEmbeddedBrowserTool(input, {
       ...options,
       audience: "panel",
@@ -378,10 +380,11 @@ async function executePanelBrowserTool(
   });
 }
 
-export async function executeBrowserAutomation(
+async function executeBrowserAutomationForTarget(
   input: BrowserToolInput,
   options?: ExecuteBrowserAutomationOptions,
 ): Promise<Record<string, unknown>> {
+  const abortSignal = options?.abortSignal;
   const audience = options?.audience ?? "agent";
 
   if (audience === "panel") {
@@ -390,7 +393,7 @@ export async function executeBrowserAutomation(
 
   const embeddedAvailable =
     isNativeEmbeddedBrowserEnabled()
-    && (await isEmbeddedBrowserRuntimeAvailable());
+    && (await isEmbeddedBrowserRuntimeAvailable(abortSignal));
 
   const mode = resolveBrowserTarget({
     target: input.target,
@@ -416,4 +419,15 @@ export async function executeBrowserAutomation(
   }
 
   return executeHeadlessBrowserTool(input, options);
+}
+
+export async function executeBrowserAutomation(
+  input: BrowserToolInput,
+  options?: ExecuteBrowserAutomationOptions,
+): Promise<Record<string, unknown>> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
+  const result = await executeBrowserAutomationForTarget(input, { ...options, abortSignal });
+  abortSignal?.throwIfAborted();
+  return result;
 }
