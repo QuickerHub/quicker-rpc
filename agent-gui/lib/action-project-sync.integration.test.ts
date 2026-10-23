@@ -34,6 +34,8 @@ async function fixture(run: (root: string, directory: string, info: string) => P
   const info = `{"id":"${id}","title":"Local","description":"","icon":"","editVersion":${b},"opaque":9007199254740993}`;
   await writeFile(join(directory, "data.json"), '{"steps":[],"variables":[]}');
   await writeFile(join(directory, "info.json"), info);
+  await mkdir(join(directory, ".qkrpc"), { recursive: true });
+  await writeFile(join(directory, ".qkrpc", "project-binding.json"), JSON.stringify({ schemaVersion: 1, kind: "action", actionId: id, hostBinding: binding }));
   try { await runWithAgentRequestContextAsync({ cwd: root }, () => run(root, directory, info)); }
   finally { invalidateActionProjectSyncCache(root, id); assert.ok(root.startsWith(join(parent, "fixture-"))); await rm(root, { recursive: true, force: true }); }
 }
@@ -95,8 +97,9 @@ test("production route → status decision → explicit push returns exact Int64
       if (url === "/api/workspace/action-sync") return POST(new Request("http://fixture.invalid/api/workspace/action-sync", init));
       assert.ok(String(url).startsWith(base));
       if (String(url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
-      const request = JSON.parse(String(init?.body)) as { op: string; args: Record<string, unknown> };
-      if (request.op === "host.list") return Response.json({ ok: true, data: { candidates: [binding] } });
+      const request = JSON.parse(String(init?.body)) as { op: string; args: Record<string, unknown>; hostBinding?: QkrpcHostBinding };
+      assert.notEqual(request.op, "host.list", "Persisted project targets must not rediscover a host");
+      assert.deepEqual(request.hostBinding, binding);
       calls.push(request.op);
       if (request.op === "action.get") return new Response(`{"ok":true,"data":{"success":true,"editVersion":${a},"compressed":{"title":"Remote","description":"","icon":""}}}`);
       if (request.op === "action.validate") return Response.json({ ok: true, data: { success: true } });
@@ -146,8 +149,9 @@ test("production Next-compatible route carries the original cancellation through
       const calls: string[] = [];
       await withFetch(async (_url, init) => {
         if (String(_url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
-        const request = JSON.parse(String(init?.body)) as { op: string };
-        if (request.op === "host.list") return Response.json({ ok: true, data: { candidates: [binding] } });
+        const request = JSON.parse(String(init?.body)) as { op: string; hostBinding?: QkrpcHostBinding };
+        assert.notEqual(request.op, "host.list", "Persisted project targets must not rediscover a host");
+        assert.deepEqual(request.hostBinding, binding);
         calls.push(request.op);
         if (request.op === cancelAt) {
           const signal = init?.signal;

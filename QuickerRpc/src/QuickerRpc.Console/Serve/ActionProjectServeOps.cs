@@ -66,6 +66,8 @@ internal static class ActionProjectServeOps
                 return Fail("INVALID_DIR", ex.Message);
             }
 
+            var binding = QuickerRpcClient.GetBinding(rpc);
+            using var exportOwner = ActionProjectHostBinding.ClaimExport(projectDir, actionId.Trim(), binding);
             var latestData = ParseProgramBodyFromCompressed(fullResponse.CompressedJson);
             QuickerProjectFiles.TryReadDataIfExists(projectDir, out var templateData);
             var exportResult = XActionFileRefExporter.Export(
@@ -112,6 +114,12 @@ internal static class ActionProjectServeOps
                 exportResult.ExportedData,
                 exportResult.ResourceFiles);
             exportResult.WrittenFiles = writtenFiles;
+            try { ActionProjectHostBinding.WriteAfterExport(projectDir, actionId.Trim(), binding!); }
+            catch (Exception ex)
+            {
+                return new ServeInvokeResponse { Ok = false, Error = "PROJECT_BINDING_WRITE_FAILED", Message = ex.Message,
+                    Data = new { persistedParts = new { localProject = true, binding = false }, projectDirectoryAbsolute = projectDir } };
+            }
 
             return Ok(new
             {
@@ -133,6 +141,8 @@ internal static class ActionProjectServeOps
                 },
             });
         }
+        catch (QuickerRpcClientException ex) { return Fail(ex.ErrorCode, ex.Message); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             return Fail("ACTION_EXTRACT_FAILED", ex.Message);
@@ -250,6 +260,9 @@ internal static class ActionProjectServeOps
 
         try
         {
+            ActionProjectHostBinding.RequireConnection(projectDir, rpc, string.IsNullOrWhiteSpace(explicitId) ? null : explicitId);
+            var projectBinding = ActionProjectHostBinding.Read(projectDir, string.IsNullOrWhiteSpace(explicitId) ? null : explicitId);
+            using var projectOwner = ActionProjectHostBinding.ClaimExport(projectDir, projectBinding.ActionId, projectBinding.HostBinding);
             if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
             {
                 return Fail("INFO_NOT_FOUND", $"info.json not found under {projectDir}.");
@@ -357,10 +370,9 @@ internal static class ActionProjectServeOps
                 },
             });
         }
-        catch (Exception ex)
-        {
-            return Fail("ACTION_APPLY_FAILED", ex.Message);
-        }
+        catch (QuickerRpcClientException ex) { return Fail(ex.ErrorCode, ex.Message); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception ex) { return Fail("ACTION_APPLY_FAILED", ex.Message); }
     }
 
     private static JObject ParseProgramBodyFromCompressed(string compressedJson)

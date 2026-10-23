@@ -8,6 +8,7 @@ public sealed class QkrpcMcpRuntime : IAsyncDisposable
 {
     private static readonly HashSet<string> WorkspaceOps = new(StringComparer.OrdinalIgnoreCase)
     {
+        "action.get",
         "action.extract",
         "action.open",
         "action.save",

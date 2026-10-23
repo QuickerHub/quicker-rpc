@@ -102,15 +102,21 @@ internal static class QkrpcMcpResponseCompact
             var outerOk = root["ok"]?.GetValue<bool>() ?? false;
             if (!outerOk)
             {
-                return new JsonObject
+                var failed = new JsonObject
                 {
                     ["ok"] = false,
                     ["error"] = root["error"]?.DeepClone(),
                     ["message"] = root["message"]?.DeepClone(),
                 };
+                CopyIfPresent(data, failed, "persistedParts");
+                CopyIfPresent(data, failed, "projectDirectoryAbsolute");
+                CopyIfPresent(root, failed, "hostBinding");
+                return failed;
             }
 
-            return FlattenServeData(data, outerOk);
+            var flat = FlattenServeData(data, outerOk);
+            if (root["hostBinding"] is JsonObject binding) flat["hostBinding"] = binding.DeepClone();
+            return flat;
         }
 
         // Already flat (workspace_program, post-augment get, etc.)

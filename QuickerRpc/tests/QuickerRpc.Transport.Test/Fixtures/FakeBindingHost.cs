@@ -23,6 +23,8 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public int Writes;
     public int StorageWrites;
     public int Handshakes;
+    public int LegacyReads;
+    public string LegacyBodyJson = "{\"steps\":[],\"variables\":[],\"subPrograms\":[]}";
     public bool DropAfterWrite;
     public Func<string, long?, QuickerRpcApplyXActionResult>? Apply;
     public Func<string, QuickerRpcActionStorageIdentity, long?, bool, QuickerRpcApplyXActionResult>? ApplyWithStorage;
@@ -95,6 +97,17 @@ public sealed class FakeBindingHost : IAsyncDisposable
         public LegacyTarget(FakeBindingHost owner) { this.owner = owner; }
         public Task<string> PingAsync(CancellationToken cancellationToken = default) => Task.FromResult("pong");
         public Task<int> GetProtocolVersionAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<QuickerRpcGetCompressedActionResult> GetCompressedActionByIdAsync(string id, string? returnMode = null, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref owner.LegacyReads);
+            return Task.FromResult(new QuickerRpcGetCompressedActionResult { Success = true, ActionId = id, EditVersion = 7,
+                CompressedJson = returnMode == "metadata" ? System.Text.Json.JsonSerializer.Serialize(new { id, title = "Fixture", editVersion = 7 }) : owner.LegacyBodyJson });
+        }
+        public Task<QuickerRpcApplyXActionResult> ApplyXActionToActionAsync(string id, string body, long? version = null, bool force = false, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref owner.Writes);
+            return Task.FromResult(new QuickerRpcApplyXActionResult { Success = true, ActionId = id, EditVersion = (version ?? 7) + 1 });
+        }
         public Task<QuickerRpcGetActionProgramSourceResult> GetActionProgramSourceAsync(string id, CancellationToken cancellationToken = default) =>
             Task.FromResult(new QuickerRpcGetActionProgramSourceResult { Success = true, ActionId = id,
                 EditVersion = owner.StorageIdentity?.Version ?? 7, StorageIdentity = owner.StorageIdentity, BodyJson = owner.BodyJson });

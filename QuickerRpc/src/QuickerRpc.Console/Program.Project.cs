@@ -10,6 +10,11 @@ namespace QuickerRpc.Console;
 
 internal static partial class Program
 {
+    private static async Task<RpcClientSession> ConnectProjectBindingAsync(QuickerRpcHostBinding binding, int timeoutSeconds)
+    {
+        var session = await QuickerRpcClient.ConnectBoundAsync(binding, timeoutSeconds).ConfigureAwait(false);
+        return new RpcClientSession(session.Pipe, session.JsonRpc, session.Rpc);
+    }
     private static async Task<int> RunActionExtractAsync(ActionOptions options) =>
         await RunActionProjectExportAsync(options, forExtract: true).ConfigureAwait(false);
 
@@ -51,7 +56,11 @@ internal static partial class Program
 
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var projectBinding = ActionProjectHostBinding.Find(actionId, options.Dir);
+            if (projectBinding is not null) ActionProjectHostBinding.RequireExplicitSelection(projectBinding);
+            await using var session = projectBinding is null
+                ? await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false)
+                : await ConnectProjectBindingAsync(projectBinding.HostBinding, options.TimeoutSeconds).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
 
             var fullResponse = await session.Proxy
@@ -82,7 +91,7 @@ internal static partial class Program
                     ? ActionProjectCatalog.ResolveExtractProjectDirectory(
                         actionId,
                         title,
-                        options.Dir)
+                        options.Dir ?? projectBinding?.Directory)
                     : QuickerProjectLayout.ResolveProjectDirectory(options.Dir!);
             }
             catch (Exception ex)
@@ -90,6 +99,8 @@ internal static partial class Program
                 return await EmitErrorAndFailAsync(options.Json, "INVALID_DIR", ex.Message).ConfigureAwait(false);
             }
 
+            var binding = QuickerRpcClient.GetBinding(session.Proxy);
+            using var exportOwner = ActionProjectHostBinding.ClaimExport(projectDir, actionId, binding);
             var latestData = ParseProgramBodyFromCompressed(fullResponse.CompressedJson);
             QuickerProjectFiles.TryReadDataIfExists(projectDir, out var templateData);
             var exportResult = XActionFileRefExporter.Export(
@@ -142,6 +153,18 @@ internal static partial class Program
                 exportResult.ExportedData,
                 exportResult.ResourceFiles);
             exportResult.WrittenFiles = writtenFiles;
+            try { ActionProjectHostBinding.WriteAfterExport(projectDir, actionId, binding!); }
+            catch (Exception ex)
+            {
+                var message = "Local project files were written, but provenance was not committed. " + ex.Message;
+                if (options.Json) global::System.Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    ok = false, error = "PROJECT_BINDING_WRITE_FAILED", message, retryable = false,
+                    persistedParts = new { localProject = true, binding = false }, projectDirectoryAbsolute = projectDir,
+                }, QkrpcJson.CliOutput));
+                else global::System.Console.Error.WriteLine(message);
+                return ExitCodes.Error;
+            }
 
             var projectDirectoryRelative = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir);
 
@@ -317,9 +340,13 @@ internal static partial class Program
         string projectDir;
         try
         {
-            projectDir = forApply
-                ? ActionProjectCatalog.ResolveImportProjectDirectory(explicitId, options.Dir)
-                : QuickerProjectLayout.ResolveProjectDirectory(options.Dir!);
+            projectDir = ActionProjectHostBinding.Find(string.IsNullOrWhiteSpace(explicitId) ? null : explicitId,
+                options.Dir, required: true)!.Directory;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
         }
         catch (Exception ex)
         {
@@ -328,6 +355,9 @@ internal static partial class Program
 
         try
         {
+            var projectBinding = ActionProjectHostBinding.Read(projectDir, string.IsNullOrWhiteSpace(explicitId) ? null : explicitId);
+            ActionProjectHostBinding.RequireExplicitSelection(projectBinding);
+            using var projectOwner = ActionProjectHostBinding.ClaimExport(projectDir, projectBinding.ActionId, projectBinding.HostBinding);
             if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
             {
                 return await EmitErrorAndFailAsync(options.Json, "INFO_NOT_FOUND", $"info.json not found under {projectDir}.")
@@ -368,7 +398,7 @@ internal static partial class Program
 
             var expectedVersion = options.ExpectedEditVersion ?? info.EditVersion;
 
-            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            await using var session = await ConnectProjectBindingAsync(projectBinding.HostBinding, options.TimeoutSeconds).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var response = await session.Proxy
                 .ApplyXActionToActionAsync(

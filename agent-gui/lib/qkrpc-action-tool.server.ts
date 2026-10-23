@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { qkrpcEditVersionSchema, type QkrpcEditVersion } from "@/lib/qkrpc-edit-version-schema";
+import { actionProjectBindingFailure, pinExistingActionProjectBinding } from "@/lib/action-project-host-binding.server";
 import {
   actionCreateSchema,
   resolveActionCreateManageInput,
@@ -529,6 +530,11 @@ export async function executeQkrpcActionIdTool(
   }
   switch (input.action) {
     case "get": {
+      try { await pinExistingActionProjectBinding(input.id); }
+      catch (error) {
+        const failure = actionProjectBindingFailure(error);
+        return formatLocalToolResult({ success: false, errorMessage: failure.error, errorCode: failure.code, retryable: false }, false, failure.error, { retryable: false });
+      }
       const args = ["action", "get", "--id", input.id];
       args.push("--return-mode", input.returnMode ?? "structure");
       const getResult = await runQkrpcForTool(args);
@@ -716,6 +722,8 @@ export async function executeQkrpcActionManageTool(
         }
         return formatQkrpcResultForAgent(createResult);
       }
+      // A successful host receipt consumes the one-create guard even if local bootstrap fails.
+      markActionCreatedThisTurn(actionId);
       const sync = await bootstrapActionProjectForCreate(payload ?? {}, {
         title: input.title,
         description: input.description,
@@ -738,21 +746,20 @@ export async function executeQkrpcActionManageTool(
         return formatLocalToolResult(
           {
             ...base,
+            ok: false,
+            success: false,
             workspaceSynced: false,
             workspaceSyncError: sync.error,
             workspaceSyncReason: sync.reason,
-            workspaceNote:
-              sync.reason === "no_cwd"
-                ? "Quicker 中已创建动作，但未落盘：请先在侧栏设置工作目录，再重试 create 或手动 extract。"
-                : sync.reason === "invalid_create"
-                  ? "Quicker 中已创建动作，但 create 响应缺少 actionId，info.json 未写入。"
-                  : "Quicker 中已创建动作，但 info.json 未写入工作区。",
+            persistedParts: sync.persistedParts ?? { hostAction: true, binding: false },
+            workspaceNote: "Quicker 中已创建动作，本地文件或宿主绑定未完整确认。请核对现有动作，不要再次执行 create。",
           },
-          true,
+          false,
+          sync.error,
+          { retryable: false },
         );
       }
       const hasBody = input.programData && programDataHasBody(input.programData);
-      markActionCreatedThisTurn(actionId);
       if (hasBody) {
         markProgramDataEditedThisTurn();
       }

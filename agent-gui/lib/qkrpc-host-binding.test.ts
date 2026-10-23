@@ -294,6 +294,8 @@ async function localSyncFixture(run: (root: string, actionId: string, directory:
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, "data.json"), '{"steps":[],"variables":[]}');
   await writeFile(join(directory, "info.json"), `{"id":"${actionId}","title":"Local","description":"","icon":"","editVersion":"42","opaque":9007199254740993}`);
+  await mkdir(join(directory, ".qkrpc"), { recursive: true });
+  await writeFile(join(directory, ".qkrpc", "project-binding.json"), JSON.stringify({ schemaVersion: 1, kind: "action", actionId, hostBinding: a }));
   try { await runWithAgentRequestContextAsync({ cwd: root }, () => run(root, actionId, directory)); }
   finally { assert.ok(root.startsWith(join(parent, "sync-"))); await rm(root, { recursive: true, force: true }); }
 }
@@ -305,7 +307,7 @@ test("production local Sync pins read/body/metadata to one host and retains nume
     if (String(url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
     const req = JSON.parse(String(init?.body)) as { op: string; args: Record<string, unknown>; hostBinding?: QkrpcHostBinding };
     calls.push(req.op);
-    if (req.op === "host.list") return Response.json({ ok: true, data: { candidates: [a] } });
+    assert.notEqual(req.op, "host.list", "Persisted project targets must not rediscover a host");
     assert.equal(req.hostBinding?.hostSessionId, a.hostSessionId);
     if (req.op === "action.validate") return Response.json({ ok: true, data: { success: true } });
     if (req.op === "action.get") {
@@ -320,7 +322,7 @@ test("production local Sync pins read/body/metadata to one host and retains nume
   }, () => localSyncFixture(async (_root, actionId, directory) => {
     const result = await saveActionFromWorkspace({ id: actionId });
     assert.equal(result.ok, true, JSON.stringify(result));
-    assert.deepEqual(calls, ["host.list", "action.validate", "action.get", "action.apply", "action.set-metadata"]);
+    assert.deepEqual(calls, ["action.validate", "action.get", "action.apply", "action.set-metadata"]);
     const info = await readFile(join(directory, "info.json"), "utf8");
     assert.match(info, /"editVersion":"9223372036854775807"/);
     assert.match(info, /"opaque":9007199254740993/);
@@ -335,7 +337,7 @@ test("a lost metadata write response is not replayed and cannot stamp the earlie
     assert.ok(String(url).startsWith(base));
     if (String(url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
     const req = JSON.parse(String(init?.body)) as { op: string; args: Record<string, unknown>; hostBinding?: QkrpcHostBinding };
-    if (req.op === "host.list") return Response.json({ ok: true, data: { candidates: [a] } });
+    assert.notEqual(req.op, "host.list", "Persisted project targets must not rediscover a host");
     assert.equal(req.hostBinding?.hostSessionId, a.hostSessionId);
     if (req.op === "action.validate") return Response.json({ ok: true, data: { success: true } });
     if (req.op === "action.get") return Response.json({ ok: true, data: { success: true, compressed: { title: "Remote", description: "", icon: "" } } });
@@ -358,7 +360,8 @@ test("a lost metadata write response is not replayed and cannot stamp the earlie
 test("an exact remote Int64 compares against the adjacent local and trusted Int64 without rounding", async () => {
   await isolated(async (url, init) => {
     if (String(url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
-    if (request(init).op === "host.list") return Response.json({ ok: true, data: { candidates: [a] } });
+    assert.notEqual(request(init).op, "host.list", "Persisted project targets must not rediscover a host");
+    assert.deepEqual(request(init).hostBinding, a);
     return new Response('{"ok":true,"data":{"success":true,"editVersion":9007199254740993,"compressed":{"title":"Remote"}}}');
   }, () => localSyncFixture(async (_root, actionId, directory) => {
     const info = await readFile(join(directory, "info.json"), "utf8");
@@ -378,7 +381,8 @@ test("an exact remote Int64 compares against the adjacent local and trusted Int6
 test("an exact local Int64 stays writable and compares against the adjacent remote Int64", async () => {
   await isolated(async (url, init) => {
     if (String(url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
-    if (request(init).op === "host.list") return Response.json({ ok: true, data: { candidates: [a] } });
+    assert.notEqual(request(init).op, "host.list", "Persisted project targets must not rediscover a host");
+    assert.deepEqual(request(init).hostBinding, a);
     return new Response('{"ok":true,"data":{"success":true,"editVersion":9007199254740992,"compressed":{"title":"Remote"}}}');
   }, () => localSyncFixture(async (_root, actionId, directory) => {
     const info = await readFile(join(directory, "info.json"), "utf8");
