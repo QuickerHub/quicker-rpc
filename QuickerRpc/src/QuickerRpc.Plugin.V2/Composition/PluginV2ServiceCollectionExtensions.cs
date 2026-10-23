@@ -30,11 +30,11 @@ public static class PluginV2ServiceCollectionExtensions
         services.AddSingleton<V2ActionDocHost>();
         services.AddSingleton<V2StepRunnerHost>();
         services.AddSingleton<V2ExpressionHost>();
-        services.AddSingleton<V2LauncherHost>();
+        services.AddSingleton(sp => new V2LauncherHost(sp.GetRequiredService<V2SearchHost>()));
         services.AddSingleton<V2QuickerRpcHost>();
         services.AddSingleton<IQuickerRpcHost>(sp => sp.GetRequiredService<V2QuickerRpcHost>());
 
-        return services.AddQuickerRpcPluginV2(sp => sp.GetRequiredService<IQuickerRpcHost>());
+        return services.AddQuickerRpcPluginV2(sp => sp.GetRequiredService<V2QuickerRpcHost>());
     }
 
     /// <summary>Wires Transport + Runtime using a pre-resolved Quicker V2 host (tests or external DI).</summary>
