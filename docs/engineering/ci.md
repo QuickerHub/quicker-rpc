@@ -39,10 +39,14 @@ benchmark 工作区中的 `.quicker` 命令与子代理是版本控制内的测�
 
 同一 Windows job 也执行 CLI overlay 安装的生成目录与共享文件锁 fixture：相同内容跳过，
 不同内容复制失败必须向调用者抛错，额外文件保留。复制计划/源及目标 hash 在停止进程前
-完成，变化文件连续复制后再校验；相同文件不覆写。实际 stop 实现的 retained handle、
-有界退出等待、fallback 与超时释放用 fake 进程 API 验证；安装 fixture 的 stop/PATH helper
-同样替换为 fake，不改动真实安装。当前 live MCP 自动重启竞争仍须单独验收，不能将这些
-离线证据记为实际升级成功。
+完成，变化文件连续复制后再校验；相同文件不覆写，零变化也不停止进程。安装 fixture 的
+stop/PATH helper 替换为 fake，不改动真实安装。独立进程 fixture 验证 exact executable、
+路径边界、retained handle/创建时间、退出等待及失败释放；不使用按名称、PID-only 或整树
+终止兜底。serve 的假 API 覆盖陌生端口零采用、503 仅代表服务监听、迟到/消失的 listener
+和失败时只回收自己创建的 child。
+Windows job 另编译生成的休眠 `qkrpc.exe`，只向枚举器提供本次创建的进程，验证根路径/
+兄弟/嵌套及 serve/MCP/端口隔离，最后逐一回收自己的句柄。它不枚举或终止产品进程。
+当前 live MCP 自动重启竞争及实际 Setup 升级仍须单独验收，不能将这些离线证据记为实际升级成功。
 
 浏览器脚本采集回归在内存中实际执行仓库脚本，避免 fake `page.evaluate` 无条件返回数组
 掩盖未调用函数的问题。真实 HTTP/Edge 取消验收另用 `pnpm test:browser-runtime-live` 显式
