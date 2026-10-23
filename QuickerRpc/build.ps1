@@ -242,92 +242,7 @@ function Resolve-QkbuildPassPlan {
 
 $PluginRunActionUri = 'quicker:runaction:aa5917ad-1256-4c73-7022-08debe3efcbe?plugin'
 
-function Get-QkrpcServePort {
-    $raw = if ($env:QKRPC_PORT) { $env:QKRPC_PORT } else { $env:AGENT_GUI_QKRPC_PORT }
-    if ([string]::IsNullOrWhiteSpace($raw)) { return 9477 }
-    $port = 0
-    if ([int]::TryParse($raw.Trim(), [ref]$port) -and $port -gt 0) { return $port }
-    return 9477
-}
-
-function Get-QkrpcServeBaseUrl {
-    param([string]$HostName = '127.0.0.1', [int]$Port = (Get-QkrpcServePort))
-    return "http://${HostName}:$Port"
-}
-
-function Test-QkrpcServeListening {
-    param([string]$BaseUrl, [int]$TimeoutSec = 3)
-    try {
-        $resp = Invoke-WebRequest -Uri "$BaseUrl/health" -UseBasicParsing -TimeoutSec $TimeoutSec
-        if ($resp.StatusCode -ne 200 -and $resp.StatusCode -ne 503) { return $false }
-        $json = $resp.Content | ConvertFrom-Json
-        return $null -ne $json.PSObject.Properties['ok']
-    }
-    catch { return $false }
-}
-
-function Test-QkrpcServeHealth {
-    param([string]$BaseUrl, [int]$TimeoutSec = 3)
-    try {
-        $resp = Invoke-WebRequest -Uri "$BaseUrl/health" -UseBasicParsing -TimeoutSec $TimeoutSec
-        if ($resp.StatusCode -ne 200) { return $false }
-        return ($resp.Content | ConvertFrom-Json).ok -eq $true
-    }
-    catch { return $false }
-}
-
-function Stop-QkrpcServe {
-    param([string]$RepoRoot = $MonorepoRoot)
-    $publishCli = Join-Path $RepoRoot 'publish\cli'
-    if (Test-Path -LiteralPath $publishCli) {
-        Stop-QkrpcProcessesUsingDirectory -Directory $publishCli -GraceMs 2000 | Out-Null
-    }
-    $stopped = Stop-QkrpcProcesses -ServeOnly -GraceMs 2000
-    if ($stopped -gt 0) { Write-Host "Stopped qkrpc serve (see PID log above)." -ForegroundColor Yellow }
-    else { Write-Host "No qkrpc serve process found." -ForegroundColor DarkGray }
-}
-
-function Start-QkrpcServe {
-    param([string]$RepoRoot = $MonorepoRoot, [string]$HostName = '127.0.0.1')
-    $port = Get-QkrpcServePort
-    $base = Get-QkrpcServeBaseUrl -HostName $HostName -Port $port
-    $repoCliExe = Join-Path $RepoRoot 'publish\cli\qkrpc.exe'
-    $installedExe = Join-Path (Get-QkrpcDefaultInstallDir) 'qkrpc.exe'
-    if (Test-Path -LiteralPath $repoCliExe) { $exe = $repoCliExe; $cwd = Split-Path -Parent $repoCliExe }
-    elseif (Test-Path -LiteralPath $installedExe) { $exe = $installedExe; $cwd = Get-QkrpcDefaultInstallDir }
-    else { $exe = $repoCliExe; $cwd = Split-Path -Parent $repoCliExe }
-    if (-not (Test-Path -LiteralPath $exe)) {
-        Write-Warning "qkrpc.exe not found at $exe; skip starting serve."
-        return
-    }
-    if (Test-QkrpcServeListening -BaseUrl $base -TimeoutSec 2) {
-        if (Test-QkrpcServeHealth -BaseUrl $base -TimeoutSec 2) {
-            Write-Host "qkrpc serve already healthy at $base" -ForegroundColor Green
-        }
-        else {
-            Write-Host "qkrpc serve already listening at $base (Quicker/plugin may still be loading)" -ForegroundColor Yellow
-        }
-        return
-    }
-    Write-Host "=== qkrpc serve ===" -ForegroundColor Cyan
-    Write-Host "Starting qkrpc serve at $base ($exe) ..." -ForegroundColor Yellow
-    $null = Start-Process -FilePath $exe -ArgumentList @('serve', '--host', $HostName, '--port', "$port", '--no-bootstrap') -WorkingDirectory $cwd -WindowStyle Hidden
-    $deadline = (Get-Date).AddSeconds(45)
-    while ((Get-Date) -lt $deadline) {
-        if (Test-QkrpcServeListening -BaseUrl $base -TimeoutSec 3) {
-            if (Test-QkrpcServeHealth -BaseUrl $base -TimeoutSec 3) {
-                Write-Host "qkrpc serve ready: $base (GET /health ok=true)" -ForegroundColor Green
-            }
-            else {
-                Write-Host "qkrpc serve listening: $base (GET /health — Quicker/plugin not connected yet)" -ForegroundColor Yellow
-            }
-            Write-Host "  agent-gui: set QKRPC_HTTP_URL=$base or use node agent-gui/start.mjs --dev" -ForegroundColor DarkGray
-            return
-        }
-        Start-Sleep -Milliseconds 400
-    }
-    Write-Warning "qkrpc serve did not start listening at $base within 45s."
-}
+. (Join-Path $MonorepoRoot 'publish/qkrpc-serve-build.ps1')
 
 function Invoke-QuickerRpcPluginRunAction {
     param([int]$DelaySeconds = 0)
@@ -366,11 +281,13 @@ elseif ($quickerDependencyUpload) { $skipPackaging = $true }
 else { $skipPackaging = [bool]$qkMeta.Test }
 
 $shouldStartQkrpcServe = -not $SkipQkrpcServe
+$serveStopCompleted = $false
 try {
     if ($shouldStartQkrpcServe) {
         Write-Host "=== Stop qkrpc serve (pre-build) ===" -ForegroundColor Cyan
         Write-Host "  agent-gui dev on :3000 is left running (only qkrpc serve restarts)." -ForegroundColor DarkGray
         Stop-QkrpcServe -RepoRoot $MonorepoRoot
+        $serveStopCompleted = $true
     }
 
     Write-Host "=== Action authoring docs ===" -ForegroundColor Cyan
@@ -434,14 +351,14 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     if ($shouldStartQkrpcServe) {
-        Start-QkrpcServe -RepoRoot $MonorepoRoot
         $shouldStartQkrpcServe = $false
+        Start-QkrpcServe -RepoRoot $MonorepoRoot
     }
 
     exit 0
 }
 finally {
-    if ($shouldStartQkrpcServe) {
+    if ($shouldStartQkrpcServe -and $serveStopCompleted) {
         Write-Warning "Build did not finish; restarting qkrpc serve from existing publish/cli so agent-gui can reconnect."
         Start-QkrpcServe -RepoRoot $MonorepoRoot
     }

@@ -40,6 +40,9 @@ WizardStyle=modern
 UninstallDisplayName={#AppName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+; Do not close arbitrary processes. Locked target files require the caller to close that installation.
+CloseApplications=no
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -180,21 +183,6 @@ begin
 
   if NewPath <> OrigPath then
     RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', NewPath);
-end;
-
-function KillQkrpcProcesses(): Boolean;
-var
-  ResultCode: Integer;
-begin
-  { taskkill exit 128 = process not found; still safe to continue }
-  if Exec('taskkill.exe', '/IM qkrpc.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-    Sleep(500);
-  Result := True;
-end;
-
-function InitializeSetup(): Boolean;
-begin
-  Result := KillQkrpcProcesses();
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

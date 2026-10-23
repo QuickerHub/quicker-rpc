@@ -1,17 +1,17 @@
 #!/usr/bin/env pwsh
-# Only generated files are installed; process stopping and PATH changes are replaced below.
+# Only generated files/dummies are used; product process stopping and PATH changes are replaced.
 [CmdletBinding()]
-param()
+param([switch]$SkipNative)
 
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'The install overlay sharing-lock fixture requires Windows.' }
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 . (Join-Path $repoRoot 'publish/qkrpc-publish-lib.ps1')
 
-$originalStop = ${function:Stop-QkrpcProcesses}
 $script:stopCalls = 0
 $script:pathCalls = 0
 $script:recordInstall = $false
+$script:rejectStop = $false
 $script:events = [System.Collections.Generic.List[object]]::new()
 function Add-InstallEvent([string]$Kind, [string]$Path) {
     if ($script:recordInstall) { $script:events.Add([pscustomobject]@{ Kind = $Kind; Path = $Path }) }
@@ -35,10 +35,12 @@ function Copy-Item {
     Microsoft.PowerShell.Management\Copy-Item @PSBoundParameters
 }
 function Stop-QkrpcProcesses {
-    param([int]$GraceMs)
+    param([string]$ExecutablePath, [int]$GraceMs)
+    Assert-Overlay ([IO.Path]::IsPathFullyQualified($ExecutablePath) -and [IO.Path]::GetFileName($ExecutablePath) -eq 'qkrpc.exe') 'Installer omitted the exact executable scope'
     Assert-Overlay ($GraceMs -eq 0) 'Installer added a blind delay after waiting for process exit'
     Add-InstallEvent 'stop' ''
     $script:stopCalls++
+    if ($script:rejectStop) { throw 'fixture could not prove process ownership' }
     return 0
 }
 function Remove-StaleQkrpcUserPaths { param([string]$InstallDir) $script:pathCalls++; return $false }
@@ -143,65 +145,19 @@ try {
     Assert-Overlay ($script:stopCalls -eq $stopCallsBefore) 'Invalid copy plan stopped processes before failing'
     Write-Host 'PASS: directory/file conflicts fail before stopping processes.'
     Assert-Overlay ($script:stopCalls -eq 2) 'Fixture did not use the mocked process-stop helper'
-
-    # Invoke the actual stop implementation only under fully mocked process APIs.
-    & {
-        $script:processTrace = [System.Collections.Generic.List[string]]::new()
-        $script:fakeTaskkillCode = 0
-        $script:fakeWaitResult = $true
-        $script:fakeProcess = $null
-        $oldExitCode = $global:LASTEXITCODE
-        function Get-CimInstance {
-            [CmdletBinding()]
-            param([string]$ClassName, [string]$Filter)
-            Assert-Overlay ($ClassName -eq 'Win32_Process' -and $Filter -eq "Name = 'qkrpc.exe'") 'Process selection was widened'
-            [pscustomobject]@{ ProcessId = 12345; CommandLine = 'qkrpc serve' }
-        }
-        function Get-Process {
-            [CmdletBinding()]
-            param([int]$Id)
-            Assert-Overlay ($Id -eq 12345) 'Unexpected process lookup'
-            $script:processTrace.Add('lookup')
-            $process = [pscustomobject]@{ HasExited = $false; ProcessName = 'qkrpc'; WaitMs = 0; Disposed = $false; Trace = $script:processTrace }
-            $process | Add-Member ScriptProperty Handle { $this.Trace.Add('handle'); return 1 }
-            $process | Add-Member ScriptMethod WaitForExit { param([int]$Timeout) $this.Trace.Add('wait'); $this.WaitMs = $Timeout; return $script:fakeWaitResult }
-            $process | Add-Member ScriptMethod Dispose { $this.Trace.Add('dispose'); $this.Disposed = $true }
-            $script:fakeProcess = $process
-            return $process
-        }
-        function taskkill.exe {
-            param([Parameter(ValueFromRemainingArguments)][object[]]$Arguments)
-            Assert-Overlay (($Arguments -join ' ') -eq '/PID 12345 /T /F') 'Taskkill selection was widened'
-            $script:processTrace.Add('taskkill')
-            $global:LASTEXITCODE = $script:fakeTaskkillCode
-        }
-        function Stop-Process {
-            [CmdletBinding()]
-            param([object]$InputObject, [switch]$Force)
-            Assert-Overlay ([object]::ReferenceEquals($InputObject, $script:fakeProcess) -and $Force) 'Fallback did not use the retained instance'
-            $script:processTrace.Add('fallback')
-        }
-        function Start-Sleep { throw 'GraceMs=0 must not sleep' }
-        try {
-            $count = & $originalStop -GraceMs 0 -ExitWaitMs 50
-            Assert-Overlay ($count -eq 1) 'Confirmed exit was not counted'
-            Assert-Overlay (($script:processTrace -join ',') -eq 'lookup,handle,taskkill,wait,dispose') 'Exit was not awaited on the retained instance'
-            Assert-Overlay ($script:fakeProcess.WaitMs -eq 50 -and $script:fakeProcess.Disposed) 'Bounded wait or handle disposal was lost'
-            $script:processTrace.Clear()
-            $script:fakeTaskkillCode = 1
-            $count = & $originalStop -ServeOnly -GraceMs 0 -ExitWaitMs 50
-            Assert-Overlay ($count -eq 1 -and ($script:processTrace -join ',') -eq 'lookup,handle,taskkill,fallback,wait,dispose') 'Fallback did not wait on the same instance'
-            $script:processTrace.Clear()
-            $script:fakeWaitResult = $false
-            $failure = $null
-            try { & $originalStop -GraceMs 0 -ExitWaitMs 50 | Out-Null }
-            catch { $failure = $_ }
-            Assert-Overlay ($null -ne $failure -and $failure.Exception.Message -match 'did not exit within 50ms') 'Exit timeout did not fail closed'
-            Assert-Overlay ($script:fakeProcess.Disposed -and ($script:processTrace -join ',') -eq 'lookup,handle,taskkill,fallback,wait,dispose') 'Timed-out process handle was leaked'
-        }
-        finally { $global:LASTEXITCODE = $oldExitCode }
-    }
-    Write-Host 'PASS: stop confirms bounded exit on the retained instance, including fallback and timeout cleanup.'
+    $unchangedStopCalls = $script:stopCalls
+    Install-QkrpcFromDirectory -SourceDirectory $source -InstallDir $target | Out-Null
+    Assert-Overlay ($script:stopCalls -eq $unchangedStopCalls) 'An unchanged installation stopped processes without a copy plan'
+    $pathCallsBefore = $script:pathCalls
+    $script:rejectStop = $true
+    $failure = $null
+    try { Install-QkrpcFromDirectory -SourceDirectory $sourceLocked -InstallDir $targetLocked | Out-Null }
+    catch { $failure = $_ }
+    finally { $script:rejectStop = $false }
+    Assert-Overlay ($null -ne $failure -and $failure.Exception.Message -match 'prove process ownership') 'A stop failure did not fail installation'
+    Assert-Overlay ([IO.File]::ReadAllText($lockedDll) -eq 'fixture older runtime') 'A failed stop continued to copy files'
+    Assert-Overlay ($script:pathCalls -eq $pathCallsBefore) 'A failed stop continued to PATH updates'
+    Write-Host 'PASS: unchanged installs stop nothing; failed process ownership prevents all copy/PATH success.'
 }
 finally {
     # Delete only this generated directory after checking its resolved absolute boundary.
@@ -212,3 +168,6 @@ finally {
     }
     Remove-Item -LiteralPath $actual -Recurse -Force
 }
+
+# Exercise the real stop/serve helpers only against fake APIs and self-created dummy executables.
+& (Join-Path $PSScriptRoot 'Test-QkrpcProcessOwnership.ps1') -SkipNative:$SkipNative

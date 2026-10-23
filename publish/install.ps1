@@ -143,9 +143,11 @@ function Install-QkrpcFromDirectory {
         throw "Source directory does not contain qkrpc.exe: $sourcePath"
     }
 
+    $installExeScope = Assert-QkrpcExecutableScope (Join-Path $TargetInstallDir 'qkrpc.exe')
+
     Write-Host "Installing qkrpc to $TargetInstallDir ..." -ForegroundColor Cyan
 
-    Stop-QkrpcProcesses | Out-Null
+    Stop-QkrpcProcesses -ExecutablePath $installExeScope | Out-Null
 
     if (Test-Path -LiteralPath $TargetInstallDir) {
         Write-Host 'Removing previous install...' -ForegroundColor Yellow
@@ -212,7 +214,7 @@ function Install-QkrpcCli {
 function Uninstall-QkrpcCli {
     Write-Host "Uninstalling qkrpc from $InstallDir ..." -ForegroundColor Yellow
 
-    Stop-QkrpcProcesses | Out-Null
+    Stop-QkrpcProcesses -ExecutablePath (Join-Path $InstallDir 'qkrpc.exe') | Out-Null
 
     if (Test-Path -LiteralPath $InstallDir) {
         Remove-Item -LiteralPath $InstallDir -Recurse -Force

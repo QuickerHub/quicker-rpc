@@ -35,10 +35,11 @@ pwsh -NoProfile -File ./build.ps1 -t
 要点：
 
 1. **不必重启 agent-gui**：`start.mjs` 通过 `http://127.0.0.1:9477` 调 serve；`build.ps1 -t` 会替换二进制并重启 serve，端口不变。
-2. **serve 副本**：开发时 serve 常跑在 `agent-gui/.runtime/qkrpc`，避免锁住 `publish/cli`；`-t` 仍会先 **Stop-QkrpcServe** 再启动 `publish/cli` 下的新进程。
+2. **serve 归属**：构建只管理当前仓库 `publish/cli/qkrpc.exe`、显式 loopback host/port 和 `--no-bootstrap` 参数均匹配的 serve。端口属于其它副本或身份无法确认时，构建在改动插件/发布目录前失败；不要按名称停止其它 qkrpc，也不要把 `/health` 成功当成进程归属证据。
 3. **验证**：`GET http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`；`qkrpc --version` 应与 `QuickerRpc/version.json` 一致（`-t` 默认安装到用户 PATH）。
 4. **跳过用户安装**（仅当用户明确要求）：`pwsh ./build.ps1 -t -SkipInstall` — CLI 仅在 `publish/cli`，PATH 可能仍是旧版。
 5. **跳过 serve 重启**（仅当用户明确要求）：`pwsh ./build.ps1 -t -SkipQkrpcServe` — 只换插件/包，**不**换正在跑的 `qkrpc.exe`。
+6. **已审查 revision**：若目标 revision 已提交，可用 `-t -n` 保持该版本；同版插件已加载时不能直接重跑覆盖锁定 DLL，先判断前次完成到哪一步。确需重新生成插件时递增 revision 后再构建，不能降版。
 
 前置：Quicker 已启动；`-t` 失败或 RPC 报方法不存在时，确认构建日志在 qkbuild **更新 version 变量后**出现 `Started: quicker:runaction:…?plugin`（脚本会 **等待 1s** 再触发）。未重载时 Plugin 改动不会生效。
 
@@ -85,7 +86,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 ## 构建失败
 
 1. 读终端完整错误（编译 / qkbuild / dotnet publish）
-2. 修复后 **再次** `build.ps1 -t`，直到退出码 **0**
+2. 修复后按前次实际完成阶段再构建，直到退出码 **0**；已加载的同版插件不要反复覆盖。安装失败必须保留失败事实，不能把 CLI publish 或旧服务重新可用记为整次构建成功。
 3. 不要提交 `QuickerRpc/version.json` bump（除非用户要求 commit）
 
 ## 与公开发布的区别

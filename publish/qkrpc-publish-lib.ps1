@@ -4,107 +4,7 @@ function Get-QkrpcDefaultInstallDir {
     return Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
 }
 
-function Stop-QkrpcProcesses {
-    param(
-        [switch] $ServeOnly,
-        [int] $GraceMs = 500,
-        [ValidateRange(1, 60000)]
-        [int] $ExitWaitMs = 2000
-    )
-
-    $stopped = [System.Collections.Generic.List[int]]::new()
-    $procs = Get-CimInstance Win32_Process -Filter "Name = 'qkrpc.exe'" -ErrorAction SilentlyContinue
-    foreach ($proc in $procs) {
-        if ($ServeOnly) {
-            $cmd = $proc.CommandLine
-            if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -notmatch '\bserve\b') {
-                continue
-            }
-        }
-
-        $procId = $proc.ProcessId
-        $process = Get-Process -Id $procId -ErrorAction SilentlyContinue
-        if ($null -eq $process) { continue }
-        try {
-            if ($process.HasExited -or $process.ProcessName -ne 'qkrpc') { continue }
-            # Retain this instance's handle before stopping; never wait on a newly reused PID.
-            $null = $process.Handle
-            $killed = $false
-            try {
-                & taskkill.exe /PID $procId /T /F 2>$null | Out-Null
-                $killed = $LASTEXITCODE -eq 0
-            }
-            catch { # fall through to Stop-Process
-            }
-            if (-not $killed) {
-                Stop-Process -InputObject $process -Force -ErrorAction Stop
-            }
-            if (-not $process.WaitForExit($ExitWaitMs)) {
-                throw "Stopped qkrpc instance $procId did not exit within ${ExitWaitMs}ms."
-            }
-            $stopped.Add($procId) | Out-Null
-        }
-        finally { $process.Dispose() }
-    }
-
-    if ($stopped.Count -gt 0) {
-        Write-Host "Stopped qkrpc (PID(s): $($stopped -join ', '))" -ForegroundColor DarkYellow
-        if ($GraceMs -gt 0) { Start-Sleep -Milliseconds $GraceMs }
-    }
-
-    return $stopped.Count
-}
-
-function Stop-QkrpcProcessesUsingDirectory {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Directory,
-
-        [int]$GraceMs = 1500
-    )
-
-    $prefix = $Directory.TrimEnd('\')
-    if (Test-Path -LiteralPath $prefix) {
-        $prefix = (Get-Item -LiteralPath $prefix).FullName.TrimEnd('\')
-    }
-    $prefixLower = $prefix.ToLowerInvariant()
-
-    $stopped = [System.Collections.Generic.List[int]]::new()
-    $procs = Get-CimInstance Win32_Process -Filter "Name = 'qkrpc.exe'" -ErrorAction SilentlyContinue
-    foreach ($proc in $procs) {
-        $exePath = $proc.ExecutablePath
-        if ([string]::IsNullOrWhiteSpace($exePath)) {
-            continue
-        }
-
-        $exeLower = $exePath.ToLowerInvariant()
-        if (-not $exeLower.StartsWith($prefixLower)) {
-            continue
-        }
-
-        $procId = $proc.ProcessId
-        try {
-            & taskkill.exe /PID $procId /T /F 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                $stopped.Add($procId) | Out-Null
-                continue
-            }
-        }
-        catch {
-            # fall through to Stop-Process
-        }
-
-        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-        $stopped.Add($procId) | Out-Null
-    }
-
-    if ($stopped.Count -gt 0) {
-        Write-Host "Stopped qkrpc using $prefix (PID(s): $($stopped -join ', '))" -ForegroundColor DarkYellow
-        Start-Sleep -Milliseconds $GraceMs
-    }
-
-    return $stopped.Count
-}
+. (Join-Path $PSScriptRoot 'qkrpc-process-ownership.ps1')
 
 function Clear-QkrpcPublishDirectory {
     param(
@@ -123,10 +23,6 @@ function Clear-QkrpcPublishDirectory {
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         Stop-QkrpcProcessesUsingDirectory -Directory $PublishDir -GraceMs 2000 | Out-Null
-        if ($attempt -eq 1) {
-            # build.ps1 stops serve only; also stop any other qkrpc.exe loaded from publish/cli.
-            Stop-QkrpcProcesses -ServeOnly -GraceMs 1000 | Out-Null
-        }
 
         try {
             Remove-Item -LiteralPath $PublishDir -Recurse -Force -ErrorAction Stop
@@ -248,6 +144,8 @@ function Install-QkrpcFromDirectory {
         throw "Source directory does not contain qkrpc.exe: $sourcePath"
     }
 
+    $installExeScope = Assert-QkrpcExecutableScope (Join-Path $InstallDir 'qkrpc.exe')
+
     Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
 
     try {
@@ -274,8 +172,8 @@ function Install-QkrpcFromDirectory {
             New-Item -ItemType Directory -Path $targetParent -Force -ErrorAction Stop | Out-Null
         }
 
-        # Existing process selection is unchanged. Exit is confirmed, so do not add a blind grace delay.
-        $stopped = Stop-QkrpcProcesses -GraceMs 0
+        # Only this exact installation is being overwritten; retain the prehashed copy burst.
+        $stopped = if ($copyPlan.Count -gt 0) { Stop-QkrpcProcesses -ExecutablePath $installExeScope -GraceMs 0 } else { 0 }
         foreach ($item in $copyPlan) {
             Copy-Item -LiteralPath $item.Source -Destination $item.Target -Force -ErrorAction Stop
         }
