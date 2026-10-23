@@ -19,6 +19,7 @@ type RunnerPayloadRaw = {
   name?: string;
   icon?: string;
   controlFieldValue?: string;
+  inputPresets?: Record<string, string>;
 };
 
 type RawSearchItem =
@@ -29,6 +30,10 @@ type RawSearchItem =
       labelHtml?: string;
       description?: string;
       descriptionHtml?: string;
+      parentLabel?: string;
+      parentLabelHtml?: string;
+      parentDescription?: string;
+      parentDescriptionHtml?: string;
       payload?: RunnerPayloadRaw;
     }
   | {
@@ -90,7 +95,10 @@ function mapRawItem(raw: RawSearchItem): QuickInsertCandidate | null {
     stepRunnerKey,
     name,
     icon: (p?.icon ?? "").trim() || undefined,
-    controlFieldValue: (p?.controlFieldValue ?? "").trim() || undefined
+    controlFieldValue: (p?.controlFieldValue ?? "").trim() || undefined,
+    inputPresets: p?.inputPresets && typeof p.inputPresets === "object"
+      ? Object.fromEntries(Object.entries(p.inputPresets).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
+      : undefined,
   };
   const label = (raw.label ?? "").trim() || name;
   const description = (raw.description ?? "").trim();
@@ -104,6 +112,10 @@ function mapRawItem(raw: RawSearchItem): QuickInsertCandidate | null {
     labelHtml,
     description,
     descriptionHtml,
+    parentLabel: raw.parentLabel,
+    parentLabelHtml: raw.parentLabelHtml,
+    parentDescription: raw.parentDescription,
+    parentDescriptionHtml: raw.parentDescriptionHtml,
     searchHaystack: "",
     payload
   };

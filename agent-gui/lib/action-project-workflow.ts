@@ -1,7 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { create } from "@bufbuild/protobuf";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
   findActionProjectDirectory,
@@ -24,17 +23,13 @@ import {
   actionProjectInfoFromCreateResponse,
   actionProjectInfoFromMetadataGet,
   formatActionProjectInfoProto,
-  parseActionProjectInfoProto,
   type ActionProjectCreateHints,
 } from "@/lib/action-project-info";
-import { ActionProjectInfoSchema } from "@/lib/gen/action_project_pb";
 import { bootstrapWorkspaceProjectOnCreate } from "@/lib/workspace-project-disk";
 import type { ProgramDataInput } from "@/lib/program-data-input";
-import {
-  normalizeEditVersion,
-  readEditVersionFromGetPayload,
-} from "@/lib/action-project-info-from-get";
 import { writeActionProjectSyncTrust } from "@/lib/action-project-sync-trust";
+import { normalizeActionProjectSyncVersion, stampActionProjectInfoVersion, syncActionProjectBodyAndMetadata } from "@/lib/action-project-sync-metadata";
+import { getRequestAbortSignal } from "@/lib/qkrpc-request-context";
 
 export type {
   WorkspaceProjectSummary,
@@ -682,53 +677,42 @@ export function augmentActionGetWithWorkspace(
   };
 }
 
-/** Update info.json editVersion after a successful Quicker save (actions or subprograms). */
-export async function syncProjectEditVersionOnDisk(
+/** Caller must hold the document owner across its read/write transaction. */
+async function stampProjectEditVersionUnderOwner(
   projectDir: string,
-  editVersion: number,
-): Promise<void> {
+  editVersion: number | string | bigint,
+): Promise<boolean> {
   const infoPath = join(projectDir, "info.json");
   const resolved = resolveWorkspacePath(infoPath);
-  if (!resolved.ok || !existsSync(resolved.absolute)) return;
+  if (!resolved.ok || !existsSync(resolved.absolute)) return false;
 
-  const normalized = normalizeEditVersion(editVersion);
-  if (normalized == null) return;
+  const normalized = normalizeActionProjectSyncVersion(editVersion);
+  if (!normalized) return false;
 
   try {
-    const raw = stripJsonBom(await readFile(resolved.absolute, "utf8"));
-    const proto = parseActionProjectInfoProto(raw);
-    if (proto.ok) {
-      const updated = create(ActionProjectInfoSchema, {
-        ...proto.data,
-        editVersion: BigInt(normalized),
-      });
-      await writeFile(
-        resolved.absolute,
-        formatActionProjectInfoProto(updated),
-        "utf8",
-      );
-      await writeActionProjectSyncTrust(projectDir, normalized);
-      return;
-    }
-
-    const record = JSON.parse(raw) as Record<string, unknown>;
-    if ("editVersion" in record) {
-      record.editVersion = normalized;
-    } else {
-      record.EditVersion = normalized;
-    }
-    await writeFile(resolved.absolute, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-    await writeActionProjectSyncTrust(projectDir, normalized);
+    const raw = await readFile(resolved.absolute, "utf8");
+    await writeFile(resolved.absolute, stampActionProjectInfoVersion(raw, normalized), "utf8");
+    const numericVersion = Number(normalized);
+    if (Number.isSafeInteger(numericVersion)) await writeActionProjectSyncTrust(projectDir, numericVersion);
+    return true;
   } catch {
-    /* best-effort */
+    return false;
   }
 }
 
-/** Save workspace project to Quicker (validate → compile file refs → replace). */
+/** Standalone callers (including subprogram Sync) acquire the same owner as local document saves. */
+export async function syncProjectEditVersionOnDisk(projectDir: string, editVersion: number | string | bigint): Promise<boolean> {
+  try {
+    const { withProgramDocumentWriteOwner } = await import("@/lib/program-document-save.server");
+    return await withProgramDocumentWriteOwner(join(projectDir, "data.json"), () => stampProjectEditVersionUnderOwner(projectDir, editVersion));
+  } catch { return false; }
+}
+
+/** Explicit host Sync: validate → save body → changed presentation using the returned body version. */
 export async function saveActionFromWorkspace(options: {
   id: string;
   force?: boolean;
-}): Promise<Record<string, unknown>> {
+}, dependencies: { run?: (args: string[]) => Promise<QkrpcRunResult> } = {}): Promise<Record<string, unknown>> {
   const actionId = options.id.trim();
   if (!isUuid(actionId)) {
     const message = "id must be a GUID.";
@@ -773,6 +757,11 @@ export async function saveActionFromWorkspace(options: {
     );
   }
   const projectDirAbs = projectResolved.absolute;
+  const run = dependencies.run ?? runQkrpcForTool;
+  const { withProgramDocumentWriteOwner } = await import("@/lib/program-document-save.server");
+  // Read local metadata, compile/apply, update remote presentation and stamp one version under one owner.
+  // A local two-file save cannot change the target snapshot halfway through this host transaction.
+  return withProgramDocumentWriteOwner(join(projectDirRel, "data.json"), async () => {
 
   const { augmentToolResultWithPrefixWarnings, guardProjectValuePrefixes } =
     await import("@/lib/program-value-prefix-guard");
@@ -780,7 +769,7 @@ export async function saveActionFromWorkspace(options: {
     force: options.force,
   });
 
-  const validateResult = await runQkrpcForTool([
+  const validateResult = await run([
     "action",
     "validate",
     "--dir",
@@ -813,44 +802,53 @@ export async function saveActionFromWorkspace(options: {
   const applyArgs = ["action", "apply", "--dir", projectDirAbs];
   if (options.force) applyArgs.push("--force");
 
-  const applyResult = await runQkrpcForTool(applyArgs);
-  const applyPayload = parseQkrpcPayload(applyResult);
-  const applyFailed =
-    !applyResult.ok || applyPayload?.success === false;
-
-  if (applyFailed) {
-    const message = applyResult.ok
-      ? (
-        (typeof applyPayload?.error === "string" && applyPayload.error)
-        || "提交到 Quicker 失败"
-      )
-      : readStructuredQkrpcFailureMessage(
-        formatQkrpcResultForAgent(applyResult),
-        "提交到 Quicker 失败",
-      );
+  let infoContent: string;
+  try { infoContent = await readFile(join(projectDirAbs, "info.json"), "utf8"); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return formatLocalToolResult({ action: "action-save", success: false, phase: "metadata-read", errorMessage: message }, false, message);
+  }
+  const sync = await syncActionProjectBodyAndMetadata({ actionId, infoContent, applyArgs }, {
+    run,
+    signal: getRequestAbortSignal(),
+    stampVersion: async (version) => {
+      if (!await stampProjectEditVersionUnderOwner(projectDirRel, version)) throw new Error("info.json editVersion could not be updated safely");
+    },
+  });
+  if (!sync.ok) {
+    const nativeFailure = sync.metadataResult ?? sync.bodyResult;
+    const nativePayload = nativeFailure ? parseQkrpcPayload(nativeFailure) : undefined;
     return formatLocalToolResult(
       {
         action: "action-save",
         success: false,
-        phase: "apply",
+        phase: sync.phase,
         projectDirectory: projectDirRel,
         projectDirectoryAbsolute: projectDirAbs,
-        errorMessage: message,
-        apply: applyPayload ?? applyResult.parsed,
+        errorMessage: sync.error,
+        persistedParts: sync.persistedParts,
+        versionConflict: nativePayload?.versionConflict === true,
+        errorCode: nativePayload?.errorCode,
+        apply: sync.bodyResult ? parseQkrpcPayload(sync.bodyResult) ?? sync.bodyResult.parsed : undefined,
+        metadata: sync.metadataResult ? parseQkrpcPayload(sync.metadataResult) ?? sync.metadataResult.parsed : undefined,
       },
       false,
-      message,
+      sync.error,
+      { retryable: false, summary: sync.error },
     );
   }
-  const newVersion = normalizeEditVersion(
-    readEditVersionFromGetPayload(applyPayload),
-  );
-  if (newVersion != null) {
-    await syncProjectEditVersionOnDisk(projectDirRel, newVersion);
-  }
-
+  const formatted = formatQkrpcResultForAgent(sync.bodyResult);
+  const data = formatted.data as Record<string, unknown>;
+  const finalVersion = sync.editVersion && Number.isSafeInteger(Number(sync.editVersion)) ? Number(sync.editVersion) : sync.editVersion;
   return augmentToolResultWithPrefixWarnings(
-    formatQkrpcResultForAgent(applyResult),
+    { ...formatted, data: { ...data, payload: {
+      ...parseQkrpcPayload(sync.bodyResult),
+      editVersion: finalVersion,
+      metadataSynced: true,
+      metadataUpdated: sync.metadataResult !== undefined,
+      ...(sync.metadataResult ? { metadata: parseQkrpcPayload(sync.metadataResult) } : {}),
+    } } },
     prefixGuard.warnings,
   );
+  });
 }

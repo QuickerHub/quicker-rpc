@@ -153,7 +153,7 @@ Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完�
 | 顺序 | 交付与边界 | 负责入口 | 验收门槛 / 当前状态 |
 |---|---|---|---|
 | A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | 一个兼容实例自动选中；多实例明确选择；断连不把保存切往另一宿主；未知/不支持能力返回结构化错误。已实现 wire 握手与 bootstrap session，旧插件保持身份未知；V1 活进程已核验。实例发现/专属 endpoint、选择与写入绑定仍待实现 |
-| A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface workspace/live snapshot，接入统一文档 revision、保存票据和保真落盘，真实 DOM 回归通过；当前接既有磁盘项目，metadata/catalog 与完整 host session 接线待迁移 |
+| A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。资源目录、完整属性/子程序操作与 host session 接线仍待迁移 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | 两版本分别验证读取→编辑→校验→保存→重读，以及版本冲突、宿主 Designer 内存态、重启、取消和部分保存；未完成能力保持关闭。当前 V1 source 可用，V2 source 尚不支持 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | Agent 生成或修改的动作能进入同一设计器检查并保存；手工编辑与 Agent 并发修改有 revision/冲突处理；Ask 不写、不绕过脏状态或基线。待实施 |
 | A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。Node chat 与资料根基础已实现，完整切换未完成 |
@@ -178,7 +178,7 @@ Agent 执行循环、文档会话、权限和工具服务。代码整理、界�
 文档本身都不构成整项完成。A0–A5 是交付主线，R0–R8 是全程质量要求，均保留验收。
 
 **现有基线**：宿主握手、V1 source bundle/codec、独立 Node chat service、隔离资料根、
-设计器多 surface/history、完整 body snapshot 与保存票据已实现。当前运行的主界面仍依赖
+设计器多 surface/history、完整 body snapshot、模块目录、外观属性与保存票据已实现。当前运行的主界面仍依赖
 Next；V2 source、宿主多实例路由、实时 Agent/Designer 文档共享和完整新版设计器未完成。
 本节状态必须随实现更新，不把“分支已编译”写成“主产品已可用”。
 
@@ -225,16 +225,18 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 现有磁盘入口已接 body controller；宿主 session/storage 接线待完成 |
 | `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；继续补子程序创建/删除/属性和完整文档历史 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
-| `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 本轮迁入；先修分类和预置参数丢失，真实 catalog 未提供的统计/收藏等继续待适配 |
+| `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 宿主 catalog port 尚不完整；不能以受限搜索或空页签冒充目录迁移 |
-| `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 本轮先接已有写端口支持的标题/说明/图标；其它字段须补原生 catalog/presentation 契约后开放，仍属于完整迁移范围 |
+| `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。其它字段须补原生 catalog/presentation 契约后开放，仍属于完整迁移范围 |
 | 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | V1 source 与磁盘保真已有基础；metadata 原始字段、V2 codec 和 UI source 接入继续验收 |
 | 运行/诊断 bridge | 已确认范围内的 run/trace、失败定位、取消与结果展示 | 复用现有 RPC/Agent 服务；新版设计器调用侧与宿主能力逐项接线 |
 
-属性整合有一项已核实的依赖：现 `saveActionFromWorkspace` / `action apply` 只保存正文，
-不会应用 `info.json` 的标题/说明/图标。P1 不能只改成 local-only 属性保存便宣称同步完成；
-须接已有 presentation 端口，使用正文保存返回的新版本继续提交属性，并明确报告哪部分
-已持久化。新版 Quicker 来源本身也分两步保存，不能将两次 RPC 宣称为原子事务。
+普通保存只写本地工作区。显式 Sync 已在同一文档写入队列内先保存正文，再用返回的精确
+版本提交变化的标题/说明/图标；全部确认后才推进本地版本及同步信任。属性拒绝、响应丢失、
+版本缺失和取消不会把部分结果标成已同步。同步期间当前文档暂停编辑，晚回执不能影响另一
+文档。两次宿主 RPC 仍是分步保存，不能宣称为原子事务；实际 V1/V2 写回验收依赖 P2/P3。
+本地 JSON 往返和 CAS 指纹保留未知字段中的 Int64、高精度数值及数组；已验证真实落盘、
+并发同步与本地保存、部分写入重试和外部冲突。该证据来自隔离 fixture，不替代宿主验收。
 
 **Agent 与工作台的剩余任务**不因转入设计器主线而取消：R1 补操作描述与 TurnPlan 约束；
 R2 补浏览器/网络端口及派生进程 owner；R3 拆会话控制器并验证后台会话/审批/草稿；R4

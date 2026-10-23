@@ -20,6 +20,11 @@ function readStringArray(obj: Record<string, unknown>, ...keys: string[]): strin
   return [];
 }
 
+function readCreationDefault(obj: Record<string, unknown>): { newStepDefaultValue?: string } {
+  const value = obj.newStepDefaultValue ?? obj.NewStepDefaultValue;
+  return typeof value === "string" ? { newStepDefaultValue: value } : {};
+}
+
 function readInt(obj: Record<string, unknown>, ...keys: string[]): number {
   for (const key of keys) {
     const value = obj[key];
@@ -283,7 +288,8 @@ function mapAgentInputParamDef(
   const hasExplicitVariableMode = "variableMode" in o || "VariableMode" in o;
   const textTools = readString(o, "textTools", "TextTools");
 
-  const mapped: StepRunnerInputParamDef & { textTools?: string } = {
+  const mapped: StepRunnerInputParamDef & { textTools?: string; newStepDefaultValue?: string } = {
+    ...readCreationDefault(o),
     key,
     name: readString(o, "title", "Title", "name", "Name", "label", "Label"),
     description,
@@ -350,6 +356,7 @@ function mapInputParamDef(raw: unknown): StepRunnerInputParamDef | null {
   const defaultValue = readString(o, "defaultValue", "DefaultValue", "default", "Default");
   const explicitMultiLine = readBool(o, "isMultiLine", "IsMultiLine", "multiLine", "MultiLine");
   return {
+    ...readCreationDefault(o),
     key,
     name: readString(o, "name", "Name", "label", "Label", "title", "Title"),
     description,
@@ -510,10 +517,10 @@ export function mapSearchItemToStepRunnerItem(item: Record<string, unknown>) {
     name: readString(item, "name", "Name"),
     description: readString(item, "description", "Description"),
     icon: readString(item, "icon", "Icon"),
-    category: "",
-    secondaryCategories: [],
-    keywords: [],
-    supportedParams: [],
+    category: readString(item, "category", "Category"),
+    secondaryCategories: readStringArray(item, "secondaryCategories", "SecondaryCategories"),
+    keywords: readStringArray(item, "keywords", "Keywords"),
+    supportedParams: readStringArray(item, "supportedParams", "SupportedParams"),
     subItems: (Array.isArray(item.subItems) ? item.subItems : [])
       .filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null)
       .map(

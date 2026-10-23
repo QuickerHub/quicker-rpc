@@ -115,13 +115,13 @@ function editorParamToWire(param: ActionStepParam): WireInputParam {
 
   const vk = (param.varKey ?? "").trim();
 
-  const val = (param.value ?? "").trim();
+  const val = param.value;
 
   const file = (param as ActionStepParam & { file?: string }).file?.trim();
 
   if (vk) out.varKey = vk;
 
-  if (val) out.value = val;
+  if (typeof val === "string") out.value = val;
 
   if (file) out.file = file;
 
