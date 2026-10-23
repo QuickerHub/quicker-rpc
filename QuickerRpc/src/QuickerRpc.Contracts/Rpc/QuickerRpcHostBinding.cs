@@ -11,7 +11,7 @@ public sealed class QuickerRpcHostBinding
 {
     public QuickerRpcHostBinding(string hostInstanceId, string hostSessionId, string endpoint,
         int protocolVersion, int schemaVersion, string hostKind, string quickerVersion,
-        IDictionary<string, bool> capabilities)
+        IReadOnlyDictionary<string, bool> capabilities)
     {
         HostInstanceId = hostInstanceId ?? throw new ArgumentNullException(nameof(hostInstanceId));
         HostSessionId = hostSessionId ?? throw new ArgumentNullException(nameof(hostSessionId));
@@ -20,7 +20,10 @@ public sealed class QuickerRpcHostBinding
         SchemaVersion = schemaVersion;
         HostKind = hostKind;
         QuickerVersion = quickerVersion;
-        Capabilities = new ReadOnlyDictionary<string, bool>(new Dictionary<string, bool>(capabilities, StringComparer.Ordinal));
+        if (capabilities is null) throw new ArgumentNullException(nameof(capabilities));
+        var copy = new Dictionary<string, bool>(StringComparer.Ordinal);
+        foreach (var pair in capabilities) copy.Add(pair.Key, pair.Value);
+        Capabilities = new ReadOnlyDictionary<string, bool>(copy);
     }
 
     [DataMember(Name = "hostInstanceId")] public string HostInstanceId { get; }
