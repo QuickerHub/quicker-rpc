@@ -1,7 +1,7 @@
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep } from "@/lib/action-editor/types/common";
 import { inferControlFieldKeyFromStep } from "@/lib/action-editor/steps/stepControlFieldInfer";
-import { ensureParamValue } from "./StepInputParamField";
+import { ensureParamValue } from "./stepParamValue";
 
 export { inferControlFieldKeyFromStep };
 

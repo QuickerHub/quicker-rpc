@@ -4,13 +4,17 @@ import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode }
 import { designerCatalogTargetKey, type DesignerCatalogScope } from "./designerCatalogContext";
 import { createDesignerCatalogPort, type DesignerCatalogPort } from "./designerCatalogPort";
 
-const CatalogContext = createContext<DesignerCatalogPort | undefined>(undefined);
+type CatalogValue = { port?: DesignerCatalogPort } | null;
+const CatalogContext = createContext<CatalogValue>(null);
 
 export function DesignerCatalogProvider({ port, children }: { port?: DesignerCatalogPort; children: ReactNode }) {
-  return <CatalogContext.Provider value={port}>{children}</CatalogContext.Provider>;
+  const value = useMemo(() => ({ port }), [port]);
+  return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
 }
 
-export function useDesignerCatalogPort(): DesignerCatalogPort | undefined { return useContext(CatalogContext); }
+/** Presence is significant: an unresolved document must not become a legacy global reader. */
+export function useDesignerCatalogContext() { return useContext(CatalogContext); }
+export function useDesignerCatalogPort(): DesignerCatalogPort | undefined { return useDesignerCatalogContext()?.port; }
 
 export function useDocumentDesignerCatalogPort(scope: DesignerCatalogScope, owner: object | null): DesignerCatalogPort | undefined {
   const key = designerCatalogTargetKey(scope);
