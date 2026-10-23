@@ -89,6 +89,7 @@ const tests = [
   "lib/qkrpc-cancellation.test.ts",
   "lib/web-search-cancellation.test.ts",
   "lib/browser-cancellation.test.ts",
+  "browser-runtime/operation-owner.test.mjs",
   "lib/shell-runner-cancellation.test.ts",
   "lib/context-compression-reactive.test.ts",
   "lib/context-compression.integration.test.ts",
