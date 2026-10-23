@@ -1112,7 +1112,8 @@ test("native property text undo stays inside the input while document toolbar fo
     const title = page.getByRole("textbox", { name: "标题", exact: true });
     await title.focus();
     await page.keyboard.press("Control+a");
-    await page.keyboard.type("Native input edit");
+    // One native insertion has one undo unit; per-key typing is grouped by the browser/OS.
+    await page.keyboard.insertText("Native input edit");
     await page.keyboard.press("Control+z");
     assert.equal(await title.inputValue(), "Fixture action");
     await page.getByRole("tab", { name: "主程序", exact: true }).click();
