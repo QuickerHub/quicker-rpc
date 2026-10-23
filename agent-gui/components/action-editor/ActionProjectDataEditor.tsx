@@ -47,7 +47,7 @@ import { MAX_READ_CHARS } from "@/lib/workspace-file-helpers";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { fetchWorkspaceFile, fetchWorkspaceFileList } from "@/lib/workspace-explorer-api";
 import type { ActionSubProgram } from "@/lib/action-editor/types/common";
-import type { ActionProgramSnapshot } from "@/lib/action-editor/program/assembleActionProgramSnapshot";
+import { createProgramDocumentEditorController } from "@/lib/action-editor/program/programDocumentEditorController";
 import { createProgramDocumentSession, type ProgramDocumentSession } from "@/lib/action-editor/document/programDocumentSession";
 import { fingerprintProgramDocumentContent, serializeProgramDocumentSnapshot } from "@/lib/action-editor/document/programDocumentWire";
 import { ProgramEditorTabWorkspace, type ProgramEditorWorkspaceHandle } from "./ProgramEditorTabWorkspace";
@@ -283,13 +283,12 @@ export function ActionProjectDataEditor({
       const session = createProgramDocumentSession({ content: editorContent, identity: {
         documentKey: `${normalizeWorkspacePath(cwd)}::${normalizeWorkspacePath(path)}`,
       } });
-      return { session, initialPayload: session.readSnapshot() };
+      return { session };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
   }, [editorContent, parsed.ok, contentTruncated, cwd, path]);
   const session = sessionResult && "session" in sessionResult ? sessionResult.session : null;
-  const initialPayload = sessionResult && "initialPayload" in sessionResult ? sessionResult.initialPayload : null;
   sessionRef.current = session ?? null;
   useEffect(() => {
     setDirty(session?.getState().dirty ?? false);
@@ -309,9 +308,10 @@ export function ActionProjectDataEditor({
     };
   }, [session]);
   const embeddedSubProgramsWireJson = useMemo(() => {
-    if (!parsed.ok) return undefined;
-    return serializeWireSubProgramsJson(parsed.extraTopLevel.subPrograms);
-  }, [parsed]);
+    if (!session) return undefined;
+    const current = parseProgramWireJson(session.getState().content);
+    return current.ok ? serializeWireSubProgramsJson(current.extraTopLevel.subPrograms) : undefined;
+  }, [session, documentRevision]);
   const [globalCatalogState, setGlobalCatalogState] = useState<{ port?: DesignerCatalogPort; items: ActionSubProgram[] }>({ items: [] });
   const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
   const isGlobalSubProgram = useMemo(() => isGlobalSubProgramDataPath(path), [path]);
@@ -631,13 +631,15 @@ export function ActionProjectDataEditor({
     projectInfo?.name,
   ]);
 
-  const handleSnapshotChange = useCallback((snapshot: ActionProgramSnapshot) => {
-    if (!session || sessionRef.current !== session) return;
-    const result = session.applySnapshot(snapshot, { expectedRevision: session.getState().revision, source: "ui" });
-    if (!result.ok) setSaveError(result.error);
-    setDirty(result.state.dirty);
-    setDocumentRevision((revision) => revision + 1);
-  }, [session]);
+  const documentController = useMemo(() => session ? createProgramDocumentEditorController(session, {
+    isCurrent: () => sessionRef.current === session,
+    onChange: (result) => {
+      if (sessionRef.current !== session) return;
+      if (!result.ok) setSaveError(result.error);
+      setDirty(result.state.dirty);
+      setDocumentRevision((revision) => revision + 1);
+    },
+  }) : null, [session]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
   }, []);
@@ -693,7 +695,8 @@ export function ActionProjectDataEditor({
   const handlePinStepToChat = useCallback(
     (stepId: string) => {
       if (!session) return;
-      const snapshot = workspaceRef.current?.getSnapshot() ?? session.readSnapshot();
+      workspaceRef.current?.flushPendingEdits();
+      const snapshot = session.readSnapshot();
       const steps = snapshot.steps;
       const nodePath = resolveNodePath(steps, stepId);
       if (!nodePath) {
@@ -737,7 +740,8 @@ export function ActionProjectDataEditor({
 
   const handleSave = useCallback(async () => {
     if (!session || externalConflict || metadataConflict || hostSyncBusy || targetBlocked) return;
-    const started = session.beginSave(() => workspaceRef.current?.getSnapshot() ?? session.readSnapshot());
+    workspaceRef.current?.flushPendingEdits();
+    const started = session.beginSave(() => session.readSnapshot());
     if (!started.ok) {
       setSaveError(started.error);
       return;
@@ -813,7 +817,7 @@ export function ActionProjectDataEditor({
       </p>
     );
   }
-  if (!session || !initialPayload) {
+  if (!session) {
     return <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">
       无法建立完整动作编辑会话：{sessionResult && "error" in sessionResult ? sessionResult.error : "动作尚未加载"}
     </p>;
@@ -977,14 +981,14 @@ export function ActionProjectDataEditor({
             <ProgramEditorTabWorkspace
               key={`${session.getState().identity.documentKey}::${editorContent}`}
               documentKey={session.getState().identity.documentKey}
-              payload={initialPayload}
+              controller={documentController!}
               active={tab === "visual"}
+              historyDisabled={hostSyncBusy}
               mainSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}
               catalogPort={catalogPort}
               globalSubPrograms={globalCatalogState.port === catalogPort ? globalCatalogState.items : []}
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-              onSnapshotChange={handleSnapshotChange}
               onHandleChange={handleWorkspaceChange}
               onPinStepToChat={handlePinStepToChat}
               metadataPanel={metadataEnabled && liveMetadata ? <ProgramAppearanceEditor

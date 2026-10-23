@@ -477,6 +477,7 @@ function VariableEditorMultiBulkPanel({
 
 export type VariableEditorProps = {
   active?: boolean;
+  registerDraftFlusher?: (flush: () => void) => () => void;
   variables: ActionVariable[];
   steps: ActionStep[];
   /** Main vs sub program tab: hides subprogram-only variable fields on the main surface. Default `"main"`. */
@@ -496,6 +497,7 @@ export type VariableEditorProps = {
 
 export default function VariableEditor({
   active = true,
+  registerDraftFlusher,
   variables,
   steps,
   programSurface = "main",
@@ -741,6 +743,8 @@ export default function VariableEditor({
       flushVariableFormIfChanged();
     });
   }, [flushVariableFormIfChanged]);
+
+  useLayoutEffect(() => registerDraftFlusher?.(flushVariableFormIfChanged), [registerDraftFlusher, flushVariableFormIfChanged]);
 
   useEffect(() => {
     if (active) return;
