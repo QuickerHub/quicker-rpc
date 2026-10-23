@@ -16,6 +16,7 @@ function Invoke-DotNet {
 
 Push-Location $repoRoot
 try {
+    if ($IsWindows) { & (Join-Path $PSScriptRoot 'Test-QkrpcInstallOverlay.ps1') }
     # Check first; disabling MSBuild generation must never mask stale knowledge.
     & node scripts/generate-authoring-docs.mjs --check
     if ($LASTEXITCODE -ne 0) { throw 'Generated knowledge check failed' }
