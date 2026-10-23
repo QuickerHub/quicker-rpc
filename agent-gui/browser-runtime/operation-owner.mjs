@@ -1,6 +1,30 @@
 /** Each invoke owns its cancellation; a session and its browser are shared resources. */
 export function createBrowserOperationOwner(signal) {
-  return Object.freeze({ signal, checkpoint() { signal?.throwIfAborted(); } });
+  const local = new AbortController();
+  signal = signal ? AbortSignal.any([signal, local.signal]) : local.signal;
+  const checkpoint = () => { signal?.throwIfAborted(); };
+  return Object.freeze({
+    signal,
+    checkpoint,
+    cancel(reason) { local.abort(reason); },
+    async wait(execute) {
+      checkpoint();
+      try {
+        return await execute();
+      } finally {
+        checkpoint();
+      }
+    },
+    pause(ms) {
+      checkpoint();
+      return new Promise((resolve, reject) => {
+        const cleanup = () => { clearTimeout(timer); signal.removeEventListener("abort", abort); };
+        const abort = () => { cleanup(); reject(signal.reason); };
+        const timer = setTimeout(() => { cleanup(); resolve(); }, ms);
+        signal.addEventListener("abort", abort, { once: true });
+      });
+    },
+  });
 }
 
 /** A cancelled caller leaves promptly; the underlying native promise is still observed. */

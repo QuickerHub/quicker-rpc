@@ -1,6 +1,7 @@
 import { createServer } from "node:net";
 import { createServer as createHttpServer } from "node:http";
 import { invokeError } from "../../browser-runtime/protocol.mjs";
+import { handleBrowserInvokeRequest } from "../../browser-runtime/invoke-request.mjs";
 
 export const EMBEDDED_BROWSER_RUNTIME_VERSION = "0.1.0";
 export const EMBEDDED_BROWSER_PROTOCOL_VERSION = "quicker-embedded-browser-v1";
@@ -138,17 +139,6 @@ export async function startEmbeddedBrowserAutomationServer(automation, options =
     res.end(JSON.stringify(body));
   }
 
-  /** @param {import('node:http').IncomingMessage} req */
-  function readBody(req) {
-    return new Promise((resolve, reject) => {
-      /** @type {Buffer[]} */
-      const chunks = [];
-      req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-      req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-      req.on("error", reject);
-    });
-  }
-
   const server = createHttpServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host ?? host}`);
@@ -173,26 +163,7 @@ export async function startEmbeddedBrowserAutomationServer(automation, options =
       }
 
       if (req.method === "POST" && path === "/v1/invoke") {
-        let body;
-        try {
-          body = JSON.parse(await readBody(req));
-        } catch {
-          sendJson(res, 400, invokeError("Invalid JSON body"));
-          return;
-        }
-        if (!body || typeof body !== "object") {
-          sendJson(res, 400, invokeError("Body must be a JSON object"));
-          return;
-        }
-        const op = String(body.op ?? "").trim();
-        if (!op) {
-          sendJson(res, 400, invokeError("op is required"));
-          return;
-        }
-        const sessionId = String(body.sessionId ?? "default").trim() || "default";
-        const args = body.args && typeof body.args === "object" ? body.args : {};
-        const result = await automation.invoke(op, args, sessionId);
-        sendJson(res, result.ok ? 200 : 502, result);
+        await handleBrowserInvokeRequest(req, res, automation.invoke, sendJson);
         return;
       }
 

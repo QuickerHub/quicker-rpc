@@ -51,3 +51,13 @@ test("late native failure is observed without retrying, and only a pending owner
   assert.equal(other.signal.aborted, false);
   await flush(); assert.equal(queue.pendingSessionCount, 0);
 });
+
+test("cooperative delays release their timer and session queue on owner cancellation", async () => {
+  const queue = new BrowserOperationQueue(); const owner = createBrowserOperationOwner(); const started = deferred();
+  const reason = new Error("local deadline");
+  const pending = queue.run("one", owner, async () => { started.resolve(); await owner.pause(100_000); });
+  const rejected = assert.rejects(pending, (error) => error === reason); await started.promise;
+  owner.cancel(reason); await rejected;
+  assert.equal(await queue.run("one", createBrowserOperationOwner(), async () => "next"), "next");
+  await flush(); assert.equal(queue.pendingSessionCount, 0);
+});
