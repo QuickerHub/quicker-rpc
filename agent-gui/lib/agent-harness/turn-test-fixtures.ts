@@ -20,6 +20,7 @@ export function syntheticTurn() {
   const actionScope = { pinnedLatestAll: [] };
   const scope = { actionScope, toolExecutionContext: buildToolExecutionContext({
     cwd: request.cwd, chatMode: request.chatMode, actionScope,
+    threadId: request.threadId,
   }) };
   const model = new MockLanguageModelV3();
   const runtime: PreparedAgentTurnRuntime = {

@@ -2,7 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createAgentTurnRunner, type AgentTurnServices } from "./turn-runner";
 import { syntheticTurn } from "./turn-test-fixtures";
-import { getRequestAbortSignal, runWithAgentRequestContextAsync, runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
+import { getRequestAbortSignal, getRequestTurnExecutionState, runWithAgentRequestContextAsync, runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
+import {
+  clearProgramTurnFlagsForThread,
+  getCreatedActionIdThisTurn,
+  getDocsCallCountThisTurn,
+  incrementDocsCallCountThisTurn,
+  markActionCreatedThisTurn,
+  markProgramDataEditedThisTurn,
+  mustWriteDataAfterCreateThisTurn,
+  wasActionCreatedThisTurn,
+} from "@/lib/program-turn-context";
+import {
+  isQkrpcConnectivityBlockedThisTurn,
+  markQkrpcConnectivityBlockedThisTurn,
+} from "@/lib/qkrpc-connectivity-gate";
+import type { TurnExecutionState } from "./turn-execution-state";
 
 function fixture(overrides: Partial<AgentTurnServices> = {}) {
   const data = syntheticTurn();
@@ -11,7 +26,10 @@ function fixture(overrides: Partial<AgentTurnServices> = {}) {
     resolveRequest: async () => data.request,
     tryDirectResponse: async () => null,
     resolveModel: async () => ({ model: data.model, modelId: "fixture" }),
-    resolveScope: async () => data.scope,
+    resolveScope: async (_request, _signal, executionState) => ({
+      ...data.scope,
+      toolExecutionContext: { ...data.scope.toolExecutionContext, executionState },
+    }),
     prepareRuntime: async () => ({ ...data.runtime, dispose: async () => { disposed += 1; } }),
     runLoop: async ({ writer }) => {
       writer.write({ type: "start" });
@@ -20,7 +38,6 @@ function fixture(overrides: Partial<AgentTurnServices> = {}) {
       writer.write({ type: "text-end", id: "text" });
       writer.write({ type: "finish" });
     },
-    clearTurnFlags: () => {},
     withContext: runWithAgentRequestContextAsync,
     ...overrides,
   };
@@ -82,8 +99,11 @@ test("response body cancellation reaches the active loop and nested tool context
   let started!: () => void;
   const ready = new Promise<void>((resolve) => { started = resolve; });
   let loopSignal: AbortSignal | undefined;
+  let executionState: TurnExecutionState | undefined;
   const turn = fixture({ runLoop: async ({ abortSignal }) => {
     loopSignal = abortSignal;
+    executionState = getRequestTurnExecutionState();
+    markActionCreatedThisTurn("cancelled-action");
     await runWithQkrpcCwdAsync("nested-fixture", async () => {
       assert.equal(getRequestAbortSignal(), abortSignal);
     });
@@ -96,6 +116,8 @@ test("response body cancellation reaches the active loop and nested tool context
   assert.equal(loopSignal?.aborted, true);
   assert.equal(loopSignal?.reason, "stop button");
   assert.equal(turn.disposed(), 1);
+  assert.deepEqual(executionState, { closed: true });
+  assert.equal(getRequestTurnExecutionState(), undefined);
 });
 
 test("model configuration error returns without preparing runtime", async () => {
@@ -162,4 +184,98 @@ test("nested explicit signal cannot replace an already cancelled owning turn", a
       assert.equal(getRequestAbortSignal()?.reason, parent.signal.reason);
     });
   });
+});
+
+test("concurrent root turns in one thread never share or clear execution facts", async () => {
+  let started = 0;
+  let bothReady!: () => void;
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => { bothReady = resolve; });
+  const released = new Promise<void>((resolve) => { release = resolve; });
+  const states: TurnExecutionState[] = [];
+  const turn = fixture({ runLoop: async () => {
+    const index = started++;
+    const state = getRequestTurnExecutionState()!;
+    states[index] = state;
+    assert.equal(wasActionCreatedThisTurn(), false);
+    assert.equal(getDocsCallCountThisTurn(), 0);
+    markActionCreatedThisTurn(`owned-${index}`);
+    incrementDocsCallCountThisTurn();
+    if (index === 0) markQkrpcConnectivityBlockedThisTurn();
+    if (index === 1) {
+      clearProgramTurnFlagsForThread(turn.request.threadId);
+      assert.equal(wasActionCreatedThisTurn(), false);
+    }
+    if (started === 2) bothReady();
+    await released;
+    if (index === 0) {
+      assert.equal(getCreatedActionIdThisTurn(), "owned-0");
+      assert.equal(getDocsCallCountThisTurn(), 1);
+      assert.equal(isQkrpcConnectivityBlockedThisTurn(), true);
+    } else {
+      assert.equal(wasActionCreatedThisTurn(), false);
+      assert.equal(isQkrpcConnectivityBlockedThisTurn(), false);
+    }
+  } });
+  const first = await turn.run(turn.request.body);
+  const second = await turn.run(turn.request.body);
+  await ready;
+  assert.notEqual(states[0], states[1]);
+  release();
+  await Promise.all([first.text(), second.text()]);
+  assert.deepEqual(states, [{ closed: true }, { closed: true }]);
+  assert.equal(getRequestTurnExecutionState(), undefined);
+});
+
+test("each later root turn receives fresh facts and propagates its explicit owner", async () => {
+  const states: TurnExecutionState[] = [];
+  const turn = fixture({
+    tryDirectResponse: async () => {
+      states.push(getRequestTurnExecutionState()!);
+      assert.equal(wasActionCreatedThisTurn(), false);
+      assert.equal(isQkrpcConnectivityBlockedThisTurn(), false);
+      markActionCreatedThisTurn(`owned-${states.length}`);
+      return null;
+    },
+    resolveScope: async (_request, _signal, executionState) => {
+      assert.equal(executionState, states.at(-1));
+      assert.equal(executionState, getRequestTurnExecutionState());
+      return { ...turn.scope, toolExecutionContext: { ...turn.scope.toolExecutionContext, executionState } };
+    },
+    runLoop: async () => {
+      assert.equal(getRequestTurnExecutionState(), states.at(-1));
+      assert.equal(mustWriteDataAfterCreateThisTurn(), true);
+      await runWithAgentRequestContextAsync({ cwd: "fixture-subagent" }, async () => {
+        markProgramDataEditedThisTurn();
+      });
+      assert.equal(mustWriteDataAfterCreateThisTurn(), false);
+    },
+  });
+  await (await turn.run(turn.request.body)).text();
+  assert.deepEqual(states[0], { closed: true });
+  await (await turn.run(turn.request.body)).text();
+  assert.notEqual(states[0], states[1]);
+  assert.deepEqual(states[1], { closed: true });
+});
+
+test("preparation failure disposes its state and restores the caller context", async () => {
+  let failedState: TurnExecutionState | undefined;
+  const failure = new Error("synthetic preparation failed");
+  const turn = fixture({ prepareRuntime: async () => {
+    failedState = getRequestTurnExecutionState();
+    markActionCreatedThisTurn("failed-action");
+    markQkrpcConnectivityBlockedThisTurn();
+    throw failure;
+  } });
+  await runWithAgentRequestContextAsync({ threadId: turn.request.threadId }, async () => {
+    const callerState = getRequestTurnExecutionState();
+    markActionCreatedThisTurn("caller-action");
+    await assert.rejects(turn.run(turn.request.body), (error: unknown) => error === failure);
+    assert.equal(getRequestTurnExecutionState(), callerState);
+    assert.equal(getCreatedActionIdThisTurn(), "caller-action");
+    assert.notEqual(failedState, callerState);
+  });
+  assert.deepEqual(failedState, { closed: true });
+  assert.equal(getRequestTurnExecutionState(), undefined);
+  assert.equal(getCreatedActionIdThisTurn(), undefined);
 });

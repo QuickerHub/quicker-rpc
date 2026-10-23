@@ -7,7 +7,6 @@ import {
   resolveChatModelForSelection,
 } from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
-import { clearProgramTurnFlagsForThread } from "@/lib/program-turn-context";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import { tryRespondWithLauncherCacheDirect } from "@/lib/launcher/launcher-cache-direct.server";
 import { tryRespondWithLauncherResolveDirect } from "@/lib/launcher/launcher-resolve-direct.server";
@@ -87,6 +86,5 @@ export const runAgentChatTurn = createAgentTurnRunner({
   prepareRuntime: prepareAgentTurnRuntime,
   runLoop: runAgentStreamLoop,
   withContext: runWithAgentRequestContextAsync,
-  clearTurnFlags: clearProgramTurnFlagsForThread,
   onCleanupError: (error) => console.error("[agent turn cleanup]", error),
 });

@@ -7,13 +7,14 @@ import type { AgentStreamLoopParams } from "./stream-loop.server";
 import type { ChatPostBody } from "./types";
 import { toolExecutionContextToAgentRequest } from "./tool-execution-context";
 import { createAgentTurnLifecycle, withAgentTurnCancellation } from "./turn-lifecycle";
+import { createTurnExecutionState, disposeTurnExecutionState, type TurnExecutionState } from "./turn-execution-state";
 
 /** Ports keep orchestration tests independent of model config, user databases and host tools. */
 export type AgentTurnServices = {
   resolveRequest: (body: ChatPostBody) => Promise<ResolvedAgentTurnRequest>;
   tryDirectResponse: (request: ResolvedAgentTurnRequest) => Promise<Response | null>;
   resolveModel: (request: ResolvedAgentTurnRequest) => Promise<{ model: LanguageModel; modelId: string } | Response>;
-  resolveScope: (request: ResolvedAgentTurnRequest, abortSignal: AbortSignal) => Promise<ResolvedAgentTurnScope>;
+  resolveScope: (request: ResolvedAgentTurnRequest, abortSignal: AbortSignal, executionState: TurnExecutionState) => Promise<ResolvedAgentTurnScope>;
   prepareRuntime: (params: {
     request: ResolvedAgentTurnRequest;
     scope: ResolvedAgentTurnScope;
@@ -23,7 +24,6 @@ export type AgentTurnServices = {
   }) => Promise<PreparedAgentTurnRuntime>;
   runLoop: (params: AgentStreamLoopParams) => Promise<unknown>;
   withContext: <T>(context: AgentRequestContext, run: () => Promise<T>) => Promise<T>;
-  clearTurnFlags: (threadId: string | undefined) => void;
   onCleanupError?: (error: unknown) => void;
 };
 
@@ -35,6 +35,7 @@ export function createAgentTurnRunner(services: AgentTurnServices) {
       onCleanupError: services.onCleanupError,
     });
     const { signal } = lifecycle;
+    const executionState = createTurnExecutionState();
     const ownResponse = async (response: Response): Promise<Response> => {
       // Register a late response body before observing cancellation during preparation.
       if (response.body) {
@@ -47,11 +48,14 @@ export function createAgentTurnRunner(services: AgentTurnServices) {
       return response;
     };
     try {
+      await lifecycle.defer(() => disposeTurnExecutionState(executionState));
       signal.throwIfAborted();
       const request = await services.resolveRequest(body);
       signal.throwIfAborted();
       return await services.withContext({
         cwd: request.cwd,
+        threadId: request.threadId,
+        executionState,
         chatMode: request.chatMode,
         lastUserText: request.lastUserText,
         llmSelectionRaw: request.llmSelectionRaw,
@@ -64,11 +68,11 @@ export function createAgentTurnRunner(services: AgentTurnServices) {
         const modelResolution = await services.resolveModel(request);
         if (modelResolution instanceof Response) return ownResponse(modelResolution);
         signal.throwIfAborted();
-        services.clearTurnFlags(request.threadId);
-        const scope = await services.resolveScope(request, signal);
+        const scope = await services.resolveScope(request, signal, executionState);
         signal.throwIfAborted();
         return services.withContext({
           ...toolExecutionContextToAgentRequest(scope.toolExecutionContext),
+          executionState,
           abortSignal: signal,
         }, async () => {
           const runtime = await services.prepareRuntime({ request, scope, ...modelResolution, abortSignal: signal });

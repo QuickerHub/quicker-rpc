@@ -1,6 +1,7 @@
 import type { ActionScopeHint } from "@/lib/action-scope";
 import type { ChatMode } from "@/lib/chat-mode";
 import type { AgentRequestContext } from "@/lib/qkrpc-request-context";
+import { createTurnExecutionState, type TurnExecutionState } from "./turn-execution-state";
 
 /** Workspace-relative directory for large tool output artifacts. */
 export const AGENT_ARTIFACT_DIR = ".local/agent-artifacts";
@@ -8,6 +9,7 @@ export const AGENT_ARTIFACT_DIR = ".local/agent-artifacts";
 /** Explicit per-turn context for tool execution (Phase 4 — ALS remains compat layer). */
 export type ToolExecutionContext = {
   abortSignal?: AbortSignal;
+  executionState: TurnExecutionState;
   cwd: string;
   chatMode: ChatMode;
   actionScope: ActionScopeHint;
@@ -20,6 +22,7 @@ export type ToolExecutionContext = {
 
 export function buildToolExecutionContext(params: {
   abortSignal?: AbortSignal;
+  executionState?: TurnExecutionState;
   cwd: string;
   chatMode: ChatMode;
   actionScope: ActionScopeHint;
@@ -30,6 +33,7 @@ export function buildToolExecutionContext(params: {
 }): ToolExecutionContext {
   return {
     abortSignal: params.abortSignal,
+    executionState: params.executionState ?? createTurnExecutionState(),
     cwd: params.cwd.trim(),
     chatMode: params.chatMode,
     actionScope: params.actionScope,
@@ -46,6 +50,7 @@ export function toolExecutionContextToAgentRequest(
 ): AgentRequestContext {
   return {
     abortSignal: ctx.abortSignal,
+    executionState: ctx.executionState,
     cwd: ctx.cwd,
     chatMode: ctx.chatMode,
     actionScope: ctx.actionScope,

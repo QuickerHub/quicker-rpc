@@ -32,6 +32,7 @@ import { loadConfiguredMcpTools } from "@/lib/agent-mcp/load.server";
 import { restrictComposedTools } from "@/lib/chat-tool-selection";
 import { createTaskToolForParent, TASK_TOOL } from "@/lib/task-tool.server";
 import { applyToolModeGuards } from "@/lib/agent-tool-mode-guard";
+import { createTurnExecutionState, type TurnExecutionState } from "./turn-execution-state";
 
 export type ResolvedAgentTurnScope = {
   actionScope: ReturnType<typeof extractActionScopeFromMessages>;
@@ -48,6 +49,7 @@ export type PreparedAgentTurnRuntime = Omit<AgentStreamLoopParams, "writer"> & {
 export async function resolveAgentTurnScope(
   request: ResolvedAgentTurnRequest,
   abortSignal?: AbortSignal,
+  executionState: TurnExecutionState = createTurnExecutionState(),
 ): Promise<ResolvedAgentTurnScope> {
   abortSignal?.throwIfAborted();
   let actionScope = extractActionScopeFromMessages(request.messagesForModel);
@@ -77,6 +79,7 @@ export async function resolveAgentTurnScope(
     designerEmbedBlock,
     toolExecutionContext: buildToolExecutionContext({
       abortSignal,
+      executionState,
       cwd: request.cwd,
       chatMode: request.chatMode,
       actionScope,

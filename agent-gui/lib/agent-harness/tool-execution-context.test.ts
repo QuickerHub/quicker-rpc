@@ -34,5 +34,22 @@ describe("tool-execution-context", () => {
     assert.equal(als.threadId, "t1");
     assert.equal(als.artifactDir, AGENT_ARTIFACT_DIR);
     assert.equal(als.benchMode, true);
+    assert.equal(als.executionState, ctx.executionState);
+    assert.equal(ctx.executionState.closed, false);
+  });
+
+  it("retains an explicit turn owner without sharing a builder default", () => {
+    const first = buildToolExecutionContext({
+      cwd: "/ws", chatMode: CHAT_MODE_AGENT, actionScope: { pinnedLatestAll: [] },
+    });
+    const second = buildToolExecutionContext({
+      cwd: "/ws", chatMode: CHAT_MODE_AGENT, actionScope: { pinnedLatestAll: [] },
+    });
+    const nested = buildToolExecutionContext({
+      cwd: "/ws/tool", chatMode: CHAT_MODE_AGENT, actionScope: { pinnedLatestAll: [] },
+      executionState: first.executionState,
+    });
+    assert.notEqual(first.executionState, second.executionState);
+    assert.equal(nested.executionState, first.executionState);
   });
 });

@@ -1,53 +1,22 @@
-import {
-  getRequestThreadId,
-  qkrpcRequestContext,
-} from "@/lib/qkrpc-request-context";
-
-type ConnectivityThreadFlags = {
-  blocked?: boolean;
-};
-
-const connectivityFlagsByThread = new Map<string, ConnectivityThreadFlags>();
-
-function threadFlags(): ConnectivityThreadFlags {
-  const threadId = getRequestThreadId()?.trim();
-  if (!threadId) return {};
-  let flags = connectivityFlagsByThread.get(threadId);
-  if (!flags) {
-    flags = {};
-    connectivityFlagsByThread.set(threadId, flags);
-  }
-  return flags;
-}
+import { getRequestThreadId, getRequestTurnExecutionState } from "@/lib/qkrpc-request-context";
 
 export function markQkrpcConnectivityBlockedThisTurn(): void {
-  const store = qkrpcRequestContext.getStore();
-  if (store) {
-    store.qkrpcConnectivityBlockedThisTurn = true;
-  }
-  threadFlags().blocked = true;
+  const state = getRequestTurnExecutionState();
+  if (state && !state.closed) state.qkrpcConnectivityBlocked = true;
 }
 
 export function clearQkrpcConnectivityBlockedThisTurn(): void {
-  const store = qkrpcRequestContext.getStore();
-  if (store) {
-    store.qkrpcConnectivityBlockedThisTurn = false;
-  }
-  threadFlags().blocked = false;
+  const state = getRequestTurnExecutionState();
+  if (state && !state.closed) state.qkrpcConnectivityBlocked = false;
 }
 
 export function isQkrpcConnectivityBlockedThisTurn(): boolean {
-  return (
-    qkrpcRequestContext.getStore()?.qkrpcConnectivityBlockedThisTurn === true
-    || threadFlags().blocked === true
-  );
+  const state = getRequestTurnExecutionState();
+  return !state?.closed && state?.qkrpcConnectivityBlocked === true;
 }
 
-/** Test helper — clear per-thread connectivity gate. */
+/** Compatibility test helper resets only the current owner. */
 export function clearQkrpcConnectivityGateForTests(threadId?: string): void {
-  if (threadId) {
-    connectivityFlagsByThread.delete(threadId);
-    return;
-  }
-  connectivityFlagsByThread.clear();
+  if (threadId && threadId.trim() !== getRequestThreadId()?.trim()) return;
+  clearQkrpcConnectivityBlockedThisTurn();
 }

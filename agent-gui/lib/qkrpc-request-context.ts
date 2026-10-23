@@ -2,10 +2,16 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { ActionScopeHint } from "@/lib/action-scope";
 import type { ChatMode } from "@/lib/chat-mode";
 import type { LauncherResolveAgentNext } from "@/lib/launcher/launcher-resolve-agent-output";
+import {
+  createTurnExecutionState,
+  type TurnExecutionState,
+} from "@/lib/agent-harness/turn-execution-state";
 
 export type QkrpcRequestContext = {
   /** Cancellation owned by the current turn, inherited by nested tool contexts. */
   abortSignal?: AbortSignal;
+  /** Shared identity for execution facts; thread ids never own mutable turn state. */
+  executionState?: TurnExecutionState;
   cwd?: string;
   actionScope?: ActionScopeHint;
   chatMode?: ChatMode;
@@ -20,22 +26,6 @@ export type QkrpcRequestContext = {
   launcherResolveDirectNext?: LauncherResolveAgentNext | null;
   /** QuickerBench / isolated eval — block action library search. */
   benchMode?: boolean;
-  /** workspace_program patch succeeded earlier in this turn. */
-  programPatchedThisTurn?: boolean;
-  /** qkrpc_action_create succeeded earlier in this turn. */
-  actionCreatedThisTurn?: boolean;
-  /** workspace_program write_data/edit_data succeeded after create this turn. */
-  programDataEditedThisTurn?: boolean;
-  /** docs tool calls this user turn. */
-  docsCallCountThisTurn?: number;
-  /** actionId from qkrpc_action_create this turn. */
-  createdActionIdThisTurn?: string;
-  /** qkrpc_step_runner_search calls this turn. */
-  stepRunnerSearchCountThisTurn?: number;
-  /** workspace_program data.json edits after latest patch this turn. */
-  editAfterPatchCountThisTurn?: number;
-  /** qkrpc connectivity failed — call qkrpc_wait before other qkrpc tools. */
-  qkrpcConnectivityBlockedThisTurn?: boolean;
 };
 
 export const qkrpcRequestContext = new AsyncLocalStorage<QkrpcRequestContext>();
@@ -46,6 +36,13 @@ export function getRequestCwd(): string | undefined {
 
 export function getRequestAbortSignal(): AbortSignal | undefined {
   return qkrpcRequestContext.getStore()?.abortSignal;
+}
+
+/** Legacy raw ALS contexts acquire their own state without any process-wide fallback. */
+export function getRequestTurnExecutionState(): TurnExecutionState | undefined {
+  const store = qkrpcRequestContext.getStore();
+  if (!store) return undefined;
+  return store.executionState ??= createTurnExecutionState();
 }
 
 export function getRequestActionScope(): ActionScopeHint | undefined {
@@ -96,18 +93,27 @@ export function runWithQkrpcCwd<T>(
   cwd: string | undefined,
   fn: () => T,
 ): T {
-  return qkrpcRequestContext.run({ ...qkrpcRequestContext.getStore(), cwd: cwd?.trim() || undefined }, fn);
+  return qkrpcRequestContext.run({
+    ...qkrpcRequestContext.getStore(),
+    executionState: getRequestTurnExecutionState() ?? createTurnExecutionState(),
+    cwd: cwd?.trim() || undefined,
+  }, fn);
 }
 
 export async function runWithQkrpcCwdAsync<T>(
   cwd: string | undefined,
   fn: () => Promise<T>,
 ): Promise<T> {
-  return qkrpcRequestContext.run({ ...qkrpcRequestContext.getStore(), cwd: cwd?.trim() || undefined }, fn);
+  return qkrpcRequestContext.run({
+    ...qkrpcRequestContext.getStore(),
+    executionState: getRequestTurnExecutionState() ?? createTurnExecutionState(),
+    cwd: cwd?.trim() || undefined,
+  }, fn);
 }
 
 export type AgentRequestContext = {
   abortSignal?: AbortSignal;
+  executionState?: TurnExecutionState;
   cwd?: string;
   actionScope?: ActionScopeHint;
   chatMode?: ChatMode;
@@ -138,16 +144,7 @@ function mergeAgentRequestContext(ctx: AgentRequestContext): QkrpcRequestContext
   next.abortSignal = ctx.abortSignal && parent?.abortSignal && ctx.abortSignal !== parent.abortSignal
     ? AbortSignal.any([parent.abortSignal, ctx.abortSignal])
     : ctx.abortSignal ?? parent?.abortSignal;
-  if (parent) {
-    next.programPatchedThisTurn = parent.programPatchedThisTurn;
-    next.actionCreatedThisTurn = parent.actionCreatedThisTurn;
-    next.programDataEditedThisTurn = parent.programDataEditedThisTurn;
-    next.docsCallCountThisTurn = parent.docsCallCountThisTurn;
-    next.createdActionIdThisTurn = parent.createdActionIdThisTurn;
-    next.stepRunnerSearchCountThisTurn = parent.stepRunnerSearchCountThisTurn;
-    next.editAfterPatchCountThisTurn = parent.editAfterPatchCountThisTurn;
-    next.qkrpcConnectivityBlockedThisTurn = parent.qkrpcConnectivityBlockedThisTurn;
-  }
+  next.executionState = ctx.executionState ?? getRequestTurnExecutionState() ?? createTurnExecutionState();
   return next;
 }
 
