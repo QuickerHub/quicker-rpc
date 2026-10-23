@@ -25,6 +25,31 @@ QuickerAgent / CLI / MCP / HTTP
 | `QuickerRpc.Plugin.V2` | net10 端口适配、DI 和反射兼容 | 独立 wire 协议 |
 | `QuickerRpc.Console` | CLI、MCP、HTTP serve | Quicker 版本差异 |
 
+## 宿主发现与绑定
+
+`QuickerRpcHostSessionScope` 为每次 bootstrap 产生专属 endpoint 与 session，实例 ID 在宿主
+进程生命周期内稳定。V1 DI、V2 DI 与 V2 manual bootstrap 都通过同一 Runtime scope 和
+`QuickerRpcServerHost` 启动；没有磁盘 PID 注册表。pipe ACL 和客户端 owner 校验限定当前用户，
+发现只枚举其命名空间，最多 64 个候选共享有界握手时间。
+
+`qkrpc host list --json` / MCP `qkrpc_host_list` / HTTP `host.list` 返回候选绑定。
+唯一兼容候选自动选择，多候选使用 `--host-session` / `QKRPC_HOST_SESSION` 或请求的
+`hostSessionId` 明确选择。调用方可携带 host list 返回的完整 `hostBinding`；CLI 使用
+`--host-binding` / `QKRPC_HOST_BINDING`。能力缺失、旧身份、协议不符不能推断为可写。
+固定 `QuickerRpc_Server_QRPC2026` 只兼容读取，专属连接自身完成握手后才开放写入。
+
+source bundle 的 identity 和 checkpoint 同时保存不可变 `HostBinding`。save 重新连接原 endpoint
+并核对 instance/session/协议，绑定错误、能力错误、未知写结果均不自动重发、不 bootstrap、
+不换宿主或 gateway。没有绑定的旧 bundle 仍可离线 dry-run，实际保存须重新 open。
+HTTP `action.binding` 只在本地验证并读取 bundle 身份，Agent 用它在发写前固定 turn；CLI 复用
+离线 `--dry-run`。两个并行首次保存必须先争取同一个 turn 目标，不能在回执后才发现冲突。
+
+serve pool 保留原绑定到重连；StepRunner cache 按 RPC 连接弱引用隔离。SSE trace 使用独立连接，
+携带原绑定和请求取消；取消单个请求不回收同一 pool 中其它健康调用。旧读取缺少身份时，
+后续写入需要显式选择。写已发送后断线或超时返回 `WRITE_RESULT_UNKNOWN`，调用方应核对原目标。
+这些语义由随机 fake pipe、CLI/MCP/serve 及实际 Node HTTP adapter 到 fake pipe 的离线测试覆盖；
+真实双宿主、跨提权连接和安装热更仍需集成验收。
+
 ## YAML source 与原生程序端口
 
 动作 source 的读写不经过旧 compressed/protobuf 投影：

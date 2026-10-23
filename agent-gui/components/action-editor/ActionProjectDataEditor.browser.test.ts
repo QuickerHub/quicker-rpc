@@ -24,6 +24,8 @@ const state = window.fixture = {calls:[],saved:[],requests:[],unexpected:[],pend
 state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.json$/,'info.json'),makeInfo(id)]));
 state.documentCalls=[];state.documentPending=[];state.documentMode='success';
 state.syncCalls=[];state.syncPending=[];state.syncMode='success';
+state.deferInfoRead=false;state.infoPending=[];state.infoReadError=null;
+state.syncStatus={state:'in_sync',message:'fixture in sync',localEditVersion:1,remoteEditVersion:1};
 state.commitDocument=(request,outcome)=>{if(request.metadata&&(outcome.ok||outcome.persistedParts?.metadata))state.infoFiles[request.path.replace(/data.json$/,'info.json')]=request.metadata.content;return outcome;};
 window.fetch = async (input, init) => {
  const url = new URL(typeof input==='string'?input:input.url,'http://fixture.invalid');
@@ -31,7 +33,7 @@ window.fetch = async (input, init) => {
  let value;
  if(url.pathname==='/api/workspace/action-sync') {
    const request=JSON.parse(init?.body||'{}');state.syncCalls.push(request);
-   if(request.op==='status')value={ok:true,status:{state:'in_sync',message:'fixture in sync',localEditVersion:1,remoteEditVersion:1}};
+   if(request.op==='status')value={ok:true,status:state.syncStatus};
    else if(request.op==='push' && state.syncMode==='defer')value=await new Promise(resolve=>state.syncPending.push({request,resolve}));
    else if(request.op==='push')value={ok:true,message:'fixture synced',editVersion:2};
    else {state.unexpected.push('sync:'+request.op);throw new Error('Unexpected sync operation');}
@@ -80,7 +82,12 @@ createRoot(document.getElementById('root')).render(<StrictMode><Fixture/></Stric
 const fileBoundary = `
 export async function fetchWorkspaceFile(_cwd,path){
  const f=window.fixture;
- if(path.endsWith('/info.json'))return{ok:true,path,content:f.infoFiles[path],truncated:false};
+ if(path.endsWith('/info.json')){
+  if(f.infoReadError)return{ok:false,error:f.infoReadError};
+  const result={ok:true,path,content:f.infoFiles[path],truncated:false};
+  if(f.deferInfoRead)return await new Promise(resolve=>f.infoPending.push({path,resolve:()=>resolve(result)}));
+  return result;
+ }
  if(path.endsWith('/files/script.cs'))return{ok:true,path,content:'// fixture only',truncated:false};
  if(path.endsWith('/files/default.txt'))return{ok:true,path,content:'fixture default',truncated:false};
  if(path===f.pathFor('a')||path===f.pathFor('b'))return{ok:true,path,content:path===f.current().path?f.current().content:f.makeDocument(path===f.pathFor('a')?'a':'b'),truncated:false};
@@ -496,12 +503,27 @@ test("explicit host sync keeps the current document inert until completion and c
     await page.waitForFunction(() => document.querySelector(".action-project-data-editor-visual")?.hasAttribute("inert"));
     assert.equal(await title.isDisabled(), true);
     assert.equal(await saveButton(page).isDisabled(), true);
-    await page.evaluate(() => (window as any).fixture.syncPending[0].resolve({ ok: true, message: "fixture synced", editVersion: 2 }));
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.deferInfoRead = true;
+      const infoPath = f.pathFor("a").replace(/data.json$/, "info.json");
+      f.infoFiles[infoPath] = f.infoFiles[infoPath].replace("9223372036854775807", "2");
+      f.syncPending[0].resolve({ ok: true, message: "fixture synced", editVersion: 2 });
+    });
+    await page.waitForFunction(() => (window as any).fixture.infoPending.length > 0);
+    assert.equal(await title.isDisabled(), true, "host acknowledgement must not unlock edits before stamped info is adopted");
+    assert.equal(await saveButton(page).isDisabled(), true);
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.deferInfoRead = false;
+      f.infoPending.splice(0).forEach((pending: any) => pending.resolve());
+    });
     await page.waitForFunction(() => !document.querySelector(".action-project-data-editor-visual")?.hasAttribute("inert"));
     assert.equal(await title.isDisabled(), false);
     await title.fill("second local metadata");
     await saveButton(page).click();
     await waitClean(page);
+    assert.equal(await page.evaluate(() => JSON.parse((window as any).fixture.documentCalls.at(-1).metadata.expectedContent).editVersion), 2, "the next metadata save uses this Sync's adopted version");
     await page.getByRole("button", { name: "同步", exact: true }).click();
     await page.waitForFunction(() => (window as any).fixture.syncPending.length === 2);
     await page.evaluate(() => (window as any).fixture.setDocument("b"));
@@ -512,6 +534,79 @@ test("explicit host sync keeps the current document inert until completion and c
     await title.fill("unlocked document B");
     await waitSaveEnabled(page);
     assert.equal(await title.inputValue(), "unlocked document B");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("a failed post-sync info refresh blocks local overwrite without replaying the host write", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => (window as any).fixture.enableDocumentSave());
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    const title = page.getByRole("region", { name: "动作属性" }).getByLabel("标题", { exact: true });
+    await title.fill("preserved synced title");
+    await saveButton(page).click();
+    await waitClean(page);
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.syncMode = "defer";
+    });
+    await page.getByRole("button", { name: "同步", exact: true }).click();
+    await page.waitForFunction(() => (window as any).fixture.syncPending.length === 1);
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.infoReadError = "fixture post-sync info read failed";
+      f.syncPending[0].resolve({ ok: true, message: "fixture synced", editVersion: 2 });
+    });
+    await page.getByText(/宿主已同步.*工作区刷新失败/).first().waitFor();
+    await page.waitForFunction(() => !document.querySelector(".action-project-data-editor-visual")?.hasAttribute("inert"));
+    assert.equal(await title.inputValue(), "preserved synced title");
+    await title.fill("preserved newer draft after refresh failure");
+    assert.equal(await saveButton(page).isDisabled(), true);
+    assert.equal(await page.evaluate(() => (window as any).fixture.syncCalls.filter((call: any) => call.op === "push").length), 1);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("Int64 sync versions keep push available and show distinct adjacent versions in the real conflict dialog", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.infoFiles[f.pathFor("a").replace(/data.json$/, "info.json")] = f.infoFiles[f.pathFor("a").replace(/data.json$/, "info.json")].replace("9223372036854775807", "9007199254740992");
+      f.syncStatus = { state: "in_sync", message: "exact Int64 fixture", localEditVersion: "9007199254740992", remoteEditVersion: "9007199254740992" };
+      f.enableDocumentSave();
+    });
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    const title = page.getByRole("region", { name: "动作属性" }).getByLabel("标题", { exact: true });
+    await title.fill("Int64 local title");
+    await saveButton(page).click();
+    await waitClean(page);
+    await page.evaluate(() => { (window as any).fixture.syncMode = "defer"; });
+    await page.getByRole("button", { name: "同步", exact: true }).click();
+    await page.waitForFunction(() => (window as any).fixture.syncPending.length === 1);
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      const infoPath = f.pathFor("a").replace(/data.json$/, "info.json");
+      f.infoFiles[infoPath] = f.infoFiles[infoPath].replace("9007199254740992", "9007199254740993");
+      f.syncPending[0].resolve({ ok: true, message: "exact Int64 synced", editVersion: "9007199254740993" });
+    });
+    await page.locator(".project-info-sync-btn--in-sync").waitFor();
+    await page.waitForFunction(() => !document.querySelector(".action-project-data-editor-visual")?.hasAttribute("inert"));
+    await title.fill("unsynced Int64 title");
+    await saveButton(page).click();
+    await waitClean(page);
+    await page.evaluate(() => {
+      (window as any).fixture.syncStatus = { state: "quicker_ahead", message: "adjacent Int64 remote change", localEditVersion: "9007199254740993", remoteEditVersion: "9007199254740994" };
+    });
+    await page.getByRole("button", { name: "同步", exact: true }).click();
+    const dialog = page.getByRole("alertdialog", { name: "同步冲突" });
+    await dialog.waitFor();
+    assert.equal(await dialog.getByText("工作区 v9007199254740993", { exact: true }).count(), 1);
+    assert.equal(await dialog.getByText("Quicker v9007199254740994", { exact: true }).count(), 1);
+    assert.equal(await page.evaluate(() => (window as any).fixture.syncCalls.filter((call: any) => call.op === "push").length), 1, "a conflict never dispatches an implicit second write");
+    await dialog.getByRole("button", { name: "取消", exact: true }).click();
+    assert.equal(await title.inputValue(), "unsynced Int64 title");
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });

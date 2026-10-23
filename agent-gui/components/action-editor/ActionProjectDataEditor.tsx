@@ -137,7 +137,7 @@ export type ActionProjectDataEditorProps = {
   onSave: (nextContent: string) => Promise<{ ok: boolean; error?: string }>;
   onSaveDocument?: (request: ProgramDocumentSaveRequest) => Promise<ProgramDocumentSaveResult>;
   onSaved?: () => void;
-  onSynced?: () => void;
+  onSynced?: () => void | Promise<void>;
 };
 
 function displayTitleFromProjectInfo(
@@ -196,6 +196,7 @@ export function ActionProjectDataEditor({
   const [documentRevision, setDocumentRevision] = useState(0);
   const sessionMountRef = useRef<{ session: ProgramDocumentSession; mounted: boolean } | null>(null);
   const metadataSourceOwnerRef = useRef<ProgramDocumentSession | null>(null);
+  const projectInfoReadRef = useRef(0);
   const sourceFetchedRef = useRef<Set<string>>(new Set());
   const editorRootRef = useRef<HTMLDivElement | null>(null);
   const designerBackendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
@@ -475,38 +476,34 @@ export function ActionProjectDataEditor({
     documentRevision,
   ]);
 
-  useEffect(() => {
+  const refreshProjectInfo = useCallback(async (isCurrent: () => boolean): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const readId = ++projectInfoReadRef.current;
+    const ownsRead = () => isCurrent() && projectInfoReadRef.current === readId;
     if (!infoJsonPath) {
-      setProjectInfo(null);
-      return;
+      if (ownsRead()) setProjectInfo(null);
+      return { ok: true };
     }
-    let cancelled = false;
-    if (metadataSourceOwnerRef.current !== session) {
-      metadataSourceOwnerRef.current = session ?? null;
-      setMetadataError(null);
-      setMetadataConflict(null);
-    }
-    void (async () => {
+    try {
       const result = await fetchWorkspaceFile(cwd, infoJsonPath);
-      if (cancelled) return;
+      if (!ownsRead()) return { ok: true };
       if (!result.ok) {
         setProjectInfo(null);
         if (metadataEnabled) setMetadataError(result.error);
-        return;
+        return { ok: false, error: result.error };
       }
       const parsed = parseActionProjectInfo(result.content);
       setProjectInfo(parsed.ok ? parsed.data : null);
       if (metadataEnabled && session && sessionRef.current === session) {
         if (result.truncated) {
           setMetadataError("属性文件未完整加载");
-          return;
+          return { ok: false, error: "属性文件未完整加载" };
         }
         const reconciled = session.reconcileMetadataSource({ path: infoJsonPath, content: result.content });
         if (!reconciled.ok) {
           if (reconciled.code === "metadata_conflict" || reconciled.code === "identity_conflict") {
             setMetadataConflict("动作属性已在外部变更，当前草稿已保留。请比较合并后再保存。");
           } else setMetadataError(reconciled.error);
-          return;
+          return { ok: false, error: reconciled.error };
         }
         setDirty(reconciled.state.dirty);
         // A replacement session may reach the same numeric revision as the old one.
@@ -515,19 +512,44 @@ export function ActionProjectDataEditor({
         setMetadataConflict(null);
         setMetadataError(null);
       }
-    })();
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (ownsRead() && metadataEnabled) setMetadataError(message);
+      return { ok: false, error: message };
+    }
+  }, [cwd, infoJsonPath, session, metadataEnabled]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (metadataSourceOwnerRef.current !== session) {
+      metadataSourceOwnerRef.current = session ?? null;
+      setMetadataError(null);
+      setMetadataConflict(null);
+    }
+    void refreshProjectInfo(() => !cancelled && documentOwnerKeyRef.current === documentOwnerKey && sessionRef.current === session);
     return () => {
       cancelled = true;
     };
-  }, [cwd, infoJsonPath, infoRefreshKey, session, metadataEnabled]);
+  }, [refreshProjectInfo, session, documentOwnerKey]);
 
-  const handleSynced = useCallback(() => {
+  const handleSynced = useCallback(async () => {
+    const isCurrent = () => documentOwnerKeyRef.current === documentOwnerKey && sessionRef.current === session;
+    if (!isCurrent()) return;
+    const refreshed = await refreshProjectInfo(isCurrent);
+    if (!isCurrent()) return;
+    if (!refreshed.ok) {
+      const message = `宿主已同步，但工作区刷新失败：${refreshed.error}。请重新打开项目核对后再保存。`;
+      setMetadataConflict(message);
+      setMetadataError(null);
+      throw new Error(message);
+    }
     setHasSavedLocalChanges(false);
     setSourceFilePreviews({});
     sourceFetchedRef.current = new Set();
     setInfoRefreshKey((n) => n + 1);
-    onSynced?.();
-  }, [onSynced]);
+    await onSynced?.();
+  }, [documentOwnerKey, session, refreshProjectInfo, onSynced]);
 
   const liveMetadata = session?.readMetadata();
   const metaTitle = liveMetadata?.title ?? displayTitleFromProjectInfo(projectInfo, projectFolder);

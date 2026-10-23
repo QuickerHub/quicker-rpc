@@ -1,6 +1,10 @@
 import type { ActionProjectSyncStatus } from "@/lib/action-project-sync-types";
 import type { WorkspaceProjectSummary } from "@/lib/action-project-display";
 import { markActionProjectSyncedAfterPush } from "@/lib/action-project-sync-events";
+import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
+import { parseQkrpcJson } from "./qkrpc-json";
+import { isInvalidActionProjectEditVersion } from "./action-project-edit-version";
+import { formatSyncStatusMessage } from "./action-project-sync-types";
 
 export type ActionSyncOp = "status" | "pull" | "push";
 
@@ -23,13 +27,13 @@ async function postActionSync(
       body: JSON.stringify({ cwd, ...body }),
       cache: "no-store",
     });
-    const data = (await res.json()) as {
+    const data = parseQkrpcJson(await res.text()) as {
       ok?: boolean;
       error?: string;
       status?: ActionProjectSyncStatus;
       message?: string;
       summary?: WorkspaceProjectSummary;
-      editVersion?: number;
+      editVersion?: ActionProjectEditVersion;
       phase?: string;
       versionConflict?: boolean;
     };
@@ -63,7 +67,12 @@ export async function fetchActionProjectSyncStatus(
   if (!data.status) {
     return { ok: false, error: "Missing sync status in response" };
   }
-  return { ok: true, status: data.status };
+  const localEditVersion = normalizeActionProjectEditVersion(data.status.localEditVersion);
+  const remoteEditVersion = normalizeActionProjectEditVersion(data.status.remoteEditVersion);
+  const state = isInvalidActionProjectEditVersion(data.status.remoteEditVersion) ? "unknown_remote"
+    : isInvalidActionProjectEditVersion(data.status.localEditVersion) ? "unknown_local" : data.status.state;
+  return { ok: true, status: { ...data.status, state, localEditVersion, remoteEditVersion,
+    message: state === data.status.state ? data.status.message : formatSyncStatusMessage(state, localEditVersion, remoteEditVersion) } };
 }
 
 export async function pullActionProjectFromQuicker(
@@ -71,7 +80,7 @@ export async function pullActionProjectFromQuicker(
   actionId: string,
   options?: { projectDirectory?: string },
 ): Promise<
-  | { ok: true; message: string; summary?: WorkspaceProjectSummary; editVersion?: number }
+  | { ok: true; message: string; summary?: WorkspaceProjectSummary; editVersion?: ActionProjectEditVersion }
   | { ok: false; error: string }
 > {
   const result = await postActionSync(cwd, {
@@ -84,10 +93,7 @@ export async function pullActionProjectFromQuicker(
     message?: string;
     summary?: WorkspaceProjectSummary;
   };
-  const editVersion =
-    typeof data.summary?.editVersion === "number" && data.summary.editVersion > 0
-      ? data.summary.editVersion
-      : undefined;
+  const editVersion = normalizeActionProjectEditVersion(data.summary?.editVersion);
   if (editVersion != null) {
     markActionProjectSyncedAfterPush(cwd, actionId, editVersion);
   }
@@ -104,7 +110,7 @@ export async function pushActionProjectToQuickerApi(
   actionId: string,
   options?: { force?: boolean },
 ): Promise<
-  | { ok: true; message: string; editVersion?: number }
+  | { ok: true; message: string; editVersion?: ActionProjectEditVersion }
   | { ok: false; error: string; versionConflict?: boolean }
 > {
   const result = await postActionSync(cwd, {
@@ -121,22 +127,23 @@ export async function pushActionProjectToQuickerApi(
   }
   const data = result.data as {
     message?: string;
-    editVersion?: number;
+    editVersion?: ActionProjectEditVersion;
   };
-  if (typeof data.editVersion === "number" && data.editVersion > 0) {
-    markActionProjectSyncedAfterPush(cwd, actionId, data.editVersion);
+  const editVersion = normalizeActionProjectEditVersion(data.editVersion);
+  if (editVersion != null) {
+    markActionProjectSyncedAfterPush(cwd, actionId, editVersion);
   }
   return {
     ok: true,
     message: data.message ?? "已提交",
-    editVersion: data.editVersion,
+    editVersion,
   };
 }
 
 export function notifyActionProjectPushed(
   cwd: string,
   actionId: string,
-  editVersion?: number,
+  editVersion?: ActionProjectEditVersion,
 ): void {
   markActionProjectSyncedAfterPush(cwd, actionId, editVersion);
 }

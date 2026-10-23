@@ -13,27 +13,11 @@ public static class QuickerRpcPipeSecurity
     {
         var ps = new PipeSecurity();
 
-        var authenticatedUsers = new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null);
-        ps.AddAccessRule(new PipeAccessRule(
-            authenticatedUsers,
-            PipeAccessRights.FullControl,
-            AccessControlType.Allow));
-
-        try
-        {
-            using var identity = WindowsIdentity.GetCurrent();
-            if (identity.User is not null)
-            {
-                ps.AddAccessRule(new PipeAccessRule(
-                    identity.User,
-                    PipeAccessRights.FullControl,
-                    AccessControlType.Allow));
-            }
-        }
-        catch
-        {
-            // ignore
-        }
+        using var identity = WindowsIdentity.GetCurrent();
+        var user = identity.User ?? throw new System.InvalidOperationException("Current user SID is unavailable.");
+        ps.SetOwner(user);
+        ps.SetAccessRuleProtection(true, false);
+        ps.AddAccessRule(new PipeAccessRule(user, PipeAccessRights.FullControl, AccessControlType.Allow));
 
         return ps;
     }

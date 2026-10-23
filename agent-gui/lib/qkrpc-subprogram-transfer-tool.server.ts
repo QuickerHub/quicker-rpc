@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { qkrpcEditVersionSchema, type QkrpcEditVersion } from "@/lib/qkrpc-edit-version-schema";
 import { executeQkrpcSubprogramIdTool } from "@/lib/qkrpc-subprogram-tool.server";
 import { formatQkrpcResultForAgent, qkrpcValidationError } from "@/lib/qkrpc";
 import {
@@ -13,7 +14,7 @@ export type QkrpcSubprogramTransferToolInput = {
   direction: SubprogramTransferDirection;
   id?: string;
   dir: string;
-  expectedEditVersion?: number;
+  expectedEditVersion?: QkrpcEditVersion;
   force?: boolean;
 };
 
@@ -55,9 +56,7 @@ export const QKRPC_SUBPROGRAM_TRANSFER_TOOL_DEF = tool({
       .optional()
       .describe("Subprogram id or name — required for export"),
     dir: z.string().describe("Directory path (export destination or import source)"),
-    expectedEditVersion: z
-      .number()
-      .int()
+    expectedEditVersion: qkrpcEditVersionSchema
       .optional()
       .describe("import: expected editVersion on disk"),
     force: z

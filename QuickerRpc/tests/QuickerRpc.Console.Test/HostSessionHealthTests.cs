@@ -43,7 +43,8 @@ public sealed class HostSessionHealthTests
         Assert.IsNull(response.HostSession);
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(response));
         Assert.IsFalse(json.RootElement.TryGetProperty("hostSession", out _));
-        Assert.AreEqual(4, json.RootElement.EnumerateObject().Count());
+        Assert.AreEqual("qkrpc", response.Service);
+        Assert.IsNull(response.HostBinding);
         Assert.IsTrue(response.Ok);
     }
 

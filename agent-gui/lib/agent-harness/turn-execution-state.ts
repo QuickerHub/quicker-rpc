@@ -1,3 +1,5 @@
+import type { QkrpcBoundTarget } from "@/lib/qkrpc-host-binding";
+
 /** Mutable execution facts shared by tools and subagents of one root turn. */
 export type TurnExecutionState = {
   closed: boolean;
@@ -9,6 +11,8 @@ export type TurnExecutionState = {
   stepRunnerSearchCount?: number;
   editAfterPatchCount?: number;
   qkrpcConnectivityBlocked?: boolean;
+  qkrpcTarget?: QkrpcBoundTarget;
+  qkrpcUnverifiedRead?: boolean;
   /** Canonical absolute bundle roots confirmed by this turn's source transport. */
   actionSourceDirectories?: Set<string>;
 };
