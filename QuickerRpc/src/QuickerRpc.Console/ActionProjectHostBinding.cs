@@ -49,7 +49,7 @@ internal static class ActionProjectHostBinding
         return record with { Directory = Path.GetFullPath(directory) };
     }
 
-    internal static IDisposable ClaimExport(string directory, string actionId, QuickerRpcHostBinding? binding, bool allowExisting = true)
+    internal static IDisposable ClaimExport(string directory, string actionId, QuickerRpcHostBinding? binding, bool allowExisting = true, ActionProjectExpectedBinding? expected = null)
     {
         if (binding is null) throw Failure(QuickerRpcBindingErrors.Required, "Disk export requires a verified host binding.");
         var dir = Path.GetFullPath(directory);
@@ -57,13 +57,10 @@ internal static class ActionProjectHostBinding
         RequireSafePath(dir);
         Directory.CreateDirectory(dir);
         var leasePath = Path.Combine(dir, LeaseFile);
-        if (Path.Exists(leasePath)) throw Failure("PROJECT_BUSY", "Another process owns this project export.");
-        RequireSafePath(leasePath);
-        FileStream lease;
-        try { lease = new FileStream(leasePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose); }
-        catch (IOException ex) { throw Failure("PROJECT_BUSY", "Another process owns this project export. " + ex.Message); }
+        var lease = ClaimLease(dir);
         try
         {
+            expected?.AssertMatches(dir);
             var path = Path.Combine(dir, RelativePath.Replace('/', Path.DirectorySeparatorChar));
             RequireSafePath(path);
             if (File.Exists(path))
@@ -80,6 +77,29 @@ internal static class ActionProjectHostBinding
             return lease;
         }
         catch { lease.Dispose(); throw; }
+    }
+
+    internal static IDisposable ClaimValidation(string directory, ActionProjectExpectedBinding? expected)
+    {
+        var dir = Path.GetFullPath(directory);
+        var lease = ClaimLease(dir);
+        try
+        {
+            expected?.AssertMatches(dir);
+            InspectTree(dir, Path.Combine(dir, LeaseFile), new Counter());
+            return lease;
+        }
+        catch { lease.Dispose(); throw; }
+    }
+
+    private static FileStream ClaimLease(string directory)
+    {
+        RequireSafePath(directory);
+        var leasePath = Path.Combine(directory, LeaseFile);
+        if (Path.Exists(leasePath)) throw Failure("PROJECT_BUSY", "Another process owns this project export.");
+        RequireSafePath(leasePath);
+        try { return new FileStream(leasePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose); }
+        catch (IOException ex) { throw Failure("PROJECT_BUSY", "Another process owns this project export. " + ex.Message); }
     }
 
     internal static void WriteAfterExport(string directory, string actionId, QuickerRpcHostBinding binding)

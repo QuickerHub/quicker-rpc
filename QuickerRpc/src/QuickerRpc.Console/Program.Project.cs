@@ -100,7 +100,7 @@ internal static partial class Program
             }
 
             var binding = QuickerRpcClient.GetBinding(session.Proxy);
-            using var exportOwner = ActionProjectHostBinding.ClaimExport(projectDir, actionId, binding);
+            using var exportOwner = ActionProjectHostBinding.ClaimExport(projectDir, actionId, binding, expected: ActionProjectExpectedBinding.FromEnvironment());
             var latestData = ParseProgramBodyFromCompressed(fullResponse.CompressedJson);
             QuickerProjectFiles.TryReadDataIfExists(projectDir, out var templateData);
             var exportResult = XActionFileRefExporter.Export(
@@ -237,6 +237,7 @@ internal static partial class Program
                     .ConfigureAwait(false);
             }
 
+            using var validationOwner = ActionProjectHostBinding.ClaimValidation(projectDir, ActionProjectExpectedBinding.FromEnvironment());
             var info = QuickerProjectFiles.ReadActionInfo(projectDir);
             var actionId = ActionProjectIdentity.FromInfoOrDirectory(info, projectDir);
             if (string.IsNullOrWhiteSpace(actionId))
@@ -312,6 +313,11 @@ internal static partial class Program
 
             return ExitCodes.Success;
         }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
         catch (Exception ex)
         {
             return await EmitErrorAndFailAsync(options.Json, "ACTION_VALIDATE_FAILED", ex.Message)
@@ -357,7 +363,7 @@ internal static partial class Program
         {
             var projectBinding = ActionProjectHostBinding.Read(projectDir, string.IsNullOrWhiteSpace(explicitId) ? null : explicitId);
             ActionProjectHostBinding.RequireExplicitSelection(projectBinding);
-            using var projectOwner = ActionProjectHostBinding.ClaimExport(projectDir, projectBinding.ActionId, projectBinding.HostBinding);
+            using var projectOwner = ActionProjectHostBinding.ClaimExport(projectDir, projectBinding.ActionId, projectBinding.HostBinding, expected: ActionProjectExpectedBinding.FromEnvironment());
             if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
             {
                 return await EmitErrorAndFailAsync(options.Json, "INFO_NOT_FOUND", $"info.json not found under {projectDir}.")

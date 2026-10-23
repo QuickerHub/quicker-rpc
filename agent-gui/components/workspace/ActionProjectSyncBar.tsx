@@ -12,6 +12,7 @@ import {
 import {
   beginActionProjectImport,
   endActionProjectImport,
+  readActionProjectImportEntry,
 } from "@/lib/action-project-import-state";
 import {
   fetchActionProjectSyncStatus,
@@ -25,12 +26,15 @@ import {
 } from "@/lib/action-project-sync-events";
 import { ActionProjectSyncConflictDialog } from "@/components/workspace/ActionProjectSyncConflictDialog";
 import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "@/lib/action-project-edit-version";
+import { actionProjectSyncTargetKey, type ActionProjectSyncTarget } from "@/lib/action-project-sync-target";
 
 type ActionProjectSyncBarProps = {
   cwd: string;
   actionId: string;
   /** Relative `.quicker/actions/...` for extract into an existing title-named folder. */
   projectDirectory?: string;
+  target?: ActionProjectSyncTarget;
+  targetRequired?: boolean;
   /** Block pull/push while info.json title/description edits are unsaved. */
   blocked?: boolean;
   blockReason?: string;
@@ -46,8 +50,8 @@ function stateClassName(state: ActionProjectSyncState | null): string {
   return ` project-info-sync-status--${state.replace(/_/g, "-")}`;
 }
 
-function initialSyncUi(cwd: string, actionId: string) {
-  const cached = readActionProjectSyncCache(cwd, actionId);
+function initialSyncUi(cwd: string, actionId: string, target?: ActionProjectSyncTarget) {
+  const cached = readActionProjectSyncCache(cwd, actionId, target);
   return {
     statusText: cached?.message ?? null,
     statusErr: cached?.error ?? false,
@@ -88,6 +92,8 @@ export function ActionProjectSyncBar({
   cwd,
   actionId,
   projectDirectory,
+  target,
+  targetRequired = false,
   blocked = false,
   blockReason,
   hasLocalChanges = false,
@@ -95,20 +101,32 @@ export function ActionProjectSyncBar({
   onSynced,
   onBusyChange,
 }: ActionProjectSyncBarProps) {
-  const [busy, setBusy] = useState(false);
-  const [syncUi, setSyncUi] = useState(() => initialSyncUi(cwd, actionId));
-  const [conflictStatus, setConflictStatus] = useState<ActionProjectSyncStatus | null>(null);
-  const { statusText, statusErr, syncState } = syncUi;
+  const targetKey = actionProjectSyncTargetKey(target);
+  const ownerKey = JSON.stringify([cwd, actionId, projectDirectory, targetKey]);
+  const ownerRef = useRef({ key: ownerKey });
+  if (ownerRef.current.key !== ownerKey) ownerRef.current = { key: ownerKey };
+  const owner = ownerRef.current;
   const mountedRef = useRef(true);
+  const isCurrent = useCallback(() => mountedRef.current && ownerRef.current === owner, [owner]);
+  const targetReady = !targetRequired || Boolean(target);
+  const [busyState, setBusyState] = useState({ owner, value: false });
+  const busy = busyState.owner === owner && busyState.value;
+  const setBusy = useCallback((value: boolean) => { if (isCurrent()) setBusyState({ owner, value }); }, [isCurrent, owner]);
+  const [syncUiState, setSyncUiState] = useState(() => ({ owner, value: initialSyncUi(cwd, actionId, target) }));
+  const syncUi = syncUiState.owner === owner ? syncUiState.value : initialSyncUi(cwd, actionId, target);
+  const setSyncUi = useCallback((update: typeof syncUi | ((previous: typeof syncUi) => typeof syncUi)) => {
+    if (isCurrent()) setSyncUiState((previous) => ({ owner, value: typeof update === "function" ? update(previous.owner === owner ? previous.value : initialSyncUi(cwd, actionId, target)) : update }));
+  }, [isCurrent, owner, cwd, actionId, targetKey]);
+  const [conflictOwner, setConflictOwner] = useState<{ owner: typeof owner; status: ActionProjectSyncStatus | null }>({ owner, status: null });
+  const conflictStatus = conflictOwner.owner === owner ? conflictOwner.status : null;
+  const setConflictStatus = useCallback((status: ActionProjectSyncStatus | null) => { if (isCurrent()) setConflictOwner({ owner, status }); }, [isCurrent, owner]);
+  const { statusText, statusErr, syncState } = syncUi;
   const statusRequestRef = useRef(0);
-  const busyCallbackRef = useRef(onBusyChange);
-  busyCallbackRef.current = onBusyChange;
 
   useEffect(() => {
-    busyCallbackRef.current?.(busy);
-  }, [busy]);
-
-  useEffect(() => () => busyCallbackRef.current?.(false), []);
+    onBusyChange?.(busy);
+    return () => onBusyChange?.(false);
+  }, [busy, onBusyChange, owner]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -123,6 +141,7 @@ export function ActionProjectSyncBar({
         | { ok: true; status: { state: ActionProjectSyncState; message: string } }
         | { ok: false; error: string },
     ) => {
+      if (!isCurrent()) return;
       if (!result.ok) {
         setSyncUi({
           statusText: result.error,
@@ -133,7 +152,7 @@ export function ActionProjectSyncBar({
           state: null,
           message: result.error,
           error: true,
-        });
+        }, target);
         return;
       }
       setSyncUi({
@@ -145,15 +164,16 @@ export function ActionProjectSyncBar({
         state: result.status.state,
         message: result.status.message,
         error: false,
-      });
+      }, target);
     },
-    [actionId, cwd],
+    [actionId, cwd, targetKey, isCurrent, setSyncUi],
   );
 
   const runStatusCheck = useCallback(
     async (options?: { silent?: boolean }) => {
       const silent = options?.silent ?? false;
       const requestId = ++statusRequestRef.current;
+      if (!targetReady || !isCurrent()) return null;
 
       if (!cwd.trim()) {
         applyStatusResult({ ok: false, error: "未设置工作目录" });
@@ -162,14 +182,14 @@ export function ActionProjectSyncBar({
 
       if (!silent) setBusy(true);
 
-      const result = await fetchActionProjectSyncStatus(cwd, actionId);
-      if (!mountedRef.current || statusRequestRef.current !== requestId) return null;
+      const result = await fetchActionProjectSyncStatus(cwd, actionId, { target, isCurrent });
+      if (!isCurrent() || statusRequestRef.current !== requestId) return null;
 
       if (!silent) setBusy(false);
       applyStatusResult(result);
       return result.ok ? result.status.state : null;
     },
-    [actionId, applyStatusResult, cwd],
+    [actionId, applyStatusResult, cwd, targetKey, targetReady, isCurrent, setBusy],
   );
 
   useEffect(() => {
@@ -183,6 +203,7 @@ export function ActionProjectSyncBar({
       if (
         detail.cwd.trim() !== cwd.trim()
         || detail.actionId.trim().toLowerCase() !== actionId.trim().toLowerCase()
+        || actionProjectSyncTargetKey(detail.target) !== targetKey
       ) {
         return;
       }
@@ -196,7 +217,7 @@ export function ActionProjectSyncBar({
     };
     window.addEventListener(ACTION_PROJECT_PUSHED_EVENT, onPushed);
     return () => window.removeEventListener(ACTION_PROJECT_PUSHED_EVENT, onPushed);
-  }, [actionId, applyStatusResult, cwd, runStatusCheck]);
+  }, [actionId, applyStatusResult, cwd, runStatusCheck, targetKey]);
 
   const runOp = useCallback(
     async (
@@ -206,6 +227,7 @@ export function ActionProjectSyncBar({
         | { ok: false; error: string; versionConflict?: boolean }
       >,
     ) => {
+      if (!targetReady || !isCurrent()) return false;
       if (!cwd.trim()) {
         applyStatusResult({ ok: false, error: "未设置工作目录" });
         return false;
@@ -217,6 +239,7 @@ export function ActionProjectSyncBar({
           source: "pull",
         });
       }
+      const importEntry = op === "pull" ? readActionProjectImportEntry(actionId) : undefined;
       let result:
         | { ok: true; message: string; editVersion?: ActionProjectEditVersion; summary?: { editVersion?: ActionProjectEditVersion } }
         | { ok: false; error: string; versionConflict?: boolean };
@@ -225,15 +248,16 @@ export function ActionProjectSyncBar({
       } catch (error) {
         result = { ok: false, error: error instanceof Error ? error.message : String(error) };
       } finally {
-        if (op === "pull") {
+        if (op === "pull" && readActionProjectImportEntry(actionId) === importEntry) {
           endActionProjectImport(actionId);
         }
       }
-      if (!mountedRef.current) return false;
+      if (!isCurrent()) return false;
       try {
         if (!result.ok) {
           if (op === "push" && result.versionConflict) {
-            const refreshed = await fetchActionProjectSyncStatus(cwd, actionId);
+            const refreshed = await fetchActionProjectSyncStatus(cwd, actionId, { target, isCurrent });
+            if (!isCurrent()) return false;
             if (refreshed.ok) {
               applyStatusResult(refreshed);
               setConflictStatus(refreshed.status);
@@ -249,7 +273,7 @@ export function ActionProjectSyncBar({
             state: null,
             message: result.error,
             error: true,
-          });
+          }, target);
           return false;
         }
 
@@ -272,20 +296,20 @@ export function ActionProjectSyncBar({
         try {
           await onSynced?.();
         } catch (error) {
-          if (!mountedRef.current) return false;
+          if (!isCurrent()) return false;
           const detail = error instanceof Error ? error.message : String(error);
           const message = detail.startsWith("宿主已同步") ? detail : `宿主已同步，但工作区刷新失败：${detail}`;
           setConflictStatus(null);
           applyStatusResult({ ok: false, error: message });
           return false;
         }
-        if (!mountedRef.current) return false;
+        if (!isCurrent()) return false;
         if (syncedEditVersion == null) {
           await runStatusCheck({ silent: true });
         }
         return true;
       } finally {
-        if (mountedRef.current) setBusy(false);
+        if (isCurrent()) setBusy(false);
       }
     },
     [
@@ -295,23 +319,24 @@ export function ActionProjectSyncBar({
       onSynced,
       projectDirectory,
       runStatusCheck,
+      targetKey, targetReady, isCurrent, setBusy, setSyncUi, setConflictStatus,
     ],
   );
 
   const pull = useCallback(
     () =>
       runOp("pull", () =>
-        pullActionProjectFromQuicker(cwd, actionId, { projectDirectory }),
+        pullActionProjectFromQuicker(cwd, actionId, { projectDirectory, target, isCurrent }),
       ),
-    [actionId, cwd, projectDirectory, runOp],
+    [actionId, cwd, projectDirectory, runOp, targetKey, isCurrent],
   );
 
   const push = useCallback(
     (options?: { force?: boolean }) =>
       runOp("push", () =>
-        pushActionProjectToQuickerApi(cwd, actionId, { force: options?.force }),
+        pushActionProjectToQuickerApi(cwd, actionId, { force: options?.force, target, isCurrent }),
       ),
-    [actionId, cwd, runOp],
+    [actionId, cwd, runOp, targetKey, isCurrent],
   );
 
   const executeDecision = useCallback(
@@ -332,7 +357,7 @@ export function ActionProjectSyncBar({
   );
 
   const runSmartSync = useCallback(async () => {
-    if (busy || blocked) return;
+    if (busy || blocked || !targetReady || !isCurrent()) return;
     if (!cwd.trim()) {
       applyStatusResult({ ok: false, error: "未设置工作目录" });
       return;
@@ -340,8 +365,8 @@ export function ActionProjectSyncBar({
 
     setBusy(true);
     const requestId = ++statusRequestRef.current;
-    const statusResult = await fetchActionProjectSyncStatus(cwd, actionId);
-    if (!mountedRef.current || statusRequestRef.current !== requestId) return;
+    const statusResult = await fetchActionProjectSyncStatus(cwd, actionId, { target, isCurrent });
+    if (!isCurrent() || statusRequestRef.current !== requestId) return;
 
     if (!statusResult.ok) {
       setBusy(false);
@@ -375,6 +400,7 @@ export function ActionProjectSyncBar({
     cwd,
     executeDecision,
     hasLocalChanges,
+    targetKey, targetReady, isCurrent, setBusy, setConflictStatus,
   ]);
 
   const handleConflictUseQuicker = useCallback(() => {
@@ -417,7 +443,7 @@ export function ActionProjectSyncBar({
           className={`project-info-sync-btn project-info-sync-btn--smart${
             inSync ? " project-info-sync-btn--in-sync" : ""
           }`}
-          disabled={busy || blocked}
+          disabled={busy || blocked || !targetReady}
           onClick={() => void runSmartSync()}
           title={syncButtonTitle(syncState, hasLocalChanges, blockHint)}
         >

@@ -2,6 +2,7 @@ import type { ActionProjectSyncStatus } from "@/lib/action-project-sync-types";
 import { formatSyncStatusMessage } from "@/lib/action-project-sync-types";
 import { normalizeEditVersion } from "@/lib/action-project-info-from-get";
 import type { ActionProjectEditVersion } from "./action-project-edit-version";
+import type { ActionProjectSyncTarget } from "./action-project-sync-target";
 import {
   invalidateActionProjectSyncCache,
   writeActionProjectSyncCache,
@@ -13,6 +14,7 @@ export type ActionProjectPushedDetail = {
   cwd: string;
   actionId: string;
   editVersion?: ActionProjectEditVersion;
+  target?: ActionProjectSyncTarget;
 };
 
 export function buildInSyncStatusAfterPush(
@@ -34,6 +36,7 @@ export function markActionProjectSyncedAfterPush(
   cwd: string,
   actionId: string,
   editVersion?: ActionProjectEditVersion,
+  target?: ActionProjectSyncTarget,
 ): void {
   if (!cwd.trim() || !actionId.trim()) return;
   editVersion = normalizeEditVersion(editVersion);
@@ -43,15 +46,15 @@ export function markActionProjectSyncedAfterPush(
       state: status.state,
       message: status.message,
       error: false,
-    });
+    }, target);
   } else {
-    invalidateActionProjectSyncCache(cwd, actionId);
+    invalidateActionProjectSyncCache(cwd, actionId, target);
   }
 
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent<ActionProjectPushedDetail>(ACTION_PROJECT_PUSHED_EVENT, {
-      detail: { cwd, actionId, editVersion },
+      detail: { cwd, actionId, editVersion, ...(target ? { target } : {}) },
     }),
   );
 }

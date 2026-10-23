@@ -50,6 +50,9 @@ import { ProgramEditorTabWorkspace, type ProgramEditorWorkspaceHandle } from "./
 import { ProgramAppearanceEditor } from "./ProgramAppearanceEditor";
 import type { ProgramDocumentMetadataPatch } from "@/lib/action-editor/document/programDocumentMetadata";
 import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult } from "@/lib/program-document-save";
+import { readProgramDocumentTargetClient, saveProgramDocumentClient } from "@/lib/program-document-save-client";
+import { actionProjectSyncTargetKey, type ActionProjectSyncTarget } from "@/lib/action-project-sync-target";
+import { ActionProjectTargetSummary } from "./ActionProjectTargetSummary";
 import {
   fetchGlobalSubProgramCatalog,
 } from "@/lib/action-editor/subprograms/globalSubProgramCatalog";
@@ -175,6 +178,7 @@ export function ActionProjectDataEditor({
   const [externalConflict, setExternalConflict] = useState<string | null>(null);
   const [metadataConflict, setMetadataConflict] = useState<string | null>(null);
   const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [targetFailure, setTargetFailure] = useState<{ session: ProgramDocumentSession; error: string } | null>(null);
   const [pinStepFeedback, setPinStepFeedback] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -184,10 +188,6 @@ export function ActionProjectDataEditor({
   const documentOwnerKeyRef = useRef(documentOwnerKey);
   documentOwnerKeyRef.current = documentOwnerKey;
   const [syncBusyOwner, setSyncBusyOwner] = useState<{ key: string; busy: boolean } | null>(null);
-  const hostSyncBusy = syncBusyOwner?.key === documentOwnerKey && syncBusyOwner.busy;
-  const handleSyncBusyChange = useCallback((busy: boolean) => {
-    if (documentOwnerKeyRef.current === documentOwnerKey) setSyncBusyOwner({ key: documentOwnerKey, busy });
-  }, [documentOwnerKey]);
   const [projectInfo, setProjectInfo] = useState<ParsedActionProjectInfo | null>(null);
   const [infoRefreshKey, setInfoRefreshKey] = useState(0);
   const sessionRef = useRef<ProgramDocumentSession | null>(null);
@@ -340,8 +340,8 @@ export function ActionProjectDataEditor({
   }, [path]);
   const actionId = useMemo(() => {
     if (isEmbeddedSubProgram || isGlobalSubProgram) return "";
-    return resolveActionIdFromProject(projectFolder) ?? "";
-  }, [isEmbeddedSubProgram, isGlobalSubProgram, projectFolder]);
+    return session?.getState().identity.projectBinding?.actionId ?? resolveActionIdFromProject(projectFolder, projectInfo ?? undefined) ?? "";
+  }, [isEmbeddedSubProgram, isGlobalSubProgram, projectFolder, projectInfo, session, documentRevision]);
   const syncActionId = isEmbeddedSubProgram ? (parentActionId ?? "") : actionId;
   const projectDirectory = useMemo(() => {
     if (isEmbeddedSubProgram) {
@@ -366,6 +366,36 @@ export function ActionProjectDataEditor({
   }, [cwd, projectDirectory]);
   const infoJsonPath = useMemo(() => actionProjectInfoPathFromDataPath(path), [path]);
   const metadataEnabled = Boolean(onSaveDocument) && !isEmbeddedSubProgram && !isGlobalSubProgram;
+  const mainAction = !isEmbeddedSubProgram && !isGlobalSubProgram;
+  const projectBinding = session?.getState().identity.projectBinding;
+  const targetError = targetFailure && targetFailure.session === session ? targetFailure.error : undefined;
+  const targetBlocked = mainAction && (projectBinding === undefined || Boolean(targetError));
+  const syncTarget: ActionProjectSyncTarget | undefined = mainAction && projectDirectory && projectBinding
+    ? { projectDirectory, projectBinding } : undefined;
+  const targetKey = actionProjectSyncTargetKey(syncTarget);
+  const syncOwnerKey = `${documentOwnerKey}::${targetKey}`;
+  const syncOwnerRef = useRef({ key: syncOwnerKey, session });
+  syncOwnerRef.current = { key: syncOwnerKey, session };
+  const hostSyncBusy = syncBusyOwner?.key === syncOwnerKey && syncBusyOwner.busy;
+  const handleSyncBusyChange = useCallback((busy: boolean) => {
+    if (syncOwnerRef.current.key === syncOwnerKey && syncOwnerRef.current.session === session) setSyncBusyOwner({ key: syncOwnerKey, busy });
+  }, [syncOwnerKey, session]);
+
+  useEffect(() => {
+    if (!mainAction || !session) return;
+    const cancel = new AbortController();
+    const isCurrent = () => !cancel.signal.aborted && sessionRef.current === session && documentOwnerKeyRef.current === documentOwnerKey;
+    void (async () => {
+      const result = await readProgramDocumentTargetClient(cwd, path, cancel.signal);
+      if (!isCurrent()) return;
+      if (!result.ok) { setTargetFailure({ session, error: result.error }); return; }
+      const reconciled = session.reconcileProjectBinding(result.projectBinding);
+      if (!reconciled.ok) { setTargetFailure({ session, error: reconciled.error }); return; }
+      setTargetFailure(null);
+      setDocumentRevision((revision) => revision + 1);
+    })();
+    return () => cancel.abort();
+  }, [mainAction, session, documentOwnerKey, cwd, path]);
 
   useEffect(() => {
     if (tab !== "source" || !projectDirectory?.trim() || !cwd.trim()) {
@@ -580,11 +610,8 @@ export function ActionProjectDataEditor({
       return { kind: "embedded_subprogram", projectPath, displayTitle: title };
     }
 
-    const quickerId =
-      actionId.trim()
-      || resolveActionIdFromProject(projectFolder)
-      || undefined;
-    return { kind: "action", projectPath, quickerId, displayTitle: title };
+    // Host deletion is disabled until the command adapter accepts this document's complete target.
+    return { kind: "action", projectPath, displayTitle: title };
   }, [
     actionId,
     isEmbeddedSubProgram,
@@ -701,7 +728,7 @@ export function ActionProjectDataEditor({
   );
 
   const handleSave = useCallback(async () => {
-    if (!session || externalConflict || metadataConflict || hostSyncBusy) return;
+    if (!session || externalConflict || metadataConflict || hostSyncBusy || targetBlocked) return;
     const started = session.beginSave(() => workspaceRef.current?.getSnapshot() ?? session.readSnapshot());
     if (!started.ok) {
       setSaveError(started.error);
@@ -712,10 +739,12 @@ export function ActionProjectDataEditor({
     let outcome: ProgramDocumentSaveResult;
     try {
       const ticket = started.ticket;
-      if (onSaveDocument) {
-        outcome = await onSaveDocument({ path, content: ticket.content, expectedContent: ticket.baselineContent,
+      if (onSaveDocument || mainAction) {
+        const request: ProgramDocumentSaveRequest = { path, content: ticket.content, expectedContent: ticket.baselineContent,
           ...(ticket.metadata ? { metadata: { content: ticket.metadata.content, expectedContent: ticket.metadata.baselineContent } } : {}),
-        });
+          ...(mainAction ? { expectedProjectBinding: ticket.identity.projectBinding } : {}),
+        };
+        outcome = onSaveDocument ? await onSaveDocument(request) : await saveProgramDocumentClient(cwd, request);
       } else {
         const saved = await onSave(ticket.content);
         outcome = saved.ok ? { ok: true } : { ok: false, error: saved.error ?? "保存失败" };
@@ -730,7 +759,9 @@ export function ActionProjectDataEditor({
     setDocumentRevision((revision) => revision + 1);
     if (!completed.ok) {
       setSaveError(completed.error);
-      if (!outcome.ok && outcome.code === "metadata_conflict") {
+      if (!outcome.ok && outcome.code === "identity_conflict") {
+        setTargetFailure({ session, error: "动作目标已在外部变更，当前草稿已保留。请重新打开项目核对后再保存。" });
+      } else if (!outcome.ok && outcome.code === "metadata_conflict") {
         setMetadataConflict("动作属性已在外部变更，当前草稿已保留。请比较合并后再保存。");
       } else if (!outcome.ok && outcome.code === "body_conflict") {
         setExternalConflict("工作区文件已在外部变更，当前草稿已保留。请比较合并后再保存。");
@@ -745,7 +776,7 @@ export function ActionProjectDataEditor({
     setHasSavedLocalChanges(true);
     setInfoRefreshKey((value) => value + 1);
     onSaved?.();
-  }, [onSave, onSaveDocument, onSaved, session, externalConflict, metadataConflict, path, hostSyncBusy]);
+  }, [onSave, onSaveDocument, onSaved, session, externalConflict, metadataConflict, path, cwd, hostSyncBusy, targetBlocked, mainAction]);
 
   if (contentTruncated) {
     return (
@@ -788,6 +819,7 @@ export function ActionProjectDataEditor({
           title={metaTitle}
           description={metaDescription}
         />
+        {mainAction ? <ActionProjectTargetSummary binding={projectBinding} error={targetError} /> : null}
         {actionId ? (
           <div className="action-project-data-editor-actions">
             <div className="action-project-data-editor-actions-row">
@@ -795,15 +827,18 @@ export function ActionProjectDataEditor({
                 actionId={actionId}
                 layout="inline"
                 className="action-project-data-editor-toolbar"
+                disabledReason={targetBlocked ? "动作目标尚未确认，无法操作宿主" : projectBinding === null ? "未绑定宿主，无法运行或打开动作" : "运行、调试、编辑和悬浮尚未接入此文档目标，暂不可用"}
               />
               <ActionProjectSyncBar
-                key={documentOwnerKey}
+                key={syncOwnerKey}
                 cwd={cwd}
                 actionId={actionId}
                 projectDirectory={projectDirectory}
+                target={syncTarget}
+                targetRequired
                 hasLocalChanges={dirty || hasSavedLocalChanges}
-                blocked={dirty || saving || Boolean(externalConflict || metadataConflict)}
-                blockReason={externalConflict || metadataConflict || (dirty || saving ? "请先保存当前编辑再同步到 Quicker" : undefined)}
+                blocked={targetBlocked || projectBinding === null || dirty || saving || Boolean(externalConflict || metadataConflict)}
+                blockReason={targetError || (projectBinding === undefined ? "正在读取动作目标" : projectBinding === null ? "未绑定宿主，无法同步到 Quicker" : undefined) || externalConflict || metadataConflict || (dirty || saving ? "请先保存当前编辑再同步到 Quicker" : undefined)}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
                 onBusyChange={handleSyncBusyChange}
@@ -897,7 +932,7 @@ export function ActionProjectDataEditor({
           <button
             type="button"
             className="action-project-data-editor-save"
-            disabled={!dirty || saving || hostSyncBusy || Boolean(externalConflict || metadataConflict)}
+            disabled={!dirty || saving || hostSyncBusy || targetBlocked || Boolean(externalConflict || metadataConflict)}
             onClick={() => void handleSave()}
           >
             {saving ? "保存中…" : "保存到工作区"}

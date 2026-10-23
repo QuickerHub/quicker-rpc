@@ -4,7 +4,8 @@ import { resolveWorkspacePath, resolveWorkspaceRoot } from "./workspace-fs";
 import { resolveWorkspacePathChain } from "./workspace-path-chain";
 import { getRequestAbortSignal } from "./qkrpc-request-context";
 import { bindQkrpcTarget, configuredQkrpcBinding, currentQkrpcTarget, sameHostBinding, type QkrpcHostBinding } from "./qkrpc-host-binding";
-import { ACTION_PROJECT_BINDING_PATH, ActionProjectBindingError, parseActionProjectBinding, type ActionProjectBinding } from "./action-project-binding";
+import { ACTION_PROJECT_BINDING_PATH, ActionProjectBindingError, parseActionProjectBinding, sameActionProjectBinding, type ActionProjectBinding } from "./action-project-binding";
+import type { ActionProjectSyncTarget } from "./action-project-sync-target";
 import { resolveQkrpcHttpBase } from "./qkrpc-http";
 import { parseQkrpcJson } from "./qkrpc-json";
 
@@ -129,9 +130,11 @@ export function pinActionProjectBinding(binding: QkrpcHostBinding): void {
   bindQkrpcTarget({ gateway: process.env.QKRPC_TRANSPORT?.trim().toLowerCase() === "cli" ? "cli" : resolveQkrpcHttpBase(), binding });
 }
 
-export async function requireActionProjectBinding(actionId: string) {
-  const existing = await findActionProjectBinding(actionId);
+export async function requireActionProjectBinding(actionId: string, target?: ActionProjectSyncTarget) {
+  const existing = target ? { directory: target.projectDirectory, record: await readActionProjectBinding(target.projectDirectory, actionId) }
+    : await findActionProjectBinding(actionId);
   if (!existing) fail("HOST_BINDING_REQUIRED", "No bound disk project exists for this action.");
+  if (target && !sameActionProjectBinding(existing.record, target.projectBinding)) fail("PROJECT_IDENTITY_CONFLICT", "The document target differs from the current project binding.");
   pinActionProjectBinding(existing.record.hostBinding);
   return existing;
 }
@@ -141,14 +144,13 @@ export async function pinExistingActionProjectBinding(actionId: string): Promise
   if (existing) pinActionProjectBinding(existing.record.hostBinding);
 }
 
-export async function withBoundActionProject<T>(actionId: string, run: (directory: string) => Promise<T>): Promise<T> {
-  const existing = await findActionProjectBinding(actionId);
-  if (!existing) fail("HOST_BINDING_REQUIRED", "No bound disk project exists for this action.");
+export async function withBoundActionProject<T>(actionId: string, run: (directory: string, record: ActionProjectBinding) => Promise<T>, target?: ActionProjectSyncTarget): Promise<T> {
+  const existing = await requireActionProjectBinding(actionId, target);
   pinActionProjectBinding(existing.record.hostBinding);
   const { withProgramDocumentWriteOwner } = await import("./program-document-save.server");
   return withProgramDocumentWriteOwner(join(existing.directory, "data.json"), async () => {
-    pinActionProjectBinding((await readActionProjectBinding(existing.directory, actionId)).hostBinding);
-    return run(existing.directory);
+    const verified = await requireActionProjectBinding(actionId, target ?? { projectDirectory: existing.directory, projectBinding: existing.record });
+    return run(verified.directory, verified.record);
   });
 }
 
