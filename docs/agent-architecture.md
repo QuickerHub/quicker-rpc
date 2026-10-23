@@ -92,7 +92,12 @@ Electron 组合已有可执行入口。搬移目录后的 fake 模型/工具 API
 子进程；kill 失败或未确认退出时保留 owner/state 并报告失败，不能通过磁盘 PID 猜归属。
 browser/terminal 的 stale listener/磁盘 PID 不再被作为终止授权；静态服务通过独立端口、
 profile 内状态与 runtime owner 拒绝跨 profile 复用，IPC 断连停止所属服务和子进程。
-浏览器工具 turn 取消到实际页面操作的传播仍未完成，不能以进程退出代替该验收。
+浏览器工具 turn 取消现经 HTTP 连接传入 headless/embedded 的独立 operation owner。
+同一 session 的队列保留实际 native promise 的尾，调用等待可提前取消，排队取消不分发；
+原生等待后及共享 page/refMap 提交前再次检查 owner，禁止取消后的快照、预览和后续操作。
+仅未发布的新建 context 属于该请求的清理范围；共享页面和 runtime 不因单次取消关闭。
+已发出的 native 副作用不能撤销，永不 settle 的 native promise 仍会阻塞本 session；
+这与服务进程回收、真实浏览器验收是不同边界，详见 [取消边界](browser-automation.md#取消边界)。
 
 `check:agent-backend` 以内存编译检查本地依赖图，拒绝 Next 和残留本地 alias；npm 包保持
 external。它不执行配置或模型，也不是发布打包器。开发服务使用进程级
