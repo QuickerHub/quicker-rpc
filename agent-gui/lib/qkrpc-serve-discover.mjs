@@ -25,7 +25,7 @@ export async function isQkrpcServeHealthy(base, timeoutMs = 1_500, abortSignal) 
     if (res.status !== 200 && res.status !== 503) return false;
     const body = await res.json();
     abortSignal?.throwIfAborted();
-    return typeof body?.ok === "boolean";
+    return body?.service === "qkrpc" && typeof body?.ok === "boolean";
   } catch {
     abortSignal?.throwIfAborted();
     return false;
@@ -56,7 +56,12 @@ export async function discoverHealthyQkrpcServe(
     process.env.QKRPC_HTTP_URL?.trim()
     ?? process.env.QKRPC_HTTP?.trim();
   if (configured) {
-    candidates.push(normalizeBase(configured));
+    const baseUrl = normalizeBase(configured);
+    if (await isQkrpcServeHealthy(baseUrl, undefined, abortSignal)) {
+      const port = Number(new URL(baseUrl).port) || 9477;
+      return { baseUrl, port };
+    }
+    candidates.push(baseUrl);
   }
 
   const basePort =
@@ -68,12 +73,11 @@ export async function discoverHealthyQkrpcServe(
     }
   }
 
-  for (const baseUrl of candidates) {
-    abortSignal?.throwIfAborted();
-    if (!(await isQkrpcServeHealthy(baseUrl, undefined, abortSignal))) {
-      continue;
-    }
-    abortSignal?.throwIfAborted();
+  const healthy = (await Promise.all(candidates.map(async (baseUrl) =>
+    await isQkrpcServeHealthy(baseUrl, undefined, abortSignal) ? baseUrl : null))).filter(Boolean);
+  abortSignal?.throwIfAborted();
+  if (healthy.length > 1) throw new Error("HOST_SELECTION_REQUIRED: multiple qkrpc gateways are available; configure one explicitly.");
+  for (const baseUrl of healthy) {
     if (normalizeBase(process.env.QKRPC_HTTP_URL ?? "") !== baseUrl) {
       process.env.QKRPC_HTTP_URL = baseUrl;
       process.env.QKRPC_TRANSPORT = "http";

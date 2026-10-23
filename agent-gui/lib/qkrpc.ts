@@ -6,7 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { currentQkrpcTarget, configuredQkrpcBinding, hasUnverifiedQkrpcRead, markUnverifiedQkrpcRead, bindQkrpcTarget, readHostBinding, isOfflineSourceInvoke, isQkrpcReadOnlyInvoke, bindingFailure, type QkrpcHostBinding } from "@/lib/qkrpc-host-binding";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
+import { parseQkrpcJson } from "@/lib/qkrpc-json";
 import {
   isBundledAgentRuntime,
   resolveEffectiveWorkingDirectory,
@@ -52,6 +54,7 @@ export type QkrpcRunOptions = {
   timeoutMs?: number;
   json?: boolean;
   abortSignal?: AbortSignal;
+  hostBinding?: QkrpcHostBinding;
 };
 
 const MAX_STDOUT_CHARS = 120_000;
@@ -162,7 +165,7 @@ function tryParseJson(stdout: string): unknown | null {
   const trimmed = stdout.trim();
   if (!trimmed) return null;
   try {
-    return JSON.parse(trimmed) as unknown;
+    return parseQkrpcJson(trimmed);
   } catch {
     return null;
   }
@@ -248,7 +251,7 @@ function shouldRetryHttpStepRunnerMissingIcons(op: string, parsed: unknown): boo
 
 async function tryHttpInvoke(
   args: string[],
-  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal">,
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal" | "hostBinding">,
   transport?: { serveOnly: boolean },
 ): Promise<QkrpcRunResult | "skip"> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
@@ -262,15 +265,20 @@ async function tryHttpInvoke(
   const httpResult = await invokeQkrpcHttp(invoke, {
     timeoutMs: options?.timeoutMs,
     abortSignal,
+    hostBinding: options?.hostBinding,
   });
   abortSignal?.throwIfAborted();
 
   if (httpResult === null) {
+    if (!isQkrpcReadOnlyInvoke(invoke) || currentQkrpcTarget() || options?.hostBinding)
+      return bindingFailure("HOST_UNAVAILABLE", "The bound gateway is unavailable. No CLI fallback was attempted.");
     invalidateServeProbeCache();
     return serveOnly
       ? serveTransportError(formatServeUnreachableMessage())
       : "skip";
   }
+
+  if (!isQkrpcReadOnlyInvoke(invoke) || currentQkrpcTarget() || options?.hostBinding) return httpResult;
 
   if (httpResult.ok) {
     if (shouldRetryHttpStepRunnerMissingIcons(invoke.op, httpResult.parsed)) {
@@ -320,7 +328,9 @@ async function spawnQkrpcCli(
     abortSignal?.throwIfAborted();
     const child = spawn(bin, finalArgs, {
       cwd,
-      env: process.env,
+      env: { ...process.env, ...((options?.hostBinding ?? currentQkrpcTarget()?.binding)
+        ? { QKRPC_HOST_BINDING: JSON.stringify(options?.hostBinding ?? currentQkrpcTarget()?.binding),
+            QKRPC_HOST_SESSION: (options?.hostBinding ?? currentQkrpcTarget()?.binding)!.hostSessionId } : {}) },
       stdio: useStdin ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -411,6 +421,54 @@ async function spawnQkrpcCli(
   });
 }
 
+async function runBoundQkrpcCli(args: string[], options?: QkrpcRunOptions): Promise<QkrpcRunResult> {
+  const invoke = argvToInvoke(args);
+  if (!invoke || isOfflineSourceInvoke(invoke) || invoke.op.startsWith("guide.") || invoke.op === "wait")
+    return spawnQkrpcCli(args, options);
+  if (currentQkrpcTarget()?.gateway.startsWith("http") && !isQkrpcReadOnlyInvoke(invoke))
+    return bindingFailure("HOST_BINDING_REQUIRED", "This write belongs to the bound HTTP gateway. No CLI fallback was attempted.");
+  let binding = options?.hostBinding ?? currentQkrpcTarget()?.binding;
+  if (!binding) {
+    const configured = configuredQkrpcBinding();
+    if (configured && "exitCode" in configured) return configured;
+    binding = configured;
+  }
+  if (!binding && invoke.op === "action.save") {
+    const local = await spawnQkrpcCli([...args, "--dry-run"], options);
+    options?.abortSignal?.throwIfAborted();
+    if (!local.ok) return local;
+    const payload = local.parsed as { hostBinding?: unknown; data?: { hostBinding?: unknown } } | null;
+    binding = readHostBinding(payload?.hostBinding ?? payload?.data?.hostBinding);
+    if (!binding) return bindingFailure("HOST_BINDING_REQUIRED", "This bundle has no verified host binding. Reopen explicitly.");
+  }
+  if (!binding && invoke.op !== "action.save") {
+    if (hasUnverifiedQkrpcRead() && !isQkrpcReadOnlyInvoke(invoke) && !process.env.QKRPC_HOST_SESSION?.trim())
+      return bindingFailure("HOST_BINDING_REQUIRED", "The previous read had no verified identity. Select a host explicitly before writing.");
+    const discovered = await spawnQkrpcCli(["host", "list", "--json"], { ...options, timeoutMs: Math.min(options?.timeoutMs ?? 10_000, 10_000) });
+    options?.abortSignal?.throwIfAborted();
+    const selectedSession = process.env.QKRPC_HOST_SESSION?.trim();
+    const candidates = ((discovered.parsed as { candidates?: unknown[] } | null)?.candidates ?? [])
+      .map(readHostBinding).filter((b): b is QkrpcHostBinding => Boolean(b
+        && (!selectedSession || b.hostSessionId === selectedSession)
+        && (invoke.op !== "action.open" || b.capabilities["action.source.read"] === true)));
+    if (candidates.length > 1) return bindingFailure("HOST_SELECTION_REQUIRED", "Multiple compatible hosts. Select a host session explicitly.");
+    binding = candidates[0];
+    if (!binding && selectedSession)
+      return bindingFailure("HOST_UNAVAILABLE", "The selected CLI host session is unavailable or incompatible. No other host was selected.");
+    if (!binding && !isQkrpcReadOnlyInvoke(invoke))
+      return bindingFailure("HOST_BINDING_REQUIRED", "No verified CLI host binding. No write was sent.");
+  }
+  if (binding) {
+    try { bindQkrpcTarget({ gateway: currentQkrpcTarget()?.gateway ?? "cli", binding }); }
+    catch (error) { return bindingFailure("HOST_BINDING_MISMATCH", error instanceof Error ? error.message : String(error)); }
+  }
+  const result = await spawnQkrpcCli(args, { ...options, hostBinding: binding });
+  if (result.ok && !binding) markUnverifiedQkrpcRead();
+  if (!result.ok && !isQkrpcReadOnlyInvoke(invoke) && result.parsed === null)
+    return bindingFailure("WRITE_RESULT_UNKNOWN", result.stderr || "The CLI write result is unknown; inspect the bound host before retrying.");
+  return result;
+}
+
 /** Direct qkrpc.exe spawn — qkrpc_wait recovery only (bypasses serve-only transport). */
 export async function runQkrpcCliDirect(
   args: string[],
@@ -418,7 +476,7 @@ export async function runQkrpcCliDirect(
 ): Promise<QkrpcRunResult> {
   const json = options?.json !== false;
   const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
-  return spawnQkrpcCli(finalArgs, options);
+  return runBoundQkrpcCli(finalArgs, options);
 }
 
 export async function runQkrpc(
@@ -427,10 +485,10 @@ export async function runQkrpc(
 ): Promise<QkrpcRunResult> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
-  const serveOnly = mustNotSpawnCli();
+  const serveOnly = currentQkrpcTarget()?.gateway === "cli" ? false : mustNotSpawnCli();
   const stepRunnerCatalog = isStepRunnerCatalogArgv(args);
 
-  if (!options?.stdin && !isCliTransportForced()) {
+  if (!options?.stdin && !isCliTransportForced() && currentQkrpcTarget()?.gateway !== "cli") {
     const http = await tryHttpInvoke(args, { ...options, abortSignal }, { serveOnly });
     abortSignal?.throwIfAborted();
     if (http !== "skip") {
@@ -451,7 +509,7 @@ export async function runQkrpc(
   const json = options?.json !== false;
   const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
   abortSignal?.throwIfAborted();
-  return spawnQkrpcCli(finalArgs, { ...options, abortSignal });
+  return runBoundQkrpcCli(finalArgs, { ...options, abortSignal });
 }
 
 /** Drop legacy search-level agentGuidance (moved to docs / tool descriptions). */
@@ -503,6 +561,8 @@ async function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
 /** Failures worth retrying inside the tool (timeout / transient transport). */
 export function isRetryableQkrpcFailure(result: QkrpcRunResult): boolean {
   if (result.ok) return false;
+  const parsed = result.parsed as { error?: string; retryable?: boolean } | null;
+  if (parsed?.retryable === false || /^(?:HOST_|WRITE_RESULT_UNKNOWN)/.test(parsed?.error ?? "")) return false;
   const stderr = (result.stderr ?? "").toLowerCase();
   if (stderr.includes("timed out") || stderr.includes("timeout")) return true;
   if (stderr.includes("aborted") || stderr.includes("abort")) return true;
@@ -547,7 +607,8 @@ export async function runQkrpcForTool(
     abortSignal?.throwIfAborted();
     if (result.ok) return result;
     last = result;
-    if (isQkrpcConnectivityFailure(result)) {
+    const invoke = argvToInvoke(args);
+    if (!invoke || !isQkrpcReadOnlyInvoke(invoke) || isQkrpcConnectivityFailure(result)) {
       break;
     }
     if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
@@ -644,9 +705,9 @@ async function runQkrpcWithJsonPayloadOnce(
   const invoke = argvToInvoke(filtered);
   const httpSpec = invoke ? HTTP_JSON_BODY_OPS[invoke.op] : undefined;
 
-  const serveOnly = mustNotSpawnCli();
+  const serveOnly = currentQkrpcTarget()?.gateway === "cli" ? false : mustNotSpawnCli();
 
-  if (httpSpec && !isCliTransportForced()) {
+  if (httpSpec && !isCliTransportForced() && currentQkrpcTarget()?.gateway !== "cli") {
     const httpResult = await invokeQkrpcHttp(
       {
         op: invoke!.op,
@@ -655,9 +716,11 @@ async function runQkrpcWithJsonPayloadOnce(
       { timeoutMs, abortSignal },
     );
     abortSignal?.throwIfAborted();
-    if (httpResult?.ok) {
-      return httpResult;
+    if (httpResult?.ok || (httpResult && !isQkrpcReadOnlyInvoke(invoke!))) {
+      return httpResult!;
     }
+    if (currentQkrpcTarget() || !isQkrpcReadOnlyInvoke(invoke!))
+      return httpResult ?? bindingFailure("HOST_UNAVAILABLE", "The bound gateway is unavailable. No CLI fallback was attempted.");
     if (serveOnly) {
       return (
         httpResult
@@ -696,28 +759,7 @@ async function runQkrpcWithJsonPayloadForTool(
 ): Promise<QkrpcRunResult> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
-  const baseTimeout = options?.timeoutMs ?? 120_000;
-  let last: QkrpcRunResult | null = null;
-
-  for (let attempt = 1; attempt <= QKRPC_TOOL_MAX_ATTEMPTS; attempt++) {
-    abortSignal?.throwIfAborted();
-    const timeoutMs = baseTimeout + (attempt - 1) * 45_000;
-    const result = await runQkrpcWithJsonPayloadOnce(
-      baseArgs,
-      jsonObject,
-      timeoutMs,
-      abortSignal,
-    );
-    abortSignal?.throwIfAborted();
-    if (result.ok) return result;
-    last = result;
-    if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
-      break;
-    }
-    await sleep(QKRPC_RETRY_BASE_DELAY_MS * attempt, abortSignal);
-  }
-
-  return last!;
+  return runQkrpcWithJsonPayloadOnce(baseArgs, jsonObject, options?.timeoutMs ?? 120_000, abortSignal);
 }
 
 export async function runQkrpcWithPatchFile(

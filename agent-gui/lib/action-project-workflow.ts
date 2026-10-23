@@ -30,6 +30,7 @@ import type { ProgramDataInput } from "@/lib/program-data-input";
 import { writeActionProjectSyncTrust } from "@/lib/action-project-sync-trust";
 import { normalizeActionProjectSyncVersion, stampActionProjectInfoVersion, syncActionProjectBodyAndMetadata } from "@/lib/action-project-sync-metadata";
 import { getRequestAbortSignal } from "@/lib/qkrpc-request-context";
+import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
 
 export type {
   WorkspaceProjectSummary,
@@ -54,7 +55,7 @@ export type ActionProjectManifest = {
   projectDirectory: string;
   actionId: string;
   title?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
   stepCount?: number;
   variableCount?: number;
   fileRefs: Array<{
@@ -380,7 +381,7 @@ export async function readActionProjectManifest(
 export type ActionProjectDataSummary = {
   actionId: string;
   projectDirectory: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
   stepCount?: number;
   variableCount?: number;
   stepsOutline: Array<{ index: number; stepRunnerKey: string }>;
@@ -692,8 +693,7 @@ async function stampProjectEditVersionUnderOwner(
   try {
     const raw = await readFile(resolved.absolute, "utf8");
     await writeFile(resolved.absolute, stampActionProjectInfoVersion(raw, normalized), "utf8");
-    const numericVersion = Number(normalized);
-    if (Number.isSafeInteger(numericVersion)) await writeActionProjectSyncTrust(projectDir, numericVersion);
+    await writeActionProjectSyncTrust(projectDir, normalized);
     return true;
   } catch {
     return false;
@@ -839,7 +839,7 @@ export async function saveActionFromWorkspace(options: {
   }
   const formatted = formatQkrpcResultForAgent(sync.bodyResult);
   const data = formatted.data as Record<string, unknown>;
-  const finalVersion = sync.editVersion && Number.isSafeInteger(Number(sync.editVersion)) ? Number(sync.editVersion) : sync.editVersion;
+  const finalVersion = normalizeActionProjectEditVersion(sync.editVersion);
   return augmentToolResultWithPrefixWarnings(
     { ...formatted, data: { ...data, payload: {
       ...parseQkrpcPayload(sync.bodyResult),

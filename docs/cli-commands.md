@@ -21,6 +21,7 @@ qkrpc <command> --help
 
 | 命令族 | 用途 |
 |---|---|
+| `host list` | 只读发现当前用户的 V1/V2 session 与完整绑定 |
 | `help`、`wait`、`serve` | 自描述、连接等待、HTTP 服务 |
 | `agent setup`、`mcp` | Agent 插件/MCP 安装与 stdio server |
 | `guide`、`step-runner` | 动作编写指南和步骤 schema |
@@ -30,6 +31,18 @@ qkrpc <command> --help
 | `settings`、`launcher` | 设置读写、打开设置页、统一意图解析 |
 | `trigger` | 事件触发器查询与维护 |
 | `chrome` | 通过 Quicker Connector 控制用户浏览器 |
+
+## 选择宿主
+
+`qkrpc host list --json` 不拉起插件。一个兼容实例自动选择；多个实例使用
+`--host-session <session>`（或 `QKRPC_HOST_SESSION`）。CLI/MCP/serve 均支持该全局选项。
+需要固定完整目标时传 `--host-binding <host list 中的 JSON>`，或 `QKRPC_HOST_BINDING`。
+MCP `qkrpc_host_list` 返回同一候选集，source open 也接受 `hostSessionId`；HTTP 使用
+`host.list`，随后在请求中携带完整 `hostBinding`。
+
+保存绑定 bundle 原宿主；断连、重启或 session 不符不会改写另一个实例。
+`WRITE_RESULT_UNKNOWN` 表示发送后无法确认结果，必须核对原宿主，不能自动重发。
+旧 bundle 缺少绑定时仍可离线 dry-run，但实际保存必须重新 open。
 
 ## 本地编写工作流
 

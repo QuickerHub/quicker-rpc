@@ -1,13 +1,10 @@
 import { readProgramDocumentMetadata, validateProgramDocumentMetadataForSave, type ProgramDocumentMetadata } from "./action-editor/document/programDocumentMetadata";
 import type { QkrpcRunResult } from "./qkrpc-types";
+import { normalizeActionProjectEditVersion } from "./action-project-edit-version";
 
 export function normalizeActionProjectSyncVersion(value: unknown): string | undefined {
-  if (typeof value === "number" && (!Number.isSafeInteger(value) || value <= 0)) return undefined;
-  if (typeof value !== "number" && typeof value !== "string" && typeof value !== "bigint") return undefined;
-  const text = String(value);
-  if (!/^[0-9]+$/.test(text)) return undefined;
-  const number = BigInt(text);
-  return number > 0n && number <= 9223372036854775807n ? number.toString() : undefined;
+  const version = normalizeActionProjectEditVersion(value);
+  return version == null ? undefined : String(version);
 }
 
 /** Replace version tokens only. Unknown JSON and legacy numeric Int64s never pass through JSON.stringify. */

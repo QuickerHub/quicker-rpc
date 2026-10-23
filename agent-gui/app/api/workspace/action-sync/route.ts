@@ -1,4 +1,4 @@
-import { runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
+import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import {
   getActionProjectSyncStatus,
   pullActionProjectToWorkspace,
@@ -6,6 +6,12 @@ import {
 } from "@/lib/action-project-sync";
 
 export const dynamic = "force-dynamic";
+
+function cancelled(req: Request): Response {
+  const reason: unknown = req.signal.reason;
+  return Response.json({ ok: false, error: "REQUEST_ABORTED", retryable: false,
+    message: reason instanceof Error ? reason.message : String(reason ?? "Request cancelled") }, { status: 499 });
+}
 
 export async function POST(req: Request) {
   let body: {
@@ -18,6 +24,7 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as typeof body;
   } catch {
+    if (req.signal.aborted) return cancelled(req);
     return Response.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   }
 
@@ -30,7 +37,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    return await runWithQkrpcCwdAsync(cwd, async () => {
+    req.signal.throwIfAborted();
+    return await runWithAgentRequestContextAsync({ cwd, abortSignal: req.signal }, async () => {
       if (op === "status") {
         const result = await getActionProjectSyncStatus(actionId);
         if (!result.ok) {
@@ -79,6 +87,7 @@ export async function POST(req: Request) {
       return Response.json({ ok: false, error: `unknown op: ${op}` }, { status: 400 });
     });
   } catch (error) {
+    if (req.signal.aborted) return cancelled(req);
     const message = error instanceof Error ? error.message : String(error);
     console.error("[api/workspace/action-sync]", error);
     return Response.json({ ok: false, error: message }, { status: 500 });

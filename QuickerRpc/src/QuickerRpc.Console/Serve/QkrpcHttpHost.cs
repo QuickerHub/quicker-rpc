@@ -21,13 +21,15 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
     private readonly QkrpcRpcSessionPool _pool;
     private WebApplication? _app;
 
+    internal string? Address => _app?.Urls.FirstOrDefault();
+
     public QkrpcHttpHost(string host, int port, int defaultTimeoutSeconds, bool tryBootstrap)
     {
         _host = host;
         _port = port;
         _defaultTimeoutSeconds = Math.Max(1, defaultTimeoutSeconds);
         _tryBootstrap = tryBootstrap;
-        _pool = new QkrpcRpcSessionPool(defaultTimeoutSeconds, tryBootstrap);
+        _pool = new QkrpcRpcSessionPool(defaultTimeoutSeconds, false);
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -78,11 +80,11 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
             var token = QuickerRpcClient.CreateRpcCancellationToken(_defaultTimeoutSeconds);
             payload = await ServeHealthQuery.ReadAsync(rpc, token).ConfigureAwait(false);
         }
-        catch (QuickerRpcClientException)
+        catch (QuickerRpcClientException ex)
         {
             await _pool.InvalidateAsync().ConfigureAwait(false);
             statusCode = StatusCodes.Status503ServiceUnavailable;
-            payload = new ServeHealthResponse { Ok = false, Pipe = QuickerRpcPipeNames.ServerPipe };
+            payload = new ServeHealthResponse { Ok = false, Error = ex.ErrorCode, Message = ex.Message, Pipe = QuickerRpcPipeNames.ServerPipe };
         }
 
         context.Response.StatusCode = statusCode;
@@ -101,7 +103,7 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
                 .ReadFromJsonAsync<ServeInvokeRequest>(JsonOptions, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or ArgumentException or InvalidOperationException)
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             await context.Response
@@ -127,7 +129,7 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
 
         var timeout = body.TimeoutSeconds > 0 ? body.TimeoutSeconds : _defaultTimeoutSeconds;
         var result = await ServeInvokeDispatcher
-            .InvokeAsync(_pool, body.Op, body.Args, timeout, cancellationToken)
+            .InvokeAsync(_pool, body.Op, body.Args, timeout, cancellationToken, body.HostBinding)
             .ConfigureAwait(false);
 
         context.Response.StatusCode = result.Ok
@@ -161,13 +163,13 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
             }
 
             await ServeActionTraceStream
-                .HandleAsync(context, _defaultTimeoutSeconds, _tryBootstrap, context.RequestAborted, query)
+                .HandleAsync(context, _defaultTimeoutSeconds, _tryBootstrap, context.RequestAborted, query, _pool)
                 .ConfigureAwait(false);
             return;
         }
 
         await ServeActionTraceStream
-            .HandleAsync(context, _defaultTimeoutSeconds, _tryBootstrap, context.RequestAborted)
+            .HandleAsync(context, _defaultTimeoutSeconds, _tryBootstrap, context.RequestAborted, _pool)
             .ConfigureAwait(false);
     }
 

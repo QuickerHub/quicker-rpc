@@ -1,17 +1,18 @@
 import {
   actionProjectInfoFromMetadataGet,
-  editVersionToNumber,
+  editVersionToValue,
 } from "@/lib/action-project-info";
 import type { ParsedActionProjectInfo } from "@/lib/action-project-info-parse";
 import { parseActionProjectInfo } from "@/lib/action-project-info-parse";
 import { resolveActionProjectIconSpec } from "@/lib/action-project-icon";
+import type { ActionProjectEditVersion } from "./action-project-edit-version";
 
 export type ActionMetadataSnapshot = {
   id: string;
   title: string;
   description?: string;
   icon: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
 };
 
 const UUID_RE =
@@ -52,7 +53,7 @@ export function parseActionMetadataFromGetJson(
   const title = String(info.title ?? "").trim() || "(无标题)";
   const description = String(info.description ?? "").trim() || undefined;
   const icon = resolveActionProjectIconSpec(String(info.icon ?? "").trim());
-  const editVersion = editVersionToNumber(info.editVersion);
+  const editVersion = editVersionToValue(info.editVersion);
 
   return {
     id,

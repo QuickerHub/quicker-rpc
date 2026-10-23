@@ -55,6 +55,12 @@ function flagBool(flags: Record<string, string | boolean>, name: string): boolea
   return flags[name] === true;
 }
 
+function flagEditVersion(flags: Record<string, string | boolean>): number | string | undefined {
+  const raw = flagStr(flags, "expected-edit-version")?.trim();
+  if (raw && /^[+-]?\d+$/.test(raw) && !Number.isSafeInteger(Number(raw))) return raw;
+  return flagInt(flags, "expected-edit-version");
+}
+
 function parseJsonFlag(
   flags: Record<string, string | boolean>,
   name: string,
@@ -195,7 +201,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         op: "action.replace",
         args: {
           id: flagStr(flags, "id"),
-          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          expectedEditVersion: flagEditVersion(flags),
           force: flagBool(flags, "force"),
         },
       };
@@ -253,7 +259,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         op: "action.patch",
         args: {
           id: flagStr(flags, "id"),
-          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          expectedEditVersion: flagEditVersion(flags),
           force: flagBool(flags, "force"),
         },
       };
@@ -266,7 +272,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           title: flagStr(flags, "title"),
           description: flagStr(flags, "description"),
           icon: flagStr(flags, "icon"),
-          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          expectedEditVersion: flagEditVersion(flags),
           force: flagBool(flags, "force"),
         },
       };
@@ -332,7 +338,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         args: {
           id: flagStr(flags, "id"),
           dir: flagStr(flags, "dir"),
-          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          expectedEditVersion: flagEditVersion(flags),
           force: flagBool(flags, "force") || undefined,
         },
       };
@@ -457,7 +463,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         op: "subprogram.patch",
         args: {
           id: flagStr(flags, "id"),
-          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          expectedEditVersion: flagEditVersion(flags),
           force: flagBool(flags, "force"),
         },
       };
@@ -467,7 +473,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         op: "subprogram.replace",
         args: {
           id: flagStr(flags, "id"),
-          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          expectedEditVersion: flagEditVersion(flags),
           force: flagBool(flags, "force"),
         },
       };
@@ -505,7 +511,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         op: "subprogram.import",
         args: {
           dir: flagStr(flags, "dir"),
-          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          expectedEditVersion: flagEditVersion(flags),
           force: flagBool(flags, "force"),
         },
       };

@@ -127,14 +127,32 @@ internal static class ServeOpenApiDocument
         {
             ["schemas"] = new JsonObject
             {
+                ["HostBinding"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["required"] = new JsonArray("hostInstanceId", "hostSessionId", "endpoint", "protocolVersion", "schemaVersion", "hostKind", "quickerVersion", "capabilities"),
+                    ["properties"] = new JsonObject
+                    {
+                        ["hostInstanceId"] = new JsonObject { ["type"] = "string" },
+                        ["hostSessionId"] = new JsonObject { ["type"] = "string" },
+                        ["endpoint"] = new JsonObject { ["type"] = "string" },
+                        ["protocolVersion"] = new JsonObject { ["type"] = "integer" },
+                        ["schemaVersion"] = new JsonObject { ["type"] = "integer" },
+                        ["hostKind"] = new JsonObject { ["enum"] = new JsonArray("v1", "v2") },
+                        ["quickerVersion"] = new JsonObject { ["type"] = "string" },
+                        ["capabilities"] = new JsonObject { ["type"] = "object", ["additionalProperties"] = new JsonObject { ["type"] = "boolean" } },
+                    },
+                },
                 ["ServeHealthResponse"] = new JsonObject
                 {
                     ["type"] = "object",
                     ["properties"] = new JsonObject
                     {
                         ["ok"] = new JsonObject { ["type"] = "boolean" },
+                        ["service"] = new JsonObject { ["type"] = "string", ["const"] = "qkrpc" },
+                        ["hostBinding"] = SchemaRef("HostBinding"),
                         ["pong"] = new JsonObject { ["type"] = "string" },
-                        ["protocolVersion"] = new JsonObject { ["type"] = "string" },
+                        ["protocolVersion"] = new JsonObject { ["type"] = "integer" },
                         ["pipe"] = new JsonObject { ["type"] = "string" },
                     },
                 },
@@ -155,6 +173,7 @@ internal static class ServeOpenApiDocument
                             ["type"] = "object",
                             ["additionalProperties"] = true,
                         },
+                        ["hostBinding"] = SchemaRef("HostBinding"),
                         ["timeoutSeconds"] = new JsonObject { ["type"] = "integer", ["minimum"] = 1 },
                     },
                 },
@@ -164,7 +183,8 @@ internal static class ServeOpenApiDocument
                     ["properties"] = new JsonObject
                     {
                         ["ok"] = new JsonObject { ["type"] = "boolean" },
-                        ["result"] = new JsonObject { ["description"] = "Op-specific payload when ok=true" },
+                        ["data"] = new JsonObject { ["description"] = "Op-specific payload" },
+                        ["hostBinding"] = SchemaRef("HostBinding"),
                         ["error"] = new JsonObject { ["type"] = "string" },
                         ["message"] = new JsonObject { ["type"] = "string" },
                     },

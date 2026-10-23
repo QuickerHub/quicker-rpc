@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { qkrpcEditVersionSchema, type QkrpcEditVersion } from "@/lib/qkrpc-edit-version-schema";
 import {
   actionCreateSchema,
   resolveActionCreateManageInput,
@@ -137,7 +138,7 @@ const actionIdInputSchema = z.discriminatedUnion("action", [
     title: z.string().optional(),
     description: z.string().optional(),
     icon: z.string().optional(),
-    expectedEditVersion: z.number().int().optional(),
+    expectedEditVersion: qkrpcEditVersionSchema.optional(),
     force: z.boolean().optional(),
   }),
   z.object({
@@ -190,7 +191,7 @@ const actionIdSchema = z.object({
   title: z.string().optional().describe("set_metadata / publish"),
   description: z.string().optional().describe("set_metadata / publish; \"\" clears"),
   icon: z.string().optional().describe("set_metadata: fa: from qkrpc_fa search"),
-  expectedEditVersion: z.number().int().optional().describe("set_metadata: from last response"),
+  expectedEditVersion: qkrpcEditVersionSchema.optional().describe("set_metadata: from last response"),
   force: z.boolean().optional().describe("set_metadata: ignore editVersion conflict"),
   profile: z.string().optional().describe("move: profileId, name, or scope"),
   row: z.number().int().min(0).optional().describe("move: grid row (with col)"),
@@ -357,7 +358,7 @@ export type QkrpcActionToolInput = QkrpcActionQueryToolInput & {
   program?: Record<string, unknown>;
   patch?: Record<string, unknown>;
   xaction?: Record<string, unknown>;
-  expectedEditVersion?: number;
+  expectedEditVersion?: QkrpcEditVersion;
   force?: boolean;
 };
 
@@ -1000,7 +1001,7 @@ export const QKRPC_ACTION_SET_METADATA_TOOL_DEF = tool({
     title: z.string().optional().describe("New title"),
     description: z.string().optional().describe("New description; \"\" clears"),
     icon: z.string().optional().describe("fa: spec from qkrpc_fa"),
-    expectedEditVersion: z.number().int().optional(),
+    expectedEditVersion: qkrpcEditVersionSchema.optional(),
     force: z.boolean().optional().describe("Ignore editVersion conflict"),
   }),
   execute: async (input) =>

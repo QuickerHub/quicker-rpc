@@ -14,6 +14,7 @@ import {
   readCompressedFromGetPayload,
   readEditVersionFromGetPayload,
   normalizeEditVersion,
+  hasImpreciseEditVersionFromGetPayload,
 } from "@/lib/action-project-info-from-get";
 import {
   compareActionEditVersions,
@@ -25,6 +26,7 @@ import {
   readActionProjectSyncTrust,
   writeActionProjectSyncTrust,
 } from "@/lib/action-project-sync-trust";
+import type { ActionProjectEditVersion } from "./action-project-edit-version";
 
 export type { ActionProjectSyncState, ActionProjectSyncStatus } from "@/lib/action-project-sync-types";
 export { compareActionEditVersions, formatSyncStatusMessage } from "@/lib/action-project-sync-types";
@@ -40,7 +42,7 @@ function readRemoteTitle(obj: Record<string, unknown> | null): string | undefine
 export async function fetchRemoteActionEditVersion(
   actionId: string,
 ): Promise<
-  | { ok: true; editVersion?: number; title?: string }
+  | { ok: true; editVersion?: ActionProjectEditVersion; title?: string; impreciseEditVersion?: boolean }
   | { ok: false; error: string }
 > {
   const getResult = await runQkrpcForTool([
@@ -61,6 +63,7 @@ export async function fetchRemoteActionEditVersion(
   return {
     ok: true,
     editVersion: readEditVersionFromGetPayload(payload),
+    impreciseEditVersion: hasImpreciseEditVersionFromGetPayload(payload),
     title: readRemoteTitle(payload),
   };
 }
@@ -78,7 +81,7 @@ export async function getActionProjectSyncStatus(
 
   const manifest = await readActionProjectManifest(actionId);
   if ("error" in manifest) {
-    const state = compareActionEditVersions(undefined, remote.editVersion);
+    const state = remote.impreciseEditVersion ? "unknown_remote" : compareActionEditVersions(undefined, remote.editVersion);
     return {
       ok: true,
       status: {
@@ -92,7 +95,8 @@ export async function getActionProjectSyncStatus(
 
   const trust = await readActionProjectSyncTrust(manifest.projectDirectory);
   const localVersion = normalizeEditVersion(manifest.editVersion);
-  const state = compareActionEditVersions(
+  const state = remote.impreciseEditVersion ? "unknown_remote"
+    : compareActionEditVersions(
     localVersion,
     remote.editVersion,
     { trustedRemoteEditVersion: trust?.editVersion },
@@ -147,7 +151,7 @@ export async function pullActionProjectToWorkspace(
 }
 
 export type ActionProjectPushResult =
-  | { ok: true; message: string; editVersion?: number }
+  | { ok: true; message: string; editVersion?: ActionProjectEditVersion }
   | { ok: false; error: string; phase?: string; versionConflict?: boolean };
 
 export async function pushActionProjectToQuicker(options: {

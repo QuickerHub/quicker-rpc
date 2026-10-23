@@ -23,6 +23,26 @@ internal static partial class Program
     private static async Task<int> Main(string[] args)
     {
         QkrpcConsoleUtf8.Initialize();
+        var arguments = args.ToList();
+        foreach (var option in new[] { ("--host-session", "QKRPC_HOST_SESSION"), ("--host-binding", "QKRPC_HOST_BINDING") })
+        {
+            var index = arguments.IndexOf(option.Item1);
+            if (index < 0) continue;
+            if (index + 1 >= arguments.Count) return ExitCodes.Error;
+            Environment.SetEnvironmentVariable(option.Item2, arguments[index + 1]);
+            arguments.RemoveRange(index, 2);
+        }
+        args = arguments.ToArray();
+        if (args.Length >= 2 && args[0] == "host" && args[1] == "list")
+        {
+            try
+            {
+                var candidates = await QuickerRpcHostDiscovery.DiscoverAsync().ConfigureAwait(false);
+                global::System.Console.WriteLine(JsonSerializer.Serialize(new { service = "qkrpc", candidates }, QkrpcJson.CliOutput));
+                return ExitCodes.Success;
+            }
+            catch (Exception ex) { return await EmitErrorAndFailAsync(true, "HOST_DISCOVERY_FAILED", ex.Message).ConfigureAwait(false); }
+        }
 
         if (TryWriteHelpJson(args))
         {

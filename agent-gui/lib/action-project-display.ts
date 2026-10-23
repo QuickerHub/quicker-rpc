@@ -1,8 +1,9 @@
 /** Client-safe workspace project summary parsing (no Node.js imports). */
+import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
 
 export type WorkspaceProjectSummary = {
   projectDirectory: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
   title?: string;
   stepCount?: number;
   variableCount?: number;
@@ -13,7 +14,7 @@ export type WorkspaceProjectSummary = {
 export type WorkspaceToolDisplay = {
   actionId?: string;
   title?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
   stepCount?: number;
   variableCount?: number;
   fileRefCount?: number;
@@ -25,7 +26,7 @@ export type WorkspaceToolDisplay = {
 export type WorkspaceProjectSummaryInput = {
   projectDirectory: string;
   title?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
   stepCount?: number;
   variableCount?: number;
   fileRefs: unknown[];
@@ -52,7 +53,15 @@ function readToolNumber(
 ): number | undefined {
   for (const key of keys) {
     const value = obj[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  }
+  return undefined;
+}
+
+function readToolEditVersion(obj: Record<string, unknown>, ...keys: string[]): ActionProjectEditVersion | undefined {
+  for (const key of keys) {
+    const version = normalizeActionProjectEditVersion(obj[key]);
+    if (version != null) return version;
   }
   return undefined;
 }
@@ -64,7 +73,7 @@ export function buildWorkspaceProjectSummary(
   const fileRefCount = manifest.fileRefs.length;
   return {
     projectDirectory: dir,
-    editVersion: manifest.editVersion,
+    editVersion: normalizeActionProjectEditVersion(manifest.editVersion),
     title: manifest.title,
     stepCount: manifest.stepCount,
     variableCount: manifest.variableCount,
@@ -115,9 +124,9 @@ export function parseWorkspaceToolDisplay(
       ?? readToolString(compressed ?? {}, "title", "Title")
       ?? readToolString(root, "title", "Title"),
     editVersion:
-      readToolNumber(wp ?? {}, "editVersion", "EditVersion")
-      ?? readToolNumber(payload, "editVersion", "EditVersion")
-      ?? readToolNumber(root, "editVersion", "EditVersion"),
+      readToolEditVersion(wp ?? {}, "editVersion", "EditVersion")
+      ?? readToolEditVersion(payload, "editVersion", "EditVersion")
+      ?? readToolEditVersion(root, "editVersion", "EditVersion"),
     stepCount: readToolNumber(wp ?? {}, "stepCount", "StepCount"),
     variableCount: readToolNumber(wp ?? {}, "variableCount", "VariableCount"),
     fileRefCount: readToolNumber(wp ?? {}, "fileRefCount", "FileRefCount"),

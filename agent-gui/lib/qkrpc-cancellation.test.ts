@@ -16,6 +16,11 @@ import {
 } from "./qkrpc";
 import { runWithAgentRequestContextAsync } from "./qkrpc-request-context";
 
+const fakeBinding = {
+  hostInstanceId: "fixture", hostSessionId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  endpoint: "QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fixture", capabilities: {},
+};
 const base = "http://qkrpc-cancellation.invalid:9477";
 
 async function withFakeHttp(
@@ -25,7 +30,16 @@ async function withFakeHttp(
   const previousFetch = globalThis.fetch;
   const previousBase = process.env.QKRPC_HTTP_URL;
   const previousMode = process.env.QKRPC_TRANSPORT;
-  globalThis.fetch = fetch;
+  globalThis.fetch = async (url, init) => {
+    if (init?.body && JSON.parse(String(init.body)).op === "action.binding")
+      return Response.json({ ok: true, data: { hostBinding: fakeBinding } });
+    if (init?.body && JSON.parse(String(init.body)).op === "host.list")
+      return Response.json({ ok: true, data: { candidates: [fakeBinding] } });
+    const response = await fetch(url, init);
+    if (String(url).endsWith("/health"))
+      return Response.json({ ...await response.json(), service: "qkrpc" }, { status: response.status });
+    return response;
+  };
   process.env.QKRPC_HTTP_URL = base;
   process.env.QKRPC_TRANSPORT = "http";
   try { await run(); }
@@ -87,7 +101,7 @@ test("cancellation interrupts discovery without scanning another serve", async (
     begin();
     return waitForAbort(init?.signal);
   }, async () => {
-    const pending = invokeQkrpcHttp({ op: "action.save", args: {} }, { abortSignal: controller.signal });
+    const pending = invokeQkrpcHttp({ op: "action.get", args: {} }, { abortSignal: controller.signal });
     const rejected = assert.rejects(pending, (error: unknown) => error === reason);
     await started;
     controller.abort(reason);
@@ -127,22 +141,17 @@ test("an in-flight HTTP cancellation preserves its reason and never spawns fallb
   }
 });
 
-test("cancellation stops ordinary and JSON-payload retry backoff", async () => {
+test("mutating ordinary and JSON-payload failures return after one attempt", async () => {
   for (const payload of [false, true]) {
-    const controller = new AbortController();
-    const reason = new Error("cancel retry delay");
     let invokes = 0;
-    await withFakeHttp(async (url) => {
-      if (String(url) === `${base}/health`) return Response.json({ ok: true });
-      assert.equal(String(url), `${base}/v1/invoke`);
+    await withFakeHttp(async () => {
       invokes += 1;
-      setImmediate(() => controller.abort(reason));
       return Response.json({ ok: false, error: "TIMEOUT", message: "request timed out" });
     }, async () => {
-      const pending = payload
-        ? runQkrpcWithPatchFileForTool(["action", "patch", "--id", "fixture"], {}, { abortSignal: controller.signal })
-        : runQkrpcForTool(["action", "save", "--dir", ".tmp/source"], { abortSignal: controller.signal });
-      await assert.rejects(pending, (error: unknown) => error === reason);
+      const result = payload
+        ? await runQkrpcWithPatchFileForTool(["action", "patch", "--id", "fixture"], {})
+        : await runQkrpcForTool(["action", "save", "--dir", ".tmp/source"]);
+      assert.equal(result.ok, false);
       assert.equal(invokes, 1);
     });
   }
@@ -163,7 +172,8 @@ test("HTTP timeout remains a timeout result rather than parent cancellation", as
       context.mock.timers.tick(5_010);
       const result = await pending;
       assert.equal(result?.ok, false);
-      assert.equal(result?.exitCode, -1);
+      assert.equal(result?.exitCode, 1);
+      assert.equal((result?.parsed as { error: string }).error, "WRITE_RESULT_UNKNOWN");
       assert.match(result?.stderr ?? "", /timed out after 10ms/);
     } finally { context.mock.timers.reset(); }
   });

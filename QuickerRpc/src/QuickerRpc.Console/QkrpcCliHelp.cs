@@ -45,6 +45,9 @@ internal static class QkrpcCliHelp
             pipe = QuickerRpcPipeNames.ServerPipe,
 
             discovery = "qkrpc help --json",
+            hostSelection = new { discovery = "qkrpc host list --json", selector = "--host-session <session>",
+                binding = "--host-binding <JSON from host list>", environment = "QKRPC_HOST_SESSION / QKRPC_HOST_BINDING",
+                safety = "Source bundles bind instance/session/endpoint. Never retry or change targets after WRITE_RESULT_UNKNOWN." },
 
             agentWorkflow =
                 "V1 action edits: action open → edit program.source.yaml/files → action save --dry-run → action save. " +
@@ -71,6 +74,9 @@ internal static class QkrpcCliHelp
                 Cmd("help", "Emit machine-readable CLI reference.", "qkrpc help --json",
 
                     opts: new[] { Option("json", "Required for JSON output.", required: true) }),
+
+                Cmd("host list", "Discover verified current-user V1/V2 host sessions without bootstrap.", "qkrpc host list --json",
+                    opts: new[] { Option("json", "Structured output.") }),
 
                 Cmd("serve", "HTTP API with persistent pipe (agent-gui).", "qkrpc serve [--host 127.0.0.1] [--port 9477] [--timeout 120] [--no-bootstrap]",
 

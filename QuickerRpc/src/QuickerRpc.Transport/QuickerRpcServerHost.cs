@@ -29,10 +29,13 @@ public sealed class QuickerRpcServerHost : IHostedService
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _runTask = Task.Run(() => RunAsync(_shutdown.Token), CancellationToken.None);
-        return Task.CompletedTask;
+        var identity = await _service.GetHostSessionAsync(cancellationToken).ConfigureAwait(false);
+        QuickerRpcHostDiscovery.Verify(identity, identity.Endpoint);
+        _runTask = Task.WhenAll(
+            Task.Run(() => RunAsync(identity.Endpoint, false, _shutdown.Token), CancellationToken.None),
+            Task.Run(() => RunAsync(QuickerRpcPipeNames.ServerPipe, true, _shutdown.Token), CancellationToken.None));
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -58,9 +61,8 @@ public sealed class QuickerRpcServerHost : IHostedService
         }
     }
 
-    private async Task RunAsync(CancellationToken cancellationToken)
+    private async Task RunAsync(string pipeName, bool legacyEndpoint, CancellationToken cancellationToken)
     {
-        var pipeName = QuickerRpcPipeNames.ServerPipe;
         while (!cancellationToken.IsCancellationRequested)
         {
             NamedPipeServerStream? pipeStream = null;
@@ -72,7 +74,7 @@ public sealed class QuickerRpcServerHost : IHostedService
                 LogListening(pipeName);
                 await pipeStream.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
                 _logger.LogDebug("QuickerRpc client connected");
-                var sessionTask = HandleSessionAsync(pipeStream, cancellationToken);
+                var sessionTask = HandleSessionAsync(pipeStream, legacyEndpoint, cancellationToken);
                 TrackSession(sessionTask);
                 pipeStream = null; // moved to session task
             }
@@ -112,12 +114,12 @@ public sealed class QuickerRpcServerHost : IHostedService
         await WaitForActiveSessionsAsync().ConfigureAwait(false);
     }
 
-    private async Task HandleSessionAsync(NamedPipeServerStream pipeStream, CancellationToken cancellationToken)
+    private async Task HandleSessionAsync(NamedPipeServerStream pipeStream, bool legacyEndpoint, CancellationToken cancellationToken)
     {
         JsonRpc? jsonRpc = null;
         try
         {
-            jsonRpc = StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(pipeStream, _service);
+            jsonRpc = StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(pipeStream, new QuickerRpcGuardedService(_service, server: true, legacyEndpoint: legacyEndpoint));
             IQuickerRpcClientCallbacks? clientCallbacks = null;
             try
             {

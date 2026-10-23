@@ -20,7 +20,6 @@ public static class QuickerRpcClient
 
     private const int BootstrapPollIntervalMs = 250;
     private const int BootstrapMaxWaitSeconds = 12;
-    private const int ConnectRetryCount = 3;
 
     public static bool IsPipeServerListening(string? pipeName = null)
     {
@@ -78,118 +77,126 @@ public static class QuickerRpcClient
     }
 
     public static Task<QuickerRpcClientSession> ConnectAsync(
-        int timeoutSeconds = 15,
-        bool tryBootstrap = true,
-        CancellationToken cancellationToken = default) =>
-        ConnectAsync(timeoutSeconds, tryBootstrap, clientRpcTarget: null, cancellationToken);
+        int timeoutSeconds = 15, bool tryBootstrap = true, CancellationToken cancellationToken = default) =>
+        ConnectAsync(timeoutSeconds, tryBootstrap, null, cancellationToken);
 
-    public static async Task<QuickerRpcClientSession> ConnectAsync(
-        int timeoutSeconds,
-        bool tryBootstrap,
-        object? clientRpcTarget,
-        CancellationToken cancellationToken)
+    public static Task<QuickerRpcClientSession> ConnectAsync(
+        int timeoutSeconds, bool tryBootstrap, object? clientRpcTarget, CancellationToken cancellationToken)
     {
-        var pipeName = QuickerRpcPipeNames.ServerPipe;
-        var bootstrapAttempted = false;
-        var connectTimeoutSeconds = Math.Max(1, timeoutSeconds);
-
-        for (var attempt = 0; attempt < ConnectRetryCount; attempt++)
+        var rawBinding = Environment.GetEnvironmentVariable("QKRPC_HOST_BINDING");
+        if (!string.IsNullOrWhiteSpace(rawBinding))
         {
-            if (!IsPipeServerListening(pipeName) && tryBootstrap)
-            {
-                bootstrapAttempted = await TryBootstrapPluginAsync(
-                        pipeName,
-                        timeoutSeconds,
-                        bypassCooldown: attempt > 0,
-                        cancellationToken)
-                    .ConfigureAwait(false)
-                    || bootstrapAttempted;
-            }
-
-            if (!IsPipeServerListening(pipeName))
-            {
-                throw new QuickerRpcClientException(
-                    PluginNotRunningErrorCode,
-                    BuildPluginNotRunningMessage(pipeName, bootstrapAttempted),
-                    BuildPluginNotRunningHints(bootstrapAttempted));
-            }
-
-            var pipe = new NamedPipeClientStream(
-                ".",
-                pipeName,
-                PipeDirection.InOut,
-                PipeOptions.Asynchronous);
-
-            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            connectCts.CancelAfter(TimeSpan.FromSeconds(connectTimeoutSeconds));
-
-            try
-            {
-                await pipe.ConnectAsync(connectCts.Token).ConfigureAwait(false);
-                QuickerRpcBootstrapPolicy.ResetCooldown();
-                var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe, clientRpcTarget);
-                return new QuickerRpcClientSession(pipe, jsonRpc, proxy);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                pipe.Dispose();
-                if (attempt >= ConnectRetryCount - 1)
-                {
-                    throw new QuickerRpcClientException(
-                        ConnectTimeoutErrorCode,
-                        $"连接 QuickerRpc 管道超时（{connectTimeoutSeconds}s）：{pipeName}",
-                        BuildPluginNotRunningHints(bootstrapAttempted));
-                }
-            }
-            catch (Exception ex) when (IsRecoverablePipeConnectError(ex) && tryBootstrap && attempt < ConnectRetryCount - 1)
-            {
-                pipe.Dispose();
-                bootstrapAttempted = await TryBootstrapPluginAsync(
-                        pipeName,
-                        timeoutSeconds,
-                        bypassCooldown: true,
-                        cancellationToken)
-                    .ConfigureAwait(false)
-                    || bootstrapAttempted;
-                await Task.Delay(BootstrapPollIntervalMs, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                pipe.Dispose();
-                throw new QuickerRpcClientException(
-                    ConnectTimeoutErrorCode,
-                    $"无法连接 QuickerRpc 管道 '{pipeName}'：{ex.Message}",
-                    BuildPluginNotRunningHints(bootstrapAttempted));
-            }
+            var binding = Newtonsoft.Json.JsonConvert.DeserializeObject<QuickerRpcHostBinding>(rawBinding!)
+                ?? throw new QuickerRpcClientException(QuickerRpcBindingErrors.Required, "Invalid QKRPC_HOST_BINDING.");
+            return ConnectBoundAsync(binding, timeoutSeconds, clientRpcTarget, cancellationToken);
         }
+        return ConnectSelectedAsync(new QuickerRpcHostSelection { HostSessionId = Environment.GetEnvironmentVariable("QKRPC_HOST_SESSION") },
+            timeoutSeconds, tryBootstrap, clientRpcTarget, cancellationToken);
+    }
 
-        throw new QuickerRpcClientException(
-            ConnectTimeoutErrorCode,
-            $"无法连接 QuickerRpc 管道 '{pipeName}'。",
-            BuildPluginNotRunningHints(bootstrapAttempted));
+    public static async Task<QuickerRpcClientSession> ConnectSelectedAsync(
+        QuickerRpcHostSelection selection, int timeoutSeconds = 15, bool tryBootstrap = false,
+        object? clientRpcTarget = null, CancellationToken cancellationToken = default)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
+        try
+        {
+            var candidates = await QuickerRpcHostDiscovery.DiscoverAsync(selection, deadline.Token).ConfigureAwait(false);
+            if (candidates.Count == 0 && selection.CandidateEndpoints is null && string.IsNullOrWhiteSpace(selection.HostSessionId))
+            {
+                if (tryBootstrap && !IsPipeServerListening())
+                {
+                    await TryBootstrapPluginAsync(QuickerRpcPipeNames.ServerPipe, timeoutSeconds, false, deadline.Token).ConfigureAwait(false);
+                    candidates = await QuickerRpcHostDiscovery.DiscoverAsync(selection, deadline.Token).ConfigureAwait(false);
+                }
+                if (candidates.Count == 0 && selection.RequiredCapabilities.Count == 0 && IsPipeServerListening())
+                    return await ConnectEndpointAsync(QuickerRpcPipeNames.ServerPipe, clientRpcTarget, deadline.Token).ConfigureAwait(false);
+            }
+            var binding = QuickerRpcHostDiscovery.Select(candidates, selection.HostSessionId);
+            return await ConnectBoundAsync(binding, timeoutSeconds, clientRpcTarget, deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new QuickerRpcClientException(ConnectTimeoutErrorCode, "Host discovery/handshake timed out.");
+        }
+    }
+
+    public static async Task<QuickerRpcClientSession> ConnectBoundAsync(
+        QuickerRpcHostBinding binding, int timeoutSeconds = 15, object? clientRpcTarget = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (binding is null) throw new ArgumentNullException(nameof(binding));
+        if (!QuickerRpcEndpointNames.IsCurrentUserEndpoint(binding.Endpoint))
+            throw new QuickerRpcClientException(QuickerRpcBindingErrors.Mismatch, "The binding endpoint is outside the current user's namespace.");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
+        QuickerRpcClientSession? session = null;
+        try
+        {
+            session = await ConnectEndpointAsync(binding.Endpoint, clientRpcTarget, deadline.Token).ConfigureAwait(false);
+            if (session.Binding is null || !binding.SameDestination(session.Binding)
+                || binding.ProtocolVersion != session.Binding.ProtocolVersion || binding.SchemaVersion != session.Binding.SchemaVersion)
+                throw new QuickerRpcClientException(QuickerRpcBindingErrors.Mismatch, "The endpoint no longer belongs to the bound host session. Reopen explicitly.");
+            return session;
+        }
+        catch (Exception ex)
+        {
+            if (session is not null) await session.DisposeAsync().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (ex is QuickerRpcClientException) throw;
+            throw new QuickerRpcClientException(QuickerRpcBindingErrors.Unavailable, "The bound host session is unavailable. No other host was contacted. " + ex.Message);
+        }
+    }
+
+    internal static async Task<QuickerRpcClientSession> ConnectEndpointAsync(
+        string endpoint, object? clientRpcTarget, CancellationToken cancellationToken)
+    {
+#if NET472
+        var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut, PipeOptions.Asynchronous);
+#else
+        var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut,
+            PipeOptions.Asynchronous | (PipeOptions)0x20000000); // CurrentUserOnly, including netstandard clients.
+#endif
+        QuickerRpcClientSession? session = null;
+        try
+        {
+            await pipe.ConnectAsync(cancellationToken).ConfigureAwait(false);
+#if NET472
+            using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
+            {
+                var owner = pipe.GetAccessControl().GetOwner(typeof(System.Security.Principal.SecurityIdentifier));
+                if (!Equals(owner, identity.User)) throw new UnauthorizedAccessException("The pipe owner is not the current user.");
+            }
+#endif
+            var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe, clientRpcTarget);
+            session = new QuickerRpcClientSession(pipe, jsonRpc, proxy);
+            var info = await QuickerRpcHostSessionClient.TryGetAsync(proxy, cancellationToken).ConfigureAwait(false);
+            // The shared alias is deliberately unbindable, even when a modern server answers it.
+            if (endpoint != QuickerRpcPipeNames.ServerPipe)
+                session.Bind(QuickerRpcHostDiscovery.Verify(info, endpoint));
+            return session;
+        }
+        catch
+        {
+            if (session is not null) await session.DisposeAsync().ConfigureAwait(false);
+            else pipe.Dispose();
+            throw;
+        }
+    }
+
+    public static QuickerRpcHostBinding? GetBinding(IQuickerRpcService rpc) =>
+        (rpc as QuickerRpcGuardedService)?.Binding;
+
+    public static void RequireBinding(IQuickerRpcService rpc, QuickerRpcHostBinding expected)
+    {
+        var actual = GetBinding(rpc);
+        if (actual is null || !expected.SameDestination(actual))
+            throw new QuickerRpcClientException(QuickerRpcBindingErrors.Mismatch, "The document and RPC connection belong to different host sessions.");
     }
 
     public static CancellationToken CreateRpcCancellationToken(int timeoutSeconds) =>
         new CancellationTokenSource(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds))).Token;
-
-    private static bool IsRecoverablePipeConnectError(Exception ex)
-    {
-        for (var current = ex; current is not null; current = current.InnerException)
-        {
-            if (current is UnauthorizedAccessException)
-            {
-                return true;
-            }
-
-            if (current is IOException io
-                && io.Message.Contains("denied", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private static async Task<bool> TryBootstrapPluginAsync(
         string pipeName,
@@ -292,7 +299,7 @@ public static class QuickerRpcClient
                         BootstrapAttempted = bootstrapAttempted,
                     };
                 }
-                catch (QuickerRpcClientException)
+                catch (QuickerRpcClientException ex) when (ex.ErrorCode != QuickerRpcBindingErrors.Ambiguous)
                 {
                     // Pipe visible but session not ready yet — keep polling.
                 }

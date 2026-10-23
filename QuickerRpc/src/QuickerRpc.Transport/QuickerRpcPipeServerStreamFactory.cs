@@ -6,6 +6,11 @@ internal static class QuickerRpcPipeServerStreamFactory
 {
     public static NamedPipeServerStream Create(string pipeName)
     {
+#if !NET472
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+            return new NamedPipeServerStream(pipeName, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
+                PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+#endif
 #if NET472
         return new NamedPipeServerStream(
             pipeName,

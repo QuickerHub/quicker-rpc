@@ -5,3 +5,6 @@ global using QuickerRpcClientException = QuickerRpc.Transport.QuickerRpcClientEx
 global using QuickerRpcPipeNames = QuickerRpc.Transport.QuickerRpcPipeNames;
 global using QuickerRpcTraceSink = QuickerRpc.Transport.QuickerRpcTraceSink;
 global using QuickerRpcBootstrap = QuickerRpc.Transport.QuickerRpcBootstrap;
+
+global using QuickerRpcHostDiscovery = QuickerRpc.Transport.QuickerRpcHostDiscovery;
+global using QuickerRpcHostSelection = QuickerRpc.Transport.QuickerRpcHostSelection;

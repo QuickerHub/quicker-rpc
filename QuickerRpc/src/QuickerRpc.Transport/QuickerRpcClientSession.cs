@@ -13,7 +13,7 @@ public sealed class QuickerRpcClientSession : IAsyncDisposable
     {
         Pipe = pipe;
         JsonRpc = jsonRpc;
-        Rpc = rpc;
+        Rpc = new QuickerRpcGuardedService(rpc);
     }
 
     public NamedPipeClientStream Pipe { get; }
@@ -21,6 +21,10 @@ public sealed class QuickerRpcClientSession : IAsyncDisposable
     public JsonRpc JsonRpc { get; }
 
     public IQuickerRpcService Rpc { get; }
+
+    public QuickerRpcHostBinding? Binding => ((QuickerRpcGuardedService)Rpc).Binding;
+
+    internal void Bind(QuickerRpcHostBinding binding) => ((QuickerRpcGuardedService)Rpc).Bind(binding);
 
     public ValueTask DisposeAsync()
     {

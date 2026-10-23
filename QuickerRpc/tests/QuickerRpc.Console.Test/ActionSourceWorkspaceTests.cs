@@ -1,4 +1,6 @@
-using System.Reflection;
+using QuickerRpc.Testing;
+using QuickerRpc.Transport;
+using StreamJsonRpc;
 using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
@@ -75,26 +77,25 @@ public sealed class ActionSourceWorkspaceTests
     [TestMethod]
     public async Task Save_AdvancesVersionOnlyAfterHostSuccess()
     {
-        ActionSourceWorkspace.Open(_directory, ActionId, 7, "fixture", "catalog", Native());
-        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
-        var proxy = (SourceRpcProxy)(object)rpc;
+        await using var host = new FakeBindingHost();
+        ActionSourceWorkspace.Open(_directory, ActionId, 7, "fixture", "catalog", Native(), hostBinding: host.Binding);
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(host.Binding);
+        var rpc = session.Rpc;
         var versions = new List<long?>();
-        proxy.Handler = (method, args) =>
+        host.Apply = (id, version) =>
         {
-            Assert.AreEqual(nameof(IQuickerRpcService.ApplyActionProgramSourceAsync), method.Name);
-            Assert.AreEqual(5, args!.Length); // Original CLR signature; only four parameters go over the wire.
-            Assert.AreEqual(ActionId, args![0]);
-            versions.Add((long?)args[2]);
-            Assert.AreEqual(false, args[3]);
-            return Task.FromResult(new QuickerRpcApplyXActionResult
-            { Success = true, ActionId = ActionId, EditVersion = versions.Count + 7 });
+            Assert.AreEqual(ActionId, id);
+            versions.Add(version);
+            return new QuickerRpcApplyXActionResult
+            { Success = true, ActionId = ActionId, EditVersion = versions.Count + 7 };
         };
-        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None)).Ok);
+        var first = await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None);
+        Assert.IsTrue(first.Ok, first.Error + ": " + first.Message);
         Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None)).Ok);
         CollectionAssert.AreEqual(new long?[] { 7, 8 }, versions);
 
-        proxy.Handler = (_, _) => Task.FromResult(new QuickerRpcApplyXActionResult
-        { Success = false, ErrorCode = "EDIT_VERSION_CONFLICT", VersionConflict = true });
+        host.Apply = (_, _) => new QuickerRpcApplyXActionResult
+        { Success = false, ErrorCode = "EDIT_VERSION_CONFLICT", VersionConflict = true };
         Assert.IsFalse((await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None)).Ok);
         Assert.AreEqual(9, ActionSourceWorkspace.Prepare(_directory).EditVersion);
     }
@@ -188,9 +189,11 @@ public sealed class ActionSourceWorkspaceTests
     [TestMethod]
     public async Task V2DraftSidecar_BindsFilesDryRunConsecutiveSavesAndNativeIdentity()
     {
+        await using var host = new FakeBindingHost("v2");
         var native = Native();
         native["Variables"]![0]!["DefaultValue"] = Script;
         ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", native,
+            hostBinding: host.Binding,
             storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
         var baselinePath = Path.Combine(_directory, ActionSourceWorkspace.BaselineFile);
         var baseline = File.ReadAllText(baselinePath);
@@ -202,36 +205,41 @@ public sealed class ActionSourceWorkspaceTests
         var files = Directory.GetFiles(Path.Combine(_directory, "files"));
         Assert.AreEqual(2, files.Length); // script and variable default, both materialized offline.
         File.WriteAllText(files.Single(p => File.ReadAllText(p) == Script && Path.GetFileName(p) == "source-2.txt"), "changed script\n");
-        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(host.Binding);
         var versions = new List<long>();
-        ((SourceRpcProxy)(object)rpc).Handler = (method, args) =>
+        host.ApplyWithStorage = (id, storage, version, force) =>
         {
-            Assert.AreEqual(nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync), method.Name);
-            var storage = (QuickerRpcActionStorageIdentity)args![2]!;
+            Assert.AreEqual(ActionId, id);
+            Assert.IsFalse(force);
             Assert.AreEqual("draft", storage.Kind);
             Assert.AreEqual("draft-1", storage.DraftId);
-            Assert.AreEqual((long)args[3]!, storage.Version);
+            Assert.AreEqual(version, storage.Version);
             versions.Add(storage.Version);
-            return Task.FromResult(new QuickerRpcApplyXActionResult
+            return new QuickerRpcApplyXActionResult
             { Success = true, Persisted = true, EditVersion = storage.Version + 1,
-                StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = storage.Version + 1 } });
+                StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = storage.Version + 1 } };
         };
-        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), default)).Ok);
-        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), default)).Ok);
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(session.Rpc, Args(false), default)).Ok);
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(session.Rpc, Args(false), default)).Ok);
         CollectionAssert.AreEqual(new long[] { 3, 4 }, versions);
         Assert.AreEqual(5L, ActionSourceWorkspace.Prepare(_directory).StorageIdentity!.Version);
+        Assert.IsTrue(host.Binding.SameDestination(ActionSourceWorkspace.Prepare(_directory).HostBinding!));
+        Assert.AreEqual(2, host.StorageWrites);
+        Assert.AreEqual(host.StorageWrites, host.Writes);
     }
 
     [TestMethod]
     public async Task V2PartialCommit_PreservesCheckpointAndReportsPersistence()
     {
+        await using var host = new FakeBindingHost("v2");
         ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            hostBinding: host.Binding,
             storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
-        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
-        ((SourceRpcProxy)(object)rpc).Handler = (_, _) => Task.FromResult(new QuickerRpcApplyXActionResult
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(host.Binding);
+        host.ApplyWithStorage = (_, _, _, _) => new QuickerRpcApplyXActionResult
         { Persisted = true, ErrorCode = "SOURCE_POST_COMMIT_FAILED", ErrorMessage = "fixture", EditVersion = 4,
-            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 4 } });
-        var response = await ActionSourceServeOps.SaveAsync(rpc, Args(false), default);
+            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 4 } };
+        var response = await ActionSourceServeOps.SaveAsync(session.Rpc, Args(false), default);
         Assert.IsFalse(response.Ok);
         Assert.AreEqual("SOURCE_POST_COMMIT_FAILED", response.Error);
         var data = JsonSerializer.SerializeToElement(response.Data);
@@ -242,19 +250,28 @@ public sealed class ActionSourceWorkspaceTests
     [TestMethod]
     public async Task IdentityBoundBundle_SelectsNewRPCOnceWithoutLegacyRetry()
     {
+        await using var host = new FakeBindingHost("v2", storage: false);
         ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            hostBinding: host.Binding,
             storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
-        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
-        var calls = new List<string>();
-        ((SourceRpcProxy)(object)rpc).Handler = (method, _) =>
-        {
-            calls.Add(method.Name);
-            return Task.FromException<QuickerRpcApplyXActionResult>(new InvalidOperationException("Remote source-storage method unavailable"));
-        };
-        var response = await ActionSourceServeOps.SaveAsync(rpc, Args(false), default);
-        Assert.IsFalse(response.Ok);
-        CollectionAssert.AreEqual(new[] { nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync) }, calls);
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(host.Binding);
+        await Assert.ThrowsExceptionAsync<RemoteMethodNotFoundException>(() => ActionSourceServeOps.SaveAsync(session.Rpc, Args(false), default));
+        Assert.AreEqual(0, host.Writes);
         Assert.AreEqual(3L, ActionSourceWorkspace.Prepare(_directory).EditVersion);
+    }
+
+    [TestMethod]
+    public async Task Storage_bound_bundle_rejects_a_different_host_before_either_write_entry()
+    {
+        await using var source = new FakeBindingHost("v2");
+        await using var other = new FakeBindingHost("v2");
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            hostBinding: source.Binding, storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(other.Binding);
+        var error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => ActionSourceServeOps.SaveAsync(session.Rpc, Args(false), default));
+        Assert.AreEqual(QuickerRpcBindingErrors.Mismatch, error.ErrorCode);
+        Assert.AreEqual(0, source.Writes + other.Writes);
+        Assert.AreEqual(3L, ActionSourceWorkspace.Prepare(_directory).StorageIdentity!.Version);
     }
 
     [TestMethod]
@@ -264,21 +281,19 @@ public sealed class ActionSourceWorkspaceTests
         var native = Native();
         native["FutureNumbers"] = new JArray(lexemes.Select(value => new JRaw(value)));
         var nativeJson = native.ToString(Formatting.None);
-        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
-        ((SourceRpcProxy)(object)rpc).Handler = (method, _) =>
-        {
-            Assert.AreEqual(nameof(IQuickerRpcService.GetActionProgramSourceAsync), method.Name);
-            return Task.FromResult(new QuickerRpcGetActionProgramSourceResult
-            { Success = true, ActionId = ActionId, EditVersion = 7, BodyJson = nativeJson });
-        };
+        await using var host = new FakeBindingHost("v2") { BodyJson = nativeJson,
+            StorageIdentity = new() { Kind = "catalog", Version = 7, ContentHash = "fixture-native-hash" } };
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(host.Binding);
         var args = JsonSerializer.SerializeToElement(new { id = ActionId, dir = _directory, noAutoFiles = true });
-        var opened = await ActionSourceServeOps.OpenAsync(rpc, args, default);
+        var opened = await ActionSourceServeOps.OpenAsync(session.Rpc, args, default);
         Assert.IsTrue(opened.Ok, opened.Message);
         var prepared = ActionSourceWorkspace.Prepare(_directory);
         CollectionAssert.AreEqual(lexemes, ((JArray)prepared.Body["FutureNumbers"]!).Select(value => value.ToString(Formatting.None)).ToArray());
         ActionSourceWorkspace.Checkpoint(prepared, 8);
         var reloaded = ActionSourceWorkspace.Prepare(_directory);
         Assert.AreEqual(8L, reloaded.EditVersion);
+        Assert.IsTrue(host.Binding.SameDestination(reloaded.HostBinding!));
+        Assert.AreEqual(8L, reloaded.StorageIdentity!.Version);
         CollectionAssert.AreEqual(lexemes, ((JArray)reloaded.Body["FutureNumbers"]!).Select(value => value.ToString(Formatting.None)).ToArray());
     }
 
@@ -315,9 +330,4 @@ public sealed class ActionSourceWorkspaceTests
         ["SubPrograms"] = new JArray(),
     };
 
-    public class SourceRpcProxy : DispatchProxy
-    {
-        public Func<MethodInfo, object?[]?, object?>? Handler { get; set; }
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => Handler!(targetMethod!, args);
-    }
 }
