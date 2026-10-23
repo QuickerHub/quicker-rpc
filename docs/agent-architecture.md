@@ -186,14 +186,19 @@ V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必�
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
 持久化。V2 已有 `IQuickerRpcActionProgramSourceHost` 的原生 catalog/draft adapter，复用
 共享 codec，保留未知字段、snapshot hash 与条件持久化；宿主原生 API 或 UI dispatcher
-不具备时 capability 关闭。V2 真实目标绑定/专用动作验收仍待完成，这与 V2 Designer UI port
-为 null 是两个不同边界。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
+不具备时 capability 关闭。V2 真实目标绑定/专用动作验收仍待完成，这与 V2 Designer UI
+capability 关闭是两个不同边界。只读 Designer port 不开放 UI 操作；端口逐项对齐见
+[V2 计划](design/quicker-rpc-plugin-v2.md)。
 
 V2 的 StepRunner UI 详情与 Agent 详情共用 catalog mapper，分别使用完整 UI 与压缩
 Agent serializer。只读摘要调用精确 native leaf，并在现有 Application dispatcher 上
 执行；不为目录读取初始化整个 Headless/Agent/账号栈。取消的迟到结果不交付，缺失
 Designer 的十个 Runtime 入口使用现有结果 DTO 明确失败，不能换宿主或空引用。
 这两项原语不开放 DesignerUi capability，也不代表完整 V2 Designer 已接入。
+quick insert、toolbox 与 FA geometry 另由可选读 availability 和独立 wire key 声明。
+每个 V2 host 保有自己的 native catalog snapshot，只使用精确只读 leaf 和当前 dispatcher；
+旧 FA search、编辑器、context、剪贴板与 text tool 继续明确不支持。能力探测仅检查已加载
+类型，不以初始化 Headless/账号栈换取 capability=true。
 
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，
