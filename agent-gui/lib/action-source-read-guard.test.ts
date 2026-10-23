@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { dirname, join, resolve } from "node:path";
-import test from "node:test";
+import { realpathSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
+import test, { mock } from "node:test";
 import { createTurnExecutionState, disposeTurnExecutionState } from "./agent-harness/turn-execution-state";
 import {
   rememberActionSourceReadDirectory,
@@ -32,6 +33,37 @@ test("confirmed roots allow only source YAML and resource files using metadata-o
     assert.equal(await validateConfirmedActionSourceRead(state, lexical(path), fixture.dependencies), true);
   }
   assert.equal(fixture.inspected.length, 9);
+});
+
+test("native canonical proof handles a short-name alias without trusting later redirection", async () => {
+  const state = createTurnExecutionState();
+  const shortBundle = resolve("fixture-cwd/SHORT~1/.tmp/source");
+  const canonicalBundle = resolve("fixture-cwd/canonical long name/.tmp/source");
+  const native = mock.method(realpathSync, "native", (path) => {
+    assert.equal(path, shortBundle);
+    return canonicalBundle;
+  });
+  try {
+    rememberActionSourceReadDirectory(state, shortBundle);
+  } finally {
+    native.mock.restore();
+  }
+  const canonicalize = (path: string) => join(canonicalBundle, relative(shortBundle, path));
+  const fixture = metadataFixture({
+    resolveDirectory: async (directory) => lexical(canonicalize(directory)),
+    realpath: async (path) => canonicalize(path),
+  });
+  for (const suffix of ["program.source.yaml", "files/script.cs"]) {
+    assert.equal(await validateConfirmedActionSourceRead(state, lexical(join(shortBundle, suffix)), fixture.dependencies), true);
+  }
+
+  let metadataCalls = 0;
+  const redirected = metadataFixture({
+    resolveDirectory: async () => lexical(resolve("outside-root/files")),
+    lstat: async () => { metadataCalls += 1; return { isFile: () => true, isSymbolicLink: () => false }; },
+  });
+  assert.equal(await validateConfirmedActionSourceRead(state, lexical(join(shortBundle, "files/script.cs")), redirected.dependencies), false);
+  assert.equal(metadataCalls, 0);
 });
 
 test("no proof or unrelated/managed paths cannot create a broad Read exception", async () => {

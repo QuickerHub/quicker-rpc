@@ -6,6 +6,8 @@ import {
   evaluateAgentRuntimeScenario,
   evaluateAgentRuntimeScenarios,
 } from "./agent-runtime-eval.ts";
+import { formatActionSourceToolResult } from "./qkrpc-action-source-tool.ts";
+import { formatLocalToolResult, isStructuredToolResult } from "./tool-result.ts";
 
 describe("agent-runtime-eval", () => {
   it("has unique scenario ids and natural-language prompts", () => {
@@ -27,6 +29,23 @@ describe("agent-runtime-eval", () => {
     const results = evaluateAgentRuntimeScenarios();
     assert.deepEqual(
       results.filter((result) => !result.passed),
+      [],
+    );
+  });
+
+  it("evaluates source-save recovery using actual offline validation feedback", () => {
+    const scenario = AGENT_RUNTIME_EVAL_SCENARIOS.find(
+      (candidate) => candidate.id === "existing-v1-source-validation",
+    );
+    assert.ok(scenario);
+    const feedback = formatActionSourceToolResult(
+      "save",
+      { dir: ".tmp/quicker/runtime-eval-action", dryRun: true },
+      formatLocalToolResult({ ok: true, dryRun: true }),
+    );
+    assert.ok(isStructuredToolResult(feedback));
+    assert.deepEqual(
+      evaluateAgentRuntimeScenario({ ...scenario, priorToolFeedback: feedback }).failures,
       [],
     );
   });

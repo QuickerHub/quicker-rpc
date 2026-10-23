@@ -1,7 +1,8 @@
 # 持续集成
 
-[CI workflow](../../.github/workflows/ci.yml) 对每个 PR、`main` / `master` / `codex/**`
-push 和手动运行执行阻断检查，不使用路径过滤；共享代码、配置和测试资产变化都会触发。
+[CI workflow](../../.github/workflows/ci.yml) 对每个 PR、`main` / `master` push
+和手动运行执行阻断检查，不使用路径过滤；共享代码、配置和测试资产变化都会触发。
+开发分支只通过 PR 触发一次，避免同一次提交重复启动 push 与 PR 两条流水线。
 同一 PR/分支的新运行取消旧运行。工作流只有 `contents: read` 权限，不使用用户密钥。
 
 ## 检查范围
@@ -25,6 +26,8 @@ Agent 门禁直接执行已有 `agent-gui/scripts/check-agent-offline.mjs`，包
 guard 是进程内防误用检查，允许 tsx IPC，不是系统沙箱；新增测试仍须审计副作用。
 
 `test:agent-eval` 检查确定性解析、fixture 与 fake harness；不会调用真实模型。
+`test:authoring-benchmark` 是固定的工具选择与动作编写样例回归：用给定输入检查推荐工具、
+验证提示和失败恢复是否符合当前约定；它不请求模型，也不是性能或付费评测。
 benchmark 工作区中的 `.quicker` 命令与子代理是版本控制内的测试资产，不能依赖开发机
 被忽略的文件。旧 docs、Agent eval unit、action-trace 工作流已合并到这条 CI。
 

@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { TurnExecutionState } from "@/lib/agent-harness/turn-execution-state";
 import type { SourceDirectoryResolution } from "@/lib/action-source-directory";
@@ -10,7 +11,14 @@ function pathKey(path: string): string {
 /** Only a confirmed source operation can establish this proof; no sidecar reads are needed. */
 export function rememberActionSourceReadDirectory(state: TurnExecutionState | undefined, directory: string): void {
   if (!state || state.closed || !isAbsolute(directory)) return;
-  (state.actionSourceDirectories ??= new Set()).add(pathKey(directory));
+  let confirmed = directory;
+  try {
+    // Freeze the target now; resolving a saved alias later could trust a retargeted link.
+    confirmed = realpathSync.native(directory);
+  } catch {
+    // Unavailable metadata keeps the lexical proof; reads must still pass canonical checks.
+  }
+  (state.actionSourceDirectories ??= new Set()).add(pathKey(confirmed));
 }
 
 function editableSourcePath(state: TurnExecutionState, absolute: string): boolean {
