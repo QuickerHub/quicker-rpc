@@ -117,7 +117,7 @@ export function countInteractiveRefs(refMap) {
 
 /** @param {import('playwright').Page} page */
 export async function collectInteractiveNodes(page) {
-  const result = await page.evaluate(COLLECT_SCRIPT);
+  const result = await page.evaluate(`(${COLLECT_SCRIPT})()`);
   if (!Array.isArray(result)) return [];
   /** @type {{ role: string; name: string | null; href?: string }[]} */
   const nodes = [];
@@ -231,7 +231,7 @@ const PICK_AT_POINT_SCRIPT = `
  * @param {number} y
  */
 export async function pickElementAtPoint(page, x, y) {
-  const result = await page.evaluate(PICK_AT_POINT_SCRIPT, { x, y });
+  const result = await page.evaluate(`(${PICK_AT_POINT_SCRIPT})(${JSON.stringify({ x, y })})`);
   if (!result || typeof result !== "object") return { found: false };
   return /** @type {{ found: boolean; tagName?: string; role?: string; name?: string | null; text?: string; id?: string | null; className?: string | null; href?: string | null; value?: string | null; x?: number; y?: number; width?: number; height?: number }} */ (
     result
