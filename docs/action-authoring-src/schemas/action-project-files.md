@@ -1,5 +1,8 @@
 # {{#topic-title}}
 
+**Legacy JSON project layout.** YAML bundles from `action open` use the separate
+**program-source** layout; do not add `data.json` or copy legacy project metadata into them.
+
 **When**: `.quicker/actions/{actionId}/` layout or **file refs** in data.json / files/. Wire rules: **action-data-schema**.
 
 ## Layout

@@ -105,11 +105,16 @@ qkrpc agent setup --project    # 额外写入项目配置（团队 opt-in）
 完整表：[docs/cli-commands.md](docs/cli-commands.md) · 机器可读：`qkrpc help --json`
 
 ```powershell
-# 写动作指南（先读 overview → authoring-workflow）
-qkrpc guide get --topic overview --json
+# 现有 V1 动作：YAML 源编辑；V2 使用 Quicker 原生 MCP
+qkrpc guide get --topic program-source --json
 
-# 搜索 / 读取 / 创建 / 编辑
+# 搜索 → 打开到空目录 → 编辑 YAML/files → 离线预检 → 保存
 qkrpc action list --query "keyword" --json
+qkrpc action open --id <guid> --dir .tmp/quicker/edit-action --json
+qkrpc action save --dir .tmp/quicker/edit-action --dry-run --json
+qkrpc action save --dir .tmp/quicker/edit-action --json
+
+# 创建 / 旧 JSON 接口（保留兼容）
 qkrpc action get --id <guid> --return-mode full --json
 qkrpc action create --title "My Action" --json
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
@@ -125,7 +130,10 @@ qkrpc action run --id <idOrName> --wait --json
 qkrpc action update --id <sharedActionGuid> --changelog "说明" --json
 ```
 
-大 JSON 可用 `--patch-file -` / `--xaction-file -` 从 stdin 传入。
+`open` 导出 `program.source.yaml`、`files/` 与工具管理的身份/原生基线文件；
+只编辑 YAML 和资源。`save` 写回原动作并校验版本与 Designer 状态，不公开发布。
+独立 MCP 对应 `qkrpc_action_open` / `qkrpc_action_save`；本轮覆盖现有 V1 动作程序体，
+元数据、新建和全局子程序仍走原入口。旧 JSON 可用 `--patch-file -` / `--xaction-file -` 从 stdin 传入。
 
 ---
 

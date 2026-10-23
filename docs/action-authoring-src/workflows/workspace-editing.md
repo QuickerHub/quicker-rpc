@@ -1,6 +1,9 @@
 # {{#topic-title}}
 
-**When**: P2/P6 before editing data.json or files/. Hot model in prompt-tier0; params in workspace_program tool.
+**Existing V1 action via standalone CLI/MCP**: use **program-source** (`open` → YAML/files → `save`) by default.
+
+**Below**: legacy JSON projects and QuickerAgent's `workspace_program` workflow.
+Use before editing `data.json` or its `files/`; params are in workspace_program tools.
 
 {{#include-partial workflow-checklist-workspace-editing}}
 

@@ -1,5 +1,6 @@
 | title | topic | when |
 |-------|-------|------|
+| V1 YAML action editing | **`program-source`** | standalone CLI/MCP open → YAML/files → save |
 | Action authoring | **`authoring-workflow`** | P1–P7 main flow |
 {{#only-agent}}| Workspace editing | **`workspace-editing`** | `.quicker` layout, workspace tools, file externalize |
 {{/only-agent}}| Subprograms | **`subprogram-workflow`** | global vs embedded |

@@ -14,7 +14,7 @@ qkrpc <command> --help
 - 自动化与 Agent 使用 `--json`；成功退出码为 `0`，失败为 `1`。
 - 连接失败使用 `qkrpc wait --json`，不要循环调用 shell probe。
 - 大 JSON 使用 `--patch-file`、`--xaction-file` 或磁盘项目，不放在命令行参数中。
-- 动作编写先读 `qkrpc guide get --topic authoring-workflow --json`。
+- 现有 V1 动作默认先读 `qkrpc guide get --topic program-source --json`；创建与旧 JSON 流程读 `authoring-workflow`。V2 用原生 MCP。
 - step 参数固定走 `step-runner search -> step-runner get`，禁止猜键名。
 
 ## 命令族
@@ -24,7 +24,7 @@ qkrpc <command> --help
 | `help`、`wait`、`serve` | 自描述、连接等待、HTTP 服务 |
 | `agent setup`、`mcp` | Agent 插件/MCP 安装与 stdio server |
 | `guide`、`step-runner` | 动作编写指南和步骤 schema |
-| `action` | 创建、查询、workspace 同步、运行、调试、分享 |
+| `action` | 查询、V1 YAML 源 open/save、创建、旧 workspace 同步、运行、调试、分享 |
 | `subprogram` | 全局子程序查询、workspace 同步和分享 |
 | `profile`、`process` | Quicker 动作页与虚拟场景布局 |
 | `settings`、`launcher` | 设置读写、打开设置页、统一意图解析 |
@@ -37,18 +37,28 @@ Coding Agent 优先使用 MCP 的同名能力；CLI 示例用于人工诊断和�
 
 ```powershell
 qkrpc wait --json
-qkrpc guide get --topic authoring-workflow --json
+qkrpc guide get --topic program-source --json
 
-qkrpc action get --id <guid> --return-mode full --json
-qkrpc action apply --dir .quicker/actions/<project> --json
+qkrpc action open --id <guid> --dir .tmp/quicker/edit-action --json
+# 编辑 program.source.yaml 与 files/ 后：
+qkrpc action save --dir .tmp/quicker/edit-action --dry-run --json
+qkrpc action save --dir .tmp/quicker/edit-action --json
 qkrpc action run --id <guid> --wait --json
 
 qkrpc subprogram get --id <idOrName> --return-mode full --json
 qkrpc subprogram apply --dir .quicker/subprograms/<project> --json
 ```
 
-磁盘程序体由宿主文件工具修改，再用 `workspace_program patch` 或对应 `apply` 保存；
-不要把 inline steps JSON 直接传给工具，也不要在 patch 后再次 full get。
+独立 MCP 对应 `qkrpc_action_open(id, dir, minLines?, noAutoFiles?)` 和
+`qkrpc_action_save(dir, dryRun?)`；HTTP 方法为 `action.open` / `action.save`。
+`open` 必须指定新建或空目录，可用 `--min-lines 4` / `--no-auto-files` 控制长参数外置。
+只编辑 `program.source.yaml` 与 `files/`，保留 `quicker.source.json` 与内部原生基线
+`.qkrpc/baseline.json`。dry-run 完全离线校验；实际 save 检查原动作的 `editVersion`
+与 Designer 状态。成功后可继续编辑同一目录，工具更新基线且不重写用户源文件。
+
+YAML 入口覆盖现有 V1 动作程序体；创建、元数据和全局子程序使用原命令。
+旧 `get` / `patch` / `apply` 接口保持兼容。QuickerAgent 内置编辑仍走
+`workspace_program` 的 `data.json` / `files/` → patch；不要混用两种目录格式。
 
 ## 分享与危险操作
 

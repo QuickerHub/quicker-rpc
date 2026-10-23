@@ -27,7 +27,7 @@
 |--|--------|----------|
 | storage | global lib | parent SubPrograms[] |
 | disk | .quicker/subprograms/{id}/ | .quicker/actions/{aid}/subprograms/{sid}/ |
-| call | sys:subprogram + %%{guid} | in-parent id |
+| call | sys:subprogram + %%{guid} | in-parent name (not its storage id) |
 
 ## A. Manage global
 

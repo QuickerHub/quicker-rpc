@@ -1,6 +1,7 @@
 | title | topic | when |
 |-------|-------|------|
-| Action data.json schema | **`action-data-schema`** | P2–P6: steps[] + variables[] JSON and wire rules |
+| Program source YAML | **`program-source`** | V1 CLI/MCP bundle, YAML codec, save checks |
+| Action data.json schema | **`action-data-schema`** | compatibility P2–P6: steps[] + variables[] JSON and wire rules |
 | Expressions | **`expressions`** | P4: sys:assign single-var; `$=`/`$$` inline; evalexpression batch/LINQ |
 | Implementation fallback | **`implementation-fallback`** | P4 when no dedicated module |
 | Action icons | **`action-icons`** | P3 metadata/menu fa: spec; fa search |

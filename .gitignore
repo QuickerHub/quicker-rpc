@@ -94,6 +94,10 @@ publish/**
 
 # qkbuild plugin publish output (under QuickerRpc/src/, not repo-root publish/)
 QuickerRpc/src/QuickerRpc.Plugin.*/publish/
+/QuickerRpc/artifacts/
+
+# Local browser-test captures
+/agent-gui/output/
 
 # Local Quicker source reference for agent/reflection work (not part of this repo)
 .ref/Quicker/

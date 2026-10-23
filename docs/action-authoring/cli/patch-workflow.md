@@ -1,5 +1,9 @@
 # Patch workflow (CLI)
 
+**Compatibility JSON interface.** Existing V1 action editing defaults to
+**program-source** (`action open` → YAML/files → `action save`); use this topic
+for existing patch automation. V2 uses native MCP.
+
 **`qkrpc action patch`**: one call = one save. Before each new/changed step: **`qkrpc step-runner get`** (authoring-workflow P5).
 
 ## Top-level shape

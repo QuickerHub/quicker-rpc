@@ -1,6 +1,6 @@
 ---
 name: quicker-authoring
-description: "Routes Quicker headless action editing (P0–P7): pick workflow topic, then schema/step-runner refs. Use when creating or editing Quicker actions, subprograms, steps, or data.json on disk."
+description: "Routes Quicker V1 action editing: standalone CLI/MCP YAML bundles use program-source; QuickerAgent/legacy JSON, creation, and subprograms use their existing workflows. Step schema and module knowledge load on demand. V2 uses native MCP."
 allowed-tools: docs
 compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 ---
@@ -13,6 +13,7 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 
 | intent | topic |
 |--------|-------|
+| existing V1 action + qkrpc_action_open/save available | **program-source** (YAML bundle; default for standalone MCP/CLI) |
 | edit program body | authoring-workflow |
 | disk .quicker / workspace | workspace-editing |
 | global/embedded subprogram | subprogram-workflow |
@@ -81,6 +82,8 @@ P7  trust editVersion after save (NO verify re-get)
 Walkthrough: authoring-workflow. Workspace: workspace-editing.
 
 ## Hard rules
+
+V2 actions use Quicker's native MCP. For V1 source bundles, edit only `program.source.yaml` / `files/`; keep `quicker.source.json` and `.qkrpc/baseline.json` tool-managed. Save dry-run is offline; actual save checks the original action's version and Designer state. Metadata, creation, and global subprograms retain the existing commands. The workspace/patch rules below apply to QuickerAgent and compatibility JSON projects.
 
 - NO guess inputParams without step_runner_get
 - NO get-ui / step-runner.getUi

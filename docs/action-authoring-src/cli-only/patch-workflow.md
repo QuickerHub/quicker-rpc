@@ -1,5 +1,9 @@
 # {{#topic-title}}
 
+**Compatibility JSON interface.** Existing V1 action editing defaults to
+**program-source** (`action open` → YAML/files → `action save`); use this topic
+for existing patch automation. V2 uses native MCP.
+
 {{#only-agent}}
 **NO incremental patch JSON** on workspace path (no `op`/add/update/remove, no `--patch-file`). Edit `.quicker/…/data.json` / `files/` → **workspace_program patch** — see **workspace-editing**.
 {{/only-agent}}

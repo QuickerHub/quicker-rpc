@@ -9,6 +9,8 @@ public sealed class QkrpcMcpRuntime : IAsyncDisposable
     private static readonly HashSet<string> WorkspaceOps = new(StringComparer.OrdinalIgnoreCase)
     {
         "action.extract",
+        "action.open",
+        "action.save",
         "action.apply",
         "action.validate",
         "project.lint.schedule",
@@ -84,7 +86,12 @@ public sealed class QkrpcMcpRuntime : IAsyncDisposable
             return args;
         }
 
-        var root = await _workspace.TryResolveWorkspaceRootAsync(cancellationToken).ConfigureAwait(false);
+        var sourceRelativePath = (op is "action.open" or "action.save")
+            && args.TryGetProperty("dir", out var sourceDir) && sourceDir.ValueKind == JsonValueKind.String
+            && !Path.IsPathFullyQualified(sourceDir.GetString() ?? string.Empty);
+        var root = sourceRelativePath
+            ? await _workspace.RequireWorkspaceRootAsync(cancellationToken).ConfigureAwait(false)
+            : await _workspace.TryResolveWorkspaceRootAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(root))
         {
             return args;

@@ -1,5 +1,9 @@
 # {{#topic-title}}
 
+**Compatibility JSON / QuickerAgent workspace schema.** Standalone CLI/MCP
+existing V1 action edits default to **program-source** YAML bundles. This JSON
+schema describes wire data, not the complete YAML source syntax.
+
 **When**: create or edit **data.json** — steps[] + variables[] wire shape and authoring rules.
 
 **Write short names only**: `key` / `inputs` / `outputs`. Legacy `stepRunnerKey` / `inputParams` / `outputParams` are **read-compatible only**. Never write `stepKey` / `StepKey`.

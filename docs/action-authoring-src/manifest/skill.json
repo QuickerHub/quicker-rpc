@@ -1,6 +1,6 @@
 {
   "name": "quicker-authoring",
-  "description": "Routes Quicker headless action editing (P0–P7): pick workflow topic, then schema/step-runner refs. Use when creating or editing Quicker actions, subprograms, steps, or data.json on disk.",
+  "description": "Routes Quicker V1 action editing: standalone CLI/MCP YAML bundles use program-source; QuickerAgent/legacy JSON, creation, and subprograms use their existing workflows. Step schema and module knowledge load on demand. V2 uses native MCP.",
   "allowed-tools": "docs",
   "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 }

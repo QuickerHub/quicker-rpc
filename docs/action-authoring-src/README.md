@@ -9,7 +9,7 @@
 | `manifest/` | **Edit registry** — `skill.json`, `topics.json`, `phrases.json`, `operations.json` |
 | `skills/quicker-authoring/SKILL.src.md` | L1 router → `SKILL.md` |
 | `overview.md` | L1 overview topic (`docs get topic=overview`) |
-| `workflows/` | P1–P7 and organization flows |
+| `workflows/` | V1 YAML open/save (`program-source`), compatibility P1–P7, organization flows |
 | `schemas/` | data.json shapes and rules |
 | `catalogs/` | step-runner search/get/module catalog |
 | `cli-only/` | CLI-only topics (`profiles: ["cli"]`) |
@@ -21,6 +21,12 @@ Module deep refs (`step-modules/kc`, `step-modules/authored`) live in **`docs/au
 ## Audience
 
 Docs target **Agents** (QuickerAgent + `qkrpc guide` CLI consumers). Compressed English, tables, short rules. `{{#only-cli}}` / `{{#only-agent}}` only where invoke names differ.
+
+Existing V1 actions through standalone CLI/MCP default to `program-source` YAML
+bundles. QuickerAgent's `workspace_program`, creation, metadata, and global
+subprograms retain their existing workflows; keep those scopes explicit. V2
+uses Quicker's native MCP. Runner schema and deep module references remain
+shared knowledge, while old JSON examples must be translated to S0 YAML.
 
 ## Markers
 

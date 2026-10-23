@@ -31,6 +31,8 @@ internal static class ServeInvokeDispatcher
                 "wait" => await WaitAsync(args, cancellationToken).ConfigureAwait(false),
                 "guide.get" => GuideGet(args),
                 "guide.search" => GuideSearch(args),
+                "action.save" when ServeJsonArgs.GetBool(args, "dryRun") =>
+                    await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false),
                 _ when normalized.StartsWith("guide.", StringComparison.Ordinal) =>
                     Fail("UNKNOWN_OP", $"Unknown guide op: {op}"),
                 _ => await RpcOpAsync(pool, normalized, args, timeoutSeconds, cancellationToken)
@@ -70,6 +72,8 @@ internal static class ServeInvokeDispatcher
             "action.search" => await ActionSearchAsync(pool, args, token).ConfigureAwait(false),
             "action.mention-search" => await ActionMentionSearchAsync(pool, args, token).ConfigureAwait(false),
             "action.get" => await ActionGetAsync(rpc, args, token).ConfigureAwait(false),
+            "action.open" => await ActionSourceServeOps.OpenAsync(rpc, args, token).ConfigureAwait(false),
+            "action.save" => await ActionSourceServeOps.SaveAsync(rpc, args, token).ConfigureAwait(false),
             "action.shared.get" => await ActionSharedGetAsync(rpc, args, token).ConfigureAwait(false),
             "action.library.search" => await ActionLibrarySearchAsync(rpc, args, token).ConfigureAwait(false),
             "action.create" => await ActionCreateAsync(rpc, args, token).ConfigureAwait(false),

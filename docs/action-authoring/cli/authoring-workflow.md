@@ -1,6 +1,12 @@
 # Action authoring workflow
 
-**When**: create/edit action program body — follow P1–P7. Disk: workspace-editing. CLI inline patch: patch-workflow.
+**Existing V1 action via standalone CLI/MCP**: follow **program-source**:
+`action open` → edit `program.source.yaml` / `files/` → `action save --dry-run` → `action save`.
+MCP: `qkrpc_action_open` / `qkrpc_action_save`. V2 uses its native MCP.
+
+**P1–P7 below** covers QuickerAgent's `workspace_program`, action creation, and
+legacy JSON editing. Metadata/global subprogram commands remain unchanged.
+Disk: workspace-editing. CLI JSON patch: patch-workflow.
 
 ## Checklist (P1–P7)
 

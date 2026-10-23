@@ -7,7 +7,13 @@
     <Description>QuickerRpc host adapter contracts (V1/V2 plugin implementations call into Quicker via these interfaces).</Description>
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
   </PropertyGroup>
+  <!-- Keep host interfaces and their versioned Contracts DTOs in the same hot-update graph. -->
+  <PropertyGroup>
+    <UseAssemblyVersionFileNameSuffix>true</UseAssemblyVersionFileNameSuffix>
+    <AppendAssemblyVersionFileNameSuffix Condition="'$(TargetFramework)' != 'net472'">false</AppendAssemblyVersionFileNameSuffix>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
   </ItemGroup>
+  <Import Project="$(MonorepoRoot)build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
 </Project>

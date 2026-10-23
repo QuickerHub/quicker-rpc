@@ -17,7 +17,7 @@ QuickerAgent (Electron + Next.js + AI SDK)
 | ID | 用户能力 | 状态 | 事实入口 |
 |---|---|---|---|
 | CHAT | Agent/Ask/Launcher、流式工具、审批、多线程历史、上下文压缩 | 已实现 | `agent-gui/lib/agent-harness/`、`agent-core/`、`lib/db/` |
-| AUTHOR | 动作/子程序搜索、同步、编辑、diagnostics、patch、run/trace | 已实现，持续补齐高级编辑 | `action-editor/`、`workspace-program-*`、QuickerRpc Runtime |
+| AUTHOR | V1 动作 YAML open/save；动作/子程序搜索、旧 workspace 编辑、diagnostics、run/trace | 已实现，YAML 首期覆盖现有 V1 动作程序体 | Console/MCP source-bundle、AgentModel codec、`action-editor/`、Runtime |
 | LAUNCH | 全局快捷键、临时会话、command cache/resolve direct | 已实现 | `lib/launcher/`、`electron/commands/launcher.mjs` |
 | WORK | 文件、Grep、Shell、终端、后台/用户浏览器、网络搜索、浏览器转动作 | 已实现 | `workspace-*-tool*`、`shell-*`、`browser-*` |
 | EXT | 模型配置、Commands、Skills、Agents、`task` 子代理、外部 MCP 工具 | 已实现（MCP 配置入口实验性） | `llm-*`、`agent-defs/`、`agent-skills/`、`agent-mcp/`、`task-tool.server.ts` |
@@ -44,10 +44,18 @@ Coding Agent 修改前按 [任务路由](../agents/README.md) 进入代码。
 <a id="p-author"></a>
 ## AUTHOR：动作与子程序编写
 
-权威流程：search/get → 同步 `.quicker` → `workspace_program` 编辑 → diagnostics → patch → run/trace；publish 只在用户明确要求时执行。
+现有 V1 动作通过独立 CLI/MCP 的默认流程：search → `action open` → 编辑
+`program.source.yaml` / `files/` → `action save --dry-run` → `action save` → 按需 run/trace。
+YAML codec 对接规范 wire；原生基线、版本检查和 Designer 保护共同约束写回。
+dry-run 完全离线，成功保存更新基线而不重写用户源。V2 动作使用 Quicker 原生 MCP。
+
+QuickerAgent 的 `workspace_program`、创建、元数据、全局子程序保留原流程：
+search/get → 同步 `.quicker` → 编辑 → diagnostics → patch → run/trace。
+publish 只在用户明确要求时执行。
 
 - step 参数先查询 step-runner schema，不猜 `inputs`。
-- 普通文件工具不得直接编辑 `.quicker` 程序体。
+- source bundle 用宿主文件工具编辑 YAML/资源；工具管理的 sidecar/原生基线不得手改。
+- QuickerAgent 的旧 `.quicker` JSON 程序体仍使用 `workspace_program`。
 - Designer 打开时尊重内存态和保存保护。
 - 全局子程序发布使用 subprogram 命令，不走 action update。
 
@@ -92,6 +100,7 @@ Coding Agent 修改前按 [任务路由](../agents/README.md) 进入代码。
 CLI、MCP 和 HTTP 共用 Contracts/Runtime/Transport，Quicker 版本差异只应存在于 host adapter。
 
 - V1/net472 是当前完整宿主。
+- 现有 V1 动作源码编辑提供 CLI `action open/save`、MCP `qkrpc_action_open/save` 与 HTTP `action.open/save`；范围限 V1 动作程序体。
 - V2/net10 已实现多项核心 adapter，但 ActionSharing/Expressions/部分布局操作仍有 stub，ChromeControl/Triggers/Designer capability 当前关闭。
 - capability 必须反映真实实现；能编译不等于能力对齐。
 

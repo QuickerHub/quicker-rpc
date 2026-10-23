@@ -63,6 +63,28 @@
       "file": "settings-patch.json"
     }
   },
+  "action.open": {
+    "cli": "qkrpc action open --id {{id}} --dir {{dir}} --json",
+    "agent": "qkrpc_action_open({ id: \"{{id}}\", dir: \"{{dir}}\" })",
+    "defaults": {
+      "id": "<guid>",
+      "dir": ".tmp/quicker/edit-action"
+    }
+  },
+  "action.save.dry-run": {
+    "cli": "qkrpc action save --dir {{dir}} --dry-run --json",
+    "agent": "qkrpc_action_save({ dir: \"{{dir}}\", dryRun: true })",
+    "defaults": {
+      "dir": ".tmp/quicker/edit-action"
+    }
+  },
+  "action.save": {
+    "cli": "qkrpc action save --dir {{dir}} --json",
+    "agent": "qkrpc_action_save({ dir: \"{{dir}}\" })",
+    "defaults": {
+      "dir": ".tmp/quicker/edit-action"
+    }
+  },
   "action.create": {
     "cli": "qkrpc action create --title \"{{title}}\" [--icon {{icon}}] --json",
     "agent": "qkrpc_action_create({ info: { title: \"{{title}}\", description?: \"…\", icon?: \"{{icon}}\" } })",

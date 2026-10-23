@@ -68,6 +68,7 @@ npm run docs:modules:gen     # 分析 + crawl
 | 直接改 `action-authoring/cli/authoring-workflow.md` | 改 `action-authoring-src/workflows/`，再 `docs:gen` |
 | 期望在 `cli/references/` 找 module 正文 | 正文只在 `authoring-references/`；manifest 的 `path` 指向该目录 |
 | 维护两份 expressions 正文 | 只改 `action-authoring-src/partials/expressions-body.md`（见下节） |
+| 把新版 YAML bundle 和旧 `.quicker` JSON 项目混写 | V1 CLI/MCP 默认读 `program-source`；旧 JSON/QuickerAgent 读 `workspace-editing` |
 | 新建日期命名的 spec/plan 跟踪实现 | 长期规则写权威规范；进度写 issue/PR 或 JSON 状态文件 |
 
 ## Expressions 文档（单一权威源）

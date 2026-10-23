@@ -29,7 +29,7 @@ Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让�
 - **qkrpc 连不上时**：先 **`qkrpc_wait`** / `qkrpc wait --json`（或 MCP `qkrpc_wait`）轮询等待；仍失败则告知用户检查 Quicker / 插件。**禁止** shell 连环探活，除非用户明确要求修复环境。详见 skill **`quicker-rpc-knowledge`**（`docs/skills/quicker-rpc-knowledge/`）。
 - **Cursor / MCP**：用 `qkrpc_health` 或 qkrpc 工具；勿用 shell 代替 qkrpc CLI。
 - **`qkrpc` 是本机 CLI**（`qkrpc` / `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`）。在终端 **直接调用** `qkrpc <子命令>`，不要当成只能由用户手动的文档。
-- **自描述优先**：`qkrpc help --json`；写动作：`qkrpc guide get --topic authoring-workflow --json`。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
+- **自描述优先**：`qkrpc help --json`；独立 CLI/MCP 改现有 V1 动作：`qkrpc guide get --topic program-source --json`；QuickerAgent/旧 JSON：`authoring-workflow`。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
 - **高频 / agent-gui**：优先 `qkrpc serve`（`http://127.0.0.1:9477`，`GET /health`）；未启动时 agent-gui 回退为 CLI 子进程。
 - **SDK**：.NET 10（CLI）；Plugin 为 net472。`agent-gui` 需 Node 20+、pnpm。启动开发环境：`pwsh ./dev.ps1`（见 [agent-gui/AGENTS.md](agent-gui/AGENTS.md)、[docs/dev-supervisor-design.md](docs/dev-supervisor-design.md)）。
 - **管道**：`QuickerRpc_Server_QRPC2026`（`QuickerRpcPipeNames.ServerPipe`）；插件 host server，CLI client connect。
@@ -64,7 +64,15 @@ dotnet test QuickerRpc/tests/QuickerRpc.Test -c Release --filter FullyQualifiedN
 
 ## Authoring actions（无头编辑）
 
-**入口**：`qkrpc guide get --topic overview --json` → `authoring-workflow`（P1–P7）；公共子程序：`subprogram-workflow`；磁盘编辑：`workspace-editing`。
+**现有 V1 动作的独立 CLI/MCP 默认入口**：`qkrpc guide get --topic program-source --json`。
+`action open --id <guid> --dir <空目录>` → 编辑 `program.source.yaml` / `files/` →
+`action save --dir <目录> --dry-run` → `action save --dir <目录>`。
+MCP 对应 `qkrpc_action_open` / `qkrpc_action_save`。保留工具管理的 `quicker.source.json`
+和 `.qkrpc/baseline.json`；版本冲突或 Designer 打开时先处理冲突，不强制覆盖。
+YAML 入口限现有 V1 动作程序体；V2 用原生 MCP，metadata/创建/全局子程序沿用既有命令。
+
+**兼容与 QuickerAgent 入口**：`overview` → `authoring-workflow`（P1–P7）；
+公共子程序：`subprogram-workflow`；旧 JSON 项目：`workspace-editing`。
 
 ```powershell
 qkrpc guide get --topic overview --json

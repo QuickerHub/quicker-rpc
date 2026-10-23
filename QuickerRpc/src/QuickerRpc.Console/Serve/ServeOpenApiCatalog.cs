@@ -26,6 +26,8 @@ internal static class ServeOpenApiCatalog
         "action.edit",
         "action.edit-var",
         "action.extract",
+        "action.open",
+        "action.save",
         "action.validate",
         "action.apply",
         "subprogram.search",

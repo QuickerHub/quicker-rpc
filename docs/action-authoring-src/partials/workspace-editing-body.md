@@ -22,7 +22,7 @@ After create: info.json exists; empty body → get skips data.json.
 | Host | How to edit data.json / files/ |
 |------|--------------------------------|
 | **QuickerAgent** | `workspace_program` read_data / edit_data / file_* |
-| **Third-party MCP** (Cursor, Claude Code, Codex) | Host **Read / Write / StrReplace** on paths under `.quicker/` — MCP has **no** file tools |
+| **Third-party MCP compatibility projects** | Host **Read / Write / StrReplace** on paths under `.quicker/` — MCP has **no** file tools. New existing-action edits use **program-source** bundles instead. |
 
 Layout: MCP resource `quicker://workspace/readme`, `quicker://workspace/index`, or `docs` topic **workspace-editing**.
 

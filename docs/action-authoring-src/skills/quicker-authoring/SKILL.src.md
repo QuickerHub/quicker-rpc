@@ -6,6 +6,7 @@
 
 | intent | topic |
 |--------|-------|
+| existing V1 action + qkrpc_action_open/save available | **program-source** (YAML bundle; default for standalone MCP/CLI) |
 | edit program body | authoring-workflow |
 | disk .quicker / workspace | workspace-editing |
 | global/embedded subprogram | subprogram-workflow |
@@ -63,6 +64,8 @@ Run/settings/layout → main agent Capabilities (not this skill).
 Walkthrough: authoring-workflow. Workspace: workspace-editing.
 
 ## Hard rules
+
+V2 actions use Quicker's native MCP. For V1 source bundles, edit only `program.source.yaml` / `files/`; keep `quicker.source.json` and `.qkrpc/baseline.json` tool-managed. Save dry-run is offline; actual save checks the original action's version and Designer state. Metadata, creation, and global subprograms retain the existing commands. The workspace/patch rules below apply to QuickerAgent and compatibility JSON projects.
 
 - NO guess inputParams without step_runner_get
 - NO get-ui / step-runner.getUi

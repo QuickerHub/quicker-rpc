@@ -1,4 +1,8 @@
-# Action data.json schema
+# Action data.json schema (compatibility)
+
+**Compatibility JSON / QuickerAgent workspace schema.** Standalone CLI/MCP
+existing V1 action edits default to **program-source** YAML bundles. This JSON
+schema describes wire data, not the complete YAML source syntax.
 
 **When**: create or edit **data.json** — steps[] + variables[] wire shape and authoring rules.
 

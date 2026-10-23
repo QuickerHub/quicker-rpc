@@ -10,7 +10,7 @@ namespace QuickerRpc.Runtime;
 /// <summary>
 /// Quicker-side JSON-RPC target for external CLI clients.
 /// </summary>
-public sealed class QuickerRpcService : IQuickerRpcService
+public sealed partial class QuickerRpcService : IQuickerRpcService
 {
     public const int CurrentProtocolVersion = 1;
 

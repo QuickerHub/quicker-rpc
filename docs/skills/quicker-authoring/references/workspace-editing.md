@@ -1,6 +1,9 @@
 # Workspace editing
 
-**When**: P2/P6 before editing data.json or files/. Hot model in prompt-tier0; params in workspace_program tool.
+**Existing V1 action via standalone CLI/MCP**: use **program-source** (`open` → YAML/files → `save`) by default.
+
+**Below**: legacy JSON projects and QuickerAgent's `workspace_program` workflow.
+Use before editing `data.json` or its `files/`; params are in workspace_program tools.
 
 ### Checklist
 
@@ -37,7 +40,7 @@ After create: info.json exists; empty body → get skips data.json.
 | Host | How to edit data.json / files/ |
 |------|--------------------------------|
 | **QuickerAgent** | `workspace_program` read_data / edit_data / file_* |
-| **Third-party MCP** (Cursor, Claude Code, Codex) | Host **Read / Write / StrReplace** on paths under `.quicker/` — MCP has **no** file tools |
+| **Third-party MCP compatibility projects** | Host **Read / Write / StrReplace** on paths under `.quicker/` — MCP has **no** file tools. New existing-action edits use **program-source** bundles instead. |
 
 Layout: MCP resource `quicker://workspace/readme`, `quicker://workspace/index`, or `docs` topic **workspace-editing**.
 

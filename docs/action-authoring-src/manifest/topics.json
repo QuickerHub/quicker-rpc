@@ -20,9 +20,20 @@
     },
     "source": "overview.md"
   },
+  "program-source": {
+    "title": "V1 action YAML source",
+    "description": "Use when editing existing V1 actions through standalone CLI/MCP: open a program.source.yaml bundle, edit YAML/files, dry-run, save with concurrency protection. YAML codec syntax and bundle boundaries; V2 uses native MCP.",
+    "searchAliases": ["yaml", "yaml codec", "program.source.yaml", "source bundle", "action open", "action save", "V1", "动作源", "编解码"],
+    "allowed-tools": "qkrpc_action_open qkrpc_action_save qkrpc_action_list qkrpc_step_runner_search qkrpc_step_runner_get",
+    "metadata": {
+      "phase": "P2-P6",
+      "layer": "workflow"
+    },
+    "source": "workflows/program-source.md"
+  },
   "authoring-workflow": {
     "title": "Action authoring workflow",
-    "description": "P1–P7 main action editing flow. Use before the first action edit in a session.",
+    "description": "Use when routing action edits. Existing V1 standalone CLI/MCP edits use program-source YAML; P1–P7 covers QuickerAgent workspace_program, creation, and compatibility JSON.",
     "allowed-tools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
     "metadata": {
       "phase": "P1-P7",
@@ -32,7 +43,7 @@
   },
   "workspace-editing": {
     "title": "Workspace editing",
-    "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_*; patch saves. Use when editing on disk.",
+    "description": "Use when editing compatibility .quicker/actions JSON or QuickerAgent workspace_program projects; patch saves. Existing V1 standalone CLI/MCP edits default to program-source YAML instead.",
     "searchAliases": ["工作区", "磁盘编辑", "workspace edit", "patch"],
     "allowed-tools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
     "compatibility": "QuickerAgent; requires working directory in sidebar",
@@ -43,9 +54,9 @@
     "source": "workflows/workspace-editing.md"
   },
   "action-data-schema": {
-    "title": "Action data.json schema",
+    "title": "Action data.json schema (compatibility)",
     "searchAliases": ["bind", "wire", "variables", "data.json", "steps", "inputParams"],
-    "description": "Use when authoring data.json: qkrpc.program-data.v1 JSON schema + steps[]/variables[] wire rules (bind, branching, defaults). guide get --json returns schema.",
+    "description": "Use when editing compatibility data.json: qkrpc.program-data.v1 JSON schema + steps[]/variables[] wire rules. guide get --json returns schema. For V1 YAML bundles read program-source first.",
     "allowed-tools": "qkrpc_guide_get qkrpc_step_runner_get qkrpc_step_runner_search qkrpc_action_create workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
     "metadata": {
       "phase": "P2-P6",

@@ -6,13 +6,32 @@ using QuickerRpc.Plugin.Services;
 
 namespace QuickerRpc.Plugin.Adapters;
 
-internal sealed class V1ActionProgramHost : IQuickerRpcActionProgramHost
+internal sealed class V1ActionProgramHost : IQuickerRpcActionProgramHost, IQuickerRpcActionProgramSourceHost
 {
     private readonly HeadlessActionProgramService _programs;
 
     public V1ActionProgramHost(HeadlessActionProgramService programs)
     {
         _programs = programs;
+    }
+
+    public Task<QuickerRpcGetActionProgramSourceResult> GetProgramSourceAsync(
+        string actionId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ActionProgramSourceService.Get(actionId));
+    }
+
+    public Task<QuickerRpcApplyXActionResult> ApplyProgramSourceAsync(
+        string actionId,
+        string bodyJson,
+        long? expectedEditVersion,
+        bool force,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ActionProgramSourceService.Apply(actionId, bodyJson, expectedEditVersion, force));
     }
 
     public Task<QuickerRpcActionProgramSnapshot?> TryGetProgramAsync(

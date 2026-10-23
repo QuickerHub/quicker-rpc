@@ -7,13 +7,13 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 | layer | content |
 |-------|---------|
 | **tool / command description** | param names, returns, constraints (authoritative) |
-| **workflow docs** | P0–P7 order, workspace vs CLI patch (authoring-workflow, workspace-editing); publish (action-publish-workflow) |
-| **file schemas** | **action-data-schema** (data.json JSON + wire rules), expressions, action-project-files |
+| **workflow docs** | **program-source**: V1 CLI/MCP YAML open/save; authoring-workflow/workspace-editing: QuickerAgent + legacy JSON; publish (action-publish-workflow) |
+| **file schemas** | program-source YAML; **action-data-schema**: compatibility data.json JSON + wire rules; expressions, action-project-files |
 | **CLI-only** | patch-workflow (inline patch JSON) |
 
-**Default path (workspace)**: create or get (non-empty) → workspace_program edit data.json/files → patch. After create NO re-get. NO inline patch JSON on workspace path.
+**Existing V1 action via standalone CLI/MCP**: open → edit `program.source.yaml` / `files/` → save dry-run → save. Read **program-source** first. V2 uses its native MCP.
 
-**CLI alternative**: `action get` → `step-runner get` → `action patch --patch-file` (patch-workflow).
+**QuickerAgent / compatibility path**: create or get (non-empty) → workspace_program edit data.json/files → patch. Creation, metadata, and global subprograms retain existing commands. After create NO re-get. NO inline patch JSON on workspace path. CLI JSON patch remains available (patch-workflow).
 
 ## P0
 
@@ -48,6 +48,7 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 
 | title | topic | when |
 |-------|-------|------|
+| V1 YAML action editing | **`program-source`** | standalone CLI/MCP open → YAML/files → save |
 | Action authoring | **`authoring-workflow`** | P1–P7 main flow |
 | Workspace editing | **`workspace-editing`** | `.quicker` layout, workspace tools, file externalize |
 | Subprograms | **`subprogram-workflow`** | global vs embedded |
@@ -59,7 +60,8 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 
 | title | topic | when |
 |-------|-------|------|
-| Action data.json schema | **`action-data-schema`** | P2–P6: steps[] + variables[] JSON and wire rules |
+| Program source YAML | **`program-source`** | V1 CLI/MCP bundle, YAML codec, save checks |
+| Action data.json schema | **`action-data-schema`** | compatibility P2–P6: steps[] + variables[] JSON and wire rules |
 | Expressions | **`expressions`** | P4: sys:assign single-var; `$=`/`$$` inline; evalexpression batch/LINQ |
 | Implementation fallback | **`implementation-fallback`** | P4 when no dedicated module |
 | Action icons | **`action-icons`** | P3 metadata/menu fa: spec; fa search |

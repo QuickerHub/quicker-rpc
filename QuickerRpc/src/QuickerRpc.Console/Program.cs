@@ -263,6 +263,8 @@ internal static partial class Program
             "replace" => await RunActionReplaceAsync(options).ConfigureAwait(false),
             "export" => await RunActionExportAsync(options).ConfigureAwait(false),
             "import" => await RunActionImportAsync(options).ConfigureAwait(false),
+            "open" => await RunActionSourceAsync(options, save: false).ConfigureAwait(false),
+            "save" => await RunActionSourceAsync(options, save: true).ConfigureAwait(false),
             "extract" => await RunActionExtractAsync(options).ConfigureAwait(false),
             "apply" => await RunActionApplyAsync(options).ConfigureAwait(false),
             "validate" => await RunActionValidateAsync(options).ConfigureAwait(false),
@@ -284,7 +286,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|library search|shared get|shared-info-get|shared-info-set|shared-info-submit-review|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action open|save|create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|library search|shared get|shared-info-get|shared-info-set|shared-info-submit-review|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -1666,6 +1668,9 @@ public sealed class ActionOptions
 
     [Option("dir", HelpText = "Local .quicker project directory (extract/apply default: .quicker/actions/{actionId}).")]
     public string? Dir { get; set; }
+
+    [Option("dry-run", HelpText = "For action save: validate YAML, resource files and roundtrip offline without saving.")]
+    public bool DryRun { get; set; }
 
     [Option("min-lines", Default = 4, HelpText = "For extract: externalize value strings with more than N lines.")]
     public int MinLines { get; set; }

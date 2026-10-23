@@ -10,6 +10,19 @@ public sealed class QkrpcMcpActionTools
 
     public QkrpcMcpActionTools(QkrpcMcpRuntime runtime) => _runtime = runtime;
 
+    [McpServerTool(Name = "qkrpc_action_open")]
+    [Description("Open an existing V1 action into an empty directory as program.source.yaml + files/. Edit with file tools, then qkrpc_action_save(dryRun=true), then save. Preserves native fields; V2 uses native MCP.")]
+    public Task<string> QkrpcActionOpen(
+        string id, string dir, int minLines = 4, bool noAutoFiles = false,
+        CancellationToken cancellationToken = default) =>
+        _runtime.InvokeOpAsync("action.open", QkrpcMcpJson.ToElement(new { id, dir, minLines, noAutoFiles }), cancellationToken);
+
+    [McpServerTool(Name = "qkrpc_action_save")]
+    [Description("Compile and save a V1 action source directory from qkrpc_action_open. dryRun=true validates YAML/files offline. Save enforces the exported edit version and refuses an open Designer. Leaves edited YAML untouched.")]
+    public Task<string> QkrpcActionSave(
+        string dir, bool dryRun = false, CancellationToken cancellationToken = default) =>
+        _runtime.InvokeOpAsync("action.save", QkrpcMcpJson.ToElement(new { dir, dryRun }), cancellationToken);
+
     [McpServerTool(Name = "qkrpc_action_query")]
     [Description(
         "Find actions by keyword, scope, or uses:SubName. Empty query = recent actions. "
