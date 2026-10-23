@@ -42,7 +42,7 @@ QuickerRpc.Plugin.V2
 
 | 端口/能力 | 当前 V2 | 对齐要求 |
 |---|---|---|
-| Session | 已有 adapter | 与 V1 health/session 语义一致 |
+| Session | 已有 adapter 与 wire host-session/capability 握手；旧插件身份保持未知 | 实例发现、专属 endpoint、选择和写入绑定仍待完成 |
 | ActionPrograms | 已有旧 body/get/patch 与 Designer 打开保存保护；未实现 native source host，YAML open/save 当前 unsupported | 补 `IQuickerRpcActionProgramSourceHost`、typed/native body 与 codec bridge；roundtrip、storage identity/revision、Designer guard、错误和部分保存语义一致 |
 | SubPrograms | 已有读写/同步路径 | create/update/delete/publish 逐项验证 |
 | ActionRuns/trace | 已有 V2 run/trace service | 普通运行、trace、失败位置与取消一致 |
@@ -56,11 +56,14 @@ QuickerRpc.Plugin.V2
 
 ## 自动识别与设计器接入优先项
 
-1. 将已有 `IQuickerRpcHost.Info` 与实际逐操作 capability 暴露为 wire 握手，建立实例发现与
-   session 绑定；当前两插件共用固定 pipe，不能据此确认连到哪个版本。
+1. `IQuickerRpcHost.Info` 与实际逐操作 capability 已暴露为 wire 握手；bootstrap session
+   内稳定，V1 活进程已验证。继续建立实例发现与 session 绑定；当前两插件共用固定 pipe，
+   不能据此完成多实例选择与写入路由。
 2. Designer 初期复用 Quicker 的结构化编辑会话、`ActionStorageIdentity`、预期编辑版本与
    host persistence 语义；适配 V1/V2，而不是将 V1 压缩 Agent JSON 当作完整设计器文档。
-3. 补 V2 native source 后再开放 YAML；已有 `TrySaveAction` 的编辑器打开检查继续保留。
+3. 补 V2 native source 后再开放 YAML；`TrySaveAction` 必须明确确认编辑器未打开，状态
+   不可读时返回 `DESIGNER_STATE_UNAVAILABLE`，打开时返回 `DESIGNER_OPEN`，force 不绕过。
+   旧 body/presentation 写入已传播结构化错误码；反射实际源码的离线 fixture 覆盖无持久化副作用。
 4. Runtime 所有可选端口先检查支持性；当前部分 `_host.Designer!` 路径需要改为结构化
    unsupported，不能让 null port 变成空引用异常。
 5. 分别在 V1/V2 专用测试动作上验收读取、编辑、校验、保存、重读、冲突和重启；写入不对
@@ -85,6 +88,24 @@ QuickerRpc.Plugin.V2
 - 构建/发布配置只包含必要 runtime 依赖，包体积单独核验；不能用能编译代替能力对齐。
 
 ## 验证
+
+V2 项目通过 `QuickerRpc/Directory.Build.props` 的限定项目过渡钩子，使用
+`Quicker.Sdk/build/Quicker.Sdk.props` 与官方 targets；不再依赖旧 `qkref.net10.props`。
+workspace 中按 SDK 入口文件定位源码与本地宿主目录；独立 checkout 可传
+`-p:QuickerSdkRoot=<Quicker.Sdk目录>`。显式 `QuickerDllPath`、`QUICKER_V2_DLL_PATH`、
+`QUICKER_HOST_ROOT` 等宿主配置遵循 SDK 的优先级。缺少 SDK 会以 `QKRPCSDK001` 拒绝构建，
+不会把宿主引用注入 Console、Runtime 或其它项目。现有版本化 DLL、Fody 与发布流程保持原配置。
+V2 宿主的 `Microsoft.AspNetCore.App` shared framework 提供核心 Hosting/Logging/DI；项目用
+同名 `FrameworkReference` 编译，不将这些程序集作为额外 NuGet 依赖打进插件。
+
+先编译真实 V2 项目，再只运行不访问宿主的 fixture：
+
+```powershell
+dotnet build QuickerRpc/src/QuickerRpc.Plugin.V2/QuickerRpc.Plugin.V2.csproj -c Release
+dotnet test QuickerRpc/tests/QuickerRpc.Runtime.Test -c Release -p:IncludeV2HostTests=true --filter "FullyQualifiedName~V2ActionEditingGuardTests|FullyQualifiedName~HostSessionRpcTests"
+```
+
+以下 probe 检查另行按本机宿主环境运行，不能作为纯离线 fixture 使用：
 
 ```powershell
 dotnet test QuickerRpc/tests/QuickerRpc.Runtime.Test -c Release --filter "FullyQualifiedName~V2|FullyQualifiedName~QuickerV2"

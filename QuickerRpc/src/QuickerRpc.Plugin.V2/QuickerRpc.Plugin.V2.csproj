@@ -17,6 +17,8 @@
     <NoWarn>$(NoWarn);VSTHRD003</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Quicker V2 supplies Hosting/Logging/DI through this shared framework. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.Host.Abstractions\QuickerRpc.Host.Abstractions.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
@@ -56,14 +58,12 @@
     <PackageReference Include="Costura.Fody">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <!-- Microsoft.Extensions.* + Newtonsoft.Json: Quicker V2 host (qkref.net10.props), not bundled -->
+    <!-- Microsoft.Extensions.* + Newtonsoft.Json: Quicker.Sdk host references, not bundled. -->
     <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="QuickerRpc.Runtime.Test" />
   </ItemGroup>
-  <Import Project="$(MonorepoRoot)qkref.net10.props" Condition="Exists('$(MonorepoRoot)qkref.net10.props')" />
-  <Import Project="$(MonorepoRoot)..\..\qkref.net10.props" Condition="!Exists('$(MonorepoRoot)qkref.net10.props') And Exists('$(MonorepoRoot)..\..\qkref.net10.props')" />
   <Import Project="$(RepoRoot)..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
   <!-- QuickerRpc_Run loads QuickerRpc.Plugin.{version}.dll (not QuickerRpc.Plugin.V2). -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

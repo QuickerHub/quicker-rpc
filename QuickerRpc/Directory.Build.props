@@ -5,6 +5,25 @@
     <AppendAssemblyVersionFileNameSuffix Condition="'$(AppendAssemblyVersionFileNameSuffix)' == ''">true</AppendAssemblyVersionFileNameSuffix>
   </PropertyGroup>
 
+  <!-- V2 uses the SDK's source transition hook; other products keep their existing build graph. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'QuickerRpc.Plugin.V2'">
+    <_QkrpcSdkWorkspaceRoot>$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildThisFileDirectory)', 'sdk\Quicker.Sdk\Sdk\Sdk.props'))</_QkrpcSdkWorkspaceRoot>
+    <QuickerSdkRoot Condition="'$(QuickerSdkRoot)' == '' and '$(_QkrpcSdkWorkspaceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(_QkrpcSdkWorkspaceRoot)', 'sdk', 'Quicker.Sdk'))</QuickerSdkRoot>
+    <_QkrpcSdkPropsPath Condition="'$(QuickerSdkRoot)' != ''">$([MSBuild]::NormalizePath('$(QuickerSdkRoot)', 'build', 'Quicker.Sdk.props'))</_QkrpcSdkPropsPath>
+    <QuickerHostRoot Condition="'$(QuickerHostRoot)' == '' and '$(QUICKER_HOST_ROOT)' == '' and '$(_QkrpcSdkWorkspaceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(_QkrpcSdkWorkspaceRoot)', 'tools', 'quicker-host'))</QuickerHostRoot>
+    <QkKind Condition="'$(QkKind)' == ''">library</QkKind>
+    <QkPolySharp Condition="'$(QkPolySharp)' == ''">false</QkPolySharp>
+  </PropertyGroup>
+  <Import Project="$(_QkrpcSdkPropsPath)"
+          Condition="'$(MSBuildProjectName)' == 'QuickerRpc.Plugin.V2' and '$(QuickerSdkPropsImported)' != 'true' and Exists('$(_QkrpcSdkPropsPath)')" />
+  <Target Name="QkrpcRequireV2BuildSdk"
+          BeforeTargets="CollectPackageReferences;PrepareForBuild"
+          Condition="'$(MSBuildProjectName)' == 'QuickerRpc.Plugin.V2'">
+    <Error Code="QKRPCSDK001"
+           Condition="'$(QuickerSdkPropsImported)' != 'true'"
+           Text="QuickerRpc.Plugin.V2 requires Quicker.Sdk build sources. Set QuickerSdkRoot to a Quicker.Sdk directory containing build/Quicker.Sdk.props (for example -p:QuickerSdkRoot=&lt;sdk-directory&gt;). Host references use QuickerDllPath, QUICKER_V2_DLL_PATH or QUICKER_HOST_ROOT. See sdk/README.md in quicker-workspace." />
+  </Target>
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="PolySharp">
       <PrivateAssets>all</PrivateAssets>

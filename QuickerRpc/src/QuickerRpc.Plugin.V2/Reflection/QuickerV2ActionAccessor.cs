@@ -17,8 +17,9 @@ internal sealed class QuickerV2ActionAccessor
     private readonly MethodInfo? _isActionEditing;
     private readonly Type _extensionsType;
     private readonly Type _actionItem2Type;
+    private readonly Action _afterPersist;
 
-    private QuickerV2ActionAccessor(
+    internal QuickerV2ActionAccessor(
         object lookup,
         MethodInfo getWithLocation,
         MethodInfo? getAllWithLocation,
@@ -27,7 +28,8 @@ internal sealed class QuickerV2ActionAccessor
         object? editingState,
         MethodInfo? isActionEditing,
         Type extensionsType,
-        Type actionItem2Type)
+        Type actionItem2Type,
+        Action? afterPersist = null)
     {
         _lookup = lookup;
         _getWithLocation = getWithLocation;
@@ -38,6 +40,7 @@ internal sealed class QuickerV2ActionAccessor
         _isActionEditing = isActionEditing;
         _extensionsType = extensionsType;
         _actionItem2Type = actionItem2Type;
+        _afterPersist = afterPersist ?? QuickerV2CloudSyncTrigger.TryTriggerAfterPersist;
     }
 
     /// <summary>Successful instances are cached; null results are retried on each call.</summary>
@@ -159,38 +162,63 @@ internal sealed class QuickerV2ActionAccessor
             QuickerV2Reflection.InvokeStatic(_extensionsType, "get_Icon", action)?.ToString() ?? string.Empty,
             QuickerV2Reflection.InvokeStatic(_extensionsType, "get_ContextMenuData", action)?.ToString() ?? string.Empty);
 
-    public bool IsActionEditing(string actionId)
+    public bool TryGetActionEditingState(string actionId, out bool isEditing, out string? error)
     {
+        isEditing = false;
+        error = null;
         if (_editingState is null || _isActionEditing is null)
         {
+            error = "Action designer state is unavailable. Headless save requires a confirmed closed editor.";
             return false;
         }
 
         try
         {
             var result = _isActionEditing.Invoke(_editingState, [actionId.Trim()]);
-            return result is bool b && b;
+            if (result is not bool editing)
+            {
+                error = "Action designer state returned an unsupported result. Headless save was refused.";
+                return false;
+            }
+            isEditing = editing;
+            return true;
         }
-        catch
+        catch (Exception ex)
         {
+            error = "Action designer state could not be confirmed: " + (ex.InnerException?.Message ?? ex.Message);
             return false;
         }
     }
 
-    public bool TrySaveAction(object action, out string? error)
+    public bool TrySaveAction(object action, out string? error) => TrySaveAction(action, out error, out _);
+
+    public bool TrySaveAction(object action, out string? error, out string? errorCode)
     {
         error = null;
+        errorCode = null;
         var actionId = GetActionId(action);
-        if (IsActionEditing(actionId))
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            error = "actionId is required before headless save.";
+            errorCode = "MISSING_ACTION_ID";
+            return false;
+        }
+        if (!TryGetActionEditingState(actionId, out var isEditing, out error))
+        {
+            errorCode = "DESIGNER_STATE_UNAVAILABLE";
+            return false;
+        }
+        if (isEditing)
         {
             error = "Action is open in the designer. Close the editor before headless save.";
+            errorCode = "DESIGNER_OPEN";
             return false;
         }
 
         try
         {
             _addOrUpdateAction.Invoke(_store, [action]);
-            QuickerV2CloudSyncTrigger.TryTriggerAfterPersist();
+            _afterPersist();
             return true;
         }
         catch (Exception ex)

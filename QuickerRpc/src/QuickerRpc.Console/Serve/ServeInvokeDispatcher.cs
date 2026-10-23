@@ -163,15 +163,15 @@ internal static class ServeInvokeDispatcher
     {
         var rpc = await pool.GetRpcAsync(cancellationToken).ConfigureAwait(false);
         var token = QuickerRpcClient.CreateRpcCancellationToken(timeoutSeconds);
-        var pong = await rpc.PingAsync(token).ConfigureAwait(false);
-        var version = await rpc.GetProtocolVersionAsync(token).ConfigureAwait(false);
+        var health = await ServeHealthQuery.ReadAsync(rpc, token).ConfigureAwait(false);
         return Ok(new
         {
             ok = true,
             action = "ping",
-            pong,
-            protocolVersion = version,
-            pipe = QuickerRpcPipeNames.ServerPipe,
+            pong = health.Pong,
+            protocolVersion = health.ProtocolVersion,
+            pipe = health.Pipe,
+            hostSession = health.HostSession,
         });
     }
 

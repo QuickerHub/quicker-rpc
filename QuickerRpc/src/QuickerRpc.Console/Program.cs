@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CommandLine;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Transport;
 using StreamJsonRpc;
 
 namespace QuickerRpc.Console;
@@ -95,6 +96,7 @@ internal static partial class Program
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var pong = await session.Proxy.PingAsync(rpcToken).ConfigureAwait(false);
             var version = await session.Proxy.GetProtocolVersionAsync(rpcToken).ConfigureAwait(false);
+            var hostSession = await QuickerRpcHostSessionClient.TryGetAsync(session.Proxy, rpcToken).ConfigureAwait(false);
 
             if (options.Json)
             {
@@ -106,6 +108,7 @@ internal static partial class Program
                         pong,
                         protocolVersion = version,
                         pipe = QuickerRpcPipeNames.ServerPipe,
+                        hostSession,
                     },
                     QkrpcJson.CliOutput));
             }

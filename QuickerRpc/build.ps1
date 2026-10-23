@@ -363,7 +363,7 @@ if ($qkMeta.Publish) {
 
 if ($SkipCliPackaging.IsPresent) { $skipPackaging = [bool]$SkipCliPackaging }
 elseif ($quickerDependencyUpload) { $skipPackaging = $true }
-else { $skipPackaging = $testBuild }
+else { $skipPackaging = [bool]$qkMeta.Test }
 
 $shouldStartQkrpcServe = -not $SkipQkrpcServe
 try {
@@ -393,7 +393,6 @@ try {
         Write-Host ''
     }
 
-    $testBuild = $qkMeta.Test
     $runPluginReload = $true
 
     for ($i = 0; $i -lt $passPlan.Count; $i++) {

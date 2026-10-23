@@ -58,6 +58,7 @@ public static class PluginV2ServiceCollectionExtensions
         services.AddSingleton(runtimeDeps);
         services.AddSingleton(sp => new ActionProgramRpcHandler(sp.GetRequiredService<QuickerRpcRuntimeDependencies>()));
         services.AddSingleton(sp => new SubProgramRpcHandler(sp.GetRequiredService<QuickerRpcRuntimeDependencies>()));
+        services.AddSingleton<QuickerRpcHostSessionScope>();
         services.AddSingleton<QuickerRpcService>();
         services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());
         services.AddSingleton<QuickerRpcServerHost>();

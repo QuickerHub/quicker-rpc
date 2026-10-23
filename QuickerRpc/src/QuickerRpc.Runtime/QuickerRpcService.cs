@@ -15,6 +15,7 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
     public const int CurrentProtocolVersion = 1;
 
     private readonly IQuickerRpcHost _host;
+    private readonly QuickerRpcHostSessionScope _hostSessionScope;
     private readonly IQuickerRpcCallScheduler _scheduler;
     private readonly IQuickerRpcUserFeedback _feedback;
     private readonly ActionProgramRpcHandler _actionProgramHandler;
@@ -26,8 +27,20 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         IQuickerRpcUserFeedback feedback,
         ActionProgramRpcHandler actionProgramHandler,
         SubProgramRpcHandler subProgramHandler)
+        : this(host, scheduler, feedback, actionProgramHandler, subProgramHandler, null)
+    {
+    }
+
+    public QuickerRpcService(
+        IQuickerRpcHost host,
+        IQuickerRpcCallScheduler scheduler,
+        IQuickerRpcUserFeedback feedback,
+        ActionProgramRpcHandler actionProgramHandler,
+        SubProgramRpcHandler subProgramHandler,
+        QuickerRpcHostSessionScope? hostSessionScope)
     {
         _host = host;
+        _hostSessionScope = hostSessionScope ?? QuickerRpcHostSessionScope.ForHost(host);
         _scheduler = scheduler;
         _feedback = feedback;
         _actionProgramHandler = actionProgramHandler;

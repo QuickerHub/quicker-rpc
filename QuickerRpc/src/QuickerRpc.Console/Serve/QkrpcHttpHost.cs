@@ -76,15 +76,7 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
         {
             var rpc = await _pool.GetRpcAsync(cancellationToken).ConfigureAwait(false);
             var token = QuickerRpcClient.CreateRpcCancellationToken(_defaultTimeoutSeconds);
-            var pong = await rpc.PingAsync(token).ConfigureAwait(false);
-            var version = await rpc.GetProtocolVersionAsync(token).ConfigureAwait(false);
-            payload = new ServeHealthResponse
-            {
-                Ok = true,
-                Pong = pong,
-                ProtocolVersion = version,
-                Pipe = QuickerRpcPipeNames.ServerPipe,
-            };
+            payload = await ServeHealthQuery.ReadAsync(rpc, token).ConfigureAwait(false);
         }
         catch (QuickerRpcClientException)
         {

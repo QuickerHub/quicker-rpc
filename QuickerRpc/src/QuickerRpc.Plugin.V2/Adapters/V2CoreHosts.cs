@@ -62,7 +62,8 @@ internal sealed class V2ActionProgramHost : IQuickerRpcActionProgramHost
 
         return Task.FromResult(QuickerRpcActionProgramWriteResult.Fail(
             write.ActionId,
-            apply.ErrorMessage ?? "Write failed."));
+            apply.ErrorMessage ?? "Write failed.",
+            apply.ErrorCode));
     }
 
     public Task<QuickerRpcApplyActionPatchResult> TryApplyPatchAsync(
@@ -105,7 +106,8 @@ internal sealed class V2ActionProgramHost : IQuickerRpcActionProgramHost
 
         return Task.FromResult(QuickerRpcActionProgramWriteResult.Fail(
             write.ActionId,
-            result.ErrorMessage ?? "Update failed."));
+            result.ErrorMessage ?? "Update failed.",
+            result.ErrorCode));
     }
 }
 

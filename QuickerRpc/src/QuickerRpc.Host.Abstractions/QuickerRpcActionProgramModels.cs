@@ -80,11 +80,16 @@ public sealed class QuickerRpcActionProgramWriteResult
 
     public string? ErrorMessage { get; set; }
 
+    public string? ErrorCode { get; set; }
+
     public static QuickerRpcActionProgramWriteResult Ok(string actionId, long editVersion) =>
         new() { Success = true, ActionId = actionId, EditVersion = editVersion };
 
     public static QuickerRpcActionProgramWriteResult Fail(string actionId, string message) =>
-        new() { Success = false, ActionId = actionId, ErrorMessage = message };
+        Fail(actionId, message, null);
+
+    public static QuickerRpcActionProgramWriteResult Fail(string actionId, string message, string? errorCode) =>
+        new() { Success = false, ActionId = actionId, ErrorMessage = message, ErrorCode = errorCode };
 
     public static QuickerRpcActionProgramWriteResult Conflict(string actionId, long currentEditVersion, string message) =>
         new()

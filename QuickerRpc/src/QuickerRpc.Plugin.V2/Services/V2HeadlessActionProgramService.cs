@@ -132,9 +132,9 @@ public sealed class V2HeadlessActionProgramService
             return FailApply(payloadError);
         }
         Actions.TouchLastEditUtc(clone, DateTime.UtcNow);
-        if (!Actions.TrySaveAction(clone, out var saveError))
+        if (!Actions.TrySaveAction(clone, out var saveError, out var saveErrorCode))
         {
-            return FailApply(saveError ?? "save_failed");
+            return FailApply(saveError ?? "save_failed", saveErrorCode);
         }
 
         if (!Actions.TryGetById(id, out var saved, out _) || saved is null)
@@ -197,9 +197,9 @@ public sealed class V2HeadlessActionProgramService
 
         UpdatePresentationFields(clone, title, description, icon);
         Actions.TouchLastEditUtc(clone, DateTime.UtcNow);
-        if (!Actions.TrySaveAction(clone, out var saveError))
+        if (!Actions.TrySaveAction(clone, out var saveError, out var saveErrorCode))
         {
-            return FailMetadata(saveError ?? "save_failed");
+            return FailMetadata(saveError ?? "save_failed", saveErrorCode);
         }
 
         if (!Actions.TryGetById(id, out var saved, out _) || saved is null)
@@ -291,9 +291,9 @@ public sealed class V2HeadlessActionProgramService
             core.Metadata.Icon,
             core.Metadata.ContextMenuData);
         Actions.TouchLastEditUtc(clone, DateTime.UtcNow);
-        if (!Actions.TrySaveAction(clone, out var saveError))
+        if (!Actions.TrySaveAction(clone, out var saveError, out var saveErrorCode))
         {
-            return FailPatch(saveError ?? "save_failed");
+            return FailPatch(saveError ?? "save_failed", errorCode: saveErrorCode);
         }
 
         if (!Actions.TryGetById(snapshot.ActionId, out var saved, out _) || saved is null)
@@ -461,20 +461,22 @@ public sealed class V2HeadlessActionProgramService
                 .ToList(),
         };
 
-    private static QuickerRpcApplyXActionResult FailApply(string message) =>
-        new() { Success = false, ErrorMessage = message };
+    private static QuickerRpcApplyXActionResult FailApply(string message, string? errorCode = null) =>
+        new() { Success = false, ErrorMessage = message, ErrorCode = errorCode };
 
-    private static QuickerRpcUpdateActionMetadataResult FailMetadata(string message) =>
-        new() { Success = false, ErrorMessage = message };
+    private static QuickerRpcUpdateActionMetadataResult FailMetadata(string message, string? errorCode = null) =>
+        new() { Success = false, ErrorMessage = message, ErrorCode = errorCode };
 
     private static QuickerRpcApplyActionPatchResult FailPatch(
         string message,
         bool? versionConflict = null,
-        long? editVersion = null) =>
+        long? editVersion = null,
+        string? errorCode = null) =>
         new()
         {
             Success = false,
             ErrorMessage = message,
+            ErrorCode = errorCode,
             VersionConflict = versionConflict,
             EditVersion = editVersion,
         };

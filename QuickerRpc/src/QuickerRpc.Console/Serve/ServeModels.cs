@@ -43,4 +43,8 @@ internal sealed class ServeHealthResponse
 
     [JsonPropertyName("pipe")]
     public string Pipe { get; set; } = string.Empty;
+
+    [JsonPropertyName("hostSession")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public QuickerRpc.Contracts.Rpc.QuickerRpcHostSessionInfo? HostSession { get; set; }
 }

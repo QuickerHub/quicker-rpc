@@ -90,6 +90,7 @@ public static partial class Launcher
                         ActionDesignerProgramBridge.ReadSourceCatalog),
                     new SubProgramDesignerBridge()));
 
+                services.AddSingleton<QuickerRpcHostSessionScope>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());
 

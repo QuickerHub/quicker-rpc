@@ -22,12 +22,14 @@ internal static class HostWireMappers
                     ActionId = write.ActionId,
                     EditVersion = write.EditVersion,
                     VersionConflict = true,
+                    ErrorCode = write.ErrorCode,
                     ErrorMessage = write.ErrorMessage,
                 }
                 : new QuickerRpcApplyXActionResult
                 {
                     Success = false,
                     ActionId = write.ActionId,
+                    ErrorCode = write.ErrorCode,
                     ErrorMessage = write.ErrorMessage,
                 };
 
@@ -47,12 +49,14 @@ internal static class HostWireMappers
                     ActionId = write.ActionId,
                     EditVersion = write.EditVersion,
                     VersionConflict = true,
+                    ErrorCode = write.ErrorCode,
                     ErrorMessage = write.ErrorMessage,
                 }
                 : new QuickerRpcUpdateActionMetadataResult
                 {
                     Success = false,
                     ActionId = write.ActionId,
+                    ErrorCode = write.ErrorCode,
                     ErrorMessage = write.ErrorMessage,
                 };
 

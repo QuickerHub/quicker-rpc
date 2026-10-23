@@ -16,6 +16,9 @@ public interface IQuickerRpcService
     /// <summary>Bump when breaking RPC contract changes.</summary>
     Task<int> GetProtocolVersionAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Identity and implemented action capabilities of the current loaded host owner.</summary>
+    Task<QuickerRpcHostSessionInfo> GetHostSessionAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Current Quicker account (for managed LLM usage fingerprinting).</summary>
     Task<QuickerRpcAccountInfo> GetQuickerAccountAsync(CancellationToken cancellationToken = default);
 
