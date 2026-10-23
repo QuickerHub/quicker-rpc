@@ -213,8 +213,12 @@ handle 读取所有编辑内容，关闭子程序页签或切源码不会丢弃�
 正文和已支持的三项属性作为一笔同步事务。undo/redo 核验当前完整身份与 revision，产生新
 revision；只恢复正文原文和可编辑属性，不回退宿主版本、来源绑定或未知 metadata 字段。
 保存和部分/迟到确认只推进对应基线，不清除历史；接受的外部属性变化按字段重置其历史值。
-此处仍是纯层接口。现有 surface 按钮与快捷键尚未切到它，后续接线必须移除第二条时间线，
-再开放子程序属性及重命名，不能将两套 undo 并列使用。
+`programDocumentEditorController` 已将 APDE 的主/嵌套 surface 接到同一 session。受控 X 编辑器
+不分配 present/past/future，只从 controller 即时读取并提交；Workspace 不再保留 initial
+payload、live snapshot 或 overrides。文档级按钮/快捷键和 portal 归属复用同一 owner；
+普通输入保持原生 undo，步骤/变量的延迟草稿在文档 undo/save 前同步 flush。保存只读取
+该 session，source 切换和晚确认不重建历史。独立 X 入口继续使用原本的本地历史。
+子程序属性及重命名继续在该事务层接入，不得恢复第二条时间线。
 原生未知字段与外置文件引用在 projection overlay 及实际 `writeWorkspaceFile` 的磁盘
 规范化链中保留；后续 host adapter 仍须加入存储版本/CAS，这不等于已实现宿主事务。
 

@@ -274,6 +274,7 @@ export type StepListEditorProps = {
   programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
   registerToolboxInsert?: RegisterToolboxInsert;
+  registerDraftFlusher?: (flush: () => void) => () => void;
 };
 
 export default function StepListEditor({
@@ -292,6 +293,7 @@ export default function StepListEditor({
   programDocumentKey,
   onPinStepToChat,
   registerToolboxInsert,
+  registerDraftFlusher,
 }: StepListEditorProps): JSX.Element {
   const catalogPort = useDesignerCatalogPort();
   const activeRef = useRef(active);
@@ -876,6 +878,8 @@ export default function StepListEditor({
     },
     [flushCompactFormIfChanged]
   );
+
+  useLayoutEffect(() => registerDraftFlusher?.(flushCompactFormIfChanged), [registerDraftFlusher, flushCompactFormIfChanged]);
 
   useEffect(() => {
     if (!active) flushCompactFormIfChanged();
