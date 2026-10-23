@@ -135,8 +135,9 @@ V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugi
 Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完成的工具、YAML codec、AI SDK loop、
 权限/取消修复继续保留。CI 已拆为独立对话与隔离分支推进。
 
-先收口正在实现的 R0/R4 修复，再完成“去框架依赖 → 服务组合入口 → 分组 API 兼容 →
-静态 renderer → 桌面打包”的顺序；R5 和更广 UI 抽取等待服务边界。具体证据、模块归属和切换门槛见
+在已有服务边界和 R0/R4 修复基础上，优先推进下文统一 RPC 与动作设计器主线；所需 API
+按可运行的编辑链分组迁移，静态 renderer 和桌面打包最终收口。R5 通用面板抽象与更广 UI
+拆分等待真实设计器需求。具体证据、模块归属和切换门槛见
 [架构目标](../agent-architecture.md#框架去耦与目标运行边界)。不能把候选方案或单个去耦文件标成迁移完成。
 
 独立 Node chat service 已有实验性源码入口（`agent-gui/service/main.ts`）：健康检查懒加载、
@@ -144,6 +145,26 @@ Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完�
 生产依赖图检查拒绝 Next，browser/terminal 的服务关闭只回收本进程真实登记的子进程。
 显式数据根与新版 Next/Node 的单 writer 约束已实现，隔离 CLI/真实子进程验证通过；
 其余 API 分组、静态 renderer、桌面资源打包和真实资料升级仍待实施。
+
+#### 统一 RPC 与动作设计器：当前主线
+
+用户已明确新的产品目标：同一 RPC 自动识别 Quicker V1/V2，Agent 与动作设计器共用
+动作服务；**下一项用户可见交付优先搬入 Quicker 项目的新动作设计器**，之后才研究高效通信。
+所需服务 API 随设计器竖切片迁移。以下是近期交付顺序；R0–R8 继续作为质量与遗留缺口清单。
+
+| 顺序 | 交付与边界 | 负责入口 | 验收门槛 / 当前状态 |
+|---|---|---|---|
+| A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | 一个兼容实例自动选中；多实例明确选择；断连不把保存切往另一宿主；未知/不支持能力返回结构化错误。当前已有内部 host kind/version，但 wire 握手与实例选择待实现 |
+| A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。不能把静态截图或空壳当作搬运完成。待实施 |
+| A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | 两版本分别验证读取→编辑→校验→保存→重读，以及版本冲突、宿主 Designer 内存态、重启、取消和部分保存；未完成能力保持关闭。当前 V1 source 可用，V2 source 尚不支持 |
+| A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | Agent 生成或修改的动作能进入同一设计器检查并保存；手工编辑与 Agent 并发修改有 revision/冲突处理；Ask 不写、不绕过脏状态或基线。待实施 |
+| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。Node chat 与资料根基础已实现，完整切换未完成 |
+| A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
+
+首个实现切片是 A0 的最小身份/能力契约与 A1 的可运行设计器迁移并行推进；真实宿主写入
+必须先满足 A0 的目标绑定。V1/V2 共用 Contracts/Runtime，版本差异留在 adapter；不复制
+Agent、工具表、历史存储或设计器业务逻辑。来源与边界见 [工作台设计](../../agent-gui/DESIGN.md)
+和 [V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。
 
 重构目标是让权限、执行生命周期、会话状态和展示扩展各有唯一归属，新增能力无需复制
 Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作台设计](../../agent-gui/DESIGN.md)，
