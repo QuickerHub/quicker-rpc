@@ -1,22 +1,18 @@
 use std::sync::Mutex;
-use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub const DEFAULT_LAUNCHER_SHORTCUT: &str = "CommandOrControl+Shift+Space";
-const LAUNCHER_VOICE_TOGGLE_EVENT: &str = "global:voice-toggle";
 
 pub struct LauncherShortcutState {
     shortcut: Mutex<String>,
-    auto_voice: Mutex<bool>,
 }
 
 impl LauncherShortcutState {
     pub fn new() -> Self {
         Self {
             shortcut: Mutex::new(DEFAULT_LAUNCHER_SHORTCUT.to_string()),
-            auto_voice: Mutex::new(false),
         }
     }
 }
@@ -26,26 +22,6 @@ fn handle_launcher_shortcut_press(app: &AppHandle) {
         eprintln!("[launcher-shortcut] launcher_show failed: {err}");
         return;
     }
-
-    let auto_voice = app
-        .try_state::<LauncherShortcutState>()
-        .and_then(|state| state.auto_voice.lock().ok().map(|v| *v))
-        .unwrap_or(false);
-
-    if !auto_voice {
-        return;
-    }
-
-    let app_for_thread = app.clone();
-    let app_for_emit = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(80));
-        let _ = app_for_thread.run_on_main_thread(move || {
-            if let Some(window) = app_for_emit.get_webview_window(crate::launcher::LAUNCHER_LABEL) {
-                let _ = window.emit(LAUNCHER_VOICE_TOGGLE_EVENT, ());
-            }
-        });
-    });
 }
 
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -69,7 +45,6 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 pub fn launcher_sync_global_shortcut(
     app: AppHandle,
     shortcut: String,
-    auto_voice: Option<bool>,
 ) -> Result<(), String> {
     let trimmed = shortcut.trim().to_string();
     if trimmed.is_empty() {
@@ -81,13 +56,6 @@ pub fn launcher_sync_global_shortcut(
         .map_err(|e| format!("invalid shortcut: {e}"))?;
 
     let state = app.state::<LauncherShortcutState>();
-
-    if let Some(enabled) = auto_voice {
-        *state
-            .auto_voice
-            .lock()
-            .map_err(|_| "auto_voice lock poisoned".to_string())? = enabled;
-    }
 
     let old_shortcut = {
         let current = state

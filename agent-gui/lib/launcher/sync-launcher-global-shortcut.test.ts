@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
-  LAUNCHER_AUTO_VOICE_STORAGE_KEY,
   LAUNCHER_SHORTCUT_STORAGE_KEY,
 } from "./launcher-prefs.ts";
 import { syncLauncherGlobalShortcut } from "./sync-launcher-global-shortcut.ts";
@@ -78,14 +77,4 @@ test("syncLauncherGlobalShortcut serializes concurrent calls", async () => {
 
   await Promise.all([first, second]);
   assert.deepEqual(order, [1, 2]);
-});
-
-test("syncLauncherGlobalShortcut ignores auto voice in browser shell", async () => {
-  installBrowserStorage();
-  storage.set(LAUNCHER_SHORTCUT_STORAGE_KEY, "Alt+Space");
-  storage.set(LAUNCHER_AUTO_VOICE_STORAGE_KEY, "1");
-
-  const result = await syncLauncherGlobalShortcut();
-  assert.equal(result.ok, true);
-  assert.equal(result.shortcut, "Alt+Space");
 });

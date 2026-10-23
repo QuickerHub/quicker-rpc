@@ -31,8 +31,6 @@ dist/
 target/
 agent-gui/src-tauri/target/
 agent-gui/src-tauri/resources/
-!agent-gui/src-tauri/resources/voice-plugin-channel.json
-!agent-gui/src-tauri/resources/voice-plugin-manifest.json
 agent-gui/src-tauri/gen/
 
 # Local app/runtime state
@@ -77,13 +75,7 @@ publish/**
 !publish/Preflight-QuickerAgentBuild.ps1
 !publish/Test-QuickerAgentReleaseBuild.ps1
 !publish/Upload-QuickerAgentToBitiful.ps1
-!publish/Publish-VoiceAsrRelease.ps1
-!publish/Sync-VoicePluginChannel.ps1
-!publish/Sync-PluginRegistry.ps1
 !publish/Sync-LlmPublishConfig.ps1
-!publish/registry/
-!publish/registry/**
-!publish/Upload-VoiceAsrToBitiful.ps1
 !publish/Sync-QuickerAgentActionDoc.ps1
 !publish/bitiful_upload.py
 !publish/.env.example
@@ -135,13 +127,6 @@ codex-plugin/quicker-rpc/skills/
 __pycache__/
 *.py[cod]
 
-# voice-asr-runtime (Python / uv)
-voice-asr-runtime/.venv/
-voice-asr-runtime/build/
-voice-asr-runtime/models/*
-!voice-asr-runtime/models/.gitkeep
-!voice-asr-runtime/models/README.md
-
 # browser-runtime (Python / uv)
 browser-runtime/.venv/
 browser-runtime/build/
@@ -155,9 +140,6 @@ browser-runtime/.playwright/
 browser-runtime/playwright-browsers/
 browser-runtime/publish/*.zip
 browser-runtime/publish/.env
-
-# clipboard-history-runtime (Rust)
-clipboard-history-runtime/target/
 
 # MSBuild stamp for action-authoring doc generation (local only)
 docs/action-authoring/.generated.stamp

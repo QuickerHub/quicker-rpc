@@ -4,7 +4,6 @@ import {
   forwardRef,
   memo,
   useCallback,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -24,11 +23,6 @@ import { ModelSelector } from "./ModelSelector";
 import { ComposerCursorSdkLink } from "./ComposerCursorSdkLink";
 import type { ChatMode } from "@/lib/chat-mode";
 import { CHAT_MODE_AGENT, CHAT_MODE_ASK } from "@/lib/chat-mode";
-import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
-import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
-import { isComposerVoiceOwnerActive } from "@/lib/voice-input/composer-voice-shortcut";
-import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
-import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import {
   ComposerMarkupField,
   type ComposerMarkupFieldHandle,
@@ -57,14 +51,9 @@ export type ChatComposerFooterHandle = {
   insertProgramStepTag: (tag: ProgramStepTag) => void;
   insertMentionTrigger: () => void;
   insertPlainText: (text: string) => void;
-  beginVoiceStream: () => void;
-  updateVoiceStream: (text: string) => void;
-  endVoiceStream: (finalText?: string) => void;
-  cancelVoiceStream: () => void;
 };
 
 type ChatComposerFooterProps = {
-  visible: boolean;
   ephemeral: boolean;
   editAnchorMessageId: string | null;
   isEmptyThread: boolean;
@@ -90,7 +79,6 @@ type ChatComposerFooterProps = {
   onStop: () => void;
   onExitEdit: () => void;
   onEditAnchorDraftChange?: (draft: string) => void;
-  voiceInterruptRef?: React.MutableRefObject<(() => void) | null>;
   workingDirectory?: string;
   designerEmbed?: boolean;
   /** When set, overrides default empty-thread hiding for the context ring. */
@@ -102,7 +90,6 @@ const ChatComposerFooterInner = forwardRef<
   ChatComposerFooterProps
 >(function ChatComposerFooterInner(
   {
-    visible,
     ephemeral,
     editAnchorMessageId,
     isEmptyThread,
@@ -128,7 +115,6 @@ const ChatComposerFooterInner = forwardRef<
     onStop,
     onExitEdit,
     onEditAnchorDraftChange,
-    voiceInterruptRef,
     workingDirectory = "",
     designerEmbed = false,
     showContextUsage,
@@ -173,62 +159,10 @@ const ChatComposerFooterInner = forwardRef<
     [onOpenSettings],
   );
 
-  const voiceOwnerActive = isComposerVoiceOwnerActive({
-    visible,
-    ephemeral,
-    editAnchorMessageId,
-  });
-  const voiceInput = useVoiceInput({
-    enabled: voiceOwnerActive,
-    onStreamBegin: () => {
-      composerRef.current?.beginVoiceStream();
-    },
-    onStreamUpdate: (text) => {
-      composerRef.current?.updateVoiceStream(text);
-    },
-    onStreamEnd: (finalText) => {
-      composerRef.current?.endVoiceStream(finalText);
-    },
-    onStreamInterrupt: () => {
-      composerRef.current?.endVoiceStream();
-    },
-    onStreamCancel: () => {
-      composerRef.current?.cancelVoiceStream();
-    },
-  });
-
-  useEffect(() => {
-    if (!voiceOwnerActive) voiceInput.interruptVoiceInput();
-  }, [voiceOwnerActive, voiceInput.interruptVoiceInput]);
-
-  useEffect(() => {
-    if (!voiceInterruptRef) return;
-    voiceInterruptRef.current = voiceInput.interruptVoiceInput;
-  }, [voiceInput.interruptVoiceInput, voiceInterruptRef]);
-
-  const handleVoiceSetup = useCallback(() => {
-    void requestVoicePluginSetup();
-  }, []);
-
-  useComposerVoiceToggleShortcut({
-    enabled: voiceOwnerActive,
-    phase: voiceInput.phase,
-    canUse: voiceInput.canUse,
-    pluginStatus: voiceInput.pluginStatus,
-    onStart: voiceInput.startVoiceInput,
-    onStop: voiceInput.stopVoiceInput,
-    onUnavailable: handleVoiceSetup,
-  });
-
   const insertDraftActionTag = useCallback((action: PinnedAction) => {
     composerRef.current?.insertActionTag(action);
     requestAnimationFrame(() => composerRef.current?.focus());
   }, []);
-
-  const handleSubmit = useCallback(() => {
-    voiceInput.interruptVoiceInput();
-    onSubmit();
-  }, [onSubmit, voiceInput.interruptVoiceInput]);
 
   useImperativeHandle(
     ref,
@@ -264,18 +198,6 @@ const ChatComposerFooterInner = forwardRef<
       },
       insertPlainText: (text: string) => {
         composerRef.current?.insertPlainText(text);
-      },
-      beginVoiceStream: () => {
-        composerRef.current?.beginVoiceStream();
-      },
-      updateVoiceStream: (text: string) => {
-        composerRef.current?.updateVoiceStream(text);
-      },
-      endVoiceStream: (finalText?: string) => {
-        composerRef.current?.endVoiceStream(finalText);
-      },
-      cancelVoiceStream: () => {
-        composerRef.current?.cancelVoiceStream();
       },
     }),
     [draftMessage, editAnchorMessageId, onEditAnchorDraftChange],
@@ -329,7 +251,7 @@ const ChatComposerFooterInner = forwardRef<
         className="composer-form"
         onSubmit={(e) => {
           e.preventDefault();
-          handleSubmit();
+          onSubmit();
         }}
       >
         <div className="composer-box">
@@ -358,8 +280,7 @@ const ChatComposerFooterInner = forwardRef<
                         : "描述你想在 Quicker 里做的事…（@ 引用动作，/ 斜杠命令）"
               }
               onChange={handleDraftChange}
-              onSubmit={handleSubmit}
-              onUserEdit={voiceInput.interruptVoiceInput}
+              onSubmit={onSubmit}
             />
             <div className="composer-toolbar">
               <div className="composer-toolbar-left">
@@ -397,19 +318,7 @@ const ChatComposerFooterInner = forwardRef<
                 {!designerEmbed ? (
                   <ComposerCursorSdkLink disabled={busy} />
                 ) : null}
-                {voiceInput.errorHint ? (
-                  <span className="composer-hint" role="status">
-                    <span className="composer-voice-hint composer-voice-hint--err">
-                      {voiceInput.errorHint}
-                    </span>
-                  </span>
-                ) : voiceInput.statusHint ? (
-                  <span className="composer-hint" role="status">
-                    <span className="composer-voice-hint">
-                      {voiceInput.statusHint}
-                    </span>
-                  </span>
-                ) : editAnchorMessageId ? (
+                {editAnchorMessageId ? (
                   <span className="composer-hint">Enter 发送并分支</span>
                 ) : null}
               </div>
@@ -453,13 +362,6 @@ const ChatComposerFooterInner = forwardRef<
                 <ComposerPrimaryActionButton
                   canSend={draftState.canSend}
                   agentBusy={busy}
-                  phase={voiceInput.phase}
-                  pluginStatus={voiceInput.pluginStatus}
-                  canUseVoice={voiceInput.canUse}
-                  onVoiceStart={voiceInput.startVoiceInput}
-                  onVoiceStop={voiceInput.stopVoiceInput}
-                  onVoiceSetup={handleVoiceSetup}
-                  onVoiceStarting={notifyVoiceServiceStarting}
                 />
               </div>
             </div>

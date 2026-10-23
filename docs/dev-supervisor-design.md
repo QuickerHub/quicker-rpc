@@ -11,7 +11,6 @@ pwsh ./dev.ps1 -Tauri          # legacy WebView2 壳
 pwsh ./dev.ps1 -Services qkrpc # 只启动 qkrpc
 pwsh ./dev.ps1 -Browser        # 就绪后打开浏览器
 pwsh ./dev.ps1 -NoWatch        # 关闭 Plugin/CLI 自动热更新
-pwsh ./dev.ps1 -Full           # 提前启动语音 runtime
 ```
 
 ## 运行关系

@@ -15,7 +15,7 @@ test("the actual Node entry serves lazy health and rejects an unconfigured model
     XDG_DATA_HOME: join(root, "xdg"), OneDrive: "", AGENT_GUI_ROOT: join(root, "app"), AGENT_GUI_DEFAULT_CWD: join(root, "workspace"),
     LLM_CONFIG_PATH: join(root, "absent-llm.json"), BUNDLED_LLM_CONFIG_PATH: join(root, "absent-publish.json"),
     BUNDLED_LLM_DEV_CONFIG_PATH: join(root, "absent-dev.json"), BUNDLED_LLM_CONFIG: "{}", NODE_ENV: "production",
-    AGENT_GUI_SKIP_BROWSER_RUNTIME: "1", AGENT_GUI_SKIP_TERMINAL_RUNTIME: "1", AGENT_GUI_SKIP_VOICE_RUNTIME: "1",
+    AGENT_GUI_SKIP_BROWSER_RUNTIME: "1", AGENT_GUI_SKIP_TERMINAL_RUNTIME: "1",
   };
   const child = spawn(process.execPath, [
     "--conditions=react-server", "--import", "tsx", "--import", "./scripts/agent-offline-network-guard.mjs",

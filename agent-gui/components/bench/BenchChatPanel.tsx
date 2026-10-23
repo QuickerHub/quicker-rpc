@@ -69,7 +69,6 @@ export function BenchChatPanel() {
   const composerRef = useRef<ChatComposerFooterHandle>(null);
   const messagesRef = useRef<HTMLElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const voiceInterruptRef = useRef<() => void>(() => {});
 
   const busy = chatBusy;
   const workingDirectory = benchWorkspace ?? "";
@@ -220,7 +219,6 @@ export function BenchChatPanel() {
 
   const submitComposer = useCallback(() => {
     if (viewingHistory) return;
-    voiceInterruptRef.current();
     const text = readComposerText();
     if (canSendComposedMessage(text)) {
       composerRef.current?.clear();
@@ -248,7 +246,6 @@ export function BenchChatPanel() {
     (text: string) => {
       if (viewingHistory) return;
       if (!canSendComposedMessage(text)) return;
-      voiceInterruptRef.current();
       composerRef.current?.clear();
       clearError();
       pinToStream();
@@ -262,7 +259,6 @@ export function BenchChatPanel() {
     (text: string) => {
       const next = text.trim();
       if (!next) return;
-      voiceInterruptRef.current();
       clearError();
       composerRef.current?.setValue(next);
     },
@@ -419,7 +415,6 @@ export function BenchChatPanel() {
             <div className={`bench-composer-wrap${composerDisabled ? " bench-composer-wrap--disabled" : ""}`}>
             <ChatComposerFooter
               ref={composerRef}
-              visible
               ephemeral
               editAnchorMessageId={null}
               isEmptyThread={isEmptyThread}
@@ -445,7 +440,6 @@ export function BenchChatPanel() {
               onStop={handleComposerStop}
               onExitEdit={() => {}}
               onEditAnchorDraftChange={() => {}}
-              voiceInterruptRef={voiceInterruptRef}
               workingDirectory={workingDirectory}
               designerEmbed={false}
               showContextUsage

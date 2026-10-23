@@ -331,7 +331,6 @@ function ChatPanel({
   const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ChatComposerFooterHandle>(null);
-  const voiceInterruptRef = useRef<() => void>(() => {});
 
   const {
     messages,
@@ -656,7 +655,6 @@ function ChatPanel({
         llmSelectionRef.current = pending.llmSelection;
         storeLauncherLlmSelectionRaw(pending.llmSelection);
       }
-      voiceInterruptRef.current();
       clearError();
       if (visible) pinToStream();
       enqueueOrSend(pending.text);
@@ -776,7 +774,6 @@ function ChatPanel({
     const anchorIndex = findMessageIndex(messages, editAnchorMessageId);
     if (anchorIndex < 0) return;
 
-    voiceInterruptRef.current();
     const text = readComposerText();
     if (!canSendComposedMessage(text)) return;
 
@@ -803,7 +800,6 @@ function ChatPanel({
   ]);
 
   const submitComposer = useCallback(() => {
-    voiceInterruptRef.current();
     if (editAnchorMessageId) {
       commitBranchMessageEdit();
       return;
@@ -836,7 +832,6 @@ function ChatPanel({
     (text: string) => {
       if (editAnchorMessageId) return;
       if (!canSendComposedMessage(text)) return;
-      voiceInterruptRef.current();
       composerRef.current?.clear();
       clearError();
       pinToStream();
@@ -851,7 +846,6 @@ function ChatPanel({
       if (editAnchorMessageId) return;
       const next = text.trim();
       if (!next) return;
-      voiceInterruptRef.current();
       clearError();
       composerRef.current?.setValue(next);
     },
@@ -861,7 +855,6 @@ function ChatPanel({
   const insertComposerBrowserElementTag = useCallback(
     (element: BrowserElementTag) => {
       if (editAnchorMessageId) return;
-      voiceInterruptRef.current();
       clearError();
       composerRef.current?.insertBrowserElementTag(element);
       requestAnimationFrame(() => composerRef.current?.focus());
@@ -872,7 +865,6 @@ function ChatPanel({
   const insertComposerProgramStepTag = useCallback(
     (tag: ProgramStepTag) => {
       if (editAnchorMessageId) return;
-      voiceInterruptRef.current();
       clearError();
       composerRef.current?.insertProgramStepTag(tag);
       requestAnimationFrame(() => composerRef.current?.focusAtEnd());
@@ -1336,7 +1328,6 @@ function ChatPanel({
       composer={
       <ChatComposerFooter
         ref={composerRef}
-        visible={visible}
         ephemeral={ephemeral}
         editAnchorMessageId={editAnchorMessageId}
         isEmptyThread={isEmptyThread}
@@ -1362,7 +1353,6 @@ function ChatPanel({
         onStop={handleComposerStop}
         onExitEdit={exitMessageEdit}
         onEditAnchorDraftChange={setEditAnchorLiveDraft}
-        voiceInterruptRef={voiceInterruptRef}
         workingDirectory={workingDirectory}
         designerEmbed={designerEmbed}
       />

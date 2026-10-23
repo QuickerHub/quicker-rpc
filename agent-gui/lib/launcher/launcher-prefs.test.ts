@@ -2,12 +2,9 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
   DEFAULT_LAUNCHER_SHORTCUT,
-  LAUNCHER_AUTO_VOICE_STORAGE_KEY,
   LAUNCHER_PREFS_CHANGED_EVENT,
   LAUNCHER_SHORTCUT_STORAGE_KEY,
-  isLauncherAutoVoiceEnabled,
   loadLauncherShortcut,
-  setLauncherAutoVoiceEnabled,
   storeLauncherShortcut,
 } from "./launcher-prefs.ts";
 
@@ -84,17 +81,4 @@ test("storeLauncherShortcut trims and persists shortcut", () => {
   assert.equal(storage.get(LAUNCHER_SHORTCUT_STORAGE_KEY), "Alt+Shift+F");
   assert.equal(loadLauncherShortcut(), "Alt+Shift+F");
   assert.deepEqual(events, [LAUNCHER_PREFS_CHANGED_EVENT]);
-});
-
-test("launcher auto voice prefs round-trip", () => {
-  installBrowserStorage();
-
-  assert.equal(isLauncherAutoVoiceEnabled(), false);
-  setLauncherAutoVoiceEnabled(true);
-  assert.equal(storage.get(LAUNCHER_AUTO_VOICE_STORAGE_KEY), "1");
-  assert.equal(isLauncherAutoVoiceEnabled(), true);
-
-  setLauncherAutoVoiceEnabled(false);
-  assert.equal(storage.get(LAUNCHER_AUTO_VOICE_STORAGE_KEY), "0");
-  assert.equal(isLauncherAutoVoiceEnabled(), false);
 });

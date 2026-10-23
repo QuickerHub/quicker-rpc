@@ -16,7 +16,7 @@
 |---|---|
 | [agent-gui/README.md](../../agent-gui/README.md) | 本地开发、Electron 与发布 |
 | [agent-gui-chat-storage.md](../agent-gui-chat-storage.md) | SQLite 聊天与迁移 |
-| [agent-gui-plugin-storage.md](../agent-gui-plugin-storage.md) | 安装树、用户数据、插件与模型 |
+| [agent-gui-plugin-storage.md](../agent-gui-plugin-storage.md) | 安装树、用户数据与随包资源 |
 | [agent-gui-launcher.md](../agent-gui-launcher.md) | Launcher 直连、桥接与协议细节 |
 | [dev-supervisor-design.md](../dev-supervisor-design.md) | `dev.ps1` 监督进程 |
 

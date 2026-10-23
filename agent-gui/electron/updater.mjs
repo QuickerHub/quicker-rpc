@@ -1,6 +1,6 @@
 import { app } from "./electron-api.mjs";
 import electronUpdater from "electron-updater";
-import { emitDesktopEvent } from "./voice-plugin/events.mjs";
+import { emitDesktopEvent } from "./desktop-events.mjs";
 
 const { autoUpdater } = electronUpdater;
 

@@ -6,8 +6,6 @@ import { WORKSPACE_BROWSER_WEBVIEW_LABEL } from "@/lib/embedded-webview-label";
 
 export const QUICKER_AGENT_DIRNAME = "QuickerAgent";
 export const QUICKER_AGENT_WORKSPACE_SUBDIR = "workspace";
-export const VOICE_ASR_PLUGIN_ID = "voice-asr";
-export const CLIPBOARD_HISTORY_PLUGIN_ID = "clipboard-history";
 
 /** User Documents folder (OS-specific; OneDrive-aware on Windows). */
 export function resolveUserDocumentsDirectory(): string {
@@ -39,7 +37,7 @@ export function resolveQuickerAgentInstallDirectory(): string {
 }
 
 /**
- * User data root (plugins, SQLite DB, caches). Separate from the install directory.
+ * User data root (SQLite DB and caches). Separate from the install directory.
  * Windows: %APPDATA%/QuickerAgent (Roaming)
  */
 export function resolveQuickerAgentAppDataDirectory(): string {
@@ -55,34 +53,6 @@ export function resolveQuickerAgentAppDataDirectory(): string {
   const xdgData = process.env.XDG_DATA_HOME?.trim();
   if (xdgData) return join(xdgData, QUICKER_AGENT_DIRNAME);
   return join(homedir(), ".local", "share", QUICKER_AGENT_DIRNAME);
-}
-
-/** Legacy plugin root before app-data split (Documents/QuickerAgent/plugins/...). */
-export function resolveLegacyVoiceAsrPluginDirectory(): string {
-  return join(
-    resolveUserDocumentsDirectory(),
-    QUICKER_AGENT_DIRNAME,
-    "plugins",
-    VOICE_ASR_PLUGIN_ID,
-  );
-}
-
-/** Current voice-asr plugin install directory (app data). */
-export function resolveVoiceAsrPluginDirectory(): string {
-  return join(
-    resolveQuickerAgentAppDataDirectory(),
-    "plugins",
-    VOICE_ASR_PLUGIN_ID,
-  );
-}
-
-/** clipboard-history plugin install directory (app data). */
-export function resolveClipboardHistoryPluginDirectory(): string {
-  return join(
-    resolveQuickerAgentAppDataDirectory(),
-    "plugins",
-    CLIPBOARD_HISTORY_PLUGIN_ID,
-  );
 }
 
 /** Release default agent workspace: Documents/QuickerAgent/workspace */

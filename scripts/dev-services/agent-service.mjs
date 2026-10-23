@@ -7,7 +7,6 @@ import { attachTaggedLogs } from "./log-multiplexer.mjs";
  *   repoRoot: string;
  *   agentGuiRoot: string;
  *   qkrpcBaseUrl: string;
- *   fullRuntimes?: boolean;
  *   skipKill?: boolean;
  *   openBrowser?: boolean;
  * }} AgentServiceOptions
@@ -31,9 +30,6 @@ export function createAgentService(options) {
     await preparePort();
 
     const args = ["start.mjs", "--dev"];
-    if (options.fullRuntimes) {
-      args.push("--full-runtimes");
-    }
     if (options.openBrowser) {
       args.push("--open-browser");
     }

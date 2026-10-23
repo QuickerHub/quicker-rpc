@@ -44,9 +44,8 @@ Electron globalShortcut -> /launcher
 ## 不变量
 
 1. UI 与服务端不得各维护一份 Launcher 工具列表。
-2. 关闭窗口时清理审批、录音和临时 session。
+2. 关闭窗口时清理审批和临时 session。
 3. 快捷键录制期间暂停 Launcher 全局快捷键。
-4. `/voice-chat` 的浏览器 TTS 不等于 Launcher 已支持结果播报。
 
 ## 验证
 

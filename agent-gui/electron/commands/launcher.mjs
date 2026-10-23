@@ -4,7 +4,6 @@ import { applyWin32LauncherWindowChrome } from "../win32-launcher-chrome.mjs";
 export const LAUNCHER_LABEL = "launcher";
 export const LAUNCHER_HIDDEN_EVENT = "launcher:hidden";
 export const LAUNCHER_SHOWN_EVENT = "launcher:shown";
-export const GLOBAL_VOICE_TOGGLE_EVENT = "global:voice-toggle";
 
 const LAUNCHER_WIDTH = 680;
 const LAUNCHER_HEIGHT = 520;
@@ -242,18 +241,9 @@ export function createLauncherCommands(deps) {
     );
   }
 
-  function emitVoiceToggleToLauncher() {
-    const win = launcherWindow;
-    if (!win || win.isDestroyed()) return;
-    setTimeout(() => {
-      emitLauncherEvent(win, GLOBAL_VOICE_TOGGLE_EVENT);
-    }, 80);
-  }
-
   return {
     getLauncherWindow: () => launcherWindow,
     scheduleLauncherPrewarm,
-    emitVoiceToggleToLauncher,
     launcher_show(_args) {
       ensureLauncherWindow();
       return null;

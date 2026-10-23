@@ -14,7 +14,6 @@ Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让�
 | `docs/action-authoring-src/**`、`build.ps1`、`build.yaml`、`publish/publish-rpc.ps1` | 同上 `-t` | — |
 | 仅 `agent-gui/**` | **自动** `dev_frontend_check` 直到 `ok: true`（或 `/frontend-check`）；见 [quicker-agent-gui-frontend](.cursor/skills/quicker-agent-gui-frontend/SKILL.md) | 跑 `build.ps1 -t`；未检查就声称无错 |
 | `agent-gui/llm-publish.config.json` 或用户说 **发布 publish config** | `publish/Sync-LlmPublishConfig.ps1` → `BUNDLED_LLM_CONFIG` + Bitiful 加密 OSS；skill `quicker-agent-llm-apikey-config` / `/publish-llm-config` | commit 该文件；勿 `-t` |
-| `voice-asr-runtime/**` 发布 / 用户说 **voice runtime 发布** | `quicker-voice-runtime-publish` / `/publish-voice-runtime`；tag `vX.Y.Z` → 同步两处 `voice-plugin-channel.json` | 勿改 `version.json`；勿仅用 `-t` |
 | 仅 `README.md`、`AGENTS.md`、`.cursor/**`（未动 C#） | 无构建 | — |
 | `docs/agent-mcp-integration.md` 等纯文档 | 无构建 | — |
 | 第三方 Agent 接入（MCP/skills） | **Agent 自执行** [docs/agent-mcp-self-install.md](docs/agent-mcp-self-install.md)；Cursor `qkrpc agent setup --workspace <root>`（项目级）；全局插件仅 `--cursor-plugin`；Codex `--codex --project` | 只把命令丢给用户 |
@@ -170,7 +169,6 @@ RPC 产品树：`QuickerRpc/`（打开 `QuickerRpc/QuickerRpc.slnx`）。`agent-
 | agent-gui 主题 / 新组件样式 | `quicker-agent-gui-theme`（`--ad-*`、`theme.css`） |
 | 动作设计器字段 | `quicker-action-designer-ui`（对齐 `../Quicker/QuickerPc/Quicker`） |
 | LLM API Key / 发布 publish config | `quicker-agent-llm-apikey-config` / `/publish-llm-config` |
-| voice-asr runtime 发布 | `quicker-voice-runtime-publish` / `/publish-voice-runtime` |
 | 动作页说明 | `quicker-action-doc` |
 | 正式发布 | `quicker-rpc-publish` + `quicker-qkbuild-version-publish` / `/publish` |
 

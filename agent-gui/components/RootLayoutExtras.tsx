@@ -14,7 +14,6 @@ import { TauriShellInputGuard } from "@/components/shell/TauriShellInputGuard";
 import { ElectronTitlebarOverlaySync } from "@/components/shell/ElectronTitlebarOverlaySync";
 import { useLauncherGlobalShortcut } from "@/lib/launcher/use-launcher-global-shortcut";
 import { useTerminalRuntimeBootstrap } from "@/lib/use-terminal-runtime-bootstrap";
-import { useVoiceRuntimeBootstrap } from "@/lib/voice-input/use-voice-runtime-bootstrap";
 
 /** Root chrome omitted on /launcher to avoid next/dynamic CSR bailout on a tiny window. */
 export function RootLayoutExtras() {
@@ -22,7 +21,6 @@ export function RootLayoutExtras() {
   const isLauncher = pathname === "/launcher";
   useLauncherGlobalShortcut();
   useTerminalRuntimeBootstrap();
-  useVoiceRuntimeBootstrap();
 
   return (
     <>

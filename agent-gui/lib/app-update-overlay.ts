@@ -10,8 +10,6 @@ export type AppUpdatePhase =
   | "applying"
   | "error";
 
-export type VoiceUpdatePhase = "hidden" | "downloading" | "ready";
-
 export type AppUpdateOverlaySlice = {
   phase: AppUpdatePhase;
   installedVersion: string;
@@ -21,15 +19,8 @@ export type AppUpdateOverlaySlice = {
   error: string | null;
 };
 
-export type VoiceUpdateOverlaySlice = {
-  phase: VoiceUpdatePhase;
-  percent: number;
-  message: string;
-};
-
 export type AppUpdateOverlayState = {
   app: AppUpdateOverlaySlice;
-  voice: VoiceUpdateOverlaySlice;
 };
 
 const hiddenApp: AppUpdateOverlaySlice = {
@@ -41,20 +32,12 @@ const hiddenApp: AppUpdateOverlaySlice = {
   error: null,
 };
 
-const hiddenVoice: VoiceUpdateOverlaySlice = {
-  phase: "hidden",
-  percent: 0,
-  message: "",
-};
-
 let state: AppUpdateOverlayState = {
   app: hiddenApp,
-  voice: hiddenVoice,
 };
 
 const serverSnapshot: AppUpdateOverlayState = {
   app: hiddenApp,
-  voice: hiddenVoice,
 };
 
 const listeners = new Set<() => void>();
@@ -70,7 +53,7 @@ export function getAppUpdateOverlayState(): AppUpdateOverlayState {
 }
 
 export function isAppUpdateOverlayVisible(): boolean {
-  return state.app.phase !== "hidden" || state.voice.phase !== "hidden";
+  return state.app.phase !== "hidden";
 }
 
 export function patchAppUpdateOverlay(
@@ -83,25 +66,9 @@ export function patchAppUpdateOverlay(
   notifyListeners();
 }
 
-export function patchVoiceUpdateOverlay(
-  patch: Partial<VoiceUpdateOverlaySlice>,
-): void {
-  state = {
-    ...state,
-    voice: { ...state.voice, ...patch },
-  };
-  notifyListeners();
-}
-
 export function hideAppUpdateOverlaySlice(): void {
   if (state.app.phase === "hidden") return;
   state = { ...state, app: hiddenApp };
-  notifyListeners();
-}
-
-export function hideVoiceUpdateOverlaySlice(): void {
-  if (state.voice.phase === "hidden") return;
-  state = { ...state, voice: hiddenVoice };
   notifyListeners();
 }
 

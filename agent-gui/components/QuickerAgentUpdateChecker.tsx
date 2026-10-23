@@ -6,7 +6,6 @@ import {
   getAppUpdateOverlayState,
   hideAppUpdateOverlaySlice,
   patchAppUpdateOverlay,
-  patchVoiceUpdateOverlay,
   type AppUpdateOverlaySlice,
 } from "@/lib/app-update-overlay";
 import { resetAppUpdateApply } from "@/lib/app-update-apply-guard";
@@ -19,32 +18,14 @@ import {
 } from "@/lib/quicker-agent-official-updater";
 import { checkQuickerAgentUpdate } from "@/lib/quicker-agent-update";
 import {
-  completeVoiceUpdateToast,
   dismissAppUpdateToast,
   syncAppUpdateToast,
-  syncVoiceUpdateToast,
   waitForAppInteractive,
 } from "@/lib/quicker-agent-update-ui";
-import {
-  listenVoicePluginInstallProgress,
-  type VoiceInstallProgressEvent,
-} from "@/lib/voice-input/voice-input-tauri";
 import { getDesktopAppVersion } from "@/lib/desktop-app-version";
 import { isDesktopShell } from "@/lib/desktop-shell";
 
 const APP_UPDATE_MESSAGE_ID = "quicker-agent-update-dev";
-
-function normalizeProgress(event: {
-  percent?: number;
-  message?: string;
-  phase?: string;
-}): { percent: number; message: string } {
-  const percent = Math.max(0, Math.min(100, Math.round(event.percent ?? 0)));
-  const message =
-    event.message?.trim()
-    || `${event.phase ?? "update"} ${percent}%`;
-  return { percent, message };
-}
 
 async function openDownloadUrl(url: string): Promise<void> {
   try {
@@ -101,59 +82,11 @@ function isBenignUpdateCheckError(err: unknown): boolean {
 /** Desktop release: Tauri plugin-updater or Electron electron-updater. Dev/browser: Bitiful prompt. */
 export function QuickerAgentUpdateChecker() {
   const startedRef = useRef(false);
-  const voiceRuntimeUpgradeRef = useRef(false);
   useEffect(() => {
     if (startedRef.current || !isDesktopShell()) return;
     startedRef.current = true;
 
     const controller = new AbortController();
-    let unlistenVoice: (() => void) | undefined;
-
-    const handleVoiceProgress = (event: VoiceInstallProgressEvent): void => {
-      if (event.message.includes("准备更新语音识别服务")) {
-        voiceRuntimeUpgradeRef.current = true;
-      }
-      if (!voiceRuntimeUpgradeRef.current) return;
-
-      const progress = normalizeProgress(event);
-
-      if (event.phase === "done") {
-        completeVoiceUpdateToast(progress.message, "success");
-        voiceRuntimeUpgradeRef.current = false;
-        return;
-      }
-
-      if (event.phase === "error") {
-        completeVoiceUpdateToast(progress.message, "warning");
-        voiceRuntimeUpgradeRef.current = false;
-        return;
-      }
-
-      if (event.phase === "ready") {
-        patchVoiceUpdateOverlay({
-          phase: "ready",
-          percent: progress.percent,
-          message: progress.message,
-        });
-        syncVoiceUpdateToast({
-          phase: "ready",
-          percent: progress.percent,
-          message: progress.message,
-        });
-        return;
-      }
-
-      patchVoiceUpdateOverlay({
-        phase: "downloading",
-        percent: progress.percent,
-        message: progress.message,
-      });
-      syncVoiceUpdateToast({
-        phase: "downloading",
-        percent: progress.percent,
-        message: progress.message,
-      });
-    };
 
     void (async () => {
       try {
@@ -175,7 +108,6 @@ export function QuickerAgentUpdateChecker() {
 
         await waitForAppInteractive();
 
-        unlistenVoice = await listenVoicePluginInstallProgress(handleVoiceProgress);
 
         const installedVersion = await getDesktopAppVersion();
         setAppInstalledVersion(installedVersion);
@@ -230,7 +162,6 @@ export function QuickerAgentUpdateChecker() {
 
     return () => {
       controller.abort();
-      void unlistenVoice?.();
     };
   }, []);
 

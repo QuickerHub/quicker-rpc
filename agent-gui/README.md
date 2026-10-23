@@ -44,13 +44,13 @@ pwsh ./dev.ps1 -Electron
 | 桌面壳 (Tauri, legacy) | `pwsh ./dev.ps1 -Tauri` | WebView2 试验壳 |
 | 仅 qkrpc | `pwsh ./dev.ps1 -Services qkrpc` | 只要后端 serve |
 
-常用参数：`-Browser` 自动打开浏览器；`-Full` 启动时加载语音 runtime；`-NoWatch` 关闭自动热更。默认保存 Plugin/CLI 后自动 `build.ps1 -t` 并重启 serve。详见 [docs/dev-supervisor-design.md](../docs/dev-supervisor-design.md)。
+常用参数：`-Browser` 自动打开浏览器；`-NoWatch` 关闭自动热更。默认保存 Plugin/CLI 后自动 `build.ps1 -t` 并重启 serve。详见 [docs/dev-supervisor-design.md](../docs/dev-supervisor-design.md)。
 
 **不要同时跑** 两个占 `:3000` 的 agent 实例。桌面壳与浏览器 dev 切换时脚本会清 `.next`，避免 Turbopack/webpack 混用报错。
 
 `package.json` 里的 `pnpm dev` / `electron:dev` 等由 `dev.ps1` 内部调用，日常不必手敲。
 
-**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话存储**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。**快速输入启动器**：[`docs/agent-gui-launcher.md`](../docs/agent-gui-launcher.md)。
+**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；安装版为 **`Documents/QuickerAgent/workspace`**。用户数据与安装资源：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话存储**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。**快速输入启动器**：[`docs/agent-gui-launcher.md`](../docs/agent-gui-launcher.md)。
 
 ## 工作台开发入口
 

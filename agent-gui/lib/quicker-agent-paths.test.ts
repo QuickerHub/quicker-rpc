@@ -5,7 +5,6 @@ import {
   resolveQuickerAgentAppDataDirectory,
   resolveQuickerAgentInstallDirectory,
   resolveReleaseDefaultWorkingDirectory,
-  resolveVoiceAsrPluginDirectory,
 } from "./quicker-agent-paths.ts";
 
 test("release workspace is under Documents/QuickerAgent/workspace", () => {
@@ -29,11 +28,4 @@ test("windows install dir and app-data dir are separate when APPDATA is set", ()
   else process.env.LOCALAPPDATA = prevLocal;
   if (prevAppData === undefined) delete process.env.APPDATA;
   else process.env.APPDATA = prevAppData;
-});
-
-test("voice plugin dir is not under release workspace", () => {
-  const plugin = resolveVoiceAsrPluginDirectory();
-  const workspace = resolveReleaseDefaultWorkingDirectory();
-  assert.ok(!workspace.startsWith(plugin));
-  assert.ok(!plugin.startsWith(workspace));
 });

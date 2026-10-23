@@ -71,30 +71,6 @@ export function appRuntimeDir(resourceRoot) {
 }
 
 /**
- * Plugin registry / voice channel JSON (bootstrap, channel, manifest).
- * @param {import('electron').App} app
- * @param {boolean} isDev
- */
-export function resolvePluginMetadataRoot(app, isDev) {
-  if (!isDev) {
-    return resolveResourceRoot(app);
-  }
-  const candidates = [
-    join(electronRoot, "resources"),
-    join(electronRoot, "..", "src-tauri", "resources"),
-    join(electronRoot, "..", "src-tauri", "voice-plugin-metadata"),
-  ];
-  for (const dir of candidates) {
-    if (existsSync(join(dir, "plugin-registry-bootstrap.json"))) {
-      return dir;
-    }
-  }
-  throw new Error(
-    "plugin-registry-bootstrap.json not found — run pnpm electron:prepare or ensure src-tauri/voice-plugin-metadata exists",
-  );
-}
-
-/**
  * Wait for a bundled file after in-place update (NSIS may still be copying).
  * @param {string} filePath
  * @param {{ timeoutMs?: number, intervalMs?: number }} [opts]

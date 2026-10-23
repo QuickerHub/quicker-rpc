@@ -7,11 +7,9 @@ import {
   appRuntimeDir,
   bundledNodeExe,
   bundledQkrpcDir,
-  resolvePluginMetadataRoot,
   resolveResourceRoot,
   waitForBundledFile,
 } from "./paths.mjs";
-import { createPluginRuntimeCommands } from "./commands/plugin-runtime.mjs";
 import { shutdownBackends, startProductionBackends } from "./backend-spawn.mjs";
 import {
   gracefulExit,
@@ -23,11 +21,6 @@ import { getUiBaseUrl, setProductionUiUrl } from "./ui-base-url.mjs";
 import { createLauncherCommands } from "./commands/launcher.mjs";
 import { createGlobalShortcutCommands } from "./commands/global-shortcut.mjs";
 import { createKeyInputCaptureCommands } from "./commands/key-input-capture.mjs";
-import { createVoicePluginCommands } from "./commands/voice-plugin.mjs";
-import {
-  createClipboardHistoryCommands,
-  spawnClipboardRuntimeBackground,
-} from "./commands/clipboard-history.mjs";
 import { createEmbeddedBrowserManager } from "./embedded-browser/manager.mjs";
 import { createEmbeddedBrowserAutomation } from "./embedded-browser/automation-engine.mjs";
 import { startEmbeddedBrowserAutomationServer } from "./embedded-browser/automation-server.mjs";
@@ -101,15 +94,6 @@ let globalShortcutCommands = null;
 
 /** @type {ReturnType<typeof createKeyInputCaptureCommands> | null} */
 let keyInputCaptureCommands = null;
-
-/** @type {ReturnType<typeof createPluginRuntimeCommands> | null} */
-let pluginRuntimeCommands = null;
-
-/** @type {ReturnType<typeof createVoicePluginCommands> | null} */
-let voicePluginCommands = null;
-
-/** @type {ReturnType<typeof createClipboardHistoryCommands> | null} */
-let clipboardHistoryCommands = null;
 
 /** @type {ReturnType<typeof createEmbeddedBrowserManager> | null} */
 let embeddedBrowserManager = null;
@@ -278,29 +262,13 @@ function showNativeThreadNotification(args) {
   return { ok: true };
 }
 
-function getPluginCtx() {
-  return {
-    resourcesRoot: resolvePluginMetadataRoot(app, isDev()),
-    app,
-  };
-}
-
 async function initDesktopCommands() {
-  pluginRuntimeCommands = createPluginRuntimeCommands({ getPluginCtx });
-
   launcher = createLauncherCommands({
     getUiBaseUrl: () => getUiBaseUrl(isDev()),
     getMainWindow: () => mainWindow,
     electronRoot,
     preloadPath,
   });
-
-  voicePluginCommands = createVoicePluginCommands({
-    getPluginCtx,
-    isDev: isDev(),
-  });
-
-  clipboardHistoryCommands = createClipboardHistoryCommands();
 
   embeddedBrowserManager = createEmbeddedBrowserManager({
     getMainWindow: () => mainWindow,
@@ -325,9 +293,6 @@ async function initDesktopCommands() {
   globalShortcutCommands = createGlobalShortcutCommands({
     onLauncherShortcutPress: () => {
       launcher?.launcher_show({});
-      if (globalShortcutCommands?.getAutoVoice()) {
-        launcher?.emitVoiceToggleToLauncher();
-      }
     },
   });
 
@@ -386,29 +351,6 @@ async function handleDesktopInvoke(command, args) {
   }
   if (keyInputCaptureCommands && command in keyInputCaptureCommands) {
     const handler = keyInputCaptureCommands[command];
-    return handler(args);
-  }
-  if (command === "plugin_registry_refresh") {
-    return pluginRuntimeCommands?.plugin_registry_refresh();
-  }
-  if (command === "plugin_list") {
-    return pluginRuntimeCommands?.plugin_list();
-  }
-  if (command === "plugin_status") {
-    return pluginRuntimeCommands?.plugin_status(args);
-  }
-  if (command === "plugin_update") {
-    return pluginRuntimeCommands?.plugin_update(args);
-  }
-  if (command === "plugin_activate") {
-    return pluginRuntimeCommands?.plugin_activate(args);
-  }
-  if (voicePluginCommands && command in voicePluginCommands) {
-    const handler = voicePluginCommands[command];
-    return handler(args);
-  }
-  if (clipboardHistoryCommands && command in clipboardHistoryCommands) {
-    const handler = clipboardHistoryCommands[command];
     return handler(args);
   }
   if (embeddedBrowserCommands && command in embeddedBrowserCommands) {
@@ -529,7 +471,6 @@ async function main() {
     });
     if (!smoke) {
       globalShortcutCommands?.initDefault();
-      spawnClipboardRuntimeBackground();
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

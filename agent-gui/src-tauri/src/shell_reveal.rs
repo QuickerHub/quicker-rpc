@@ -35,7 +35,11 @@ fn resolve_path_within_scope(scope: &str, file_path: &str) -> Result<PathBuf, St
         .map_err(|_| "Path does not exist".to_string())?;
 
     let mut rel = PathBuf::new();
-    for component in resolved.strip_prefix(&root).map_err(|_| "Path is outside the allowed directory")? {
+    for component in resolved
+        .strip_prefix(&root)
+        .map_err(|_| "Path is outside the allowed directory")?
+        .components()
+    {
         match component {
             Component::ParentDir => {
                 return Err("Path is outside the allowed directory".into());

@@ -35,14 +35,11 @@ import {
   hasPasteableUserMessageFormat,
 } from "@/lib/compose-user-message";
 import {
-  beginComposerVoiceStream,
-  cancelComposerVoiceStream,
   createBrowserElementTagElement,
   createComposerTagElement,
   createComposerTagSpacer,
   createProgramStepTagElement,
   deleteComposerTagWithUndo,
-  endComposerVoiceStream,
   ensureEmptyComposerCaret,
   findComposerTagForBackspace,
   findComposerTagForDelete,
@@ -56,7 +53,6 @@ import {
   selectionHasComposerTags,
   serializeComposerRange,
   serializeComposerRoot,
-  updateComposerVoiceStream,
 } from "@/lib/composer-inline";
 import {
   applyPlainTextEditableDom,
@@ -87,11 +83,7 @@ export type ComposerMarkupFieldHandle = {
   insertMentionTrigger: () => void;
   /** Insert plain text at caret (e.g. pasted snippets). */
   insertPlainText: (text: string) => void;
-  beginVoiceStream: () => void;
-  updateVoiceStream: (text: string) => void;
-  endVoiceStream: (finalText?: string) => void;
-  cancelVoiceStream: () => void;
-  /** Current serialized composer value (includes in-progress voice stream text). */
+  /** Current serialized composer value. */
   getValue: () => string;
 };
 
@@ -103,8 +95,6 @@ type ComposerMarkupFieldProps = {
   enableSlashCommands?: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  /** Called when the user edits the field (keyboard/paste/IME); e.g. stop voice input. */
-  onUserEdit?: () => void;
 };
 
 function insertNodeAtSelection(root: HTMLElement, node: Node): void {
@@ -145,20 +135,12 @@ export const ComposerMarkupField = forwardRef<
     enableSlashCommands = false,
     onChange,
     onSubmit,
-    onUserEdit,
   },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
   const compositionActiveRef = useRef(false);
   const tagPreview = useComposerTagPreview(rootRef);
-  const onUserEditRef = useRef(onUserEdit);
-  onUserEditRef.current = onUserEdit;
-
-  const notifyUserEdit = useCallback(() => {
-    onUserEditRef.current?.();
-  }, []);
-
   const bindComposerRoot = useCallback((el: HTMLDivElement | null) => {
     rootRef.current = el;
     applyPlainTextEditableDom(el);
@@ -442,37 +424,6 @@ export const ComposerMarkupField = forwardRef<
         emitChange();
         root.focus();
       },
-      beginVoiceStream: () => {
-        const root = rootRef.current;
-        if (!root || disabled) return;
-        if (value !== lastEmitted.current) {
-          renderMarkupIntoRoot(root, value);
-          lastEmitted.current = value;
-        }
-        closeMenus();
-        beginComposerVoiceStream(root);
-        emitChange();
-        root.focus();
-      },
-      updateVoiceStream: (text: string) => {
-        const root = rootRef.current;
-        if (!root || disabled) return;
-        if (!updateComposerVoiceStream(root, text)) return;
-        emitChange();
-      },
-      endVoiceStream: (finalText?: string) => {
-        const root = rootRef.current;
-        if (!root || disabled) return;
-        if (!endComposerVoiceStream(root, finalText)) return;
-        emitChange();
-        root.focus();
-      },
-      cancelVoiceStream: () => {
-        const root = rootRef.current;
-        if (!root || disabled) return;
-        if (!cancelComposerVoiceStream(root)) return;
-        emitChange();
-      },
       getValue: () => {
         const root = rootRef.current;
         if (!root) return lastEmitted.current;
@@ -591,8 +542,6 @@ export const ComposerMarkupField = forwardRef<
   const handleBeforeInput = (event: React.FormEvent<HTMLDivElement>) => {
     if (disabled) return;
 
-    notifyUserEdit();
-
     const root = rootRef.current;
     if (!root) return;
     const native = event.nativeEvent as InputEvent;
@@ -642,7 +591,6 @@ export const ComposerMarkupField = forwardRef<
 
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
     event.preventDefault();
-    notifyUserEdit();
     const root = rootRef.current;
     if (!root) return;
 
@@ -705,17 +653,6 @@ export const ComposerMarkupField = forwardRef<
     if (!root) return;
 
     const menuOpen = mentionOpen || slashOpen;
-    const menuOnly =
-      menuOpen
-      && (event.key === "ArrowDown"
-        || event.key === "ArrowUp"
-        || event.key === "Enter"
-        || event.key === "Tab"
-        || event.key === "Escape");
-    if (!menuOnly) {
-      notifyUserEdit();
-    }
-
     if (slashOpen) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -805,7 +742,6 @@ export const ComposerMarkupField = forwardRef<
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
           e.preventDefault();
-          if (!disabled) notifyUserEdit();
           rootRef.current?.focus();
         }
       }}
@@ -822,9 +758,6 @@ export const ComposerMarkupField = forwardRef<
         data-placeholder={placeholder}
         onInput={handleInput}
         onBeforeInput={handleBeforeInput}
-        onMouseDown={() => {
-          if (!disabled) notifyUserEdit();
-        }}
         onFocus={handleFocus}
         onBlur={handleBlur}
         onPaste={handlePaste}
@@ -835,7 +768,6 @@ export const ComposerMarkupField = forwardRef<
         onMouseOut={tagPreview.handleMouseOut}
         onCompositionStart={() => {
           compositionActiveRef.current = true;
-          if (!disabled) notifyUserEdit();
         }}
         onCompositionEnd={() => {
           compositionActiveRef.current = false;

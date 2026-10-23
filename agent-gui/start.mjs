@@ -26,10 +26,6 @@ import {
   wireNextDevOutput,
 } from "./lib/dev-frontend-log-parser.mjs";
 import {
-  ensureVoiceRuntime,
-  stopTrackedVoiceRuntime,
-} from "./lib/voice-runtime-lifecycle.mjs";
-import {
   stopTrackedBrowserRuntime,
 } from "./lib/browser-runtime-lifecycle.mjs";
 import {
@@ -147,7 +143,6 @@ function clearNextCacheIfBundlerChanged(targetBundler) {
   }
 }
 const isDev = process.argv.includes("--dev");
-const devFullRuntimes = process.argv.includes("--full-runtimes");
 const devWebpack = process.argv.includes("--webpack");
 const openBrowserCli = process.argv.includes("--open-browser");
 
@@ -160,8 +155,6 @@ function resolveNodeExe() {
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let qkrpcChild = null;
-/** @type {import('node:child_process').ChildProcess | null} */
-let voiceChild = null;
 /** @type {import('node:child_process').ChildProcess | null} */
 let browserChild = null;
 /** @type {import('node:child_process').ChildProcess | null} */
@@ -194,7 +187,6 @@ function waitForProcessExit(child, timeoutMs) {
 function onNextDevExit(code) {
   if (nextDevRecoveryInFlight) return;
   stopQkrpcChild();
-  stopVoiceChild();
   stopBrowserChild();
   process.exit(code ?? 1);
 }
@@ -381,11 +373,6 @@ function stopQkrpcChild() {
   qkrpcChild = null;
 }
 
-function stopVoiceChild() {
-  stopTrackedVoiceRuntime(root, voiceChild);
-  voiceChild = null;
-}
-
 function stopBrowserChild() {
   stopTrackedBrowserRuntime(root, browserChild);
   browserChild = null;
@@ -399,7 +386,6 @@ function stopTerminalChild() {
 function registerShutdown() {
   const onExit = () => {
     stopQkrpcChild();
-    stopVoiceChild();
     stopBrowserChild();
     stopTerminalChild();
   };
@@ -571,16 +557,6 @@ async function main() {
     }
     delete process.env.PORT;
 
-    const startVoiceAtBoot =
-      process.env.AGENT_GUI_VOICE_RUNTIME === "1"
-      || devFullRuntimes;
-    if (startVoiceAtBoot) {
-      voiceChild = await ensureVoiceRuntime(root, host);
-    } else {
-      console.log(
-        "voice: skipped at dev boot (lazy-start on first use; AGENT_GUI_VOICE_RUNTIME=1 or pnpm dev:full to eager-start)",
-      );
-    }
     // Browser runtime lazy-starts on first tool/API invoke (see browser-runtime-client.server.ts).
     if (process.env.AGENT_GUI_SKIP_TERMINAL_RUNTIME !== "1") {
       void ensureTerminalRuntime(root, host)
@@ -625,7 +601,6 @@ async function main() {
 
 main().catch((err) => {
   stopQkrpcChild();
-  stopVoiceChild();
   stopBrowserChild();
   stopTerminalChild();
   console.error(err);

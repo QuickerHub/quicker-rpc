@@ -25,7 +25,6 @@ const agentGuiRoot = join(repoRoot, "agent-gui");
 function parseArgs(argv) {
   const services = new Set(["qkrpc", "agent"]);
   let watch = true;
-  let fullRuntimes = false;
   let skipKill = false;
   let openBrowser = false;
 
@@ -33,7 +32,6 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "--watch") watch = true;
     else if (arg === "--no-watch") watch = false;
-    else if (arg === "--full") fullRuntimes = true;
     else if (arg === "--skip-kill") skipKill = true;
     else if (arg === "--open-browser") openBrowser = true;
     else if (arg === "--services") {
@@ -49,7 +47,6 @@ Options:
   --services qkrpc,agent   Services to start (default: both)
   --watch                  Enable automatic hot-update on file changes (default)
   --no-watch               Disable automatic hot-update
-  --full                   Eager-start voice runtime (agent --full-runtimes)
   --skip-kill              Do not stop prior agent-gui dev on :3000
   --open-browser           Open http://127.0.0.1:3000 after agent is ready
 `);
@@ -57,7 +54,7 @@ Options:
     }
   }
 
-  return { services, watch, fullRuntimes, skipKill, openBrowser };
+  return { services, watch, skipKill, openBrowser };
 }
 
 /** @param {Record<string, unknown>} state */
@@ -84,7 +81,6 @@ async function main() {
     repoRoot,
     agentGuiRoot,
     qkrpcBaseUrl: "",
-    fullRuntimes: opts.fullRuntimes,
     skipKill: opts.skipKill,
     openBrowser: opts.openBrowser,
   });

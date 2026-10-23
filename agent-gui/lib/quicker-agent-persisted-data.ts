@@ -110,7 +110,7 @@ function migrateInstallTreeToAppData(): void {
   }
   if (!existsSync(installRoot)) return;
 
-  for (const subdir of ["plugins", "cache", "agent-defs", "llm-usage", "local"]) {
+  for (const subdir of ["cache", "agent-defs", "llm-usage", "local"]) {
     mergeLegacyTree(join(installRoot, subdir), join(appDataRoot, subdir));
   }
 }

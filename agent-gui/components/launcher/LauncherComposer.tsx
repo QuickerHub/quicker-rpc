@@ -14,12 +14,6 @@ import {
   storeLauncherLlmSelectionRaw,
 } from "@/lib/launcher/launcher-llm-prefs";
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
-import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
-import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
-import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
-import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
-import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle";
-import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
 import { LAUNCHER_SHOWN_EVENT } from "@/lib/launcher/launcher-tauri-events";
 import { dismissLauncherWindow } from "@/lib/launcher/launcher-window";
 import { listenDesktop } from "@/lib/desktop-bridge";
@@ -113,60 +107,6 @@ function LauncherComposer({
     return () => window.removeEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
   }, [syncLlmSelectionFromApi]);
 
-  const voiceInput = useVoiceInput({
-    enabled: !disabled,
-    onStreamBegin: () => {
-      composerRef.current?.beginVoiceStream();
-    },
-    onStreamUpdate: (text) => {
-      composerRef.current?.updateVoiceStream(text);
-    },
-    onStreamEnd: (finalText) => {
-      composerRef.current?.endVoiceStream(finalText);
-    },
-    onStreamInterrupt: () => {
-      composerRef.current?.endVoiceStream();
-    },
-    onStreamCancel: () => {
-      composerRef.current?.cancelVoiceStream();
-    },
-  });
-
-  const handleVoiceSetup = useCallback(() => {
-    void requestVoicePluginSetup();
-  }, []);
-
-  useComposerVoiceToggleShortcut({
-    enabled: !disabled,
-    phase: voiceInput.phase,
-    canUse: voiceInput.canUse,
-    pluginStatus: voiceInput.pluginStatus,
-    onStart: voiceInput.startVoiceInput,
-    onStop: voiceInput.stopVoiceInput,
-    onUnavailable: handleVoiceSetup,
-  });
-
-  const activateLauncherForGlobalVoice = useCallback(() => {
-    postLauncherOpened();
-    requestAnimationFrame(() => composerRef.current?.focus());
-  }, []);
-
-  useGlobalVoiceToggle({
-    enabled: !disabled,
-    phase: voiceInput.phase,
-    canUse: voiceInput.canUse,
-    pluginStatus: voiceInput.pluginStatus,
-    onStart: voiceInput.startVoiceInput,
-    onStop: voiceInput.stopVoiceInput,
-    onStarting: notifyVoiceServiceStarting,
-    onUnavailable: handleVoiceSetup,
-    onGlobalActivate: activateLauncherForGlobalVoice,
-  });
-
-  useLauncherTauriHidden({
-    onHidden: voiceInput.interruptVoiceInput,
-  });
-
   const insertDraftActionTag = useCallback((action: PinnedAction) => {
     composerRef.current?.insertActionTag(action);
     requestAnimationFrame(() => composerRef.current?.focus());
@@ -188,14 +128,13 @@ function LauncherComposer({
 
   const submitComposer = useCallback(() => {
     if (disabled) return;
-    voiceInput.interruptVoiceInput();
     const text = readComposerText();
     if (!canSendComposedMessage(text)) return;
     setDraftMessage("");
     onSubmit(text, llmSelection);
     storeLauncherLlmSelectionRaw(llmSelection);
     requestAnimationFrame(() => composerRef.current?.focus());
-  }, [disabled, voiceInput, readComposerText, onSubmit, llmSelection]);
+  }, [disabled, readComposerText, onSubmit, llmSelection]);
 
   useEffect(() => {
     if (isDesktopShell()) return;
@@ -221,7 +160,6 @@ function LauncherComposer({
   }, []);
 
   const busy = agentBusy;
-  const voiceHint = voiceInput.errorHint ?? voiceInput.statusHint;
 
   return (
     <form
@@ -244,7 +182,6 @@ function LauncherComposer({
             }
             onChange={setDraftMessage}
             onSubmit={submitComposer}
-            onUserEdit={voiceInput.interruptVoiceInput}
           />
           <div className="composer-toolbar">
             <div className="composer-toolbar-left">
@@ -267,32 +204,12 @@ function LauncherComposer({
                   window.open("/", "_blank");
                 }}
               />
-              {voiceHint ? (
-                <span className="composer-hint" role="status">
-                  <span
-                    className={
-                      voiceInput.errorHint
-                        ? "composer-voice-hint composer-voice-hint--err"
-                        : "composer-voice-hint"
-                    }
-                  >
-                    {voiceHint}
-                  </span>
-                </span>
-              ) : null}
               <LauncherDragRegion className="launcher-drag-toolbar-fill" />
             </div>
             <div className="composer-toolbar-actions">
               <ComposerPrimaryActionButton
                 canSend={canSend}
                 agentBusy={busy}
-                phase={voiceInput.phase}
-                pluginStatus={voiceInput.pluginStatus}
-                canUseVoice={voiceInput.canUse && !disabled}
-                onVoiceStart={voiceInput.startVoiceInput}
-                onVoiceStop={voiceInput.stopVoiceInput}
-                onVoiceSetup={handleVoiceSetup}
-                onVoiceStarting={notifyVoiceServiceStarting}
               />
             </div>
           </div>

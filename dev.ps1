@@ -13,8 +13,6 @@
 
 #   pwsh ./dev.ps1 -NoWatch        # disable auto hot-update on source changes
 
-#   pwsh ./dev.ps1 -Full           # eager-start voice runtime
-
 #   pwsh ./dev.ps1 -Services qkrpc # qkrpc serve only
 
 #
@@ -30,8 +28,6 @@ param(
     [string]$Services = 'qkrpc,agent',
 
     [switch]$NoWatch,
-
-    [switch]$Full,
 
     [switch]$SkipKill,
 
@@ -86,8 +82,6 @@ $nodeArgs = @(
 if ($NoWatch) { $nodeArgs += '--no-watch' }
 
 else { $nodeArgs += '--watch' }
-
-if ($Full) { $nodeArgs += '--full' }
 
 if ($SkipKill) { $nodeArgs += '--skip-kill' }
 

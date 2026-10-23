@@ -21,13 +21,6 @@ import { readQuickerRpcSemverFromJson, readQuickerRpcVersionJson, resolveQuicker
 const defaultAgentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRepoRoot = join(defaultAgentGuiRoot, "..");
 
-const VOICE_RESOURCE_FILES = [
-  "voice-plugin-manifest.json",
-  "voice-plugin-channel.json",
-  "voice-sensevoice-model-identity.json",
-  "plugin-registry-bootstrap.json",
-];
-
 const NODE_VERSION = process.env.DESKTOP_BUNDLE_NODE_VERSION
   ?? process.env.TAURI_NODE_VERSION
   ?? "22.14.0";
@@ -394,7 +387,6 @@ export function rebuildBetterSqlite3ForBundledNode(
 /**
  * @param {{
  *   resourcesDir: string,
- *   voiceMetadataSrc: string,
  *   agentGuiRoot?: string,
  *   repoRoot?: string,
  * }} ctx
@@ -461,19 +453,6 @@ export function stageNextStandalone(ctx) {
   stageBetterSqlite3(agentGuiRoot, appDir);
 
   console.log(`Next standalone staged: ${appDir}`);
-}
-
-/** @param {{ resourcesDir: string, voiceMetadataSrc: string }} ctx */
-export function stageVoiceResourceFiles(ctx) {
-  const { resourcesDir, voiceMetadataSrc } = ctx;
-  for (const name of VOICE_RESOURCE_FILES) {
-    const src = join(voiceMetadataSrc, name);
-    if (!existsSync(src)) {
-      throw new Error(`Missing voice plugin metadata: ${src}`);
-    }
-    cpSync(src, join(resourcesDir, name));
-  }
-  console.log(`voice plugin metadata staged (${VOICE_RESOURCE_FILES.length} files)`);
 }
 
 /** @param {{ resourcesDir: string, repoRoot?: string }} ctx */
@@ -589,7 +568,6 @@ function verifyStagedBundle(agentGuiRoot, resourcesDir, label) {
 /**
  * @param {{
  *   resourcesDir: string,
- *   voiceMetadataSrc: string,
  *   agentGuiRoot?: string,
  *   repoRoot?: string,
  *   label?: string,
@@ -600,14 +578,12 @@ export function prepareDesktopBundle(options) {
   const agentGuiRoot = options.agentGuiRoot ?? defaultAgentGuiRoot;
   const ctx = {
     resourcesDir: options.resourcesDir,
-    voiceMetadataSrc: options.voiceMetadataSrc,
     agentGuiRoot,
     repoRoot: options.repoRoot ?? defaultRepoRoot,
   };
   const label = options.label ?? "staged";
 
   stageNextStandalone(ctx);
-  stageVoiceResourceFiles(ctx);
   ensureBundledNode(ctx);
   rebuildBetterSqlite3ForBundledNode(ctx.resourcesDir, agentGuiRoot);
   ensureBundledRipgrep(ctx);

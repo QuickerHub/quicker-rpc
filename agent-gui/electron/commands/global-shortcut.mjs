@@ -9,7 +9,6 @@ export const DEFAULT_LAUNCHER_SHORTCUT = "CommandOrControl+Shift+Space";
  */
 export function createGlobalShortcutCommands(deps) {
   let currentShortcut = DEFAULT_LAUNCHER_SHORTCUT;
-  let autoVoice = false;
 
   function unregisterCurrent() {
     if (globalShortcut.isRegistered(currentShortcut)) {
@@ -39,7 +38,6 @@ export function createGlobalShortcutCommands(deps) {
   }
 
   return {
-    getAutoVoice: () => autoVoice,
     getCurrentShortcut: () => currentShortcut,
     initDefault,
     unregisterAll() {
@@ -64,10 +62,6 @@ export function createGlobalShortcutCommands(deps) {
       const trimmed = String(args?.shortcut ?? "").trim();
       if (!trimmed) {
         throw new Error("shortcut cannot be empty");
-      }
-
-      if (typeof args?.autoVoice === "boolean") {
-        autoVoice = args.autoVoice;
       }
 
       if (trimmed === currentShortcut) {

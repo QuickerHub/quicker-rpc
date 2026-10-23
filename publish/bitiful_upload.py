@@ -65,7 +65,7 @@ def upload_release_asset(
     secret_key: str,
     bucket_name: str,
     endpoint_url: str = "https://s3.bitiful.net",
-    object_prefix: str = "quicker-rpc/voice-asr",
+    object_prefix: str = "quicker-rpc/quicker-agent",
     content_type: str = "application/zip",
 ) -> tuple[str, str]:
     if not local_file.is_file():
@@ -120,40 +120,6 @@ def upload_release_asset(
     base = endpoint_url.rstrip("/")
     object_url = f"{base}/{bucket_name}/{object_key}"
     return object_key, object_url
-
-
-def write_version_txt(
-    version: str,
-    *,
-    access_key: str,
-    secret_key: str,
-    bucket_name: str,
-    endpoint_url: str = "https://s3.bitiful.net",
-    object_prefix: str = "quicker-rpc/voice-asr",
-) -> str:
-    prefix = object_prefix.strip().strip("/")
-    version_txt_key = f"{prefix}/version.txt"
-    marker = version.strip()
-    if not marker:
-        raise RuntimeError("version marker is empty")
-
-    s3_client = boto3.client(
-        "s3",
-        endpoint_url=endpoint_url.rstrip("/"),
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name="us-east-1",
-        config=Config(signature_version="s3v4", retries={"max_attempts": 5}),
-    )
-    s3_client.put_object(
-        Bucket=bucket_name,
-        Key=version_txt_key,
-        Body=marker.encode("utf-8"),
-        ContentType="text/plain; charset=utf-8",
-        CacheControl="no-cache, no-store, must-revalidate",
-    )
-    base = endpoint_url.rstrip("/")
-    return f"{base}/{bucket_name}/{version_txt_key}"
 
 
 def upload_quicker_agent_installer(
@@ -326,16 +292,6 @@ def main(argv: list[str] | None = None) -> int:
         help="(deprecated) Use default upload for quicker-agent-{semver}-x64-setup.exe",
     )
     parser.add_argument(
-        "--version",
-        default="",
-        help="Write version.txt after upload (voice-asr release version)",
-    )
-    parser.add_argument(
-        "--write-version-only",
-        action="store_true",
-        help="Only write version.txt (requires --version)",
-    )
-    parser.add_argument(
         "--endpoint-url",
         default=os.getenv("BITIFUL_ENDPOINT_URL", "https://s3.bitiful.net"),
     )
@@ -357,27 +313,10 @@ def main(argv: list[str] | None = None) -> int:
         default_prefix = os.getenv(
             "BITIFUL_ELECTRON_OBJECT_PREFIX", "quicker-rpc/quicker-agent-electron"
         )
-    elif args.asset or args.write_version_only:
-        default_prefix = "quicker-rpc/voice-asr"
     else:
         default_prefix = os.getenv("BITIFUL_OBJECT_PREFIX", "quicker-rpc/quicker-agent")
     object_prefix = (args.object_prefix or default_prefix).strip()
     local_path = args.path.resolve()
-
-    if args.write_version_only:
-        if not args.version.strip():
-            print("--write-version-only requires --version", file=sys.stderr)
-            return 1
-        version_txt_url = write_version_txt(
-            args.version.strip(),
-            access_key=access_key,
-            secret_key=secret_key,
-            bucket_name=bucket_name,
-            endpoint_url=endpoint_url,
-            object_prefix=object_prefix,
-        )
-        print(f"Version URL: {version_txt_url}")
-        return 0
 
     if args.asset:
         object_key, object_url = upload_release_asset(
@@ -391,16 +330,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"Uploaded: {object_key}")
         print(f"URL: {object_url}")
-        if args.version.strip():
-            version_txt_url = write_version_txt(
-                args.version.strip(),
-                access_key=access_key,
-                secret_key=secret_key,
-                bucket_name=bucket_name,
-                endpoint_url=endpoint_url,
-                object_prefix=object_prefix,
-            )
-            print(f"Version URL: {version_txt_url}")
         return 0
 
     upload_fn = upload_electron_installer if args.electron else upload_quicker_agent_installer

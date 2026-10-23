@@ -22,11 +22,10 @@ QuickerAgent (Electron + Next.js + AI SDK)
 | LAUNCH | 全局快捷键、临时会话、command cache/resolve direct | 已实现 | `lib/launcher/`、`electron/commands/launcher.mjs` |
 | WORK | 文件、Grep、Shell、终端、后台/用户浏览器、网络搜索、浏览器转动作 | 已实现 | `workspace-*-tool*`、`shell-*`、`browser-*` |
 | EXT | 模型配置、Commands、Skills、Agents、`task` 子代理、外部 MCP 工具 | 已实现（MCP 配置入口实验性） | `llm-*`、`agent-defs/`、`agent-skills/`、`agent-mcp/`、`task-tool.server.ts` |
-| VOICE | 本地 ASR 输入插件 | 已实现，可选安装 | `voice-input/`、`voice-asr-runtime/` |
-| VOICE-CHAT | `/voice-chat` 全双工语音页 | 实验性 | `components/voice-chat/`、`lib/voice-chat/` |
-| CLIPBOARD | 剪贴板历史 | 已禁用 | `CLIPBOARD_HISTORY_ENABLED = false` |
 | RPC-V1 | qkrpc CLI/MCP/HTTP + net472 插件 | 已实现 | Console/Contracts/Runtime/Transport/Plugin.V1 |
 | RPC-V2 | net10 插件覆盖 net472 能力 | 对齐中 | Plugin.V2 仍有 stub 和关闭 capability |
+
+语音输入、语音聊天与剪贴板历史已移除，相关页面、插件安装与运行时不再属于产品能力。
 
 Coding Agent 修改前按 [任务路由](../agents/README.md) 进入代码。
 
@@ -83,7 +82,6 @@ publish 只在用户明确要求时执行。
 
 - Launcher 工具面只由 `LAUNCHER_TOOL_IDS` 定义。
 - 一次仅一个活动 run，关闭时清理审批与临时会话。
-- `/voice-chat` 的 TTS 不等于 Launcher 已支持结果播报。
 
 验证：`test:launcher`、Agent eval 的 Launcher cases、Electron 开发态唤起/隐藏检查。技术契约见 [Launcher](../agent-gui-launcher.md)。
 
@@ -100,16 +98,15 @@ publish 只在用户明确要求时执行。
 验证：领域单测、`test:tools`、影响 UI 时执行 frontend check。浏览器边界见 [browser-automation.md](../browser-automation.md)。
 
 <a id="p-ext"></a>
-## EXT：模型、Agent 资产与本地插件
+## EXT：模型与 Agent 资产
 
 - 模型 profile、选择和密钥存入用户数据，不能进入 Git 或安装资源。
 - `.quicker/commands`、`skills`、`agents` 由统一 discovery 加载。
 - Skill 通过 `skill_load` 按名称和 offset 渐进加载；不把全部正文塞入初始 prompt。
 - `task` 子代理使用允许工具列表且不递归暴露自身。
 - 外部 MCP 从 user/workspace `mcp.json` 加载，server 必须显式 enabled；工具 namespaced、可 allowlist/审批/限流，并在 turn 结束关闭连接。配置入口暂按实验性管理。
-- plugin catalog 的 `availability` 是产品入口事实源。
 
-语音输入可用；全双工语音页仍实验性；剪贴板历史保持禁用。验证使用 LLM、agent-defs/skills/task、voice-input/voice-chat 对应测试。资源边界见 [用户数据与插件](../agent-gui-plugin-storage.md)。
+验证使用 LLM、agent-defs/skills/task 和外部 MCP 对应测试。资源边界见 [用户数据与安装资源](../agent-gui-plugin-storage.md)。
 
 <a id="p-rpc"></a>
 ## RPC：外部 Agent 与 Quicker 宿主
@@ -153,7 +150,7 @@ Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作
 | R0 / P0：可信基线 | 重构前先知道什么真的能跑；隔离用户数据、宿主动作和付费模型请求，记录已存在失败 | CHAT / AUTHOR / WORKBENCH；`package.json`、离线 fixtures、`agent-harness/*.test.ts`、`qkrpc-argv.test.ts` | 无 | 有可重复的离线检查入口；不自动启用真实 Electron/动作删除测试；已知失败明确归因，不写成全部通过 | 离线入口、DB fixture 隔离与临时目录本地清理已实现；桌面 UI smoke 隔离协议和 fake 检查已实现，打包实机/原生 Job 执行尚未验收，RPC 明确离线 |
 | R1 / P0：能力与父子权限 | Ask、命令 allowlist、MCP 和子代理不能互相绕过；空交集不能恢复全部工具 | EXT / CHAT；`select-chat-tools.server.ts`、`turn-runtime.server.ts`、`agent-mcp/`、`task-tool.server.ts` | R0 | 未指定与显式空集合分开；最终工具集取所有限制的交集；未知风险 MCP 不进入 Ask；子代理复用父工具策略闭包，无递归 task；Ask 浏览器当前关闭，后续须以仅连接已有会话、无导航/启动副作用的观测端口逐项验收再开放 | 首轮权限边界已实现；操作描述与 TurnPlan 执行约束仍待统一 |
 | R2 / P0：取消与资源生命周期 | 点击停止、关闭连接或运行失败后，不继续悄悄请求模型、重试或占用工具连接 | CHAT / WORK / EXT；`api/chat/route.ts`、`run-turn.server.ts`、`stream-loop.server.ts`、工具上下文及 transport | R1 | 请求信号贯穿模型、压缩、工具和子代理；取消不转换成重试；MCP/reader/计时器至少有明确 owner 且只释放一次；两个并行 turn 互不取消 | 模型、压缩、qkrpc、Shell、MCP 首轮取消链已验收；浏览器/网络端口及派生进程归属待补 |
-| R3 / P1：会话控制与可见性 | 常驻隐藏会话仍可能响应全局输入；页面组件混合消息、审批、滚动、设置与 Launcher 生命周期 | CHAT / WORKBENCH；`Chat.tsx`、`useAgentChatSession.ts`、`ChatComposerFooter.tsx`、Launcher bridge | R1–R2 | 后台运行可以继续，但全局快捷键/录音只归前台 owner；切会话保留草稿与审批；控制器持有业务状态，展示组件只消费明确契约 | 隐藏输入、IME 与面板串会话已验收；执行事实按 turn 隔离并移除 thread 全局 Map；会话控制器拆分待实施 |
+| R3 / P1：会话控制与可见性 | 常驻隐藏会话仍可能响应全局输入；页面组件混合消息、审批、滚动、设置与 Launcher 生命周期 | CHAT / WORKBENCH；`Chat.tsx`、`useAgentChatSession.ts`、`ChatComposerFooter.tsx`、Launcher bridge | R1–R2 | 后台运行可以继续，但全局快捷键只归前台 owner；切会话保留草稿与审批；控制器持有业务状态，展示组件只消费明确契约 | 隐藏输入、IME 与面板串会话已验收；执行事实按 turn 隔离并移除 thread 全局 Map；会话控制器拆分待实施 |
 | R4 / P1：消息投影与工具展示 | 工具越来越多时，摘要、工作折叠、详情、失败与流式参数容易各写一套判断 | CHAT / EXT；`ChatMessageArticle.tsx`、`ToolPart.tsx`、`ToolPopupBody.tsx`、消息与结果 helpers | R1–R3 | 同一工具调用以 id/阶段/结果投影；流式未完成参数不当成完整对象；未知工具有通用回退；正文、展示全文、模型摘要与持久历史不混存 | 跟随、显式展开、稳定 call owner 与流式节流已通过离线 SSE/真实 DOM；单条转批量及输入转预览保留详情与焦点，更多工具的摘要投影统一仍待整改 |
 | R5 / P1：面板扩展契约 | 快捷入口表还不是可扩展工作台；增加文件、结果或动作面板仍可能扩写多处 switch | WORKBENCH / WORK；`agent-workbench-features.ts`、`workspace-explorer.tsx`、`WorkspaceSidePanelTabBar.tsx` | R3–R4 | 面板静态身份、renderer 与会话实例状态分离；已有文件/资源/终端/浏览器接入同一契约；脏编辑和正在运行的任务不会因切换呈现而卸载 | 待实施 |
 | R6 / P1：V1 YAML 完整接入 | 贯通既有 CLI/MCP source bundle 与 QuickerAgent 工具、展示和知识路由 | AUTHOR / RPC；`qkrpc-action-source-tool*`、`qkrpc-tool-call*`、`qkrpc-argv.ts`、`qkrpc-http.ts`、source bundle 与 codec | R1；复用现有文件与结果展示，不依赖专用面板 | open/save 的 CLI、HTTP、cwd、dry-run 等价；Agent 可走现有 V1 YAML 流程；未知字段、外部文件、连续保存、冲突与 Designer 保护保留；V2 原生 MCP 路径不混入 V1 | 工具、原会话结果展示、cwd/sidecar门禁和知识接入已实现，fake transport回归覆盖；真实宿主写回未在本轮执行 |
@@ -176,8 +173,5 @@ Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作
 | 优先级 | 缺口 | 完成条件 |
 |---|---|---|
 | P0 | net10 未完全覆盖 net472 | V1 能力逐项等价或明确不支持；capability、离线测试和活进程 smoke 一致 |
-| P1 | Launcher 语音自动提交/结果短播报 | 可关闭、可打断、有失败降级和测试 |
-| P1 | 全双工语音仍是独立实验页 | 明确是否进入主产品，并统一会话、模型、权限和退出行为 |
-| P2 | 剪贴板历史禁用 | runtime 稳定、升级与资源释放回归通过后再开放 |
 
 新增规划项必须包含用户问题、入口、负责功能域、代码锚点和验收方式；只有想法或实施步骤的内容进入 Issue，不再新增平行 roadmap。

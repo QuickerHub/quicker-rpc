@@ -5,11 +5,9 @@ import {
 } from "@/lib/app-messages";
 import {
   hideAppUpdateOverlaySlice,
-  hideVoiceUpdateOverlaySlice,
   patchAppUpdateOverlay,
   showApplyingAppUpdateOverlay,
   type AppUpdateOverlaySlice,
-  type VoiceUpdateOverlaySlice,
 } from "@/lib/app-update-overlay";
 import {
   resetAppUpdateApply,
@@ -22,7 +20,6 @@ import {
 } from "@/lib/quicker-agent-official-updater";
 
 export const APP_UPDATE_TOAST_ID = "quicker-agent-update";
-export const VOICE_UPDATE_TOAST_ID = "quicker-agent-voice-update";
 
 function pushAppUpdateProgressToast(slice: AppUpdateOverlaySlice): void {
   pushAppMessage({
@@ -34,33 +31,6 @@ function pushAppUpdateProgressToast(slice: AppUpdateOverlaySlice): void {
       percent: slice.percent,
       message: slice.message,
     },
-  });
-}
-
-function pushVoiceUpdateProgressToast(slice: VoiceUpdateOverlaySlice): void {
-  pushAppMessage({
-    id: VOICE_UPDATE_TOAST_ID,
-    kind: "info",
-    title: "语音服务更新",
-    body: "正在下载语音服务组件…",
-    progress: {
-      percent: slice.percent,
-      message: slice.message,
-    },
-  });
-}
-
-export function completeVoiceUpdateToast(
-  message: string,
-  kind: "success" | "warning" = "success",
-): void {
-  hideVoiceUpdateOverlaySlice();
-  pushAppMessage({
-    id: VOICE_UPDATE_TOAST_ID,
-    kind,
-    title: "语音服务更新",
-    body: message,
-    autoDismissMs: kind === "success" ? 5_000 : 10_000,
   });
 }
 
@@ -84,10 +54,6 @@ function formatUpdaterInstallError(err: unknown): string {
 
 export function dismissAppUpdateToast(): void {
   dismissAppMessage(APP_UPDATE_TOAST_ID);
-}
-
-export function dismissVoiceUpdateToast(): void {
-  dismissAppMessage(VOICE_UPDATE_TOAST_ID);
 }
 
 export async function applyOfficialUpdateNow(
@@ -201,31 +167,6 @@ export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
       dismissible: true,
     });
   }
-}
-
-export function syncVoiceUpdateToast(slice: VoiceUpdateOverlaySlice): void {
-  if (slice.phase === "hidden") {
-    dismissVoiceUpdateToast();
-    return;
-  }
-
-  if (slice.phase === "ready") {
-    pushAppMessage({
-      id: VOICE_UPDATE_TOAST_ID,
-      kind: "info",
-      title: "语音服务更新",
-      body: slice.message || "语音服务更新已下载，正在应用…",
-      autoDismissMs: 8_000,
-    });
-    return;
-  }
-
-  if (slice.percent > 0 && slice.percent < 100) {
-    pushVoiceUpdateProgressToast(slice);
-    return;
-  }
-
-  dismissVoiceUpdateToast();
 }
 
 /** Wait until boot splash dismisses (or timeout) before background update work. */

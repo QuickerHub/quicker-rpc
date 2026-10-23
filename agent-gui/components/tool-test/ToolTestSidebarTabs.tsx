@@ -12,7 +12,6 @@ export type ToolTestSidebarTab =
   | "launcher"
   | "action-trace"
   | "context-compression"
-  | "voice-input"
   | "ask-question"
   | "llm-probe";
 
@@ -30,7 +29,6 @@ const TABS: TabDef[] = [
   { id: "launcher", label: "启动器", title: "启动器：Agent / Resolve / Intent" },
   { id: "action-trace", label: "Trace", title: "Action trace 流式调试" },
   { id: "auto-fix", label: "修复", title: "造错→修复场景" },
-  { id: "voice-input", label: "语音", title: "语音输入启动延迟" },
   { id: "ask-question", label: "选择", title: "ask_question 用户选择 Dock UI" },
   {
     id: "context-compression",

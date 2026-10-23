@@ -14,19 +14,14 @@ use tauri::TitleBarStyle;
 use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
-mod clipboard_history_plugin;
 mod embedded_browser;
 mod global_shortcut;
 mod launcher;
 mod legacy_chat_restore;
-mod plugin_runtime;
 mod quicker_agent_paths;
 mod shell_reveal;
 mod single_instance;
 mod tray;
-mod voice_plugin;
-mod voice_plugin_install;
-mod webview_permissions;
 mod webview_profile;
 pub(crate) mod win_job;
 
@@ -587,8 +582,6 @@ fn spawn_node_background(app: AppHandle, config: ProductionRuntimeConfig) {
                     }
                 }
                 open_production_ui(&app, &ui_url);
-                voice_plugin::spawn_voice_runtime_background(app.clone());
-                clipboard_history_plugin::spawn_clipboard_runtime_background(app.clone());
             }
             Err(err) => {
                 let app_for_dialog = app.clone();
@@ -648,14 +641,6 @@ fn open_production_ui(app: &AppHandle, ui_url: &str) {
     }
 }
 
-fn spawn_pending_voice_runtime_upgrade_background() {
-    std::thread::spawn(|| {
-        if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
-            eprintln!("[voice-plugin] apply pending runtime upgrade failed: {err}");
-        }
-    });
-}
-
 fn spawn_production_startup(app: AppHandle) {
     std::thread::spawn(move || {
         emit_startup_status(&app, "正在初始化…");
@@ -675,7 +660,6 @@ fn spawn_production_startup(app: AppHandle) {
             return;
         }
 
-        spawn_pending_voice_runtime_upgrade_background();
         spawn_qkrpc_background(app.clone(), config.clone());
         spawn_node_background(app, config);
     });
@@ -710,13 +694,6 @@ fn run_app_shutdown<R: tauri::Runtime>(app: &AppHandle<R>) {
     STARTUP_CANCELLED.store(true, Ordering::SeqCst);
     prepare_ui_for_exit(app);
     app.state::<BackendState>().inner().shutdown();
-    app.state::<voice_plugin::VoicePluginState>()
-        .inner()
-        .shutdown();
-    clipboard_history_plugin::shutdown_clipboard_history_fast(
-        app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
-            .inner(),
-    );
 }
 
 fn request_app_exit<R: tauri::Runtime>(app: &AppHandle<R>) {
@@ -773,7 +750,7 @@ fn graceful_exit(app: AppHandle) {
     spawn_shutdown_and_exit(app);
 }
 
-/// Stop bundled qkrpc/node (and plugin runtimes) without exiting — call before NSIS update install.
+/// Stop bundled qkrpc/node without exiting — call before NSIS update install.
 #[tauri::command]
 fn prepare_for_update_install(app: AppHandle) {
     run_app_shutdown(&app);
@@ -834,26 +811,6 @@ pub fn run() {
             launcher::launcher_toggle,
             launcher::launcher_expand,
             global_shortcut::launcher_sync_global_shortcut,
-            plugin_runtime::commands::plugin_registry_refresh,
-            plugin_runtime::commands::plugin_list,
-            plugin_runtime::commands::plugin_status,
-            plugin_runtime::commands::plugin_update,
-            plugin_runtime::commands::plugin_activate,
-            voice_plugin::voice_plugin_status,
-            voice_plugin::voice_runtime_health,
-            voice_plugin::voice_plugin_install,
-            voice_plugin::voice_plugin_start_runtime,
-            voice_plugin::voice_plugin_stop_runtime,
-            voice_plugin::voice_plugin_redownload_model,
-            voice_plugin::voice_plugin_model_install_state,
-            voice_plugin::voice_plugin_read_settings,
-            voice_plugin::voice_plugin_write_settings,
-            clipboard_history_plugin::clipboard_history_plugin_status,
-            clipboard_history_plugin::clipboard_history_runtime_health,
-            clipboard_history_plugin::clipboard_history_plugin_start_runtime,
-            clipboard_history_plugin::clipboard_history_plugin_stop_runtime,
-            clipboard_history_plugin::clipboard_history_plugin_read_settings,
-            clipboard_history_plugin::clipboard_history_plugin_write_settings,
             webview_profile::webview_profile_paths,
             embedded_browser::embedded_browser_navigation_state,
             embedded_browser::embedded_browser_navigate,
@@ -868,13 +825,10 @@ pub fn run() {
             shell_reveal::reveal_path_in_file_manager,
         ])
         .manage(BackendState::new())
-        .manage(voice_plugin::VoicePluginState::new())
-        .manage(clipboard_history_plugin::ClipboardHistoryPluginState::new())
         .setup(|app| {
             if let Some(win) = app.get_webview_window("main") {
                 apply_titlebar_chrome_existing(&win);
                 register_main_window_handlers(&win, app.handle());
-                webview_permissions::enable_auto_microphone_permission(&win);
                 let _ = win.center();
                 let _ = win.show();
             }
@@ -885,14 +839,10 @@ pub fn run() {
                 app.manage(launcher::UiBaseUrl(Mutex::new(
                     launcher::default_dev_ui_base_url(),
                 )));
-                // Dev: skip background plugin work and launcher prewarm — webpack is already heavy.
+                // Dev: skip launcher prewarm — webpack is already heavy.
                 #[cfg(not(debug_assertions))]
                 {
                     launcher::prewarm_launcher_window_background(app.handle().clone());
-                    voice_plugin::spawn_voice_runtime_background(app.handle().clone());
-                    clipboard_history_plugin::spawn_clipboard_runtime_background(
-                        app.handle().clone(),
-                    );
                 }
                 Ok(())
             } else {

@@ -3,7 +3,6 @@
 import { invokeDesktop } from "@/lib/desktop-bridge";
 import { isDesktopShell } from "@/lib/desktop-shell";
 import {
-  isLauncherAutoVoiceEnabled,
   loadLauncherShortcut,
 } from "@/lib/launcher/launcher-prefs";
 import { isValidTauriShortcut } from "@/lib/launcher/launcher-shortcut-format";
@@ -27,7 +26,6 @@ function enqueueShortcutOp<T>(operation: () => Promise<T>): Promise<T> {
 
 async function syncLauncherGlobalShortcutInner(): Promise<LauncherShortcutSyncResult> {
   const shortcut = loadLauncherShortcut();
-  const autoVoice = isLauncherAutoVoiceEnabled();
   if (!isDesktopShell()) {
     return { ok: true, shortcut };
   }
@@ -36,7 +34,7 @@ async function syncLauncherGlobalShortcutInner(): Promise<LauncherShortcutSyncRe
   }
 
   try {
-    await invokeDesktop("launcher_sync_global_shortcut", { shortcut, autoVoice });
+    await invokeDesktop("launcher_sync_global_shortcut", { shortcut });
     return { ok: true, shortcut };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

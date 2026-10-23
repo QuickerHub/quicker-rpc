@@ -15,7 +15,6 @@ const VALID_SIDEBAR_TABS = new Set<ToolTestSidebarTab>([
   "launcher",
   "action-trace",
   "context-compression",
-  "voice-input",
   "ask-question",
   "llm-probe",
 ]);

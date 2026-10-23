@@ -48,7 +48,6 @@ const tests = [
   "lib/use-throttled-stream-value.test.ts",
   "lib/release-preview-context.test.ts",
   "lib/workspace-general-file-tool.test.ts",
-  "lib/voice-input/composer-voice-shortcut.test.ts",
   "lib/thread-side-panel-sync.test.ts",
   "lib/qkrpc-argv.test.ts",
   "lib/qkrpc-action-source-tool.test.ts",

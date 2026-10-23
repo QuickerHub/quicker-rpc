@@ -13,9 +13,7 @@ import { stageElectronShell } from "./electron-shell-staging.mjs";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(agentGuiRoot, "..");
-const tauriRoot = join(agentGuiRoot, "src-tauri");
 const resourcesDir = join(agentGuiRoot, "electron", "resources");
-const voiceMetadataSrc = join(tauriRoot, "voice-plugin-metadata");
 
 function syncPackageVersion() {
   const version = readDesktopBundleSemver(repoRoot);
@@ -34,7 +32,6 @@ async function main() {
   console.log("electron-prepare: staging runtime for Electron bundle...");
   prepareDesktopBundle({
     resourcesDir,
-    voiceMetadataSrc,
     agentGuiRoot,
     repoRoot,
     label: "electron-staged",

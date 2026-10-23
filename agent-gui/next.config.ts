@@ -18,7 +18,6 @@ const nextConfig: NextConfig = {
       "agent-gui/.next/**",
       "agent-gui/cursor-sdk-runtime/**",
       "publish/**",
-      "voice-asr-runtime/**",
       "../browser-runtime/**",
     ],
   },

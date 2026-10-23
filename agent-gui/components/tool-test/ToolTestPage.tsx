@@ -57,8 +57,6 @@ import { ToolTestAutoFixPanel } from "@/components/tool-test/ToolTestAutoFixPane
 import { ToolTestAutoFixResultPane } from "@/components/tool-test/ToolTestAutoFixResultPane";
 import { ToolTestContextCompressionPanel } from "@/components/tool-test/ToolTestContextCompressionPanel";
 import { ToolTestContextCompressionResultPane } from "@/components/tool-test/ToolTestContextCompressionResultPane";
-import { ToolTestVoiceInputPanel } from "@/components/tool-test/ToolTestVoiceInputPanel";
-import { ToolTestVoiceInputResultPane } from "@/components/tool-test/ToolTestVoiceInputResultPane";
 import { ToolTestAskQuestionPanel } from "@/components/tool-test/ToolTestAskQuestionPanel";
 import { ToolTestAskQuestionResultPane } from "@/components/tool-test/ToolTestAskQuestionResultPane";
 import {
@@ -81,7 +79,6 @@ import { ToolTestSuiteResultPane } from "@/components/tool-test/ToolTestSuiteRes
 import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
 import type { ContextCompressionRunEntry } from "@/lib/tool-test-context-compression-runs";
-import type { VoiceInputRunEntry } from "@/lib/tool-test-voice-input-runs";
 import type { AskQuestionRunEntry } from "@/lib/tool-test-ask-question-runs";
 import {
   getDefaultAskQuestionScenario,
@@ -91,7 +88,6 @@ import type { SettingsIntentRunEntry } from "@/lib/quicker-settings-intent-runs"
 import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
 import type { LauncherAgentRunEntry } from "@/lib/tool-test-launcher-agent-runs";
 import type { LauncherResolveRunEntry } from "@/lib/tool-test-launcher-resolve-runs";
-import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import { ToolTestLlmProbePanel } from "@/components/tool-test/ToolTestLlmProbePanel";
 import { ToolTestLlmProbeResultPane } from "@/components/tool-test/ToolTestLlmProbeResultPane";
 import type { LlmEndpointProbeReport } from "@/lib/llm-endpoint-probe-core";
@@ -291,7 +287,6 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
   const [contextCompressionRuns, setContextCompressionRuns] = useState<
     ContextCompressionRunEntry[]
   >([]);
-  const [voiceInputRuns, setVoiceInputRuns] = useState<VoiceInputRunEntry[]>([]);
   const [askQuestionRuns, setAskQuestionRuns] = useState<AskQuestionRunEntry[]>([]);
   const [activeAskQuestionScenario, setActiveAskQuestionScenario] =
     useState<AskQuestionScenario | null>(() => getDefaultAskQuestionScenario());
@@ -304,20 +299,9 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
   const [launcherResolveRuns, setLauncherResolveRuns] = useState<LauncherResolveRunEntry[]>([]);
   const [settingsIntentRuns, setSettingsIntentRuns] = useState<SettingsIntentRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
-  const [voiceInstallBusy, setVoiceInstallBusy] = useState(false);
   const [llmProbeReport, setLlmProbeReport] = useState<LlmEndpointProbeReport | null>(null);
   const [llmProbeError, setLlmProbeError] = useState<string | null>(null);
   const [llmProbeRunning, setLlmProbeRunning] = useState(false);
-
-  const handleVoiceInstallTest = useCallback(() => {
-    if (voiceInstallBusy) return;
-    setVoiceInstallBusy(true);
-    void requestVoicePluginSetup({
-      skipConfirm: true,
-      force: true,
-      preferNetwork: process.env.NODE_ENV === "development",
-    }).finally(() => setVoiceInstallBusy(false));
-  }, [voiceInstallBusy]);
 
   const appendTitleTestRun = useCallback((entry: TitleTestRunEntry) => {
     setTitleTestRuns((prev) => [...prev, entry]);
@@ -371,23 +355,6 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
 
   const clearContextCompressionRuns = useCallback(() => {
     setContextCompressionRuns([]);
-  }, []);
-
-  const appendVoiceInputRun = useCallback((entry: VoiceInputRunEntry) => {
-    setVoiceInputRuns((prev) => [...prev, entry]);
-  }, []);
-
-  const patchVoiceInputRun = useCallback(
-    (id: string, patch: Partial<VoiceInputRunEntry>) => {
-      setVoiceInputRuns((prev) =>
-        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
-      );
-    },
-    [],
-  );
-
-  const clearVoiceInputRuns = useCallback(() => {
-    setVoiceInputRuns([]);
   }, []);
 
   const appendAskQuestionRun = useCallback((entry: AskQuestionRunEntry) => {
@@ -798,12 +765,6 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
         onAppendRun={appendContextCompressionRun}
         onPatchRun={patchContextCompressionRun}
       />
-    ) : sidebarTab === "voice-input" ? (
-      <ToolTestVoiceInputPanel
-        disabled={panelDisabled}
-        onAppendRun={appendVoiceInputRun}
-        onPatchRun={patchVoiceInputRun}
-      />
     ) : sidebarTab === "ask-question" ? (
       <ToolTestAskQuestionPanel
         activeScenarioId={activeAskQuestionScenario?.id ?? null}
@@ -863,11 +824,6 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
         runs={contextCompressionRuns}
         workingDirectory={workingDirectory}
         onClearRuns={clearContextCompressionRuns}
-      />
-    ) : sidebarTab === "voice-input" ? (
-      <ToolTestVoiceInputResultPane
-        runs={voiceInputRuns}
-        onClearRuns={clearVoiceInputRuns}
       />
     ) : sidebarTab === "ask-question" ? (
       <ToolTestAskQuestionResultPane
@@ -976,16 +932,6 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
                 onClick={() => void refreshPing({ silent: false, fast: true })}
               >
                 刷新 RPC
-              </button>
-              <span className="tool-test-titlebar__meta-sep" aria-hidden />
-              <button
-                type="button"
-                className="tool-test-titlebar__btn"
-                title="跳过确认，强制走安装/下载流程（dev 下优先网络下载）"
-                disabled={voiceInstallBusy}
-                onClick={handleVoiceInstallTest}
-              >
-                {voiceInstallBusy ? "语音安装中…" : "测试语音安装"}
               </button>
               <span className="tool-test-titlebar__meta-sep" aria-hidden />
               {workingDirectory ? (

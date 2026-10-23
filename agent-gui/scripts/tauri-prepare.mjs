@@ -13,7 +13,6 @@ const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(agentGuiRoot, "..");
 const tauriRoot = join(agentGuiRoot, "src-tauri");
 const resourcesDir = join(tauriRoot, "resources");
-const voiceMetadataSrc = join(tauriRoot, "voice-plugin-metadata");
 
 function syncTauriVersion() {
   const version = readDesktopBundleSemver(repoRoot);
@@ -37,7 +36,6 @@ function main() {
   clearStaleBundledResources();
   prepareDesktopBundle({
     resourcesDir,
-    voiceMetadataSrc,
     agentGuiRoot,
     repoRoot,
     label: "tauri-staged",

@@ -95,15 +95,15 @@ test("migrates user data from colocated install tree to Roaming app-data", async
 
   mkdirSync(join(installRoot, "local"), { recursive: true });
   writeFileSync(join(installRoot, "local", "chats.db"), "legacy-db", "utf8");
-  mkdirSync(join(installRoot, "plugins", "voice-asr"), { recursive: true });
-  writeFileSync(join(installRoot, "plugins", "voice-asr", "manifest.json"), "{}", "utf8");
+  mkdirSync(join(installRoot, "agent-defs", "example-agent"), { recursive: true });
+  writeFileSync(join(installRoot, "agent-defs", "example-agent", "manifest.json"), "{}", "utf8");
 
   const mod = await import("@/lib/quicker-agent-persisted-data");
   mod.resetPersistedDataMigrationForTests();
   mod.resolveQuickerAgentPersistedDataDirectory();
 
   assert.ok(existsSync(join(appData, "local", "chats.db")));
-  assert.ok(existsSync(join(appData, "plugins", "voice-asr", "manifest.json")));
+  assert.ok(existsSync(join(appData, "agent-defs", "example-agent", "manifest.json")));
 
   if (prevLocal === undefined) delete process.env.LOCALAPPDATA;
   else process.env.LOCALAPPDATA = prevLocal;

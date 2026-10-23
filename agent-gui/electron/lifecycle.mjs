@@ -1,5 +1,4 @@
-import { shutdownClipboardHistory } from "./clipboard-history/runtime.mjs";
-import { shutdownVoiceRuntime } from "./voice-plugin/runtime.mjs";
+
 
 /** @type {(() => void) | null} */
 let shutdownEmbeddedBrowser = null;
@@ -8,9 +7,7 @@ export function registerEmbeddedBrowserShutdown(fn) {
   shutdownEmbeddedBrowser = fn;
 }
 
-function shutdownDesktopRuntimes(fastClipboard = false) {
-  shutdownVoiceRuntime();
-  shutdownClipboardHistory(fastClipboard);
+function shutdownDesktopRuntimes() {
   shutdownEmbeddedBrowser?.();
 }
 
@@ -35,7 +32,7 @@ export function isMainWindowClosePermitted() {
  * @param {{ shutdownBackends: () => void }} ctx
  */
 export function prepareForUpdateInstall(ctx) {
-  shutdownDesktopRuntimes(false);
+  shutdownDesktopRuntimes();
   ctx.shutdownBackends();
 }
 
@@ -46,7 +43,7 @@ export function gracefulExit(ctx) {
   const { app, shutdownBackends, getMainWindow } = ctx;
 
   if (exitInProgress) {
-    shutdownDesktopRuntimes(true);
+    shutdownDesktopRuntimes();
     shutdownBackends();
     app.exit(0);
     return;
@@ -54,7 +51,7 @@ export function gracefulExit(ctx) {
   exitInProgress = true;
 
   setTimeout(() => {
-    shutdownDesktopRuntimes(false);
+    shutdownDesktopRuntimes();
     shutdownBackends();
     app.exit(0);
   }, SHUTDOWN_FORCE_EXIT_AFTER_MS);
@@ -66,7 +63,7 @@ export function gracefulExit(ctx) {
       win.close();
     }
     setTimeout(() => {
-      shutdownDesktopRuntimes(true);
+      shutdownDesktopRuntimes();
       shutdownBackends();
       app.quit();
     }, SHUTDOWN_BACKEND_DELAY_MS);

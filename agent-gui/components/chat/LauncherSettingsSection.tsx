@@ -4,9 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useShellPlatform } from "@/lib/tauri-shell";
 import {
   DEFAULT_LAUNCHER_SHORTCUT,
-  isLauncherAutoVoiceEnabled,
   loadLauncherShortcut,
-  setLauncherAutoVoiceEnabled,
   storeLauncherShortcut,
 } from "@/lib/launcher/launcher-prefs";
 import {
@@ -16,7 +14,6 @@ import {
 } from "@/lib/launcher/launcher-shortcut-format";
 import { syncLauncherGlobalShortcut } from "@/lib/launcher/sync-launcher-global-shortcut";
 import { isTauriShell } from "@/lib/tauri-shell";
-import { formatVoiceInputToggleShortcut } from "@/lib/voice-input/voice-input-shortcuts";
 
 type LauncherSettingsSectionProps = {
   active: boolean;
@@ -30,7 +27,6 @@ export function LauncherSettingsSection({
   const platform = useShellPlatform();
   const inTauri = isTauriShell();
   const [shortcut, setShortcut] = useState(DEFAULT_LAUNCHER_SHORTCUT);
-  const [autoVoice, setAutoVoice] = useState(false);
   const [recording, setRecording] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -38,7 +34,6 @@ export function LauncherSettingsSection({
   useEffect(() => {
     if (!active) return;
     setShortcut(loadLauncherShortcut());
-    setAutoVoice(isLauncherAutoVoiceEnabled());
   }, [active]);
 
   const applyShortcut = useCallback(async (next: string) => {
@@ -58,14 +53,6 @@ export function LauncherSettingsSection({
       setSyncError(result.error ?? "注册快捷键失败，可能被其他程序占用");
     }
   }, [inTauri]);
-
-  const handleAutoVoiceChange = (enabled: boolean) => {
-    setAutoVoice(enabled);
-    setLauncherAutoVoiceEnabled(enabled);
-    if (inTauri) {
-      void syncLauncherGlobalShortcut();
-    }
-  };
 
   const handleRecordKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -98,8 +85,7 @@ export function LauncherSettingsSection({
       <header className="app-settings-section-head app-settings-section-head--compact">
         <h2 className="app-settings-section-title">快速输入启动器</h2>
         <p className="app-settings-section-desc">
-          全局快捷键唤起透明输入窗；Composer 内语音输入仍为{" "}
-          {formatVoiceInputToggleShortcut(platform)}。
+          全局快捷键唤起快速输入窗。
         </p>
       </header>
 
@@ -130,18 +116,6 @@ export function LauncherSettingsSection({
           </div>
         </div>
 
-        <label className="launcher-settings-auto-voice">
-          <input
-            type="checkbox"
-            checked={autoVoice}
-            disabled={disabled}
-            onChange={(event) => handleAutoVoiceChange(event.target.checked)}
-          />
-          <span className="launcher-settings-auto-voice-text">自动语音输入</span>
-          <span className="launcher-settings-auto-voice-hint">
-            开启后，用启动快捷键打开时会自动开始录音
-          </span>
-        </label>
       </div>
 
       {!inTauri ? (
