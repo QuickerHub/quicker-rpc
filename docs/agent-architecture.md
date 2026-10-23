@@ -141,12 +141,17 @@ session。每条连接在核验同一 instance/session/endpoint 后才允许写�
 能力不足或绑定不一致均不能切往其它宿主，写后断线返回 `WRITE_RESULT_UNKNOWN`。
 CLI、MCP、serve 和 Agent 共用这一约束；Agent 在写前固定 turn 目标，源码保存先离线读取 bundle
 绑定。pool 重连保留 session，catalog cache 按连接隔离，SSE 的独立连接也携带相同绑定和取消。
-双宿主活进程和安装/热更验收仍由集成阶段执行。
+V1 安装/热更、专用 source 动作连续保存、冲突及 checkpoint 部分成功恢复已验证；
+双宿主活进程和完整 Designer 流程继续按产品计划验收。
+浏览器与服务端共用 `qkrpc-host-binding-contract.ts` 及 `action-project-binding.ts` 的纯身份
+契约、解析和文档指纹；包含 ALS 的 `qkrpc-host-binding.ts` 仅保留服务端绑定职责和兼容导出。
+Transport 沿用 instance/session/endpoint 比较；文档比较完整 binding。浏览器打包检查拒绝
+Node/ALS/server-only 依赖。这些契约尚不代表 UI 已展示目标或本地保存已接身份 CAS。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
 持久化。V2 已有 `IQuickerRpcActionProgramSourceHost` 的原生 catalog/draft adapter，复用
 共享 codec，保留未知字段、snapshot hash 与条件持久化；宿主原生 API 或 UI dispatcher
-不具备时 capability 关闭。真实目标绑定/专用动作验收仍待完成，这与 V2 Designer UI port
+不具备时 capability 关闭。V2 真实目标绑定/专用动作验收仍待完成，这与 V2 Designer UI port
 为 null 是两个不同边界。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
 
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
