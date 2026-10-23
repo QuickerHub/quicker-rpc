@@ -304,8 +304,9 @@ catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录
 版本或清除历史。九项新回归及相关 59 项纯层测试、类型检查与独立代码审查通过。主动作
 界面现已接同一 Session：所有 surface 即时投影，原本各自的 present/history、Workspace
 初始快照和 overrides 已移除。统一按钮/快捷键、portal、属性及未 blur 步骤/变量草稿 flush
-已通过 17 项真实 Edge DOM；613 项分支离线检查、类型检查及独立审查通过。最终深浅/
+已通过 17 项真实 Edge DOM；吸收 PR18 后 622 项离线检查、类型检查及独立审查通过。最终深浅/
 480px 截图使用真实 bundled SVG，工具栏、属性输入及所有 clipping 祖先范围均已检查。
+吸收当前主线后的移位静态 React/Node 也通过实际 API、renderer、frontend check 和所属进程清理验收。
 独立 X 入口保留原本历史；子程序属性及字面调用同步重命名、完整资源目录和 Agent live
 文档协同继续迁移。当前证据仍不替代真实 V2 或完整双宿主设计器验收。
 
