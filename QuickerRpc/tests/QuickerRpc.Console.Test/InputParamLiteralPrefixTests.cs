@@ -116,4 +116,25 @@ public sealed class InputParamLiteralPrefixTests
         StringAssert.Contains(saved.ToString(), "9223372036854775807");
         StringAssert.Contains(saved.ToString(), "1e999");
     }
+
+    [DataTestMethod]
+    [DataRow("@var:Name")]
+    [DataRow("@file:Name")]
+    [DataRow("@value:Name")]
+    public void Handwritten_yaml_lit_is_the_original_literal_not_a_legacy_wire_escape(string literal)
+    {
+        var yaml = "variables: []\nsteps:\n  - key: future:runner\n    inputs:\n      title:\n        lit: '" + literal + "'\n";
+        var decoded = ProgramSourceCodec.Decode(yaml);
+        Assert.AreEqual(literal, decoded["steps"]![0]!["inputs"]!.Value<string>("title"));
+        ProgramSourceCodec.RequireLosslessRoundtrip(decoded);
+        var saved = V1ProgramSourceCodec.ToNative(ProgramSourceCodec.Decode(ProgramSourceCodec.Encode(decoded)));
+        Assert.AreEqual(literal, saved["Steps"]![0]!["InputParams"]!["title"]!.Value<string>("Value"));
+        Assert.IsNull(saved["Steps"]![0]!["InputParams"]!["title"]!["VarKey"]);
+
+        var compatibilityInput = new JObject { ["title"] = new JObject { ["value"] = literal } };
+        InputParamWireCoercer.CompactInputParamsObject(compatibilityInput);
+        Assert.AreEqual("@value:" + literal, compatibilityInput.Value<string>("title"));
+        InputParamWireCoercer.ExpandInputParamsObject(compatibilityInput);
+        Assert.AreEqual(literal, compatibilityInput["title"]!.Value<string>("value"));
+    }
 }
