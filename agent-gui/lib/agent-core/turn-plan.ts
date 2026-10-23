@@ -156,6 +156,8 @@ function blockedToolsForMode(mode: ChatMode, enabledToolIds: readonly string[]):
     || id === "Write"
     || id === "StrReplace"
     || id === "workspace_program"
+    || id === "qkrpc_action_open"
+    || id === "qkrpc_action_save"
     || id.includes("_run")
     || id.includes("_debug")
     || id.includes("_delete")

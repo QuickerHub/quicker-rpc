@@ -30,6 +30,8 @@ describe("tool-bundles", () => {
     });
     assert.ok(full.has("workspace_program"));
     assert.ok(full.has("qkrpc_step_runner_get"));
+    assert.ok(full.has("qkrpc_action_open"));
+    assert.ok(full.has("qkrpc_action_save"));
     assert.equal(full.has("qkrpc_profile_create"), false);
     assert.equal(full.has("qkrpc_action_publish"), false);
     assert.equal(full.has("Shell"), false);

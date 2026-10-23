@@ -22,8 +22,8 @@ Module deep refs (`step-modules/kc`, `step-modules/authored`) live in **`docs/au
 
 Docs target **Agents** (QuickerAgent + `qkrpc guide` CLI consumers). Compressed English, tables, short rules. `{{#only-cli}}` / `{{#only-agent}}` only where invoke names differ.
 
-Existing V1 actions through standalone CLI/MCP default to `program-source` YAML
-bundles. QuickerAgent's `workspace_program`, creation, metadata, and global
+Existing V1 actions through CLI/MCP and QuickerAgent default to `program-source` YAML
+bundles. Compatibility JSON `workspace_program`, creation, metadata, and global
 subprograms retain their existing workflows; keep those scopes explicit. V2
 uses Quicker's native MCP. Runner schema and deep module references remain
 shared knowledge, while old JSON examples must be translated to S0 YAML.

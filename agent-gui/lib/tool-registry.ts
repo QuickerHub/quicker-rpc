@@ -213,7 +213,21 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "同步动作",
     group: "write",
     category: "action",
-    description: "get：首次同步到 .quicker 工作区",
+    description: "兼容 JSON：首次同步到 .quicker 工作区；现有 V1 源码用 open/save",
+  },
+  {
+    id: "qkrpc_action_open",
+    label: "打开动作源码",
+    group: "write",
+    category: "action",
+    description: "现有 V1 动作→cwd 空目录的 YAML/files 与只读 sidecar/baseline；写磁盘，非 V2",
+  },
+  {
+    id: "qkrpc_action_save",
+    label: "校验/保存动作源码",
+    group: "write",
+    category: "action",
+    description: "V1 YAML bundle：显式 dryRun=true 离线校验，再 dryRun=false 保存；版本/Designer 保护，无 force",
   },
   {
     id: "qkrpc_designer_open",

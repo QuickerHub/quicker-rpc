@@ -31,6 +31,7 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "",
   "## Runtime",
   "- qkrpc via serve (HTTP → plugin), not per-call subprocesses. Sidebar cwd = workspace root for shell, qkrpc, workspace_program.",
+  "- Existing V1 action bodies: qkrpc_action_open → Read/StrReplace/Write program.source.yaml/files → qkrpc_action_save dryRun=true → dryRun=false. Preserve sidecars/baseline; no force/retry after conflict or partial save. V2 uses native MCP. Creation, metadata, global subprograms and legacy JSON retain existing tools.",
   "- Disposable workspace files (test data, patch JSON, downloads, one-off scripts) → `.local/` under cwd (gitignored). NOT workspace root or tracked source trees.",
   "- Header shows RPC status; no connectivity probe tool.",
   "- Shell auto-prepends qkrpc and rg (ripgrep) to PATH (see lib/qkrpc-toolchain-env.mjs). On connectivity_failure: call qkrpc_wait once, then retry or ask user — no shell ping/probe/serve loops.",

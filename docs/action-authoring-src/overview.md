@@ -6,9 +6,9 @@
 
 {{#include-partial doc-layers-table}}
 
-**Existing V1 action via standalone CLI/MCP**: open → edit `program.source.yaml` / `files/` → save dry-run → save. Read **program-source** first. V2 uses its native MCP.
+**Existing V1 action via CLI/MCP or QuickerAgent**: open → edit `program.source.yaml` / `files/` → save dry-run → save. Read **program-source** first. QuickerAgent tools require explicit `dryRun: true` then `false`, operate within sidebar cwd, and preserve tool-managed sidecars. V2 uses its native MCP.
 
-**QuickerAgent / compatibility path**: create or get (non-empty) → workspace_program edit data.json/files → patch. Creation, metadata, and global subprograms retain existing commands. After create NO re-get. NO inline patch JSON on workspace path. CLI JSON patch remains available (patch-workflow).
+**Creation / global subprogram / compatibility JSON path**: create or get (non-empty) → workspace_program edit data.json/files → patch. Metadata retains existing commands. After create NO re-get. NO inline patch JSON on workspace path. CLI JSON patch remains available (patch-workflow).
 
 ## P0
 

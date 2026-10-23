@@ -4,6 +4,9 @@ import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { buildAgentTurnState } from "@/lib/agent-turn-state";
 import { getRequestLastUserText } from "@/lib/qkrpc-request-context";
+import { isActionSourceManagedPath } from "@/lib/qkrpc-action-source";
+import { validateWorkspaceWritePath } from "@/lib/workspace-write-guard.server";
+import { canReadConfirmedActionSourcePath } from "@/lib/action-source-read-guard.server";
 import {
   wasActionCreatedThisTurn,
   wasProgramPatchedThisTurn,
@@ -26,6 +29,7 @@ import {
   listWorkspaceFiles,
   readWorkspaceFile,
   readWorkspaceFileSnapshot,
+  resolveWorkspacePath,
   writeWorkspaceFile,
 } from "@/lib/workspace-fs";
 
@@ -67,7 +71,7 @@ const workspaceReadSliceSchema = {
 const actionSchema = z
   .enum(["read", "write", "edit", "info", "search", "list"])
   .describe(
-    "read/write/edit/info/search/list under sidebar cwd; NOT Quicker program bodies (workspace_program).",
+    "read/write/edit/info/search/list under sidebar cwd, including V1 source YAML/files; legacy .quicker JSON uses workspace_program.",
   );
 
 const QUICKER_PROGRAM_TREE_RE =
@@ -77,9 +81,14 @@ function validateGeneralWorkspacePath(
   inputPath: string,
   mode: "read" | "write",
 ): { ok: true } | { ok: false; error: string } {
-  const trimmed = inputPath.trim().replace(/\\/g, "/");
-  if (!trimmed) {
-    return { ok: false, error: "path is required." };
+  const resolved = resolveWorkspacePath(inputPath);
+  if (!resolved.ok) return resolved;
+  const trimmed = resolved.relative;
+  if (mode === "write" && isActionSourceManagedPath(trimmed)) {
+    return {
+      ok: false,
+      error: "quicker.source.json and .qkrpc/baseline.json are tool-managed. Edit program.source.yaml or files/; use qkrpc_action_save to update the checkpoint.",
+    };
   }
   if (QUICKER_PROGRAM_TREE_RE.test(trimmed)) {
     return {
@@ -98,9 +107,9 @@ function validateGeneralWorkspacePath(
   return { ok: true };
 }
 
-function guardAuthoringHostRead(
+async function guardAuthoringHostRead(
   path: string,
-): { ok: false; error: string } | null {
+): Promise<{ ok: false; error: string } | null> {
   const userText = getRequestLastUserText()?.trim();
   if (!userText) {
     return null;
@@ -121,11 +130,12 @@ function guardAuthoringHostRead(
   if (normalized.startsWith(".local/")) {
     return null;
   }
+  if (await canReadConfirmedActionSourcePath(path)) return null;
   return {
     ok: false,
     error:
       "During action authoring after create/patch, use workspace_program and qkrpc_action_debug — "
-      + "Read is for .local/ scratch files only.",
+      + "Read is limited to .local/ scratch files or this turn's confirmed source bundle YAML/resources.",
   };
 }
 
@@ -182,7 +192,7 @@ async function executeWorkspaceFileTool(
           guard.error,
         );
       }
-      const authoringGuard = guardAuthoringHostRead(path);
+      const authoringGuard = await guardAuthoringHostRead(path);
       if (authoringGuard) {
         return formatLocalToolResult(
           { action: "file-read", success: false, errorMessage: authoringGuard.error },
@@ -233,7 +243,8 @@ async function executeWorkspaceFileTool(
           "content is required.",
         );
       }
-      const guard = validateGeneralWorkspacePath(path, "write");
+      const logicalGuard = validateGeneralWorkspacePath(path, "write");
+      const guard = logicalGuard.ok ? await validateWorkspaceWritePath(path) : logicalGuard;
       if (!guard.ok) {
         return formatLocalToolResult(
           { action: "file-write", success: false, errorMessage: guard.error },
@@ -282,7 +293,8 @@ async function executeWorkspaceFileTool(
           "oldString and newString are required.",
         );
       }
-      const guard = validateGeneralWorkspacePath(path, "write");
+      const logicalGuard = validateGeneralWorkspacePath(path, "write");
+      const guard = logicalGuard.ok ? await validateWorkspaceWritePath(path) : logicalGuard;
       if (!guard.ok) {
         return formatLocalToolResult(
           { action: "file-edit", success: false, errorMessage: guard.error },
@@ -464,7 +476,7 @@ export const READ_TOOL_DEF = tool({
   description:
     "Read plain files under sidebar workspace cwd. Prefer over Shell for file I/O. "
     + "Scratch/temp → `.local/` (gitignored). "
-    + "NOT Quicker program bodies (.quicker/actions|subprograms) — use workspace_program. "
+    + "V1 source bundles: read program.source.yaml/files/. Legacy .quicker/actions|subprograms use workspace_program. "
     + "NOT regex search across tree — use Grep. "
     + "NOT run/build/git — use Shell. "
     + "Examples: read file {path, startLine:1, endLine:40}; list dir {action:\"list\", path:\".\"}.",
@@ -487,7 +499,7 @@ export const WRITE_TOOL_DEF = tool({
   description:
     "Write full content to a plain file under sidebar workspace cwd. Prefer over Shell for file I/O. "
     + "Scratch/temp → `.local/` (gitignored). Changes show in side panel 已改动. "
-    + "NOT Quicker program bodies — use workspace_program. "
+    + "V1 source bundles: write program.source.yaml/files/ only; sidecars/baseline are protected. Legacy .quicker bodies use workspace_program. "
     + "For small in-file edits use StrReplace. "
     + "Example: {path:\".local/out.json\", content:\"…\"}.",
   inputSchema: z.object({
@@ -505,7 +517,7 @@ export const WRITE_TOOL_DEF = tool({
 export const STR_REPLACE_TOOL_DEF = tool({
   description:
     "Replace exact text in a plain cwd file (oldString → newString). Prefer over Write for small patches. "
-    + "Changes show in side panel 已改动. NOT Quicker program bodies — use workspace_program. "
+    + "Changes show in side panel 已改动. V1 source YAML/files allowed; tool-managed sidecars/baseline protected. Legacy .quicker bodies use workspace_program. "
     + "Example: {path:\".local/foo.txt\", oldString:\"a\", newString:\"b\", replaceAll:false}.",
   inputSchema: z.object({
     path: z

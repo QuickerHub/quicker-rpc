@@ -1,6 +1,6 @@
 ---
 name: quicker-authoring
-description: "Routes Quicker V1 action editing: standalone CLI/MCP YAML bundles use program-source; QuickerAgent/legacy JSON, creation, and subprograms use their existing workflows. Step schema and module knowledge load on demand. V2 uses native MCP."
+description: "Routes existing Quicker V1 action editing in CLI/MCP and QuickerAgent through program-source YAML open/edit/dry-run/save. Legacy JSON, creation, metadata and global subprograms keep their workflows. Step schema and module knowledge load on demand. V2 uses native MCP."
 allowed-tools: docs
 compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 ---
@@ -13,8 +13,8 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 
 | intent | topic |
 |--------|-------|
-| existing V1 action + qkrpc_action_open/save available | **program-source** (YAML bundle; default for standalone MCP/CLI) |
-| edit program body | authoring-workflow |
+| existing V1 action (CLI/MCP/QuickerAgent) | **program-source** (YAML bundle; open → file tools → save dryRun=true then false) |
+| create / compatibility JSON program body | authoring-workflow |
 | disk .quicker / workspace | workspace-editing |
 | global/embedded subprogram | subprogram-workflow |
 | step module keys | step-runner-search → step-runner-get |
@@ -66,6 +66,8 @@ Run/settings/layout → main agent Capabilities (not this skill).
 
 ## P0–P7
 
+Existing V1 action edits (CLI/MCP/QuickerAgent): **program-source** — open → YAML/files → dry-run → save. V2 uses native MCP.
+The following P0–P7 covers action creation, global subprograms and legacy JSON:
 ```text
 Ph  Goal
 ──  ─────────────────────────────────────────
@@ -83,7 +85,7 @@ Walkthrough: authoring-workflow. Workspace: workspace-editing.
 
 ## Hard rules
 
-V2 actions use Quicker's native MCP. For V1 source bundles, edit only `program.source.yaml` / `files/`; keep `quicker.source.json` and `.qkrpc/baseline.json` tool-managed. Save dry-run is offline; actual save checks the original action's version and Designer state. Metadata, creation, and global subprograms retain the existing commands. The workspace/patch rules below apply to QuickerAgent and compatibility JSON projects.
+V2 actions use Quicker's native MCP. For V1 source bundles, edit only `program.source.yaml` / `files/` with the host file tools (`Read`/`StrReplace`/`Write` in QuickerAgent); keep `quicker.source.json` and `.qkrpc/baseline.json` tool-managed. Save dry-run is offline; actual save checks the original action's version and Designer state. QuickerAgent requires explicit `dryRun:true` then `false`, with no automatic retry. `persisted:true` plus checkpoint failure means the action changed: preserve edits and reopen into a new directory before reconciling. Metadata, creation, and global subprograms retain the existing commands. The workspace/patch rules below apply to compatibility JSON projects.
 
 - NO guess inputParams without step_runner_get
 - NO get-ui / step-runner.getUi

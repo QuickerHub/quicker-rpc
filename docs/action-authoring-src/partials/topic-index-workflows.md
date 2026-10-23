@@ -1,7 +1,7 @@
 | title | topic | when |
 |-------|-------|------|
-| V1 YAML action editing | **`program-source`** | standalone CLI/MCP open → YAML/files → save |
-| Action authoring | **`authoring-workflow`** | P1–P7 main flow |
+| V1 YAML action editing | **`program-source`** | CLI/MCP/QuickerAgent open → YAML/files → dry-run → save |
+| Action authoring | **`authoring-workflow`** | creation/subprograms/compatibility JSON P1–P7 |
 {{#only-agent}}| Workspace editing | **`workspace-editing`** | `.quicker` layout, workspace tools, file externalize |
 {{/only-agent}}| Subprograms | **`subprogram-workflow`** | global vs embedded |
 {{#only-agent}}| Action organization | **`action-organization`** | move actions, tabs — not program body |

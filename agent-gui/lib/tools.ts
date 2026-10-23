@@ -11,6 +11,8 @@ import { SKILL_LOAD_TOOL, SKILL_LOAD_TOOL_DEF } from "@/lib/skill-load-tool.serv
 import { QKRPC_FA_TOOL, QKRPC_FA_TOOL_DEF } from "@/lib/qkrpc-fa-tool";
 
 import { QKRPC_WAIT_TOOL, QKRPC_WAIT_TOOL_DEF } from "@/lib/qkrpc-wait-tool";
+import { QKRPC_ACTION_OPEN_TOOL, QKRPC_ACTION_SAVE_TOOL } from "@/lib/qkrpc-action-source";
+import { QKRPC_ACTION_OPEN_TOOL_DEF, QKRPC_ACTION_SAVE_TOOL_DEF } from "@/lib/qkrpc-action-source-tool.server";
 
 import {
 
@@ -249,6 +251,8 @@ const quickerToolsCore = {
   [QKRPC_ACTION_QUERY_TOOL]: QKRPC_ACTION_QUERY_TOOL_DEF,
 
   [QKRPC_ACTION_GET_TOOL]: QKRPC_ACTION_GET_TOOL_DEF,
+  [QKRPC_ACTION_OPEN_TOOL]: QKRPC_ACTION_OPEN_TOOL_DEF,
+  [QKRPC_ACTION_SAVE_TOOL]: QKRPC_ACTION_SAVE_TOOL_DEF,
 
   [QKRPC_DESIGNER_OPEN_TOOL]: QKRPC_DESIGNER_OPEN_TOOL_DEF,
 

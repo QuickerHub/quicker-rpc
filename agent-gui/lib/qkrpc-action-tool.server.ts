@@ -961,7 +961,8 @@ export const QKRPC_ACTION_QUERY_TOOL_DEF = tool({
 
 export const QKRPC_ACTION_GET_TOOL_DEF = tool({
   description:
-    "Sync one action from Quicker to .quicker/actions/{id}/ (first time only). "
+    "Compatibility JSON: sync one action from Quicker to .quicker/actions/{id}/ (first time only). "
+    + "Existing V1 action body edits default to qkrpc_action_open/save YAML instead. "
     + "After qkrpc_action_create skip get — use workspace_program. NOT run — qkrpc_action_run.",
   inputSchema: z.object({
     id: z.string().uuid().describe("Action GUID"),

@@ -80,6 +80,10 @@ DSH 参考固定为 [DeepSeek Harness `687f282`](https://github.com/deepseek-ai/
 兼容入口保留父信号。取消必须抛出原原因，不能当成断连而改走 CLI、重试或启动新模型。
 会话可见性只控制输入与展示，切换会话不会取消后台 turn。
 
+`TurnExecutionState` 保存创建/编辑/patch 标记、计数和连接阻断事实。root turn 创建新对象，
+嵌套工具与子代理传播同一引用；thread id 仅用于历史和资源命名，不能作为可变执行状态的索引。
+生命周期释放会清空并关闭该对象；仍持有旧上下文的晚到回调不能重新写入已关闭状态。
+
 正常生产结束时释放 runtime，但仍允许响应体排空已缓冲的消息；响应体结束后解除父信号监听。
 初始化过程中晚到的资源也必须释放。压缩重试先取消被拒收的模型 attempt，再释放 reader，
 避免 AI SDK tee 分支互等；每个 attempt 使用派生信号，不取消整轮请求。
@@ -114,6 +118,7 @@ QuickerAgent 负责：
 | `ResolvedAgentTurnRequest` | 标准化请求 | 整个 turn |
 | `TurnPlan` | intent、risk、target、相关工具与验证建议；不等于权限已执行或验证已完成 | 每 turn 一份 |
 | `ToolExecutionContext` | cwd、scope、thread、bench 等执行上下文 | 每 turn 一份 |
+| `TurnExecutionState` | 本轮工具共享的可变执行事实与关闭状态，不跨轮保存 | root turn 创建，嵌套调用共享引用 |
 | `PreparedAgentTurnRuntime` | 交给 Agent loop 的完整运行参数 | stream 前生成 |
 | `AgentRuntimeSnapshot` | 供 UI/评测观察的只读快照 | 输出 metadata |
 

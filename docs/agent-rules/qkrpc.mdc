@@ -1,5 +1,5 @@
 ---
-description: V1/qkrpc headless authoring. Existing actions use YAML open/save; subprograms and QuickerAgent retain .quicker/ edits. V2 uses independent quicker CLI or native tools. Do not apply in QuickerOrg/Quicker app source or unrelated repos.
+description: V1/qkrpc headless authoring. Existing actions in CLI/MCP/QuickerAgent use YAML open/save; subprograms, creation and compatibility JSON retain .quicker/ edits. V2 uses independent quicker CLI or native tools. Do not apply in QuickerOrg/Quicker app source or unrelated repos.
 globs:
 alwaysApply: false
 ---
@@ -22,7 +22,7 @@ For existing V2 account actions/global subprograms, prefer the independent `quic
 
 ## Before editing
 
-1. Existing V1 actions via standalone CLI/MCP: `docs` action=get topic `program-source`; QuickerAgent/legacy JSON/creation: `overview`, then `authoring-workflow`
+1. Existing V1 actions via CLI/MCP or QuickerAgent: `docs` action=get topic `program-source`; legacy JSON/creation: `overview`, then `authoring-workflow`
 2. Subprograms: `subprogram-workflow`
 3. YAML bundle layout: `program-source`; legacy `.quicker/` layout: `workspace-editing` or MCP resource `quicker://workspace/readme`
 
@@ -31,7 +31,7 @@ For existing V2 account actions/global subprograms, prefer the independent `quic
 | Goal | MCP (preferred) | CLI (`--json`) |
 |------|-----------------|----------------|
 | **V1 existing action** | `qkrpc_action_open(id, dir)` → edit YAML/files → `qkrpc_action_save(dir, dryRun=true)` → save | `action open --id <guid> --dir <empty>` → edit → `action save --dir <dir> --dry-run` → save |
-| **V1 subprogram / QuickerAgent / legacy JSON** | Keep `qkrpc_action_get` / `qkrpc_subprogram_get` → edit `.quicker/` → `workspace_program` `action=patch` | `action get` / `subprogram get` → edit → `apply` |
+| **V1 subprogram / legacy JSON** | Keep `qkrpc_action_get` / `qkrpc_subprogram_get` → edit `.quicker/` → `workspace_program` `action=patch` (QuickerAgent uses workspace_program for JSON edits) | `action get` / `subprogram get` → edit → `apply` |
 | **Remote** publish **action** (动作库) | — | `action publish` / `action update` (`--changelog` on update) |
 | **Remote** publish **subprogram** (子程序库) | — | `subprogram publish` / `subprogram update` (`--changelog` on update) |
 | Run / debug with step output | `qkrpc_action` `mode=debug` | `action run --trace` |
@@ -52,7 +52,7 @@ MCP tools return **flat compact JSON** — not `{ ok, data: { action, payload } 
 ## Hard rules
 
 - Existing V1 action: **open → host edit program.source.yaml/files → save dry-run → save**. Use an empty directory; preserve tool-managed `quicker.source.json` / `.qkrpc/baseline.json`. Save guards versions/Designer; dry-run is offline.
-- Subprograms / QuickerAgent / legacy JSON: **get → host file tools → patch**; **no** inline patch JSON; **deprecated** `qkrpc_sync`. Creation and metadata retain existing commands.
+- Subprograms / legacy JSON: **get → disk edit → patch** (QuickerAgent uses `workspace_program`); **no** inline patch JSON; **deprecated** `qkrpc_sync`. Creation and metadata retain existing commands.
 - After patch: trust `editVersion`; **no** verify re-get
 - Connectivity: `qkrpc_wait` on failure — **no** repeated shell ping/probe
 - Prefer MCP `qkrpc_*` when configured; else shell `qkrpc` CLI

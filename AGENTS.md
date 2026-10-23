@@ -29,7 +29,7 @@ Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让�
 - **qkrpc 连不上时**：先 **`qkrpc_wait`** / `qkrpc wait --json`（或 MCP `qkrpc_wait`）轮询等待；仍失败则告知用户检查 Quicker / 插件。**禁止** shell 连环探活，除非用户明确要求修复环境。详见 skill **`quicker-rpc-knowledge`**（`docs/skills/quicker-rpc-knowledge/`）。
 - **Cursor / MCP**：用 `qkrpc_health` 或 qkrpc 工具；勿用 shell 代替 qkrpc CLI。
 - **`qkrpc` 是本机 CLI**（`qkrpc` / `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`）。在终端 **直接调用** `qkrpc <子命令>`，不要当成只能由用户手动的文档。
-- **自描述优先**：`qkrpc help --json`；独立 CLI/MCP 改现有 V1 动作：`qkrpc guide get --topic program-source --json`；QuickerAgent/旧 JSON：`authoring-workflow`。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
+- **自描述优先**：`qkrpc help --json`；CLI/MCP/QuickerAgent 改现有 V1 动作：`program-source`（CLI `qkrpc guide get --topic program-source --json`）；创建/兼容 JSON：`authoring-workflow`；子程序：`subprogram-workflow`。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
 - **高频 / agent-gui**：优先 `qkrpc serve`（`http://127.0.0.1:9477`，`GET /health`）；未启动时 agent-gui 回退为 CLI 子进程。
 - **SDK**：.NET 10（CLI）；Plugin 为 net472。`agent-gui` 需 Node 20+、pnpm。启动开发环境：`pwsh ./dev.ps1`（见 [agent-gui/AGENTS.md](agent-gui/AGENTS.md)、[docs/dev-supervisor-design.md](docs/dev-supervisor-design.md)）。
 - **管道**：`QuickerRpc_Server_QRPC2026`（`QuickerRpcPipeNames.ServerPipe`）；插件 host server，CLI client connect。
@@ -88,7 +88,9 @@ qkrpc fa search --query "<keyword>" --json
 qkrpc action run --id <guid> [--param <text>] --trace --json
 ```
 
-**agent-gui 改程序体**：统一 `workspace_program`（`read_data` / `edit_data` / `write_data` / `file_*` / `patch` / `diagnostics`），`target` = `action` | `global_subprogram` | `embedded_subprogram`。**禁止** Agent 使用内联 patch 或 CLI `--patch-file`。
+**agent-gui 现有 V1 动作程序体**：`qkrpc_action_open` → 在 cwd 新/空目录中用 `Read` / `StrReplace` / `Write` 编辑 `program.source.yaml` / `files/` → `qkrpc_action_save(dryRun=true)` → `dryRun=false`；保留 sidecar/baseline，冲突或部分保存不自动重试。V2 使用原生 MCP。
+
+**创建、子程序与兼容 JSON 程序体**：继续 `workspace_program`（`read_data` / `edit_data` / `write_data` / `file_*` / `patch` / `diagnostics`），`target` = `action` | `global_subprogram` | `embedded_subprogram`。**禁止** Agent 使用内联 patch 或 CLI `--patch-file`。
 
 **Step-runner 分工**
 

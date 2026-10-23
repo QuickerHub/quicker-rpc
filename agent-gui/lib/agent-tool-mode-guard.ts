@@ -9,6 +9,9 @@ const ASK_READ_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   quicker_settings: new Set(["search", "list", "get", "pages", "links"]),
   // Even observations currently ensure a runtime/session; Ask must not invoke it.
   browser: new Set(),
+  // Source open writes bundle files; save includes host writes even though dry-run is offline.
+  qkrpc_action_open: new Set(),
+  qkrpc_action_save: new Set(),
 };
 
 /** Enforce the operation boundary of mixed read/write tools independently of the model. */

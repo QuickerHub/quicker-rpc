@@ -80,7 +80,7 @@
   },
   "action.save": {
     "cli": "qkrpc action save --dir {{dir}} --json",
-    "agent": "qkrpc_action_save({ dir: \"{{dir}}\" })",
+    "agent": "qkrpc_action_save({ dir: \"{{dir}}\", dryRun: false })",
     "defaults": {
       "dir": ".tmp/quicker/edit-action"
     }

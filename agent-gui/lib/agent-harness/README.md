@@ -33,6 +33,11 @@ propagates consumer cancellation to the producer. Runtime cleanup also runs when
 production finishes, without discarding buffered messages. Late resources acquired
 after cancellation are released; nested tool contexts retain the same parent signal.
 
+`turn-execution-state.ts` creates one mutable facts object per root turn. Nested
+tools and subagents share that reference. Program/connectivity flags never use a
+thread-keyed global map; lifecycle disposal clears and closes the owner, and late
+callbacks cannot revive it. Thread ids remain persistence/display identifiers.
+
 `stream-loop.ts` still uses the single AI SDK `ToolLoopAgent`. Its injected usage
 and compaction ports allow real SDK tests with synthetic models, without accessing
 account data. `turn-runner.test.ts` tests the same production orchestration via

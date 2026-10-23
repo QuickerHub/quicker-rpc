@@ -22,6 +22,8 @@ export const TOOL_TEST_MANUAL_TOOLS: Readonly<
   Record<string, string>
 > = {
   qkrpc_action_get: "同步会写 .quicker 磁盘",
+  qkrpc_action_open: "会写 YAML bundle 目录；专用 qkrpc-action-source-tool fake 测试覆盖",
+  qkrpc_action_save: "真实保存会改宿主动作；专用 source-tool/transport fake 测试覆盖",
   qkrpc_action_create: "会新建动作",
   qkrpc_designer_open: "会打开设计器",
   qkrpc_action_edit_var: "会修改变量",

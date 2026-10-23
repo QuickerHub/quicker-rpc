@@ -7,7 +7,8 @@
 | intent | tools | docs deep-read |
 |--------|-------|----------------|
 | run / debug / float | qkrpc_action_run / debug / float | — |
-| edit program body | P1–P7 + workspace_program | authoring-workflow |
+| existing V1 action body | qkrpc_action_open → Read/StrReplace/Write YAML/files → qkrpc_action_save dryRun=true then false | program-source |
+| new action / compatibility JSON | P1–P7 + workspace_program | authoring-workflow |
 | disk .quicker | workspace_program | workspace-editing |
 | global/embedded subprogram | workspace_program + target | subprogram-workflow |
 | step module keys | qkrpc_step_runner_search → get | step-runner-get |
@@ -21,9 +22,7 @@
 - data.json / steps[] / variables[] → **docs get action-data-schema** (schema+markdown; NOT docs search)
 - known topic id (Route) → **docs get(topic)**; unknown keyword → search→snippet; module keys → step_runner get
 
-## Scenario skills
-
-On-demand — parent SKILL table. Hot: library-search, selection/clipboard pipeline, subprogram `var:*`, run-action-delegate, form-param-input.
+Scenario skills: on-demand via parent SKILL table. Hot: library-search, selection/clipboard pipeline, subprogram `var:*`, run-action-delegate, form-param-input.
 
 ## Pattern traps (do not guess)
 
@@ -38,21 +37,19 @@ On-demand — parent SKILL table. Hot: library-search, selection/clipboard pipel
 - long evalexpression: **`expression.file`** → `files/*.eval.cs` + **apply**
 - number var assign: **`Convert.ToDouble(n)`**; separate **`parseOk`** from `clipOk`
 
-## P0–P7
-
 {{#include-partial pipeline-p0-p7}}
 
 ## Hard rules
 
+- V1 source bundles stay in a cwd subdirectory outside `.quicker/`; keep `quicker.source.json` and `.qkrpc/baseline.json` tool-managed. Source open/save require Agent mode; V2 uses native MCP.
+- Save with `dryRun:true` first (offline), then explicit `false`. Conflict/Designer/timeout: preserve edits, do not force or retry writes. `persisted:true` + checkpoint failure means the host changed; reopen into another directory and reconcile.
 - NO shell_exec for qkrpc connectivity (ping, probe, serve, build.ps1 -t, qkrpc CLI) — tell user on connectivity_failure
 - Search before guess; **docs get** for known topics (see Docs tool); **docs search** only when topic id unknown
 - NO guess **inputs** keys without step_runner_search → get
 - NO get-ui / step-runner.getUi
-- NO inline program-body patch / whole-program `--patch-file`; write short `key`/`inputs`/`outputs` (never `stepKey`) per get → one Pretty data.json → patch
+- Compatibility JSON: NO inline program-body patch / whole-program `--patch-file`; write short `key`/`inputs`/`outputs` (never `stepKey`) per get → one Pretty data.json → patch
 - After patch trust editVersion; NO re-get to verify
 - P4: **sys:assign** single-var; **`$=`/`$$`/evalexpression** rules in preloaded **quicker-eval-expression** below; module → csscript last
-
-## Workspace
 
 {{#include-partial schema-hot-workspace}}
 

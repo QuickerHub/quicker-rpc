@@ -1,11 +1,11 @@
 # {{#topic-title}}
 
-**Existing V1 action via standalone CLI/MCP**: follow **program-source**:
+**Existing V1 action via CLI/MCP or QuickerAgent**: follow **program-source**:
 `action open` → edit `program.source.yaml` / `files/` → `action save --dry-run` → `action save`.
 MCP: `qkrpc_action_open` / `qkrpc_action_save`. V2 uses its native MCP.
 
-**P1–P7 below** covers QuickerAgent's `workspace_program`, action creation, and
-legacy JSON editing. Metadata/global subprogram commands remain unchanged.
+**P1–P7 below** covers `workspace_program`, action creation, global subprograms, and
+legacy JSON editing. Metadata commands remain unchanged.
 Disk: workspace-editing. CLI JSON patch: patch-workflow.
 
 {{#include-partial workflow-checklist-p1-p7}}

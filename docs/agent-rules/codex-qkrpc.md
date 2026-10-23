@@ -16,11 +16,11 @@ Legacy manual `codex mcp add` (only if not using the plugin):
 
 **V1/qkrpc start:** `qkrpc_health` → on failure `qkrpc_wait` (no repeated shell probes). Existing V2 account programs prefer independent `quicker` CLI 0.3.0+ catalog export/apply, then V2 pulls sync; local drafts/new programs use native MCP `quicker_open` / `quicker_create`.
 
-**Authoring:** Existing V1 actions: `docs` action=get topic `program-source`. QuickerAgent/legacy JSON/creation: `overview` → `authoring-workflow`; subprograms: `subprogram-workflow`. Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — never guess `inputParams`.
+**Authoring:** Existing V1 actions in CLI/MCP or QuickerAgent: `docs` action=get topic `program-source`. Legacy JSON/creation: `overview` → `authoring-workflow`; subprograms: `subprogram-workflow`. Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — never guess `inputParams`.
 
-**V1 existing action:** `qkrpc_action_open(id, dir)` into an empty directory → edit `program.source.yaml` / `files/` → `qkrpc_action_save(dir, dryRun=true)` → save. Preserve tool-managed `quicker.source.json` / `.qkrpc/baseline.json`; save checks versions and Designer state. CLI: `action open --id <guid> --dir <empty>` / `action save --dir <dir> [--dry-run]`.
+**V1 existing action:** `qkrpc_action_open(id, dir)` into an empty directory → edit `program.source.yaml` / `files/` → `qkrpc_action_save(dir, dryRun=true)` → `dryRun=false`. QuickerAgent uses its existing Read/Write/StrReplace within sidebar cwd. Preserve tool-managed `quicker.source.json` / `.qkrpc/baseline.json`; save checks versions and Designer state. CLI: `action open --id <guid> --dir <empty>` / `action save --dir <dir> [--dry-run]`.
 
-**V1 subprograms / QuickerAgent / legacy JSON:** Keep MCP resource `quicker://workspace/readme` or `docs` topic `workspace-editing`. Edit `.quicker/` with your **file tools** → `workspace_program` action=patch. Creation/metadata retain existing commands. V2 local drafts/new programs use native MCP to edit `program.source.yaml` in a draft slot and `quicker_save`.
+**V1 subprograms / legacy JSON:** Keep MCP resource `quicker://workspace/readme` or `docs` topic `workspace-editing`. External agents edit `.quicker/` with their file tools → `workspace_program` action=patch; QuickerAgent uses `workspace_program` for these JSON projects. Creation/metadata retain existing commands. V2 local drafts/new programs use native MCP to edit `program.source.yaml` in a draft slot and `quicker_save`.
 
 **Re-install / upgrade CLI:** re-run MCP add with updated `qkrpc.exe` path; see `docs/agent-mcp-self-install.md`.
 

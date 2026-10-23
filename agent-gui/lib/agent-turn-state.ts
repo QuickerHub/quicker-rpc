@@ -57,6 +57,11 @@ function isActionAuthoringPrompt(userText: string): boolean {
       "subprogram",
       "子程序",
       "workspace_program",
+      "program.source.yaml",
+      "qkrpc_action_open",
+      "qkrpc_action_save",
+      "action open",
+      "action save",
     ])
   ) {
     return true;
@@ -265,12 +270,14 @@ function verificationHintsForIntent(intent: AgentTurnIntent, userText?: string):
   switch (intent) {
     case "action_authoring":
       return [
+        "Existing V1 action body: qkrpc_action_open into a new/empty cwd directory → Read/StrReplace/Write program.source.yaml/files → qkrpc_action_save dryRun=true → dryRun=false; docs get program-source for YAML syntax.",
+        "Keep quicker.source.json and .qkrpc/baseline.json tool-managed. Conflict/Designer: preserve edits, reconcile in a new directory; no force or automatic save retry. V2 uses native MCP.",
         "New action: step_runner search → get → create → write_data → patch → diagnostics or debug.",
         "After qkrpc_action_create, edit empty data.json via write_data — skip read_data.",
         "Do not repeat step_runner_search with the same query — call get on a prior hit key.",
         "Prefer sys:evalexpression for multi-var {var}=; sys:assign for single var — get before write.",
         "When intent-matched skills are preloaded, do NOT call docs for step keys or expression syntax.",
-        "Do not use Read/Write/StrReplace on .quicker/ — use workspace_program for program bodies.",
+        "Read/Write/StrReplace edit source bundle YAML/files outside .quicker/; legacy .quicker JSON program bodies still use workspace_program.",
         "After patching a program body, run diagnostics or qkrpc_action_debug — never read_data to verify.",
       ];
     case "action_runtime":
@@ -302,6 +309,8 @@ function preferredToolsForIntent(intent: AgentTurnIntent, userText?: string): st
       return [
         "qkrpc_step_runner_search",
         "qkrpc_step_runner_get",
+        "qkrpc_action_open",
+        "qkrpc_action_save",
         "qkrpc_action_create",
         "workspace_program",
         "qkrpc_action_debug",

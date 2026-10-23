@@ -16,7 +16,7 @@
 | V2、net10、能力对齐、stub、capability | [V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | `QuickerRpc.Plugin.V2/Adapters`、`Reflection`、Runtime tests | V2 composition/probe + 活进程验证 |
 | Prompt、TurnPlan、工具选择、SDK 框架边界 | [Agent 架构](../agent-architecture.md) | `agent-core/turn-plan.ts`、`agent-harness/`、`tools.ts` | tools/eval/context tests |
 | 动作编写指南、schema、step 模块知识 | [动作编写管线](../authoring/README.md) | `action-authoring-src/`、`authoring-references/` | `npm run docs:check` |
-| V1 动作 YAML、program.source.yaml、yaml codec、action open/save | [AUTHOR](../product/README.md#p-author) · [动作编写管线](../authoring/README.md) | `XAction/Source/`、Console source-bundle、`action-authoring-src/workflows/program-source.md` | codec/source-bundle .NET tests + `npm run docs:check` |
+| V1 动作 YAML、program.source.yaml、yaml codec、action open/save | [AUTHOR](../product/README.md#p-author) · [动作编写管线](../authoring/README.md) | `agent-gui/lib/qkrpc-action-source-tool*`、`XAction/Source/`、Console source-bundle、`action-authoring-src/workflows/program-source.md` | fake source-tool/transport tests、codec/source-bundle .NET tests + `npm run docs:check` |
 | Electron 包体积、发布、插件资源 | [agent-gui README](../../agent-gui/README.md) 与 [插件存储](../agent-gui-plugin-storage.md) | `agent-gui/scripts/desktop-*`、`electron/`、`publish/` | 只在用户要求时打包 |
 
 ## 修改规则

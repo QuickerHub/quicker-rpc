@@ -1,9 +1,9 @@
 # V1 action YAML source
 
-**Default for editing an existing V1 action through standalone qkrpc CLI/MCP.**
+**Default for editing an existing V1 action through qkrpc CLI/MCP or QuickerAgent.**
 V2 actions use Quicker's native MCP. Creating actions, metadata changes, and
-global subprograms retain their existing commands. QuickerAgent's bundled
-`workspace_program` editor retains its JSON workflow until these tools are available there.
+global subprograms retain their existing commands. Compatibility `.quicker` JSON
+projects continue to use `workspace_program`; do not mix their layout with this bundle.
 
 ## Open → edit → dry-run → save
 
@@ -11,12 +11,17 @@ global subprograms retain their existing commands. QuickerAgent's bundled
 qkrpc_action_open({ id: "<guid>", dir: ".tmp/quicker/edit-action" })
 # Read/edit program.source.yaml and files/ with the host's file tools.
 qkrpc_action_save({ dir: ".tmp/quicker/edit-action", dryRun: true })
-qkrpc_action_save({ dir: ".tmp/quicker/edit-action" })
+qkrpc_action_save({ dir: ".tmp/quicker/edit-action", dryRun: false })
 ```
 
 - Resolve the local action GUID first; a shared action GUID is not necessarily that ID.
 - `dir` is explicit. Use a new/empty directory, such as `.tmp/quicker/edit-action`.
   Open rejects a nonempty directory to protect unsaved edits.
+- In QuickerAgent, use a subdirectory inside sidebar cwd, outside `.quicker/`.
+  Open writes bundle files, so both tools require Agent mode. Read the returned
+  `program.source.yaml` with `Read`; edit YAML/resources with `StrReplace` or `Write`.
+  These file tools protect `quicker.source.json` and `.qkrpc/baseline.json` from writes.
+  A dedicated YAML editor or second project workspace is not needed.
 - Open reads the running V1 action and writes a source bundle. V2 is rejected.
 - Dry-run is offline: decode, compile, file checks, and codec roundtrip; it writes
   neither the live action nor the bundle's saved baseline. It does not prove the action runs successfully.
@@ -24,6 +29,14 @@ qkrpc_action_save({ dir: ".tmp/quicker/edit-action" })
   original V1 action. An open Designer or concurrent edit blocks writeback.
   Keep the edited bundle, open the current action into another directory, and
   reconcile changes before saving again. There is no force-save in this workflow.
+- QuickerAgent requires an explicit `dryRun` boolean: validate with `true`, then
+  save with `false`. Offline validation remains available when the V1 plugin is
+  disconnected; open and actual save respect the `qkrpc_wait` connectivity gate.
+- Open/save are single transport attempts. A timeout does not confirm whether a
+  write happened; inspect the result rather than automatically retrying. If save
+  returns `SOURCE_CHECKPOINT_FAILED` with `persisted=true`, the action was saved
+  but the local baseline was not updated. Keep the edited directory, open into
+  another empty directory, and reconcile before saving again.
 - Successful save updates the bundle baseline/version without rewriting your
   YAML or resource files. Reuse this directory for the next edit. Run with trace
   when behavior needs verification; do not reopen into the edited directory.

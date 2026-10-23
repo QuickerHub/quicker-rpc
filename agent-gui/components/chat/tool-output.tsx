@@ -2,6 +2,7 @@
 
 import { type ReactNode, useRef } from "react";
 import { useFollowScrollTail } from "@/lib/use-follow-scroll-tail";
+import { actionSourceResultMeta } from "@/lib/qkrpc-action-source";
 import {
   formatActionMetadataMetaLine,
   parseActionMetadata,
@@ -140,6 +141,10 @@ export function summarizeToolOutput(
   input?: unknown,
 ): string | null {
   if (!isQkrpcToolResult(output)) return null;
+  if (typeof output.data === "object" && output.data !== null) {
+    const sourceSummary = actionSourceResultMeta(toolName, input, output.data, output.ok);
+    if (sourceSummary) return sourceSummary;
+  }
 
   if (isShellToolName(toolName)) {
     const view = parseShellToolView(output);
@@ -242,6 +247,7 @@ export function summarizeToolOutput(
         toolName,
         input ?? {},
         d,
+        output.ok,
       );
       if (actionMeta) return actionMeta;
     }

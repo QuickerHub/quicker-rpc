@@ -32,6 +32,7 @@ import {
   isQkrpcConnectivityBlockedThisTurn,
   markQkrpcConnectivityBlockedThisTurn,
 } from "@/lib/qkrpc-connectivity-gate";
+import { executeSingleQkrpcToolCall } from "@/lib/qkrpc-tool-call";
 
 const require = createRequire(import.meta.url);
 const {
@@ -515,6 +516,16 @@ export function isRetryableQkrpcFailure(result: QkrpcRunResult): boolean {
 const QKRPC_TOOL_MAX_ATTEMPTS = 3;
 const QKRPC_RETRY_BASE_DELAY_MS = 1_200;
 
+/** One attempt with the tool connectivity gate; mutating source calls must not auto-retry. */
+export function runQkrpcForToolOnce(args: string[], options?: QkrpcRunOptions): Promise<QkrpcRunResult> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  return executeSingleQkrpcToolCall(args, { ...options, abortSignal }, {
+    run: runQkrpc,
+    isConnectivityBlocked: isQkrpcConnectivityBlockedThisTurn,
+    markConnectivityBlocked: markQkrpcConnectivityBlockedThisTurn,
+  });
+}
+
 /**
  * Run qkrpc with in-tool retries for timeouts/transient errors.
  * Used by agent tools so the model does not immediately repeat the same call.
@@ -525,26 +536,6 @@ export async function runQkrpcForTool(
 ): Promise<QkrpcRunResult> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
-  const op = args[0]?.trim().toLowerCase();
-  if (
-    isQkrpcConnectivityBlockedThisTurn()
-    && op !== "wait"
-    && op !== "health"
-    && op !== "ping"
-  ) {
-    return {
-      ok: false,
-      exitCode: 1,
-      stdout: "",
-      stderr:
-        "qkrpc connectivity blocked this turn — call qkrpc_wait once, then retry the original tool.",
-      parsed: {
-        status: "connectivity_blocked",
-        message: QKRPC_CONNECTIVITY_FAILURE_GUIDANCE,
-      },
-      truncated: false,
-    };
-  }
 
   const baseTimeout = options?.timeoutMs ?? 120_000;
   let last: QkrpcRunResult | null = null;
@@ -552,12 +543,11 @@ export async function runQkrpcForTool(
   for (let attempt = 1; attempt <= QKRPC_TOOL_MAX_ATTEMPTS; attempt++) {
     abortSignal?.throwIfAborted();
     const timeoutMs = baseTimeout + (attempt - 1) * 45_000;
-    const result = await runQkrpc(args, { ...options, timeoutMs, abortSignal });
+    const result = await runQkrpcForToolOnce(args, { ...options, timeoutMs, abortSignal });
     abortSignal?.throwIfAborted();
     if (result.ok) return result;
     last = result;
     if (isQkrpcConnectivityFailure(result)) {
-      markQkrpcConnectivityBlockedThisTurn();
       break;
     }
     if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {

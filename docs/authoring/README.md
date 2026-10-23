@@ -2,10 +2,11 @@
 
 维护者入口：管线地图 + 三棵树的职责边界。
 
-现有 V1 动作的 CLI/独立 MCP 编辑从 `qkrpc guide get --topic program-source --json` 开始：
+现有 V1 动作的 CLI/MCP/QuickerAgent 编辑从 `program-source` 指南开始：
 `action open` → 编辑 `program.source.yaml` / `files/` → `action save --dry-run` → `action save`。
 YAML codec 负责源格式与规范 wire 的转换，V1 写回另做原生基线与并发检查。
-V2 使用原生 MCP；QuickerAgent 的 `workspace_program`、新建、元数据和全局子程序保留原流程。
+QuickerAgent 用 `qkrpc_action_open/save` 和既有文件工具，显式 `dryRun:true` 后再 `false`；
+V2 使用原生 MCP；`workspace_program` 兼容 JSON、新建、元数据和全局子程序保留原流程。
 
 ## 管线
 

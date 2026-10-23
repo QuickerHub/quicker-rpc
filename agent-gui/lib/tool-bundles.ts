@@ -52,10 +52,12 @@ export const TOOL_BUNDLE_DEFINITIONS: readonly ToolBundleDefinition[] = [
     id: "action_authoring",
     label: "写动作",
     description:
-      "无头编辑：workspace_program、action/subprogram get/create/transfer、step_runner search/get、fa、元数据、publish、trigger、designer_open。",
+      "现有 V1 动作 YAML open/save；创建/兼容 JSON/子程序用 workspace_program；step_runner search/get、fa、元数据。",
     toolIds: [
       "workspace_program",
       "qkrpc_action_get",
+      "qkrpc_action_open",
+      "qkrpc_action_save",
       "qkrpc_action_create",
       "qkrpc_subprogram_query",
       "qkrpc_subprogram_get",

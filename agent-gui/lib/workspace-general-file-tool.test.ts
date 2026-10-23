@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import {
   effectiveGeneralWorkspaceFileToolId,
@@ -24,6 +24,151 @@ import {
   isWorkspaceFileReadTool,
   workspaceFileToolDisplayName,
 } from "@/lib/workspace-file-tool";
+import { runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
+import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
+import { rememberActionSourceDirectory } from "@/lib/action-source-read-guard.server";
+import {
+  getCreatedActionIdThisTurn,
+  markActionCreatedThisTurn,
+  markProgramPatchedThisTurn,
+  wasActionCreatedThisTurn,
+  wasProgramPatchedThisTurn,
+} from "@/lib/program-turn-context";
+import { isStructuredToolResult } from "@/lib/tool-result";
+
+test("source YAML/resources use existing file tools while identity and baseline cannot be overwritten", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-source-file-tool-"));
+  const dir = ".tmp/quicker/source";
+  await mkdir(join(root, dir, ".qkrpc"), { recursive: true });
+  await writeFile(join(root, dir, "quicker.source.json"), "fixture identity");
+  await writeFile(join(root, dir, ".qkrpc/baseline.json"), "fixture baseline");
+  const options = { toolCallId: "source-files", messages: [] };
+  try {
+    await runWithQkrpcCwdAsync(root, async () => {
+      for (const path of [`${dir}/program.source.yaml`, `${dir}/files/source-1.txt`]) {
+        const written = await WRITE_TOOL_DEF.execute!({ path, content: "original" }, options);
+        assert.ok(isStructuredToolResult(written));
+        assert.equal(written.ok, true);
+        const edited = await STR_REPLACE_TOOL_DEF.execute!({ path, oldString: "original", newString: "edited" }, options);
+        assert.ok(isStructuredToolResult(edited));
+        assert.equal(edited.ok, true);
+        const read = await READ_TOOL_DEF.execute!({ path }, options);
+        assert.ok(isStructuredToolResult(read));
+        assert.equal(read.ok, true);
+        assert.equal(await readFile(join(root, path), "utf8"), "edited");
+      }
+      for (const path of [
+        `${dir}/quicker.source.json`, `${dir}/.qkrpc/baseline.json`, `${dir}/.qkrpc/./baseline.json`,
+        `${dir}/files/../quicker.source.json`, join(root, dir, ".qkrpc/baseline.json"),
+      ]) {
+        for (const result of [
+          await WRITE_TOOL_DEF.execute!({ path, content: "overwrite" }, options),
+          await STR_REPLACE_TOOL_DEF.execute!({ path, oldString: "fixture", newString: "overwrite" }, options),
+        ]) {
+          assert.ok(isStructuredToolResult(result));
+          assert.equal(result.ok, false);
+          assert.match(result.stderr!, /tool-managed/);
+        }
+      }
+    });
+    assert.equal(await readFile(join(root, dir, "quicker.source.json"), "utf8"), "fixture identity");
+    assert.equal(await readFile(join(root, dir, ".qkrpc/baseline.json"), "utf8"), "fixture baseline");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Write/StrReplace reject sidecar aliases, hardlinks, ADS and redirected workspace escapes", async () => {
+  const sandbox = await mkdtemp(join(tmpdir(), "agent-source-write-guard-"));
+  const root = join(sandbox, "workspace");
+  const bundle = join(root, "source");
+  const baseline = join(bundle, ".qkrpc", "baseline.json");
+  const identity = join(bundle, "quicker.source.json");
+  await mkdir(join(bundle, ".qkrpc"), { recursive: true });
+  await mkdir(join(root, ".quicker", "actions", "fixture"), { recursive: true });
+  await mkdir(join(sandbox, "outside"));
+  await writeFile(baseline, "baseline fixture");
+  await writeFile(identity, "identity fixture");
+  await writeFile(join(root, ".quicker", "actions", "fixture", "data.json"), "legacy fixture");
+  await link(identity, join(root, "identity-alias.json"));
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  await symlink(join(bundle, ".qkrpc"), join(root, "checkpoint-alias"), linkType);
+  await symlink(join(root, ".quicker", "actions"), join(root, "legacy-alias"), linkType);
+  await symlink(join(sandbox, "outside"), join(root, "outside-alias"), linkType);
+  const rootAlias = join(sandbox, "workspace-alias");
+  await symlink(root, rootAlias, linkType);
+  const options = { toolCallId: "source-aliases", messages: [] };
+  try {
+    await runWithQkrpcCwdAsync(rootAlias, async () => {
+      for (const path of [
+        "checkpoint-alias/baseline.json", "identity-alias.json",
+        "source/.qkrpc/baseline.json::$DATA", "source/quicker.source.json::$DATA",
+        "outside-alias/new.txt", "legacy-alias/fixture/data.json",
+      ]) {
+        for (const output of [
+          await WRITE_TOOL_DEF.execute!({ path, content: "changed" }, options),
+          await STR_REPLACE_TOOL_DEF.execute!({ path, oldString: "fixture", newString: "changed" }, options),
+        ]) {
+          assert.ok(isStructuredToolResult(output));
+          assert.equal(output.ok, false, path);
+        }
+      }
+      const normal = await WRITE_TOOL_DEF.execute!({ path: "normal.txt", content: "ordinary fixture" }, options);
+      assert.ok(isStructuredToolResult(normal));
+      assert.equal(normal.ok, true);
+      const edited = await STR_REPLACE_TOOL_DEF.execute!({ path: "normal.txt", oldString: "fixture", newString: "edited" }, options);
+      assert.ok(isStructuredToolResult(edited));
+      assert.equal(edited.ok, true);
+    });
+    assert.equal(await readFile(baseline, "utf8"), "baseline fixture");
+    assert.equal(await readFile(identity, "utf8"), "identity fixture");
+    assert.equal(await readFile(join(root, "normal.txt"), "utf8"), "ordinary edited");
+  } finally {
+    assert.equal(dirname(sandbox), resolve(tmpdir()));
+    await rm(sandbox, { recursive: true, force: true });
+  }
+});
+
+test("mixed authoring reads only a confirmed source bundle without clearing legacy turn facts", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-mixed-source-read-"));
+  const dir = ".tmp/quicker/source";
+  await mkdir(join(root, dir, "files"), { recursive: true });
+  await writeFile(join(root, dir, "program.source.yaml"), "steps: []\n");
+  await writeFile(join(root, dir, "files/script.cs"), "fixture resource");
+  await writeFile(join(root, "README.md"), "unrelated host content");
+  const options = { toolCallId: "mixed-source-read", messages: [] };
+  const context = { cwd: root, lastUserText: "帮我修改动作步骤，然后保存" };
+  try {
+    await runWithAgentRequestContextAsync(context, async () => {
+      markActionCreatedThisTurn("fixture-created-action");
+      markProgramPatchedThisTurn();
+      const initial = await READ_TOOL_DEF.execute!({ path: `${dir}/program.source.yaml` }, options);
+      assert.ok(isStructuredToolResult(initial));
+      assert.equal(initial.ok, false);
+      rememberActionSourceDirectory(join(root, dir));
+      for (const path of [`${dir}/program.source.yaml`, `${dir}/files/script.cs`]) {
+        const output = await READ_TOOL_DEF.execute!({ path }, options);
+        assert.ok(isStructuredToolResult(output));
+        assert.equal(output.ok, true);
+      }
+      const unrelated = await READ_TOOL_DEF.execute!({ path: "README.md" }, options);
+      assert.ok(isStructuredToolResult(unrelated));
+      assert.equal(unrelated.ok, false);
+      assert.match(unrelated.stderr!, /confirmed source bundle/);
+      assert.equal(getCreatedActionIdThisTurn(), "fixture-created-action");
+      assert.equal(wasActionCreatedThisTurn(), true);
+      assert.equal(wasProgramPatchedThisTurn(), true);
+    });
+    await runWithAgentRequestContextAsync(context, async () => {
+      markActionCreatedThisTurn("another-turn-action");
+      const output = await READ_TOOL_DEF.execute!({ path: `${dir}/program.source.yaml` }, options);
+      assert.ok(isStructuredToolResult(output));
+      assert.equal(output.ok, false);
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("Read/Write/StrReplace host tool helpers", () => {
   assert.equal(isWorkspaceGeneralFileTool(READ_TOOL, { path: "a.txt" }), true);

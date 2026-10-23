@@ -9,6 +9,8 @@ export type TurnExecutionState = {
   stepRunnerSearchCount?: number;
   editAfterPatchCount?: number;
   qkrpcConnectivityBlocked?: boolean;
+  /** Canonical absolute bundle roots confirmed by this turn's source transport. */
+  actionSourceDirectories?: Set<string>;
 };
 
 export function createTurnExecutionState(): TurnExecutionState {

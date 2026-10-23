@@ -126,7 +126,7 @@
     {
       "topic": "authoring-workflow",
       "title": "Action authoring workflow",
-      "description": "Use when routing action edits. Existing V1 standalone CLI/MCP edits use program-source YAML; P1–P7 covers QuickerAgent workspace_program, creation, and compatibility JSON.",
+      "description": "Use when routing action edits. Existing V1 CLI/MCP and QuickerAgent edits use program-source YAML; P1–P7 covers workspace_program, creation, global subprograms, and compatibility JSON.",
       "source": "references/authoring-workflow.md",
       "templateSource": "workflows/authoring-workflow.md",
       "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
@@ -238,10 +238,10 @@
     {
       "topic": "program-source",
       "title": "V1 action YAML source",
-      "description": "Use when editing existing V1 actions through standalone CLI/MCP: open a program.source.yaml bundle, edit YAML/files, dry-run, save with concurrency protection. YAML codec syntax and bundle boundaries; V2 uses native MCP.",
+      "description": "Use when editing existing V1 actions through CLI/MCP or QuickerAgent: open a program.source.yaml bundle, edit YAML/files, validate with dryRun=true then save with false. Codec syntax, cwd/sidecar boundaries, conflict and partial persistence; V2 uses native MCP.",
       "source": "references/program-source.md",
       "templateSource": "workflows/program-source.md",
-      "allowedTools": "qkrpc_action_open qkrpc_action_save qkrpc_action_list qkrpc_step_runner_search qkrpc_step_runner_get",
+      "allowedTools": "qkrpc_action_open qkrpc_action_save qkrpc_action_query qkrpc_action_list qkrpc_step_runner_search qkrpc_step_runner_get Read Write StrReplace docs",
       "metadata": {
         "phase": "P2-P6",
         "layer": "workflow"
@@ -397,7 +397,7 @@
     {
       "topic": "workspace-editing",
       "title": "Workspace editing",
-      "description": "Use when editing compatibility .quicker/actions JSON or QuickerAgent workspace_program projects; patch saves. Existing V1 standalone CLI/MCP edits default to program-source YAML instead.",
+      "description": "Use when editing compatibility .quicker/actions JSON or workspace_program projects for creation/subprograms; patch saves. Existing V1 action bodies default to program-source YAML instead.",
       "source": "references/workspace-editing.md",
       "templateSource": "workflows/workspace-editing.md",
       "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",

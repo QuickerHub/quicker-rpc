@@ -1,4 +1,5 @@
 /** Client-safe qkrpc action tool helpers. */
+import { actionSourceCommandVerb, actionSourceResultMeta } from "@/lib/qkrpc-action-source";
 
 export const QKRPC_ACTION_QUERY_TOOL = "qkrpc_action_query";
 export const QKRPC_ACTION_GET_TOOL = "qkrpc_action_get";
@@ -146,6 +147,9 @@ const LEGACY_ACTION_COMMAND_VERB: Record<string, string> = {
 };
 
 const ACTION_COMMAND_VERB_LABEL: Record<string, string> = {
+  source_open: "打开源码",
+  source_validate: "校验源码",
+  source_save: "保存源码",
   run: "运行",
   debug: "调试",
   edit: "编辑",
@@ -259,6 +263,8 @@ export function resolveQkrpcActionCommandVerb(
   input?: unknown,
   outputData?: Record<string, unknown> | null,
 ): string | null {
+  const source = actionSourceCommandVerb(toolName, input);
+  if (source) return source;
   const legacy = LEGACY_ACTION_COMMAND_VERB[toolName];
   if (legacy) {
     if (legacy === "run") return resolveRunCommandVerb(toolName, input, outputData);
@@ -305,7 +311,10 @@ export function formatQkrpcActionCommandResultMeta(
   toolName: string,
   input: unknown,
   data: Record<string, unknown>,
+  resultOk?: boolean,
 ): string | null {
+  const sourceMeta = actionSourceResultMeta(toolName, input, data, resultOk);
+  if (sourceMeta) return sourceMeta;
   const title = readActionTitleFromData(data);
   const message = typeof data.message === "string" ? data.message.trim() : "";
   const verb = resolveQkrpcActionCommandVerb(toolName, input, data);

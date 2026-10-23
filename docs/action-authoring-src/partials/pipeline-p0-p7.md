@@ -1,6 +1,6 @@
-{{#only-cli}}Standalone V1 CLI/MCP existing-action edits: **program-source** — open → YAML/files → dry-run → save. V2 uses native MCP.
-QuickerAgent / legacy JSON / action creation:
-{{/only-cli}}```text
+Existing V1 action edits (CLI/MCP/QuickerAgent): **program-source** — open → YAML/files → dry-run → save. V2 uses native MCP.
+The following P0–P7 covers action creation, global subprograms and legacy JSON:
+```text
 Ph  Goal
 ──  ─────────────────────────────────────────
 P0  Quicker + plugin; cwd / connectivity

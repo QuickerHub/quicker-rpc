@@ -7,13 +7,13 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 | layer | content |
 |-------|---------|
 | **tool / command description** | param names, returns, constraints (authoritative) |
-| **workflow docs** | **program-source**: V1 CLI/MCP YAML open/save; authoring-workflow/workspace-editing: QuickerAgent + legacy JSON; publish (action-publish-workflow) |
+| **workflow docs** | **program-source**: V1 CLI/MCP/QuickerAgent YAML open/save; authoring-workflow/workspace-editing: creation/subprograms/legacy JSON; publish (action-publish-workflow) |
 | **file schemas** | program-source YAML; **action-data-schema**: compatibility data.json JSON + wire rules; expressions, action-project-files |
 | **CLI-only** | patch-workflow (inline patch JSON) |
 
-**Existing V1 action via standalone CLI/MCP**: open → edit `program.source.yaml` / `files/` → save dry-run → save. Read **program-source** first. V2 uses its native MCP.
+**Existing V1 action via CLI/MCP or QuickerAgent**: open → edit `program.source.yaml` / `files/` → save dry-run → save. Read **program-source** first. QuickerAgent tools require explicit `dryRun: true` then `false`, operate within sidebar cwd, and preserve tool-managed sidecars. V2 uses its native MCP.
 
-**QuickerAgent / compatibility path**: create or get (non-empty) → workspace_program edit data.json/files → patch. Creation, metadata, and global subprograms retain existing commands. After create NO re-get. NO inline patch JSON on workspace path. CLI JSON patch remains available (patch-workflow).
+**Creation / global subprogram / compatibility JSON path**: create or get (non-empty) → workspace_program edit data.json/files → patch. Metadata retains existing commands. After create NO re-get. NO inline patch JSON on workspace path. CLI JSON patch remains available (patch-workflow).
 
 ## P0
 
@@ -27,6 +27,8 @@ Quicker + plugin + qkrpc serve. On fail: tell user; no shell connectivity workar
 
 ## Pipeline P0–P7
 
+Existing V1 action edits (CLI/MCP/QuickerAgent): **program-source** — open → YAML/files → dry-run → save. V2 uses native MCP.
+The following P0–P7 covers action creation, global subprograms and legacy JSON:
 ```text
 Ph  Goal
 ──  ─────────────────────────────────────────
@@ -48,8 +50,8 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 
 | title | topic | when |
 |-------|-------|------|
-| V1 YAML action editing | **`program-source`** | standalone CLI/MCP open → YAML/files → save |
-| Action authoring | **`authoring-workflow`** | P1–P7 main flow |
+| V1 YAML action editing | **`program-source`** | CLI/MCP/QuickerAgent open → YAML/files → dry-run → save |
+| Action authoring | **`authoring-workflow`** | creation/subprograms/compatibility JSON P1–P7 |
 | Workspace editing | **`workspace-editing`** | `.quicker` layout, workspace tools, file externalize |
 | Subprograms | **`subprogram-workflow`** | global vs embedded |
 | Action organization | **`action-organization`** | move actions, tabs — not program body |
@@ -60,7 +62,7 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 
 | title | topic | when |
 |-------|-------|------|
-| Program source YAML | **`program-source`** | V1 CLI/MCP bundle, YAML codec, save checks |
+| Program source YAML | **`program-source`** | V1 CLI/MCP/QuickerAgent bundle, YAML codec, save checks |
 | Action data.json schema | **`action-data-schema`** | compatibility P2–P6: steps[] + variables[] JSON and wire rules |
 | Expressions | **`expressions`** | P4: sys:assign single-var; `$=`/`$$` inline; evalexpression batch/LINQ |
 | Implementation fallback | **`implementation-fallback`** | P4 when no dedicated module |

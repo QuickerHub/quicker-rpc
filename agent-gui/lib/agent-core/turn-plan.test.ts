@@ -5,11 +5,44 @@ import { test } from "node:test";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { resolveTurnPlan } from "./turn-plan.ts";
+import { formatActionSourceToolResult } from "@/lib/qkrpc-action-source-tool";
 
 const emptyScope = {
   pinnedLatest: undefined,
   pinnedLatestAll: [],
 };
+
+test("source validation feedback continues through the existing TurnPlan and permissions", () => {
+  const dir = ".tmp/quicker/source";
+  const output = formatActionSourceToolResult("save", { dir, dryRun: true }, {
+    ...formatLocalToolResult({ ok: true, dryRun: true, actionId: "fixture", editVersion: 7 }),
+    source: "qkrpc",
+  });
+  const messages = [{
+    id: randomUUID(), role: "assistant", parts: [{
+      type: "tool-qkrpc_action_save", toolCallId: randomUUID(), state: "output-available",
+      input: { dir, dryRun: true }, output,
+    }],
+  }] as AgentUIMessage[];
+  const plan = resolveTurnPlan({
+    actionScope: emptyScope, chatMode: "agent", messages,
+    enabledToolIds: ["qkrpc_action_open", "qkrpc_action_save", "Read", "StrReplace"],
+    userText: "修改动作的 program.source.yaml 并保存",
+  });
+  assert.equal(plan.intent, "quicker_authoring");
+  assert.ok(plan.fullSchemaToolIds.includes("qkrpc_action_open"));
+  assert.ok(plan.fullSchemaToolIds.includes("qkrpc_action_save"));
+  assert.ok(plan.requiredToolIds.includes("qkrpc_action_open"));
+  assert.equal(plan.nextAction?.tool, "qkrpc_action_save");
+  assert.deepEqual(plan.nextAction?.input, { dir, dryRun: false });
+  assert.ok(plan.systemHints.some((hint) => hint.includes("baseline.json")));
+  const ask = resolveTurnPlan({
+    actionScope: emptyScope, chatMode: "ask", messages: [],
+    enabledToolIds: ["qkrpc_action_open", "qkrpc_action_save"], userText: "修改动作",
+  });
+  assert.ok(ask.blockedToolIds.includes("qkrpc_action_open"));
+  assert.ok(ask.blockedToolIds.includes("qkrpc_action_save"));
+});
 
 function feedbackMessage(): AgentUIMessage {
   return {
