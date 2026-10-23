@@ -22,11 +22,41 @@ internal sealed class V2SessionHost : IQuickerRpcSessionHost
     }
 }
 
-internal sealed class V2ActionProgramHost : IQuickerRpcActionProgramHost
+internal sealed class V2ActionProgramHost : IQuickerRpcActionProgramHost, IQuickerRpcActionProgramSourceStorageHost, IQuickerRpcActionProgramSourceAvailability
 {
     private readonly V2HeadlessActionProgramService _programs;
+    private readonly V2ActionProgramSourceService _source;
 
-    public V2ActionProgramHost(V2HeadlessActionProgramService programs) => _programs = programs;
+    public V2ActionProgramHost(V2HeadlessActionProgramService programs) : this(programs, new V2ActionProgramSourceService()) { }
+    internal V2ActionProgramHost(V2HeadlessActionProgramService programs, V2ActionProgramSourceService source)
+    { _programs = programs; _source = source; }
+
+    public bool IsProgramSourceAvailable => System.Windows.Application.Current?.Dispatcher is not null && _source.IsAvailable;
+    public Task<QuickerRpcGetActionProgramSourceResult> GetProgramSourceAsync(string actionId, CancellationToken cancellationToken = default) =>
+        DispatchSource(() => _source.Get(actionId, cancellationToken),
+            () => new QuickerRpcGetActionProgramSourceResult { ActionId = actionId, ErrorCode = "SOURCE_DISPATCHER_UNAVAILABLE",
+                ErrorMessage = "Native source requires the Quicker UI dispatcher." }, cancellationToken);
+    public Task<QuickerRpcApplyXActionResult> ApplyProgramSourceAsync(string actionId, string bodyJson, long? expectedEditVersion, bool force,
+        CancellationToken cancellationToken = default) =>
+        DispatchSource(() => _source.Apply(actionId, bodyJson, expectedEditVersion, force, null, cancellationToken),
+            () => new QuickerRpcApplyXActionResult { ActionId = actionId, Persisted = false, ErrorCode = "SOURCE_DISPATCHER_UNAVAILABLE",
+                ErrorMessage = "Native source requires the Quicker UI dispatcher." }, cancellationToken);
+    public Task<QuickerRpcApplyXActionResult> ApplyProgramSourceWithStorageAsync(string actionId, string bodyJson,
+        QuickerRpcActionStorageIdentity storageIdentity, long? expectedEditVersion, bool force, CancellationToken cancellationToken = default) =>
+        DispatchSource(() => _source.Apply(actionId, bodyJson, expectedEditVersion, force, storageIdentity, cancellationToken),
+            () => new QuickerRpcApplyXActionResult { ActionId = actionId, Persisted = false, ErrorCode = "SOURCE_DISPATCHER_UNAVAILABLE",
+                ErrorMessage = "Native source requires the Quicker UI dispatcher." }, cancellationToken);
+
+    private static Task<T> DispatchSource<T>(Func<T> action, Func<T> unavailable, CancellationToken token)
+        => DispatchSourceOn(System.Windows.Application.Current?.Dispatcher, action, unavailable, token);
+
+    internal static Task<T> DispatchSourceOn<T>(System.Windows.Threading.Dispatcher? dispatcher, Func<T> action, Func<T> unavailable, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (dispatcher is null || dispatcher.HasShutdownStarted) return Task.FromResult(unavailable());
+        return dispatcher.CheckAccess() ? Task.FromResult(action())
+            : dispatcher.InvokeAsync(action, System.Windows.Threading.DispatcherPriority.Normal, token).Task;
+    }
 
     public Task<QuickerRpcActionProgramSnapshot?> TryGetProgramAsync(
         string actionId,

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
+using Formatting = Newtonsoft.Json.Formatting;
 using QuickerRpc.AgentModel.XAction.Source;
 using QuickerRpc.Console.Serve;
 using QuickerRpc.Contracts.Rpc;
@@ -81,6 +82,7 @@ public sealed class ActionSourceWorkspaceTests
         proxy.Handler = (method, args) =>
         {
             Assert.AreEqual(nameof(IQuickerRpcService.ApplyActionProgramSourceAsync), method.Name);
+            Assert.AreEqual(5, args!.Length); // Original CLR signature; only four parameters go over the wire.
             Assert.AreEqual(ActionId, args![0]);
             versions.Add((long?)args[2]);
             Assert.AreEqual(false, args[3]);
@@ -182,6 +184,115 @@ public sealed class ActionSourceWorkspaceTests
     }
 
     private JsonElement Args(bool dryRun) => JsonSerializer.SerializeToElement(new { dir = _directory, dryRun });
+
+    [TestMethod]
+    public async Task V2DraftSidecar_BindsFilesDryRunConsecutiveSavesAndNativeIdentity()
+    {
+        var native = Native();
+        native["Variables"]![0]!["DefaultValue"] = Script;
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", native,
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        var baselinePath = Path.Combine(_directory, ActionSourceWorkspace.BaselineFile);
+        var baseline = File.ReadAllText(baselinePath);
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(null, Args(true), default)).Ok);
+        Assert.AreEqual(baseline, File.ReadAllText(baselinePath));
+        var prepared = ActionSourceWorkspace.Prepare(_directory);
+        Assert.AreEqual("draft-1", prepared.StorageIdentity!.DraftId);
+        Assert.IsTrue(JToken.DeepEquals(native, prepared.Body));
+        var files = Directory.GetFiles(Path.Combine(_directory, "files"));
+        Assert.AreEqual(2, files.Length); // script and variable default, both materialized offline.
+        File.WriteAllText(files.Single(p => File.ReadAllText(p) == Script && Path.GetFileName(p) == "source-2.txt"), "changed script\n");
+        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
+        var versions = new List<long>();
+        ((SourceRpcProxy)(object)rpc).Handler = (method, args) =>
+        {
+            Assert.AreEqual(nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync), method.Name);
+            var storage = (QuickerRpcActionStorageIdentity)args![2]!;
+            Assert.AreEqual("draft", storage.Kind);
+            Assert.AreEqual("draft-1", storage.DraftId);
+            Assert.AreEqual((long)args[3]!, storage.Version);
+            versions.Add(storage.Version);
+            return Task.FromResult(new QuickerRpcApplyXActionResult
+            { Success = true, Persisted = true, EditVersion = storage.Version + 1,
+                StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = storage.Version + 1 } });
+        };
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), default)).Ok);
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), default)).Ok);
+        CollectionAssert.AreEqual(new long[] { 3, 4 }, versions);
+        Assert.AreEqual(5L, ActionSourceWorkspace.Prepare(_directory).StorageIdentity!.Version);
+    }
+
+    [TestMethod]
+    public async Task V2PartialCommit_PreservesCheckpointAndReportsPersistence()
+    {
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
+        ((SourceRpcProxy)(object)rpc).Handler = (_, _) => Task.FromResult(new QuickerRpcApplyXActionResult
+        { Persisted = true, ErrorCode = "SOURCE_POST_COMMIT_FAILED", ErrorMessage = "fixture", EditVersion = 4,
+            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 4 } });
+        var response = await ActionSourceServeOps.SaveAsync(rpc, Args(false), default);
+        Assert.IsFalse(response.Ok);
+        Assert.AreEqual("SOURCE_POST_COMMIT_FAILED", response.Error);
+        var data = JsonSerializer.SerializeToElement(response.Data);
+        Assert.IsTrue(data.GetProperty("Persisted").GetBoolean());
+        Assert.AreEqual(3L, ActionSourceWorkspace.Prepare(_directory).EditVersion);
+    }
+
+    [TestMethod]
+    public async Task IdentityBoundBundle_SelectsNewRPCOnceWithoutLegacyRetry()
+    {
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
+        var calls = new List<string>();
+        ((SourceRpcProxy)(object)rpc).Handler = (method, _) =>
+        {
+            calls.Add(method.Name);
+            return Task.FromException<QuickerRpcApplyXActionResult>(new InvalidOperationException("Remote source-storage method unavailable"));
+        };
+        var response = await ActionSourceServeOps.SaveAsync(rpc, Args(false), default);
+        Assert.IsFalse(response.Ok);
+        CollectionAssert.AreEqual(new[] { nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync) }, calls);
+        Assert.AreEqual(3L, ActionSourceWorkspace.Prepare(_directory).EditVersion);
+    }
+
+    [TestMethod]
+    public async Task NativeRpcOpenAndCheckpoint_PreserveExactNumericLexemesOnDisk()
+    {
+        var lexemes = new[] { "9007199254740993", "9223372036854775807", "0.123456789012345678901", "1.230000000000000000001e+123", "1e999", "-0" };
+        var native = Native();
+        native["FutureNumbers"] = new JArray(lexemes.Select(value => new JRaw(value)));
+        var nativeJson = native.ToString(Formatting.None);
+        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
+        ((SourceRpcProxy)(object)rpc).Handler = (method, _) =>
+        {
+            Assert.AreEqual(nameof(IQuickerRpcService.GetActionProgramSourceAsync), method.Name);
+            return Task.FromResult(new QuickerRpcGetActionProgramSourceResult
+            { Success = true, ActionId = ActionId, EditVersion = 7, BodyJson = nativeJson });
+        };
+        var args = JsonSerializer.SerializeToElement(new { id = ActionId, dir = _directory, noAutoFiles = true });
+        var opened = await ActionSourceServeOps.OpenAsync(rpc, args, default);
+        Assert.IsTrue(opened.Ok, opened.Message);
+        var prepared = ActionSourceWorkspace.Prepare(_directory);
+        CollectionAssert.AreEqual(lexemes, ((JArray)prepared.Body["FutureNumbers"]!).Select(value => value.ToString(Formatting.None)).ToArray());
+        ActionSourceWorkspace.Checkpoint(prepared, 8);
+        var reloaded = ActionSourceWorkspace.Prepare(_directory);
+        Assert.AreEqual(8L, reloaded.EditVersion);
+        CollectionAssert.AreEqual(lexemes, ((JArray)reloaded.Body["FutureNumbers"]!).Select(value => value.ToString(Formatting.None)).ToArray());
+    }
+
+    [TestMethod]
+    public void V2StorageIdentityTampering_IsRejectedOffline()
+    {
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        var path = Path.Combine(_directory, ActionSourceWorkspace.IdentityFile);
+        var identity = JObject.Parse(File.ReadAllText(path));
+        identity["storageIdentity"]!["draftId"] = "another-draft";
+        File.WriteAllText(path, identity.ToString());
+        Assert.ThrowsException<InvalidOperationException>(() => ActionSourceWorkspace.Prepare(_directory));
+    }
 
     private static JObject Native() => new()
     {
