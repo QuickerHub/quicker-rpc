@@ -14,12 +14,12 @@ import {
 } from "@/lib/agent-defs/apply-chat-command.server";
 import { resolveLlmSelection } from "@/lib/llm";
 import type { LlmSelection } from "@/lib/llm-selection";
-import { parseLlmProviderId } from "@/lib/llm-providers";
 import { extractLastUserMessageText } from "@/lib/launcher/launcher-command-cache.server";
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 import { defaultEnabledToolIds } from "@/lib/tool-registry";
 import type { ChatPostBody } from "@/lib/agent-harness/types";
 import { prepareTurnMessagesForModel } from "@/lib/agent-harness/turn-message-preparation";
+import { resolveEffectiveTurnSelection } from "@/lib/agent-harness/turn-selection";
 import {
   resolveActionDesignerForChatTurn,
   type ActionDesignerChatContext,
@@ -64,12 +64,11 @@ export async function resolveAgentTurnRequest(
       ? await resolveSlashCommandForChat(repairedMessages, cwd, modeEnabledTools)
       : { expandedUserText: null, overrides: {}, commandName: null };
   const enabledToolIds = slashCommand.overrides.enabledTools ?? modeEnabledTools;
-  const selection = resolveLlmSelection(
-    slashCommand.overrides.llmSelectionRaw
-      ?? body.llmSelection
-      ?? body.llmProvider,
-    parseLlmProviderId(body.llmProvider),
-  );
+  const { selection, llmSelectionRaw } = resolveEffectiveTurnSelection({
+    commandModelOverride: slashCommand.overrides.llmSelectionRaw,
+    llmSelection: body.llmSelection,
+    llmProvider: body.llmProvider,
+  }, resolveLlmSelection);
 
   return {
     body,
@@ -86,8 +85,7 @@ export async function resolveAgentTurnRequest(
     slashCommand,
     selection,
     lastUserText: extractLastUserMessageText(repairedMessages),
-    llmSelectionRaw:
-      (body.llmSelection ?? body.llmProvider)?.trim() || undefined,
+    llmSelectionRaw,
     threadId: body.threadId,
     actionDesigner: resolveActionDesignerForChatTurn(body),
   };

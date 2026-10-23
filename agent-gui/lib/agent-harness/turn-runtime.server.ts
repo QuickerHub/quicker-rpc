@@ -29,6 +29,9 @@ import {
 import type { ResolvedAgentTurnRequest } from "@/lib/agent-harness/turn-request.server";
 import { applyToolCallPolicies } from "@/lib/agent-tool-policy";
 import { loadConfiguredMcpTools } from "@/lib/agent-mcp/load.server";
+import { restrictComposedTools } from "@/lib/chat-tool-selection";
+import { createTaskToolForParent, TASK_TOOL } from "@/lib/task-tool.server";
+import { applyToolModeGuards } from "@/lib/agent-tool-mode-guard";
 
 export type ResolvedAgentTurnScope = {
   actionScope: ReturnType<typeof extractActionScopeFromMessages>;
@@ -44,12 +47,15 @@ export type PreparedAgentTurnRuntime = Omit<AgentStreamLoopParams, "writer"> & {
 /** Resolve designer state and the explicit context passed to every tool call. */
 export async function resolveAgentTurnScope(
   request: ResolvedAgentTurnRequest,
+  abortSignal?: AbortSignal,
 ): Promise<ResolvedAgentTurnScope> {
+  abortSignal?.throwIfAborted();
   let actionScope = extractActionScopeFromMessages(request.messagesForModel);
   let designerEmbedBlock: string | undefined;
 
   if (request.actionDesigner && request.chatMode !== CHAT_MODE_LAUNCHER) {
     const designerSnapshot = await fetchDesignerContextSnapshot(false);
+    abortSignal?.throwIfAborted();
     const windowContext = resolveDesignerWindowContext(designerSnapshot, {
       scoped: request.body.designerEmbedScoped === true,
       entityId: request.actionDesigner.entityId,
@@ -70,6 +76,7 @@ export async function resolveAgentTurnScope(
     actionScope,
     designerEmbedBlock,
     toolExecutionContext: buildToolExecutionContext({
+      abortSignal,
       cwd: request.cwd,
       chatMode: request.chatMode,
       actionScope,
@@ -87,8 +94,10 @@ export async function prepareAgentTurnRuntime(params: {
   scope: ResolvedAgentTurnScope;
   model: LanguageModel;
   modelId: string;
+  abortSignal?: AbortSignal;
 }): Promise<PreparedAgentTurnRuntime> {
-  const { request, scope, model, modelId } = params;
+  const { request, scope, model, modelId, abortSignal } = params;
+  abortSignal?.throwIfAborted();
   const turnPlan = resolveTurnPlan({
     actionScope: scope.actionScope,
     chatMode: request.chatMode,
@@ -107,7 +116,7 @@ export async function prepareAgentTurnRuntime(params: {
     && !request.benchMode
     && request.chatMode !== CHAT_MODE_LAUNCHER;
   const mcp = shouldLoadMcp
-    ? await loadConfiguredMcpTools(request.cwd)
+    ? await loadConfiguredMcpTools(request.cwd, { chatMode: request.chatMode, abortSignal })
     : {
         tools: {} as ToolSet,
         callPolicyOverrides: {},
@@ -116,8 +125,21 @@ export async function prepareAgentTurnRuntime(params: {
       };
 
   try {
-    const fullTools = applyToolCallPolicies(
+    abortSignal?.throwIfAborted();
+    const composedTools = restrictComposedTools(
       { ...staticTools, ...mcp.tools } as ToolSet,
+      request.slashCommand.overrides.toolAllowlist,
+    );
+    const guardedTools = applyToolModeGuards(composedTools, request.chatMode);
+    let fullTools: ToolSet;
+    if (guardedTools[TASK_TOOL]) {
+      guardedTools[TASK_TOOL] = createTaskToolForParent(
+        () => fullTools,
+        guardedTools[TASK_TOOL],
+      );
+    }
+    fullTools = applyToolCallPolicies(
+      guardedTools,
       mcp.callPolicyOverrides,
     );
     const fullSchemaToolIds = new Set([
@@ -128,6 +150,7 @@ export async function prepareAgentTurnRuntime(params: {
     const enabledRuntimeToolIds = Object.keys(fullTools);
     const contextLimit = resolveModelContextLimit(modelId).tokens;
     const compressionBase = {
+      abortSignal,
       messages: request.messagesForModel,
       model,
       contextLimit,
@@ -144,6 +167,7 @@ export async function prepareAgentTurnRuntime(params: {
         process.env.NODE_ENV !== "production"
         && request.body.contextCompressionForce === true,
     });
+    abortSignal?.throwIfAborted();
     const runtimeSnapshot = buildAgentRuntimeSnapshot({
       actionScope: scope.actionScope,
       chatMode: request.chatMode,
@@ -166,6 +190,7 @@ export async function prepareAgentTurnRuntime(params: {
       titleTest: request.titleTest,
       benchMode: request.benchMode,
     });
+    abortSignal?.throwIfAborted();
     const mcpSystemLines: string[] = [];
     if (Object.keys(mcp.tools).length > 0) {
       mcpSystemLines.push(
@@ -185,6 +210,7 @@ export async function prepareAgentTurnRuntime(params: {
       [baseSystemBuilder(context), mcpSystemBlock].filter(Boolean).join("\n\n");
 
     return {
+      abortSignal,
       model,
       modelId,
       contextLimit,

@@ -451,7 +451,7 @@ export function pickEnabledTools<T extends Record<string, unknown>>(
   allTools: T,
   enabledIds: string[] | undefined,
 ): T {
-  if (!enabledIds?.length) return allTools;
+  if (enabledIds === undefined) return { ...allTools };
   const allowed = new Set(enabledIds);
   const picked = {} as T;
   for (const key of Object.keys(allTools)) {

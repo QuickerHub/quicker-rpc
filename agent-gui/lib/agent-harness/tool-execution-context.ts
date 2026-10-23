@@ -7,6 +7,7 @@ export const AGENT_ARTIFACT_DIR = ".local/agent-artifacts";
 
 /** Explicit per-turn context for tool execution (Phase 4 — ALS remains compat layer). */
 export type ToolExecutionContext = {
+  abortSignal?: AbortSignal;
   cwd: string;
   chatMode: ChatMode;
   actionScope: ActionScopeHint;
@@ -18,6 +19,7 @@ export type ToolExecutionContext = {
 };
 
 export function buildToolExecutionContext(params: {
+  abortSignal?: AbortSignal;
   cwd: string;
   chatMode: ChatMode;
   actionScope: ActionScopeHint;
@@ -27,6 +29,7 @@ export function buildToolExecutionContext(params: {
   benchMode?: boolean;
 }): ToolExecutionContext {
   return {
+    abortSignal: params.abortSignal,
     cwd: params.cwd.trim(),
     chatMode: params.chatMode,
     actionScope: params.actionScope,
@@ -42,6 +45,7 @@ export function toolExecutionContextToAgentRequest(
   ctx: ToolExecutionContext,
 ): AgentRequestContext {
   return {
+    abortSignal: ctx.abortSignal,
     cwd: ctx.cwd,
     chatMode: ctx.chatMode,
     actionScope: ctx.actionScope,

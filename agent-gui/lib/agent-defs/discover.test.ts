@@ -44,6 +44,7 @@ test("discoverAgentDefs includes bundled tool-test-echo subagent", async () => {
   const echo = catalog.agents.find((a) => a.name === "tool-test-echo");
   assert.ok(echo);
   assert.equal(echo.scope, "bundled");
+  assert.deepEqual(echo.tools, []);
 });
 
 test("discoverAgentDefs includes bundled readonly-explore subagent", async () => {
@@ -63,10 +64,10 @@ test("discoverAgentDefs includes bundled author and verify commands", async () =
   const explain = catalog.commands.find((c) => c.name === "explain-action");
   assert.ok(author);
   assert.equal(author.scope, "bundled");
-  assert.ok(author.allowedTools.includes("workspace_program"));
+  assert.ok(author.allowedTools?.includes("workspace_program"));
   assert.ok(verify);
   assert.equal(verify.scope, "bundled");
-  assert.ok(verify.allowedTools.includes("qkrpc_action_debug"));
+  assert.ok(verify.allowedTools?.includes("qkrpc_action_debug"));
   assert.ok(explain);
   assert.equal(explain.scope, "bundled");
 });

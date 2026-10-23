@@ -1,6 +1,6 @@
 import "server-only";
 
-import { generateText, stepCountIs, tool } from "ai";
+import { generateText, stepCountIs, tool, type Tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { getSubagent } from "@/lib/agent-defs/discover-core";
 import { buildSubagentSystemPrompt } from "@/lib/agent-defs/subagent-system.server";
@@ -15,21 +15,14 @@ import {
 } from "@/lib/qkrpc-request-context";
 import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
 import { formatLocalToolResult } from "@/lib/tool-result";
-import { pickEnabledTools } from "@/lib/tool-registry";
-import { quickerTools } from "@/lib/tools";
+import {
+  selectSubagentTools,
+  type TaskParentCapabilities,
+} from "@/lib/task-tool-capabilities";
 import type { TaskToolStepSummary } from "@/lib/task-tool-display";
 import { TASK_TOOL } from "@/lib/task-tool-constants";
 
 export { TASK_TOOL };
-
-function buildSubagentTools(allowedToolIds: string[] | undefined) {
-  const base = { ...quickerTools };
-  delete (base as Record<string, unknown>)[TASK_TOOL];
-  if (!allowedToolIds?.length) {
-    return base;
-  }
-  return pickEnabledTools(base, allowedToolIds);
-}
 
 function summarizeSteps(
   steps: Array<{
@@ -83,7 +76,8 @@ function parseTaskToolInput(
 export async function executeTaskTool(input: {
   agent?: string;
   prompt?: string;
-}): Promise<Record<string, unknown>> {
+}, parent?: TaskParentCapabilities): Promise<Record<string, unknown>> {
+  parent?.abortSignal?.throwIfAborted();
   const parsed = parseTaskToolInput(input as Record<string, unknown>);
   if (!parsed) {
     return formatLocalToolResult(
@@ -97,6 +91,14 @@ export async function executeTaskTool(input: {
   }
   const agentName = parsed.agent;
   const prompt = parsed.prompt;
+
+  if (!parent) {
+    return formatLocalToolResult(
+      { action: "task", errorCode: "task_parent_runtime_required" },
+      false,
+      "Task runtime is not bound to parent capabilities",
+    );
+  }
 
   const cwd = getRequestCwd() ?? "";
   const subagent = await getSubagent(agentName, cwd);
@@ -129,6 +131,7 @@ export async function executeTaskTool(input: {
   try {
     ({ model, modelId } = await resolveChatModelForSelection(selection));
   } catch (e) {
+    parent.abortSignal?.throwIfAborted();
     const message = e instanceof Error ? e.message : String(e);
     return formatLocalToolResult(
       { action: "task", errorMessage: message },
@@ -137,7 +140,7 @@ export async function executeTaskTool(input: {
     );
   }
 
-  const tools = buildSubagentTools(subagent.tools);
+  const tools = selectSubagentTools(parent.tools, subagent.tools);
   const system = await buildSubagentSystemPrompt(subagent, cwd);
 
   try {
@@ -146,6 +149,7 @@ export async function executeTaskTool(input: {
       system,
       prompt,
       tools,
+      abortSignal: parent.abortSignal,
       experimental_repairToolCall: createRepairToolCallHandler(tools),
       stopWhen: stepCountIs(AGENT_MAX_STEPS),
     });
@@ -162,6 +166,7 @@ export async function executeTaskTool(input: {
       toolSummary,
     });
   } catch (e) {
+    parent.abortSignal?.throwIfAborted();
     const message = e instanceof Error ? e.message : String(e);
     return formatLocalToolResult(
       { action: "task", errorMessage: message },
@@ -195,3 +200,17 @@ export const TASK_TOOL_DEF = tool({
       prompt: input.prompt,
     }),
 });
+
+/** Bind only after the parent runtime has composed and filtered its capabilities. */
+export function createTaskToolForParent(
+  parentTools: () => ToolSet,
+  definition: Tool = TASK_TOOL_DEF,
+): Tool {
+  return {
+    ...definition,
+    execute: (input, options) => executeTaskTool(
+      input as { agent?: string; prompt?: string },
+      { tools: parentTools(), abortSignal: options.abortSignal },
+    ),
+  } as Tool;
+}

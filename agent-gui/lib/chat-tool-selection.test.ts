@@ -7,6 +7,7 @@ import {
   resolveFullSchemaToolIdsForTurn,
   resolveToolBundleContext,
   selectChatToolsFromRegistry,
+  restrictComposedTools,
 } from "./chat-tool-selection.ts";
 import { LIST_TOOLS_TOOL } from "./list-tools-tool.ts";
 import { SET_THREAD_TITLE_TOOL } from "./thread-title-tool-messages.ts";
@@ -16,6 +17,20 @@ import { defaultEnabledToolIds } from "./tool-registry.ts";
 const enabledPool = defaultEnabledToolIds();
 const mockTools = buildMockToolRegistry(enabledPool);
 const emptyScope = { pinnedLatest: undefined, pinnedLatestAll: [] };
+
+test("empty user selection never restores the registry beyond internal tools", () => {
+  const tools = selectChatToolsFromRegistry(mockTools, {
+    chatMode: "agent", enabledToolIds: [], titleTest: false,
+  });
+  assert.deepEqual(Object.keys(tools).sort(), ["list_tools", "set_thread_title", "skill_load"]);
+});
+
+test("command allowlist is final over static, MCP and internal tools", () => {
+  const composed = { Read: {}, list_tools: {}, mcp__demo__read: {}, mcp__demo__write: {} };
+  assert.deepEqual(restrictComposedTools(composed, []), {});
+  assert.deepEqual(Object.keys(restrictComposedTools(composed, ["mcp__demo__read"])), ["mcp__demo__read"]);
+  assert.deepEqual(Object.keys(restrictComposedTools(composed, undefined)), Object.keys(composed));
+});
 
 test("resolveToolBundleContext derives full schemas from TurnPlan", () => {
   const ctx = resolveToolBundleContext({

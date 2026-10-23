@@ -188,7 +188,9 @@ async function createSummary(
     selection: LlmSelection;
     modelId: string;
   },
+  abortSignal?: AbortSignal,
 ): Promise<string | null> {
+  abortSignal?.throwIfAborted();
   const source = buildSummarySource(messagesToCompress).trim();
   if (!source) return null;
   const result = await generateText({
@@ -197,7 +199,9 @@ async function createSummary(
     prompt: source,
     maxOutputTokens: MAX_SUMMARY_OUTPUT_TOKENS,
     temperature: 0.1,
+    abortSignal,
   });
+  abortSignal?.throwIfAborted();
   if (usageTracking) {
     recordManagedLlmUsageAsync({
       selection: usageTracking.selection,
@@ -245,6 +249,7 @@ function buildCompressionMetadata(
 }
 
 export type PrepareCompressedContextOptions = {
+  abortSignal?: AbortSignal;
   messages: AgentUIMessage[];
   model: LanguageModel;
   contextLimit: number;
@@ -260,6 +265,7 @@ export type PrepareCompressedContextOptions = {
   summarizeOlderMessages?: (
     model: LanguageModel,
     olderMessages: AgentUIMessage[],
+    abortSignal?: AbortSignal,
   ) => Promise<string | null>;
   /** Server hook: reinject recent patch file snippets after compression. */
   reinjectRecentPatches?: (
@@ -267,6 +273,8 @@ export type PrepareCompressedContextOptions = {
   ) => Promise<PostCompactReinjectResult>;
   /** Thread id for history artifact naming (.local/agent-history/). */
   threadId?: string;
+  /** Persistence port; isolated tests can capture history without a default workspace. */
+  writeHistoryArtifact?: typeof writeAgentHistoryArtifact;
 };
 
 export async function prepareCompressedContext(
@@ -282,13 +290,16 @@ export async function prepareCompressedContext(
     force = false,
     reactiveCompactAttempted = false,
     threadId,
+    abortSignal,
+    writeHistoryArtifact = writeAgentHistoryArtifact,
   } = options;
+  abortSignal?.throwIfAborted();
   const summarize =
     summarizeOlderMessages
     ?? ((
       languageModel,
       olderMessages,
-    ) => createSummary(languageModel, olderMessages, usageTracking));
+    ) => createSummary(languageModel, olderMessages, usageTracking, abortSignal));
 
   const usagePressure = force || shouldCompressContextMessages(messages, contextLimit);
   const split = resolveContextSplitIndex(messages, contextLimit, {
@@ -305,6 +316,7 @@ export async function prepareCompressedContext(
   const baseModelMessages = await convertToModelMessages(
     stripToolDisplayDataFromMessages(workingMessages),
   );
+  abortSignal?.throwIfAborted();
   const compressionPressure = micro.applied
     ? force
       || shouldCompressContextMessages(workingMessages, contextLimit, {
@@ -331,22 +343,26 @@ export async function prepareCompressedContext(
     reuseSummary && priorCompression?.throughMessageId
       ? priorCompression.throughMessageId
       : olderMessages[olderMessages.length - 1]!.id;
-  const summary = reuseSummary ?? (await summarize(model, olderMessages));
+  const summary = reuseSummary ?? (await summarize(model, olderMessages, abortSignal));
+  abortSignal?.throwIfAborted();
   if (!summary) {
     return { modelMessages: baseModelMessages, compressed: false };
   }
 
   const historyArtifact = reuseSummary
     ? null
-    : await writeAgentHistoryArtifact(olderMessages, { threadId });
+    : await writeHistoryArtifact(olderMessages, { threadId });
+  abortSignal?.throwIfAborted();
 
   const recentModelMessages = await convertToModelMessages(
     stripToolDisplayDataFromMessages(recentMessages),
   );
+  abortSignal?.throwIfAborted();
   const sourceInputTokens = latestAssistantUsage(messages)?.inputTokens ?? 0;
   const reinject = reinjectRecentPatches
     ? await reinjectRecentPatches(recentMessages)
     : { block: null, paths: [] };
+  abortSignal?.throwIfAborted();
   const metadata = buildCompressionMetadata(
     summary,
     throughMessageId,

@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
+import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 import { evaluateShellPolicy, summarizeShellRequest } from "@/lib/shell-policy";
 import { normalizeShellRunRequest } from "@/lib/shell-request-normalize";
 import {
@@ -182,38 +183,61 @@ async function runProcess(
   timeoutMs: number,
   env?: Record<string, string>,
   sessionId?: string,
+  abortSignal?: AbortSignal,
 ): Promise<ShellRunResult> {
+  abortSignal?.throwIfAborted();
   const started = Date.now();
-  if (sessionId) {
-    beginShellSession({
-      id: sessionId,
-      commandLine: invocation.commandLine,
-      cwd,
-      shell: invocation.shell,
-    });
-  }
 
-  return new Promise((resolvePromise) => {
+  return new Promise((resolvePromise, reject) => {
+    abortSignal?.throwIfAborted();
     const child = spawn(invocation.executable, invocation.args, {
       cwd,
       env: buildShellProcessEnv(env),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
+    if (sessionId) {
+      beginShellSession({
+        id: sessionId,
+        commandLine: invocation.commandLine,
+        cwd,
+        shell: invocation.shell,
+      });
+    }
 
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let cancelling = false;
 
     const finish = (result: ShellRunResult) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      abortSignal?.removeEventListener("abort", onAbort);
       if (sessionId) finishShellSession(sessionId, result);
-      resolvePromise(result);
+      if (cancelling) reject(abortSignal?.reason);
+      else resolvePromise(result);
+    };
+
+    const cancelledResult = (): ShellRunResult => ({
+      ok: false, exitCode: -1, stdout: truncate(stdout).text,
+      stderr: "shell cancelled by the current turn", truncated: stdout.length > MAX_SHELL_OUTPUT_CHARS,
+      shell: invocation.shell, cwd, commandLine: invocation.commandLine,
+      durationMs: Date.now() - started, cancelled: true,
+    });
+    const onAbort = () => {
+      if (settled || cancelling) return;
+      cancelling = true;
+      clearTimeout(timer);
+      abortSignal?.removeEventListener("abort", onAbort);
+      try { child.kill("SIGKILL"); }
+      catch { finish(cancelledResult()); }
     };
 
     const timer = setTimeout(() => {
+      if (settled || cancelling) return;
+      if (abortSignal?.aborted) { onAbort(); return; }
       child.kill();
       const out = truncate(stdout);
       const err = truncate(stderr);
@@ -230,19 +254,24 @@ async function runProcess(
         timedOut: true,
       });
     }, timeoutMs);
+    abortSignal?.addEventListener("abort", onAbort, { once: true });
+    if (abortSignal?.aborted) onAbort();
 
     child.stdout?.on("data", (chunk: Buffer) => {
+      if (settled || cancelling) return;
       const text = chunk.toString("utf8");
       stdout += text;
       if (sessionId) appendShellSessionOutput(sessionId, "stdout", text);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
+      if (settled || cancelling) return;
       const text = chunk.toString("utf8");
       stderr += text;
       if (sessionId) appendShellSessionOutput(sessionId, "stderr", text);
     });
 
     child.on("error", (error) => {
+      if (cancelling) { finish(cancelledResult()); return; }
       finish({
         ok: false,
         exitCode: -1,
@@ -257,6 +286,7 @@ async function runProcess(
     });
 
     child.on("close", (code) => {
+      if (cancelling) { finish(cancelledResult()); return; }
       const out = truncate(stdout);
       const err = truncate(stderr);
       const exitCode = code ?? 1;
@@ -279,9 +309,12 @@ async function materializeInlineScript(
   script: string,
   shell: Exclude<ShellKind, "auto">,
   workspaceCwd: string,
+  abortSignal?: AbortSignal,
 ): Promise<{ dir: string; path: string }> {
+  abortSignal?.throwIfAborted();
   const localShellRoot = join(workspaceCwd, ".local", "shell");
   await mkdir(localShellRoot, { recursive: true });
+  abortSignal?.throwIfAborted();
   const dir = await mkdtemp(join(localShellRoot, "run-"));
   const ext =
     shell === "powershell" ? ".ps1"
@@ -292,13 +325,21 @@ async function materializeInlineScript(
     shell === "bash" && !script.startsWith("#!")
       ? `#!/usr/bin/env bash\nset -euo pipefail\n${script}`
       : script;
-  await writeFile(path, content, { encoding: "utf8", mode: 0o600 });
-  return { dir, path };
+  try {
+    abortSignal?.throwIfAborted();
+    await writeFile(path, content, { encoding: "utf8", mode: 0o600 });
+    abortSignal?.throwIfAborted();
+    return { dir, path };
+  } catch (error) {
+    await rm(dir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 export type ShellRunOptions = {
   /** Stream stdout/stderr to shell session registry (toolCallId). */
   sessionId?: string;
+  abortSignal?: AbortSignal;
 };
 
 function publishShellSessionResult(
@@ -332,6 +373,8 @@ export async function runShellRequest(
   request: ShellRunRequest,
   options?: ShellRunOptions,
 ): Promise<ShellRunResult> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
   const normalized = normalizeShellRunRequest(request);
   const sessionId = options?.sessionId?.trim() || undefined;
   const workspaceRoot = resolvePolicyWorkspaceRoot(normalized);
@@ -365,18 +408,18 @@ export async function runShellRequest(
 
   if (normalized.command?.trim()) {
     const invocation = buildShellInvocation(shell, normalized.command.trim());
-    return runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId);
+    return runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId, abortSignal);
   }
 
   if (normalized.script?.trim()) {
-    const materialized = await materializeInlineScript(normalized.script, shell, cwd);
+    const materialized = await materializeInlineScript(normalized.script, shell, cwd, abortSignal);
     try {
       const invocation = buildScriptFileInvocation(
         shell,
         materialized.path,
         normalized.args,
       );
-      return await runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId);
+      return await runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId, abortSignal);
     } finally {
       await rm(materialized.dir, { recursive: true, force: true });
     }
@@ -427,7 +470,7 @@ export async function runShellRequest(
       resolved.absolute,
       normalized.args ?? [],
     );
-    return runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId);
+    return runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId, abortSignal);
   }
 
   const failed: ShellRunResult = {

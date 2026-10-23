@@ -11,6 +11,7 @@
     "build": "next build",
     "start": "node ./start.mjs",
     "lint": "next lint",
+    "check:agent-offline": "node scripts/check-agent-offline.mjs",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.mjs",
     "tauri:build": "tauri build",

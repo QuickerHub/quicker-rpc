@@ -19,7 +19,8 @@ export type AgentCommandDef = {
   name: string;
   description: string;
   argumentHint: string | null;
-  allowedTools: string[];
+  /** Omitted inherits the caller; an explicit empty list permits no tools. */
+  allowedTools?: string[];
   model: string | null;
   body: string;
   filePath: string;
@@ -32,7 +33,8 @@ export type SubagentInherit = "skills" | "workspace" | "all";
 export type SubagentDef = {
   name: string;
   description: string;
-  tools: string[];
+  /** Omitted inherits the parent's effective tools; empty permits no tools. */
+  tools?: string[];
   inherit: SubagentInherit[];
   model: string | null;
   body: string;

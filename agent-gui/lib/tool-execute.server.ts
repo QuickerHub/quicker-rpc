@@ -12,6 +12,7 @@ import {
   normalizeToolCallName,
   resolveKnownToolName,
 } from "@/lib/repair-tool-call";
+import { createTaskToolForParent, TASK_TOOL } from "@/lib/task-tool.server";
 
 export type DirectToolExecuteResult =
   | { ok: true; output: unknown }
@@ -71,9 +72,13 @@ export async function executeQuickerToolDirect(params: {
   }
 
   const input = validated.value;
+  // The direct test fixture is text-only and receives no ambient capabilities.
+  const executionTool = toolName === TASK_TOOL && (input as { agent?: string }).agent === "tool-test-echo"
+    ? createTaskToolForParent(() => ({}), tool)
+    : tool;
   const toolCallId = params.toolCallId?.trim() || generateId();
 
-  const needsApproval = await resolveNeedsApproval(tool, input, toolCallId);
+  const needsApproval = await resolveNeedsApproval(executionTool, input, toolCallId);
   if (needsApproval && !params.approved) {
     return {
       needsApproval: true,
@@ -89,7 +94,7 @@ export async function executeQuickerToolDirect(params: {
     const output = await runWithAgentRequestContextAsync({ cwd }, async () => {
       let final: unknown;
       for await (const chunk of executeTool({
-        execute: tool.execute!,
+        execute: executionTool.execute!,
         input,
         options,
       })) {

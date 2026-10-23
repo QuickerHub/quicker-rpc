@@ -13,6 +13,7 @@ export type ShellSessionSnapshot = {
   exitCode?: number;
   durationMs?: number;
   timedOut?: boolean;
+  cancelled?: boolean;
   blocked?: boolean;
   blockReason?: string;
   truncated?: boolean;
@@ -134,6 +135,7 @@ export function finishShellSession(
     exitCode: result.exitCode,
     durationMs: result.durationMs,
     timedOut: result.timedOut,
+    cancelled: result.cancelled,
     blocked: result.blocked,
     blockReason: result.blockReason,
     truncated: result.truncated,

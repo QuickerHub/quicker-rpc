@@ -19,10 +19,11 @@ UI / HTTP adapters
 | 层 | 当前入口 | 只负责 |
 |----|----------|--------|
 | HTTP | `app/api/chat/route.ts` | 请求解码、release preview、调用应用层 |
-| Application | `lib/agent-harness/run-turn.server.ts` | 串联 turn 阶段、把错误转换为响应 |
+| Application | `lib/agent-harness/turn-runner.ts` | 通过注入的端口串联 turn 阶段，持有一次请求的取消与资源 owner |
+| Server bindings | `lib/agent-harness/run-turn.server.ts` | 将配置、scope、工具和 usage 等真实服务绑定到应用层 |
 | Request | `lib/agent-harness/turn-request.server.ts` | 模式、slash、消息修复、LLM selection 标准化 |
 | Runtime preparation | `lib/agent-harness/turn-runtime.server.ts` | scope、tools/Skills/MCP、TurnPlan、调用策略、prompt、context budget |
-| Agent loop | `lib/agent-harness/stream-loop.server.ts` | `ToolLoopAgent`、step hook、stream metadata、压缩重试 |
+| Agent loop | `lib/agent-harness/stream-loop.ts` | `ToolLoopAgent`、step hook、stream metadata、压缩重试；`.server.ts` 绑定持久化与压缩端口 |
 | Domain | `lib/agent-core/`、`agent-recovery-policy.ts` | 无 IO 的决策与值对象 |
 | Tool adapters | `lib/tools.ts` 及各 `*-tool.server.ts` | 调用外部能力并返回统一结果 |
 
@@ -74,6 +75,15 @@ DSH 参考固定为 [DeepSeek Harness `687f282`](https://github.com/deepseek-ai/
 
 任何绕过这些阶段的快捷路径必须是确定性的，并在名称中带 `direct`。
 
+`turn-lifecycle.ts` 持有每轮独立的取消信号和资源释放。HTTP `Request.signal` 和最终 SSE
+响应体取消均传到该 owner，再传入模型、摘要压缩、工具执行上下文与子代理。嵌套 cwd
+兼容入口保留父信号。取消必须抛出原原因，不能当成断连而改走 CLI、重试或启动新模型。
+会话可见性只控制输入与展示，切换会话不会取消后台 turn。
+
+正常生产结束时释放 runtime，但仍允许响应体排空已缓冲的消息；响应体结束后解除父信号监听。
+初始化过程中晚到的资源也必须释放。压缩重试先取消被拒收的模型 attempt，再释放 reader，
+避免 AI SDK tee 分支互等；每个 attempt 使用派生信号，不取消整轮请求。
+
 ## 4. AI SDK 与项目代码边界
 
 `ToolLoopAgent` 负责：
@@ -102,7 +112,7 @@ QuickerAgent 负责：
 |------|------|----------|
 | `ChatPostBody` | HTTP 输入 DTO | route 内 |
 | `ResolvedAgentTurnRequest` | 标准化请求 | 整个 turn |
-| `TurnPlan` | intent、risk、target、tools、verification 的权威决策 | 每 turn 一份 |
+| `TurnPlan` | intent、risk、target、相关工具与验证建议；不等于权限已执行或验证已完成 | 每 turn 一份 |
 | `ToolExecutionContext` | cwd、scope、thread、bench 等执行上下文 | 每 turn 一份 |
 | `PreparedAgentTurnRuntime` | 交给 Agent loop 的完整运行参数 | stream 前生成 |
 | `AgentRuntimeSnapshot` | 供 UI/评测观察的只读快照 | 输出 metadata |
@@ -115,7 +125,7 @@ context”。
 每个工具能力逻辑上分为五部分：
 
 1. `catalog`：稳定 id、用途、风险和 capability bundle；
-2. `selection`：由 `TurnPlan` 决定本 turn 是否暴露；
+2. `selection`：模式、用户选择、命令限制与父权限取交集，`TurnPlan` 提供相关性建议；
 3. `model schema`：给模型的 description/input schema，可按需瘦身；
 4. `execute`：只执行能力，通过显式 context 访问宿主；
 5. `presentation`：把原始结果转换为 model view 和 UI view。
@@ -128,6 +138,9 @@ context”。
 | 策略 | 权威入口 | 不变量 |
 |---|---|---|
 | 静态目录 | `tool-registry.ts` + `agent-tool-catalog.ts` | id 唯一；目录与可执行定义一一对应；description/schema 非空 |
+| 权限交集 | `chat-tool-selection.ts`、`agent-defs/tool-restrictions.ts` | `undefined` 表示未限制，显式空集合不能恢复默认能力；合并 MCP 后再次应用命令限制 |
+| 模式执行门禁 | `agent-tool-mode-guard.ts`、`agent-mcp/tool-capabilities.ts` | Ask 的混合工具按操作拒绝写入；MCP 仅开放显式只读且非 destructive 的定义；当前 browser 不进入 Ask |
+| 子代理能力 | `task-tool-capabilities.ts`、`task-tool.server.ts` | 只继承父最终工具集的子集，保留同一预算/门禁闭包；不含 task；未绑定父 runtime 时拒绝执行 |
 | 每 turn 调用限制 | `agent-tool-policy.ts` | 默认限制总次数和相同输入次数；等待、删除、task、MCP 可覆盖 |
 | 模型输出 | `tool-result-model-messages.ts` | 去除 `displayData`；超过 8KB 固定保留 head 6KB + tail 1KB |
 | UI 输出 | 原始 tool result / `displayData` | 不受模型视图裁剪影响 |
@@ -190,10 +203,16 @@ Agent 核心改动至少执行：
 
 ```powershell
 cd agent-gui
-pnpm exec tsc --noEmit
+pnpm check:agent-offline
 pnpm test:agent-eval
 pnpm test:context-compression
 ```
+
+`check:agent-offline` 顺序执行无输出类型检查和显式测试清单；测试进程安装 fetch/HTTP/TCP/TLS/UDP
+误调用防护，使意外的真实网络调用失败。这是可审查测试的防护网，不是操作系统沙箱。
+清单使用 fake SDK model、fake HTTP、生成的 DB fixture 和本次创建的子进程，不能自动读取
+用户旧数据库或调用真实 Quicker/模型。它覆盖当前重构切片，不替代所有业务验收。
+`agent-eval`（无 `test:`）、Electron launch/full smoke 和真实宿主动作测试不属于离线入口。
 
 影响 Next/API/UI 时还必须在 dev server 上运行 `dev_frontend_check`，直到 `ok: true`。
 涉及工具选择时增加 `chat-tool-selection`/`turn-plan` 契约测试；涉及 Agent loop 时使用

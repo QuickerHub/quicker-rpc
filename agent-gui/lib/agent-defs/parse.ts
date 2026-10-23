@@ -36,7 +36,9 @@ export function parseCommandDef(
     name,
     description,
     argumentHint: fields["argument-hint"]?.trim() || null,
-    allowedTools: parseToolList(fields["allowed-tools"]),
+    allowedTools: fields["allowed-tools"] === undefined
+      ? undefined
+      : parseToolList(fields["allowed-tools"]),
     model: fields.model?.trim() || null,
     body: body.trim(),
     filePath,
@@ -64,7 +66,7 @@ export function parseSubagentDef(
   return {
     name,
     description,
-    tools: parseToolList(fields.tools),
+    tools: fields.tools === undefined ? undefined : parseToolList(fields.tools),
     inherit: parseInheritList(fields.inherit),
     model: fields.model?.trim() || null,
     body: body.trim(),

@@ -10,20 +10,24 @@ function preferredPort() {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 9477;
 }
 
-/** @param {string} base @param {number} [timeoutMs] */
-export async function isQkrpcServeHealthy(base, timeoutMs = 1_500) {
+/** @param {string} base @param {number} [timeoutMs] @param {AbortSignal} [abortSignal] */
+export async function isQkrpcServeHealthy(base, timeoutMs = 1_500, abortSignal) {
+  abortSignal?.throwIfAborted();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${normalizeBase(base)}/health`, {
       method: "GET",
-      signal: controller.signal,
+      signal: abortSignal ? AbortSignal.any([abortSignal, controller.signal]) : controller.signal,
       cache: "no-store",
     });
+    abortSignal?.throwIfAborted();
     if (res.status !== 200 && res.status !== 503) return false;
     const body = await res.json();
+    abortSignal?.throwIfAborted();
     return typeof body?.ok === "boolean";
   } catch {
+    abortSignal?.throwIfAborted();
     return false;
   } finally {
     clearTimeout(timer);
@@ -35,13 +39,16 @@ export async function isQkrpcServeHealthy(base, timeoutMs = 1_500) {
  * @param {string} [host]
  * @param {number} [scanFromPort]
  * @param {number} [maxPorts]
+ * @param {AbortSignal} [abortSignal]
  * @returns {Promise<{ baseUrl: string, port: number } | null>}
  */
 export async function discoverHealthyQkrpcServe(
   host = "127.0.0.1",
   scanFromPort = preferredPort(),
   maxPorts = 32,
+  abortSignal,
 ) {
+  abortSignal?.throwIfAborted();
   /** @type {string[]} */
   const candidates = [];
 
@@ -62,9 +69,11 @@ export async function discoverHealthyQkrpcServe(
   }
 
   for (const baseUrl of candidates) {
-    if (!(await isQkrpcServeHealthy(baseUrl))) {
+    abortSignal?.throwIfAborted();
+    if (!(await isQkrpcServeHealthy(baseUrl, undefined, abortSignal))) {
       continue;
     }
+    abortSignal?.throwIfAborted();
     if (normalizeBase(process.env.QKRPC_HTTP_URL ?? "") !== baseUrl) {
       process.env.QKRPC_HTTP_URL = baseUrl;
       process.env.QKRPC_TRANSPORT = "http";

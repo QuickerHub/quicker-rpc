@@ -72,7 +72,7 @@ const ASK_SYSTEM_INSTRUCTIONS = prompt(
   "## Capabilities (read-only)",
   "**Explore**: docs, Read/Grep, workspace_program read_data/diagnostics only (no patch).",
   "**Quicker**: qkrpc_action_query/get, qkrpc_subprogram_query/get, qkrpc_step_runner_search/get, qkrpc_fa, launcher_resolve, quicker_settings list/get/search.",
-  "**Web**: web_search; browser evaluate for page content — no mutating clicks unless user needs visible state.",
+  "**Web**: web_search. Browser automation requires Agent mode because its current adapter may start a runtime or create a session even for observations.",
   "**Clarify**: ask_question for ambiguous preferences.",
   "",
   "## Out of scope → Agent mode",

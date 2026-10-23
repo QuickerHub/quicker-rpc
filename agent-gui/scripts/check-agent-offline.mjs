@@ -1,0 +1,54 @@
+import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// Audited, synthetic tests only. Live agent-eval and Electron smoke are separate opt-ins.
+const tests = [
+  "scripts/agent-offline-network-guard.test.mjs",
+  "lib/agent-tool-mode-guard.test.ts",
+  "lib/agent-defs/apply-chat-command.server.test.ts",
+  "lib/agent-defs/parse.test.ts",
+  "lib/agent-harness/model-tool-definitions.test.ts",
+  "lib/agent-harness/tool-execution-context.test.ts",
+  "lib/agent-harness/turn-lifecycle.test.ts",
+  "lib/agent-harness/turn-runner.test.ts",
+  "lib/agent-harness/stream-loop.test.ts",
+  "lib/agent-harness/turn-message-preparation.test.ts",
+  "lib/agent-harness/turn-selection.test.ts",
+  "lib/agent-mcp/connect-timeout.test.ts",
+  "lib/agent-mcp/client-owner.test.ts",
+  "lib/agent-mcp/transport-fetch.test.ts",
+  "lib/agent-mcp/tool-capabilities.test.ts",
+  "lib/chat-mode.test.ts",
+  "lib/chat-tool-selection.test.ts",
+  "lib/tool-registry.test.ts",
+  "lib/task-tool.test.ts",
+  "lib/task-tool-capabilities.test.ts",
+  "lib/composer-keyboard.test.ts",
+  "lib/voice-input/composer-voice-shortcut.test.ts",
+  "lib/thread-side-panel-sync.test.ts",
+  "lib/qkrpc-argv.test.ts",
+  "lib/qkrpc-http.test.ts",
+  "lib/qkrpc-cancellation.test.ts",
+  "lib/shell-runner-cancellation.test.ts",
+  "lib/context-compression-reactive.test.ts",
+  "lib/context-compression.integration.test.ts",
+  "lib/db/client.test.ts",
+  "lib/db/app-kv.test.ts",
+  "lib/db/chat-store-safety.test.ts",
+  "lib/chat-store-db.server.test.ts",
+];
+
+function run(args) {
+  const result = spawnSync(process.execPath, args, { cwd: root, stdio: "inherit" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status ?? 1);
+}
+
+run(["node_modules/typescript/bin/tsc", "--noEmit", "--incremental", "false"]);
+run([
+  "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",
+  "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
+  ...tests,
+]);

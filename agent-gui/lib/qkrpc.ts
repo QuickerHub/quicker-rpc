@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
 import {
@@ -11,6 +12,7 @@ import {
   resolveEffectiveWorkingDirectory,
 } from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
+import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 import { invokeQkrpcHttp, resolveQkrpcHttpBase } from "@/lib/qkrpc-http";
 import {
   invalidateServeProbeCache,
@@ -43,6 +45,13 @@ const {
 };
 
 export type { QkrpcRunResult } from "@/lib/qkrpc-types";
+
+export type QkrpcRunOptions = {
+  stdin?: string;
+  timeoutMs?: number;
+  json?: boolean;
+  abortSignal?: AbortSignal;
+};
 
 const MAX_STDOUT_CHARS = 120_000;
 const QKRPC_EXE = process.platform === "win32" ? "qkrpc.exe" : "qkrpc";
@@ -238,9 +247,11 @@ function shouldRetryHttpStepRunnerMissingIcons(op: string, parsed: unknown): boo
 
 async function tryHttpInvoke(
   args: string[],
-  options?: { timeoutMs?: number },
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal">,
   transport?: { serveOnly: boolean },
 ): Promise<QkrpcRunResult | "skip"> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
   const serveOnly = transport?.serveOnly ?? false;
   const invoke = argvToInvoke(args);
   if (!invoke) {
@@ -249,7 +260,9 @@ async function tryHttpInvoke(
 
   const httpResult = await invokeQkrpcHttp(invoke, {
     timeoutMs: options?.timeoutMs,
+    abortSignal,
   });
+  abortSignal?.throwIfAborted();
 
   if (httpResult === null) {
     invalidateServeProbeCache();
@@ -283,8 +296,10 @@ async function tryHttpInvoke(
 
 async function spawnQkrpcCli(
   finalArgs: string[],
-  options?: { stdin?: string; timeoutMs?: number },
+  options?: QkrpcRunOptions,
 ): Promise<QkrpcRunResult> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
   const bin = resolveBin();
   if (!bin) {
     return {
@@ -300,7 +315,8 @@ async function spawnQkrpcCli(
   const timeoutMs = options?.timeoutMs ?? 120_000;
   const useStdin = Boolean(options?.stdin);
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    abortSignal?.throwIfAborted();
     const child = spawn(bin, finalArgs, {
       cwd,
       env: process.env,
@@ -311,10 +327,27 @@ async function spawnQkrpcCli(
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let cancelling = false;
+    const cleanup = () => {
+      clearTimeout(timer);
+      abortSignal?.removeEventListener("abort", onAbort);
+    };
+    const onAbort = () => {
+      if (settled || cancelling) return;
+      cancelling = true;
+      cleanup();
+      try { child.kill("SIGKILL"); }
+      catch {
+        settled = true;
+        reject(abortSignal?.reason);
+      }
+    };
 
     const timer = setTimeout(() => {
-      if (settled) return;
+      if (settled || cancelling) return;
+      if (abortSignal?.aborted) { onAbort(); return; }
       settled = true;
+      cleanup();
       child.kill();
       resolve({
         ok: false,
@@ -325,18 +358,23 @@ async function spawnQkrpcCli(
         truncated: false,
       });
     }, timeoutMs);
+    abortSignal?.addEventListener("abort", onAbort, { once: true });
+    if (abortSignal?.aborted) onAbort();
 
     child.stdout?.on("data", (chunk: Buffer) => {
+      if (settled || cancelling) return;
       stdout += chunk.toString("utf8");
     });
     child.stderr?.on("data", (chunk: Buffer) => {
+      if (settled || cancelling) return;
       stderr += chunk.toString("utf8");
     });
 
     child.on("error", (err) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      cleanup();
+      if (cancelling) { reject(abortSignal?.reason); return; }
       resolve({
         ok: false,
         exitCode: -1,
@@ -350,7 +388,8 @@ async function spawnQkrpcCli(
     child.on("close", (code) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      cleanup();
+      if (cancelling) { reject(abortSignal?.reason); return; }
       const { text, truncated: wasTruncated } = truncate(stdout);
       const exitCode = code ?? 1;
       resolve({
@@ -363,7 +402,8 @@ async function spawnQkrpcCli(
       });
     });
 
-    if (useStdin && options?.stdin) {
+    if (!settled && !cancelling && useStdin && options?.stdin) {
+      child.stdin?.on("error", () => { /* The child may exit before consuming all input. */ });
       child.stdin?.write(options.stdin, "utf8");
       child.stdin?.end();
     }
@@ -373,7 +413,7 @@ async function spawnQkrpcCli(
 /** Direct qkrpc.exe spawn — qkrpc_wait recovery only (bypasses serve-only transport). */
 export async function runQkrpcCliDirect(
   args: string[],
-  options?: { stdin?: string; timeoutMs?: number; json?: boolean },
+  options?: QkrpcRunOptions,
 ): Promise<QkrpcRunResult> {
   const json = options?.json !== false;
   const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
@@ -382,13 +422,16 @@ export async function runQkrpcCliDirect(
 
 export async function runQkrpc(
   args: string[],
-  options?: { stdin?: string; timeoutMs?: number; json?: boolean },
+  options?: QkrpcRunOptions,
 ): Promise<QkrpcRunResult> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
   const serveOnly = mustNotSpawnCli();
   const stepRunnerCatalog = isStepRunnerCatalogArgv(args);
 
   if (!options?.stdin && !isCliTransportForced()) {
-    const http = await tryHttpInvoke(args, options, { serveOnly });
+    const http = await tryHttpInvoke(args, { ...options, abortSignal }, { serveOnly });
+    abortSignal?.throwIfAborted();
     if (http !== "skip") {
       return http;
     }
@@ -406,7 +449,8 @@ export async function runQkrpc(
   // Per-request qkrpc.exe subprocess — only when QKRPC_TRANSPORT=cli|spawn (local debug).
   const json = options?.json !== false;
   const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
-  return spawnQkrpcCli(finalArgs, options);
+  abortSignal?.throwIfAborted();
+  return spawnQkrpcCli(finalArgs, { ...options, abortSignal });
 }
 
 /** Drop legacy search-level agentGuidance (moved to docs / tool descriptions). */
@@ -450,8 +494,9 @@ export function formatQkrpcResult(result: QkrpcRunResult): Record<string, unknow
   };
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
+  try { await delay(ms, undefined, { signal: abortSignal }); }
+  catch (error) { abortSignal?.throwIfAborted(); throw error; }
 }
 
 /** Failures worth retrying inside the tool (timeout / transient transport). */
@@ -476,8 +521,10 @@ const QKRPC_RETRY_BASE_DELAY_MS = 1_200;
  */
 export async function runQkrpcForTool(
   args: string[],
-  options?: { stdin?: string; timeoutMs?: number; json?: boolean },
+  options?: QkrpcRunOptions,
 ): Promise<QkrpcRunResult> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
   const op = args[0]?.trim().toLowerCase();
   if (
     isQkrpcConnectivityBlockedThisTurn()
@@ -503,8 +550,10 @@ export async function runQkrpcForTool(
   let last: QkrpcRunResult | null = null;
 
   for (let attempt = 1; attempt <= QKRPC_TOOL_MAX_ATTEMPTS; attempt++) {
+    abortSignal?.throwIfAborted();
     const timeoutMs = baseTimeout + (attempt - 1) * 45_000;
-    const result = await runQkrpc(args, { ...options, timeoutMs });
+    const result = await runQkrpc(args, { ...options, timeoutMs, abortSignal });
+    abortSignal?.throwIfAborted();
     if (result.ok) return result;
     last = result;
     if (isQkrpcConnectivityFailure(result)) {
@@ -514,7 +563,7 @@ export async function runQkrpcForTool(
     if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
       break;
     }
-    await sleep(QKRPC_RETRY_BASE_DELAY_MS * attempt);
+    await sleep(QKRPC_RETRY_BASE_DELAY_MS * attempt, abortSignal);
   }
 
   return last!;
@@ -595,7 +644,9 @@ async function runQkrpcWithJsonPayloadOnce(
   baseArgs: string[],
   jsonObject: unknown,
   timeoutMs: number,
+  abortSignal?: AbortSignal,
 ): Promise<QkrpcRunResult> {
+  abortSignal?.throwIfAborted();
   const fileFlags = new Set(
     Object.values(HTTP_JSON_BODY_OPS).map((entry) => `--${entry.fileFlag}`),
   );
@@ -611,8 +662,9 @@ async function runQkrpcWithJsonPayloadOnce(
         op: invoke!.op,
         args: { ...invoke!.args, [httpSpec.argKey]: jsonObject },
       },
-      { timeoutMs },
+      { timeoutMs, abortSignal },
     );
+    abortSignal?.throwIfAborted();
     if (httpResult?.ok) {
       return httpResult;
     }
@@ -634,11 +686,14 @@ async function runQkrpcWithJsonPayloadOnce(
   }
 
   const fileFlag = httpSpec?.fileFlag ?? "patch-file";
+  abortSignal?.throwIfAborted();
   const dir = await mkdtemp(join(tmpdir(), "qkrpc-json-"));
   const file = join(dir, `${fileFlag.replace(/-/g, "_")}.json`);
   try {
+    abortSignal?.throwIfAborted();
     await writeFile(file, JSON.stringify(jsonObject), "utf8");
-    return await runQkrpc([...baseArgs, `--${fileFlag}`, file], { timeoutMs });
+    abortSignal?.throwIfAborted();
+    return await runQkrpc([...baseArgs, `--${fileFlag}`, file], { timeoutMs, abortSignal });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -647,23 +702,29 @@ async function runQkrpcWithJsonPayloadOnce(
 async function runQkrpcWithJsonPayloadForTool(
   baseArgs: string[],
   jsonObject: unknown,
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal">,
 ): Promise<QkrpcRunResult> {
-  const baseTimeout = 120_000;
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
+  const baseTimeout = options?.timeoutMs ?? 120_000;
   let last: QkrpcRunResult | null = null;
 
   for (let attempt = 1; attempt <= QKRPC_TOOL_MAX_ATTEMPTS; attempt++) {
+    abortSignal?.throwIfAborted();
     const timeoutMs = baseTimeout + (attempt - 1) * 45_000;
     const result = await runQkrpcWithJsonPayloadOnce(
       baseArgs,
       jsonObject,
       timeoutMs,
+      abortSignal,
     );
+    abortSignal?.throwIfAborted();
     if (result.ok) return result;
     last = result;
     if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
       break;
     }
-    await sleep(QKRPC_RETRY_BASE_DELAY_MS * attempt);
+    await sleep(QKRPC_RETRY_BASE_DELAY_MS * attempt, abortSignal);
   }
 
   return last!;
@@ -672,27 +733,31 @@ async function runQkrpcWithJsonPayloadForTool(
 export async function runQkrpcWithPatchFile(
   baseArgs: string[],
   patchObject: unknown,
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal">,
 ): Promise<QkrpcRunResult> {
-  return runQkrpcWithPatchFileForTool(baseArgs, patchObject);
+  return runQkrpcWithPatchFileForTool(baseArgs, patchObject, options);
 }
 
 export async function runQkrpcWithPatchFileForTool(
   baseArgs: string[],
   patchObject: unknown,
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal">,
 ): Promise<QkrpcRunResult> {
-  return runQkrpcWithJsonPayloadForTool(baseArgs, patchObject);
+  return runQkrpcWithJsonPayloadForTool(baseArgs, patchObject, options);
 }
 
 export async function runQkrpcWithXactionForTool(
   baseArgs: string[],
   xactionObject: unknown,
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal">,
 ): Promise<QkrpcRunResult> {
-  return runQkrpcWithJsonPayloadForTool(baseArgs, xactionObject);
+  return runQkrpcWithJsonPayloadForTool(baseArgs, xactionObject, options);
 }
 
 export async function runQkrpcWithProgramForTool(
   baseArgs: string[],
   programObject: unknown,
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal">,
 ): Promise<QkrpcRunResult> {
-  return runQkrpcWithJsonPayloadForTool(baseArgs, programObject);
+  return runQkrpcWithJsonPayloadForTool(baseArgs, programObject, options);
 }

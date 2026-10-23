@@ -5,9 +5,12 @@ import {
 } from "@/lib/agent-defs/command-expand";
 import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
 import { extractLastUserMessageText } from "@/lib/launcher/launcher-command-cache.server";
+import { mergeToolRestrictions } from "@/lib/agent-defs/tool-restrictions";
 
 export type ChatCommandOverrides = {
   enabledTools?: string[];
+  /** Applied again after static and MCP tools are merged, including internal tools. */
+  toolAllowlist?: string[];
   llmSelectionRaw?: string;
 };
 
@@ -16,16 +19,6 @@ export type AppliedChatCommand = {
   overrides: ChatCommandOverrides;
   commandName: string | null;
 };
-
-function mergeToolRestrictions(
-  baseEnabled: string[] | undefined,
-  allowedTools: string[],
-): string[] | undefined {
-  if (!allowedTools.length) return baseEnabled;
-  if (!baseEnabled?.length) return allowedTools;
-  const allowed = new Set(allowedTools);
-  return baseEnabled.filter((id) => allowed.has(id));
-}
 
 export async function resolveSlashCommandForChat(
   messages: AgentUIMessage[],
@@ -45,6 +38,7 @@ export async function resolveSlashCommandForChat(
       enabledTools,
       expanded.allowedTools,
     ),
+    toolAllowlist: expanded.allowedTools,
   };
   if (expanded.modelOverride) {
     overrides.llmSelectionRaw = expanded.modelOverride;

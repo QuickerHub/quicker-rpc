@@ -4,6 +4,7 @@ import { afterEach, test } from "node:test";
 import {
   ALL_QKRPC_TOOL_IDS,
   loadStoredEnabledTools,
+  pickEnabledTools,
   QKRPC_TOOL_REGISTRY,
   resolveEnabledToolsFromPrefs,
   TOOL_APPROVAL_STORAGE_KEY,
@@ -13,6 +14,14 @@ import {
 } from "./tool-registry.ts";
 
 const storage = new Map<string, string>();
+
+test("tool allowlists distinguish omitted from explicitly empty", () => {
+  const tools = { read: {}, write: {} };
+  assert.deepEqual(Object.keys(pickEnabledTools(tools, undefined)), ["read", "write"]);
+  assert.deepEqual(pickEnabledTools(tools, []), {});
+  assert.deepEqual(pickEnabledTools(tools, ["unknown"]), {});
+  assert.deepEqual(Object.keys(pickEnabledTools(tools, ["read"])), ["read"]);
+});
 
 function installBrowserStorage(): void {
   (globalThis as { window?: typeof globalThis }).window = globalThis;

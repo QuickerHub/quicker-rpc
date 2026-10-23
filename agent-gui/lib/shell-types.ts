@@ -29,6 +29,7 @@ export type ShellRunResult = {
   commandLine: string;
   durationMs: number;
   timedOut?: boolean;
+  cancelled?: boolean;
   blocked?: boolean;
   blockReason?: string;
 };

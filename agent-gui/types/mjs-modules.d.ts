@@ -4,11 +4,12 @@ declare module "@/lib/qkrpc-serve-ensure.mjs" {
 }
 
 declare module "@/lib/qkrpc-serve-discover.mjs" {
-  export function isQkrpcServeHealthy(base: string, timeoutMs?: number): Promise<boolean>;
+  export function isQkrpcServeHealthy(base: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<boolean>;
   export function discoverHealthyQkrpcServe(
     host?: string,
     scanFromPort?: number,
     maxPorts?: number,
+    abortSignal?: AbortSignal,
   ): Promise<{ baseUrl: string; port: number } | null>;
 }
 

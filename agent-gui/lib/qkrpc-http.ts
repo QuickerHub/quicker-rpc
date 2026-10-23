@@ -1,9 +1,12 @@
 import type { QkrpcInvoke } from "@/lib/qkrpc-argv";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
+import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
 const WORKSPACE_PROJECT_OPS = new Set([
+  "action.open",
+  "action.save",
   "action.extract",
   "action.apply",
   "action.validate",
@@ -15,10 +18,10 @@ function attachWorkspaceRoot(invoke: QkrpcInvoke): QkrpcInvoke {
   if (!WORKSPACE_PROJECT_OPS.has(invoke.op)) {
     return invoke;
   }
-  const cwd = resolveEffectiveWorkingDirectory(getRequestCwd());
   if (typeof invoke.args.workspaceRoot === "string" && invoke.args.workspaceRoot.trim()) {
     return invoke;
   }
+  const cwd = resolveEffectiveWorkingDirectory(getRequestCwd());
   return { ...invoke, args: { ...invoke.args, workspaceRoot: cwd } };
 }
 
@@ -67,29 +70,46 @@ function isServeUnreachableError(err: unknown): boolean {
   return message.toLowerCase().includes("fetch failed");
 }
 
-async function alignQkrpcHttpBaseIfNeeded(): Promise<string> {
+async function alignQkrpcHttpBaseIfNeeded(abortSignal?: AbortSignal): Promise<string> {
+  abortSignal?.throwIfAborted();
   const configured = resolveQkrpcHttpBase();
   const { isQkrpcServeHealthy, discoverHealthyQkrpcServe } = await import(
     "@/lib/qkrpc-serve-discover.mjs"
   );
-  if (await isQkrpcServeHealthy(configured)) {
+  abortSignal?.throwIfAborted();
+  if (await isQkrpcServeHealthy(configured, undefined, abortSignal)) {
+    abortSignal?.throwIfAborted();
     return configured;
   }
-  const discovered = await discoverHealthyQkrpcServe();
+  abortSignal?.throwIfAborted();
+  const discovered = await discoverHealthyQkrpcServe(undefined, undefined, undefined, abortSignal);
+  abortSignal?.throwIfAborted();
   return discovered?.baseUrl ?? configured;
+}
+
+function httpTimeoutResult(timeoutMs: number): QkrpcRunResult {
+  return {
+    ok: false, exitCode: -1, stdout: "", parsed: null, truncated: false,
+    stderr: `qkrpc HTTP request timed out after ${timeoutMs}ms`,
+  };
 }
 
 export async function invokeQkrpcHttp(
   invoke: QkrpcInvoke,
-  options?: { timeoutMs?: number },
+  options?: { timeoutMs?: number; abortSignal?: AbortSignal },
 ): Promise<QkrpcRunResult | null> {
-  const base = await alignQkrpcHttpBaseIfNeeded();
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
+  const base = await alignQkrpcHttpBaseIfNeeded(abortSignal);
   const timeoutMs = options?.timeoutMs ?? 120_000;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs + 5_000);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs + 5_000);
+  const signal = abortSignal ? AbortSignal.any([abortSignal, controller.signal]) : controller.signal;
   const invokeWithWorkspace = attachWorkspaceRoot(invoke);
 
   try {
+    abortSignal?.throwIfAborted();
     const res = await fetch(`${base}/v1/invoke`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -98,11 +118,12 @@ export async function invokeQkrpcHttp(
         args: invokeWithWorkspace.args,
         timeoutSeconds: Math.max(1, Math.ceil(timeoutMs / 1000)),
       }),
-      signal: controller.signal,
+      signal,
       cache: "no-store",
     });
 
     const text = await res.text();
+    abortSignal?.throwIfAborted();
     if (!text.trim()) {
       return null;
     }
@@ -139,6 +160,8 @@ export async function invokeQkrpcHttp(
       truncated: false,
     };
   } catch (e) {
+    abortSignal?.throwIfAborted();
+    if (timedOut) return httpTimeoutResult(timeoutMs);
     if (isServeUnreachableError(e)) {
       return null;
     }
@@ -166,19 +189,26 @@ type ServeHealthBody = {
 /** GET /health when qkrpc serve is running; null if serve is not up. */
 export async function fetchQkrpcHealth(options?: {
   timeoutMs?: number;
+  abortSignal?: AbortSignal;
 }): Promise<QkrpcRunResult | null> {
-  const base = await alignQkrpcHttpBaseIfNeeded();
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
+  const base = await alignQkrpcHttpBaseIfNeeded(abortSignal);
   const timeoutMs = options?.timeoutMs ?? 12_000;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs + 2_000);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs + 2_000);
+  const signal = abortSignal ? AbortSignal.any([abortSignal, controller.signal]) : controller.signal;
 
   try {
+    abortSignal?.throwIfAborted();
     const res = await fetch(`${base}/health`, {
       method: "GET",
-      signal: controller.signal,
+      signal,
       cache: "no-store",
     });
     const text = await res.text();
+    abortSignal?.throwIfAborted();
     if (!text.trim()) {
       // Port open but not qkrpc serve (or broken handler).
       return null;
@@ -200,6 +230,8 @@ export async function fetchQkrpcHealth(options?: {
       truncated: false,
     };
   } catch (e) {
+    abortSignal?.throwIfAborted();
+    if (timedOut) return httpTimeoutResult(timeoutMs);
     if (isServeUnreachableError(e)) {
       return null;
     }

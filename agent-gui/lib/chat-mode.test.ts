@@ -34,6 +34,9 @@ describe("maxStepsForChatMode", () => {
 });
 
 describe("resolveEnabledToolsForChatMode", () => {
+  it("keeps an explicitly empty Agent capability selection", () => {
+    assert.deepEqual(resolveEnabledToolsForChatMode(CHAT_MODE_AGENT, [], () => ["Write"]), []);
+  });
   it("uses launcher tool set in launcher mode", () => {
     assert.deepEqual(
       resolveEnabledToolsForChatMode(
@@ -46,6 +49,7 @@ describe("resolveEnabledToolsForChatMode", () => {
   });
 
   it("uses ask tool set in ask mode", () => {
+    assert.equal(defaultAskToolIds().includes("browser"), false);
     assert.deepEqual(
       resolveEnabledToolsForChatMode(
         CHAT_MODE_ASK,

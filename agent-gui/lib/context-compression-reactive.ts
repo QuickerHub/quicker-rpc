@@ -49,29 +49,49 @@ export async function mergeUIMessageStreamWithReactiveCompact(
     InferUIMessageChunk<AgentUIMessage>
   >,
   writer: UIMessageStreamWriter<AgentUIMessage>,
-  options: { allowReactiveRetry: boolean },
+  options: {
+    allowReactiveRetry: boolean;
+    abortSignal?: AbortSignal;
+    /** Stop the producer before cancelling its reader (SDK streams may use tee). */
+    onRetry?: () => void;
+    /** Release the producer before reader cancellation if the consumer/writer fails. */
+    onStreamError?: (error: unknown) => void;
+  },
 ): Promise<MergeWithReactiveCompactResult> {
   let sentUserVisible = false;
+  const onAbort = () => { void reader.cancel(options.abortSignal?.reason).catch(() => {}); };
+  options.abortSignal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    options.abortSignal?.throwIfAborted();
+    while (true) {
+      const { done, value } = await reader.read();
+      options.abortSignal?.throwIfAborted();
+      if (done) return { action: "done" };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) return { action: "done" };
+      if (value.type === "error") {
+        if (
+          options.allowReactiveRetry
+          && !sentUserVisible
+          && isContextLengthExceededErrorText(value.errorText)
+        ) {
+          options.onRetry?.();
+          return { action: "retry" };
+        }
+        writer.write(value);
+        continue;
+      }
 
-    if (value.type === "error") {
-      if (
-        options.allowReactiveRetry
-        && !sentUserVisible
-        && isContextLengthExceededErrorText(value.errorText)
-      ) {
-        return { action: "retry" };
+      if (isUserVisibleStreamChunk(value)) {
+        sentUserVisible = true;
       }
       writer.write(value);
-      continue;
     }
-
-    if (isUserVisibleStreamChunk(value)) {
-      sentUserVisible = true;
-    }
-    writer.write(value);
+  } catch (error) {
+    try { options.onStreamError?.(error); } catch { /* Preserve the stream's original failure. */ }
+    throw error;
+  } finally {
+    options.abortSignal?.removeEventListener("abort", onAbort);
+    try { await reader.cancel(); } catch { /* Keep the original stream/abort error. */ }
+    reader.releaseLock();
   }
 }

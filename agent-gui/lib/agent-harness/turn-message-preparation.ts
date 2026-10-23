@@ -8,17 +8,18 @@ import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
 /**
  * Convert persisted UI messages into model-facing messages for one turn.
  *
- * Slash commands are expanded once: the first user text part that actually
- * contains a slash command is replaced, while every other user part still
- * receives the normal Quicker tag expansion.
+ * Only the latest user message may receive this turn's slash expansion.
+ * Historical command text stays intact; normal Quicker tag projection still
+ * applies to model-facing copies of user messages.
  */
 export function prepareTurnMessagesForModel(params: {
   messages: AgentUIMessage[];
   expandedSlashUserText?: string | null;
 }): AgentUIMessage[] {
   let slashTextApplied = false;
+  const latestUserIndex = params.messages.findLastIndex((message) => message.role === "user");
 
-  return params.messages.map((message) => {
+  return params.messages.map((message, messageIndex) => {
     if (message.role !== "user") return message;
 
     return {
@@ -29,6 +30,7 @@ export function prepareTurnMessagesForModel(params: {
         let text = expandUserMessageForModel(part.text);
         if (
           !slashTextApplied
+          && messageIndex === latestUserIndex
           && params.expandedSlashUserText
           && parseSlashCommandInput(expandSlashTagsInUserText(part.text).trim())
         ) {

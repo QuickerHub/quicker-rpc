@@ -114,6 +114,7 @@ test("argvToInvoke maps action publish with share metadata", () => {
       title: "My Action",
       description: "Does things",
       html: "<p>Intro</p>",
+      htmlFile: undefined,
       tags: "a,b",
       keywords: "kw1,kw2",
       changelog: "v1.0.1",
@@ -121,6 +122,57 @@ test("argvToInvoke maps action publish with share metadata", () => {
       noSubmitReview: true,
     },
   });
+});
+
+test("argvToInvoke maps V1 action source open options and code alias", () => {
+  assert.deepEqual(
+    argvToInvoke([
+      "action", "open", "--id", "846b4132-ad73-42e8-b2f9-c42fe718ae20",
+      "--dir", ".tmp/action source", "--min-lines", "8", "--no-auto-files", "--json",
+    ]),
+    {
+      op: "action.open",
+      args: {
+        id: "846b4132-ad73-42e8-b2f9-c42fe718ae20",
+        dir: ".tmp/action source",
+        minLines: 8,
+        noAutoFiles: true,
+      },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke(["action", "open", "--code", "fixture-action", "--dir", "D:\\fixture\\source"]),
+    {
+      op: "action.open",
+      args: {
+        id: "fixture-action",
+        dir: "D:\\fixture\\source",
+        minLines: undefined,
+        noAutoFiles: undefined,
+      },
+    },
+  );
+});
+
+test("argvToInvoke preserves the action publish HTML file option", () => {
+  const invoke = argvToInvoke(["action", "publish", "--id", "fixture", "--html-file", "docs/intro.html"]);
+  assert.equal(invoke?.op, "action.publish");
+  assert.equal(invoke.args.htmlFile, "docs/intro.html");
+});
+
+test("argvToInvoke keeps V1 source validation and persistence distinct", () => {
+  assert.deepEqual(
+    argvToInvoke(["action", "save", "--dir", ".tmp/action source", "--dry-run", "--json"]),
+    { op: "action.save", args: { dir: ".tmp/action source", dryRun: true } },
+  );
+  assert.deepEqual(
+    argvToInvoke(["action", "save", "--dir", ".tmp/action source", "--json"]),
+    { op: "action.save", args: { dir: ".tmp/action source", dryRun: false } },
+  );
+  assert.deepEqual(
+    argvToInvoke(["action", "save", "--dry-run", "--json"]),
+    { op: "action.save", args: { dir: undefined, dryRun: true } },
+  );
 });
 
 test("argvToInvoke maps action shared-info get/set", () => {

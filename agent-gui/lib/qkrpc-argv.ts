@@ -159,6 +159,26 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         },
       };
     }
+    if (verb === "open") {
+      return {
+        op: "action.open",
+        args: {
+          id: flagStr(flags, "id") ?? flagStr(flags, "code"),
+          dir: flagStr(flags, "dir"),
+          minLines: flagInt(flags, "min-lines"),
+          noAutoFiles: flagBool(flags, "no-auto-files") || undefined,
+        },
+      };
+    }
+    if (verb === "save") {
+      return {
+        op: "action.save",
+        args: {
+          dir: flagStr(flags, "dir"),
+          dryRun: flagBool(flags, "dry-run"),
+        },
+      };
+    }
     if (verb === "create") {
       return {
         op: "action.create",

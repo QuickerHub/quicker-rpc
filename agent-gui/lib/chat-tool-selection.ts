@@ -3,7 +3,7 @@ import { CHAT_MODE_LAUNCHER, type ChatMode } from "@/lib/chat-mode";
 import { resolveTurnPlan } from "@/lib/agent-core/turn-plan";
 import { filterToolIdsForBenchMode } from "@/lib/bench-mode";
 import { LIST_TOOLS_TOOL } from "@/lib/list-tools-tool";
-import { pickChatTools } from "@/lib/tool-registry";
+import { pickChatTools, pickEnabledTools } from "@/lib/tool-registry";
 import { SET_THREAD_TITLE_TOOL } from "@/lib/thread-title-tool-messages";
 
 const SKILL_LOAD_TOOL = "skill_load";
@@ -14,6 +14,14 @@ export type SelectChatToolsParams = {
   titleTest: boolean;
   benchMode?: boolean;
 };
+
+/** A command restriction is the final intersection, after every source is composed. */
+export function restrictComposedTools<T extends Record<string, unknown>>(
+  tools: T,
+  allowedToolIds: string[] | undefined,
+): T {
+  return pickEnabledTools(tools, allowedToolIds);
+}
 
 export function resolveToolBundleContext(params: {
   chatMode: ChatMode;

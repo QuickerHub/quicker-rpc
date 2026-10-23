@@ -12,6 +12,7 @@ export async function prepareContextPipeline(
   options: PrepareContextPipelineOptions,
 ): Promise<PreparedModelContext> {
   const prepared = await prepareCompressedContext(options);
+  options.abortSignal?.throwIfAborted();
   const trimmed = applySlidingWindowTrim(prepared.modelMessages);
 
   return {

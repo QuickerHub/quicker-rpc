@@ -65,7 +65,6 @@ export const ASK_TOOL_IDS = [
   "docs",
   "ask_question",
   "web_search",
-  "browser",
   "qkrpc_wait",
   "Read",
   "Grep",
@@ -130,7 +129,7 @@ export function resolveEnabledToolsForChatMode(
   if (mode === CHAT_MODE_ASK) {
     return defaultAskToolIds();
   }
-  if (enabledTools?.length) {
+  if (enabledTools !== undefined) {
     return enabledTools;
   }
   return fallbackEnabledTools();

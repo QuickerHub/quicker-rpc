@@ -8,7 +8,7 @@ export type ExpandedSlashCommand = {
   arguments: string;
   expandedBody: string;
   modelOverride: string | null;
-  allowedTools: string[];
+  allowedTools?: string[];
 };
 
 export function expandCommandPlaceholders(

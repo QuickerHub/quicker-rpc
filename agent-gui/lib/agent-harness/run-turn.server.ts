@@ -1,12 +1,6 @@
 import "server-only";
 
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  type LanguageModel,
-} from "ai";
-
-import type { AgentUIMessage } from "@/lib/chat-types";
+import type { LanguageModel } from "ai";
 import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
 import {
   isLlmSelectionConfigured,
@@ -26,8 +20,7 @@ import {
   prepareAgentTurnRuntime,
   resolveAgentTurnScope,
 } from "@/lib/agent-harness/turn-runtime.server";
-import { toolExecutionContextToAgentRequest } from "@/lib/agent-harness/tool-execution-context";
-import type { ChatPostBody } from "@/lib/agent-harness/types";
+import { createAgentTurnRunner } from "@/lib/agent-harness/turn-runner";
 
 async function tryLauncherDirectResponse(
   request: ResolvedAgentTurnRequest,
@@ -85,51 +78,15 @@ async function resolveTurnModel(
   }
 }
 
-/** Main agent chat turn: resolve request -> prepare runtime -> run SDK agent. */
-export async function runAgentChatTurn(body: ChatPostBody): Promise<Response> {
-  const request = await resolveAgentTurnRequest(body);
-  const directResponse = await tryLauncherDirectResponse(request);
-  if (directResponse) return directResponse;
-
-  const modelResolution = await resolveTurnModel(request);
-  if (modelResolution instanceof Response) return modelResolution;
-
-  clearProgramTurnFlagsForThread(request.threadId);
-
-  return runWithAgentRequestContextAsync(
-    {
-      cwd: request.cwd,
-      chatMode: request.chatMode,
-      lastUserText: request.lastUserText,
-      llmSelectionRaw: request.llmSelectionRaw,
-      benchMode: request.benchMode,
-    },
-    async () => {
-      const scope = await resolveAgentTurnScope(request);
-
-      return runWithAgentRequestContextAsync(
-        toolExecutionContextToAgentRequest(scope.toolExecutionContext),
-        async () => {
-          const runtime = await prepareAgentTurnRuntime({
-            request,
-            scope,
-            ...modelResolution,
-          });
-          const { dispose, ...streamRuntime } = runtime;
-          const stream = createUIMessageStream<AgentUIMessage>({
-            originalMessages: request.repairedMessages,
-            execute: async ({ writer }) => {
-              try {
-                await runAgentStreamLoop({ writer, ...streamRuntime });
-              } finally {
-                await dispose();
-              }
-            },
-          });
-
-          return createUIMessageStreamResponse({ stream });
-        },
-      );
-    },
-  );
-}
+/** Concrete server adapters for the single AI SDK agent execution path. */
+export const runAgentChatTurn = createAgentTurnRunner({
+  resolveRequest: resolveAgentTurnRequest,
+  tryDirectResponse: tryLauncherDirectResponse,
+  resolveModel: resolveTurnModel,
+  resolveScope: resolveAgentTurnScope,
+  prepareRuntime: prepareAgentTurnRuntime,
+  runLoop: runAgentStreamLoop,
+  withContext: runWithAgentRequestContextAsync,
+  clearTurnFlags: clearProgramTurnFlagsForThread,
+  onCleanupError: (error) => console.error("[agent turn cleanup]", error),
+});

@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
-  prepareCompressedContext,
+  prepareCompressedContext as prepareCompressedContextActual,
   resolveCompactionUsageThreshold,
 } from "@/lib/context-compression";
+
+const prepareCompressedContext: typeof prepareCompressedContextActual = (options) =>
+  prepareCompressedContextActual({ writeHistoryArtifact: async () => null, ...options });
 
 function userMessage(id: string, text: string): AgentUIMessage {
   return {
@@ -40,6 +43,22 @@ function buildLongThread(messageCount: number): AgentUIMessage[] {
 }
 
 describe("prepareCompressedContext integration", () => {
+  it("passes cancellation to summary and never persists history after cancellation", async () => {
+    const parent = new AbortController();
+    let writes = 0;
+    await assert.rejects(prepareCompressedContext({
+      messages: buildLongThread(16), model: {} as never, contextLimit: 128_000, force: true,
+      abortSignal: parent.signal,
+      summarizeOlderMessages: async (_model, _messages, signal) => {
+        assert.equal(signal, parent.signal);
+        parent.abort();
+        return "late summary";
+      },
+      writeHistoryArtifact: async () => { writes += 1; return null; },
+    }), { name: "AbortError" });
+    assert.equal(writes, 0);
+  });
+
   it("compresses long threads when usage threshold is met", async () => {
     const summarizeOlderMessages = mock.fn(async () => "mock summary bullets");
     const messages = buildLongThread(16);

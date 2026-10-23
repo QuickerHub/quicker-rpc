@@ -4,6 +4,8 @@ import type { ChatMode } from "@/lib/chat-mode";
 import type { LauncherResolveAgentNext } from "@/lib/launcher/launcher-resolve-agent-output";
 
 export type QkrpcRequestContext = {
+  /** Cancellation owned by the current turn, inherited by nested tool contexts. */
+  abortSignal?: AbortSignal;
   cwd?: string;
   actionScope?: ActionScopeHint;
   chatMode?: ChatMode;
@@ -40,6 +42,10 @@ export const qkrpcRequestContext = new AsyncLocalStorage<QkrpcRequestContext>();
 
 export function getRequestCwd(): string | undefined {
   return qkrpcRequestContext.getStore()?.cwd;
+}
+
+export function getRequestAbortSignal(): AbortSignal | undefined {
+  return qkrpcRequestContext.getStore()?.abortSignal;
 }
 
 export function getRequestActionScope(): ActionScopeHint | undefined {
@@ -90,17 +96,18 @@ export function runWithQkrpcCwd<T>(
   cwd: string | undefined,
   fn: () => T,
 ): T {
-  return qkrpcRequestContext.run({ cwd: cwd?.trim() || undefined }, fn);
+  return qkrpcRequestContext.run({ ...qkrpcRequestContext.getStore(), cwd: cwd?.trim() || undefined }, fn);
 }
 
 export async function runWithQkrpcCwdAsync<T>(
   cwd: string | undefined,
   fn: () => Promise<T>,
 ): Promise<T> {
-  return qkrpcRequestContext.run({ cwd: cwd?.trim() || undefined }, fn);
+  return qkrpcRequestContext.run({ ...qkrpcRequestContext.getStore(), cwd: cwd?.trim() || undefined }, fn);
 }
 
 export type AgentRequestContext = {
+  abortSignal?: AbortSignal;
   cwd?: string;
   actionScope?: ActionScopeHint;
   chatMode?: ChatMode;
@@ -128,6 +135,9 @@ function buildRequestContext(ctx: AgentRequestContext): QkrpcRequestContext {
 function mergeAgentRequestContext(ctx: AgentRequestContext): QkrpcRequestContext {
   const parent = qkrpcRequestContext.getStore();
   const next: QkrpcRequestContext = { ...parent, ...buildRequestContext(ctx) };
+  next.abortSignal = ctx.abortSignal && parent?.abortSignal && ctx.abortSignal !== parent.abortSignal
+    ? AbortSignal.any([parent.abortSignal, ctx.abortSignal])
+    : ctx.abortSignal ?? parent?.abortSignal;
   if (parent) {
     next.programPatchedThisTurn = parent.programPatchedThisTurn;
     next.actionCreatedThisTurn = parent.actionCreatedThisTurn;
