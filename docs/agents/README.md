@@ -6,6 +6,7 @@
 
 | 任务/关键词 | 先读 | 主要代码入口 | 主要验证 |
 |---|---|---|---|
+| 主工作台、V2 界面、布局、主题、快捷入口、DSH 设计参考 | [工作台设计](../../agent-gui/DESIGN.md) · [WORKBENCH](../product/README.md#p-workbench) · [组合边界](../agent-architecture.md#工作台组合边界) | `components/shell/AgentWorkbenchShell.tsx`、`app/agent-workbench.css`、`lib/agent-workbench-features.ts` | 开发态 frontend check + 深浅主题/会话/面板检查 |
 | 聊天、Agent loop、Ask、审批、上下文、历史、消息流 | [CHAT](../product/README.md#p-chat) | `agent-gui/lib/agent-harness/`、`agent-core/`、`components/chat/`、`lib/db/` | `test:agent-eval`、`test:context-compression` |
 | 动作、子程序、workspace_program、步骤、变量、设计器、trace | [AUTHOR](../product/README.md#p-author) | `agent-gui/lib/action-editor/`、`workspace-program-*`、`QuickerRpc/src/` | `test:step-editor`、`test:tools` |
 | 启动器、快捷键、快速指令、command cache、resolve direct | [LAUNCH](../product/README.md#p-launch) | `agent-gui/lib/launcher/`、`components/launcher/`、`electron/commands/launcher.mjs` | `test:launcher` |

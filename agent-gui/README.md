@@ -7,6 +7,7 @@
 | [docs/quicker-agent.md](../docs/quicker-agent.md) | 终端用户：产品介绍、下载、FAQ |
 | [docs/product/README.md](../docs/product/README.md) | 产品能力、状态与规划 |
 | [docs/agents/README.md](../docs/agents/README.md) | Coding Agent：任务到功能页/代码/测试的路由 |
+| [DESIGN.md](DESIGN.md) | 主工作台的产品意图、体验与扩展范围 |
 | 本文 | 开发者：本地运行、Electron 发布、工具一览 |
 | [AGENTS.md](AGENTS.md) | Coding Agent（嵌套 [../AGENTS.md](../AGENTS.md)） |
 
@@ -50,6 +51,20 @@ pwsh ./dev.ps1 -Electron
 `package.json` 里的 `pnpm dev` / `electron:dev` 等由 `dev.ps1` 内部调用，日常不必手敲。
 
 **默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话存储**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。**快速输入启动器**：[`docs/agent-gui-launcher.md`](../docs/agent-gui-launcher.md)。
+
+## 工作台开发入口
+
+主界面采用 Quicker V2 Agent 工作台的深浅主题与布局，产品约定先读 [DESIGN.md](DESIGN.md)。
+
+| 修改内容 | 入口 |
+|---|---|
+| 外壳、会话布局组合 | `components/shell/AgentWorkbenchShell.tsx`：`AgentWorkbenchShell` / `AgentConversationFrame` |
+| 主工作台主题与尺寸 | `app/theme.css` 的 `--workbench-*`、`app/agent-workbench.css` 的 `.agent-workbench` |
+| 输入区快捷入口定义 | `lib/agent-workbench-features.ts` |
+| 入口图标与实际操作绑定 | `components/chat/ComposerShortcutCards.tsx` |
+| 会话与面板组合 | `components/chat/Chat.tsx` |
+
+这些入口负责展示，工具执行、权限和持久化沿用现有 harness。分层与 DSH 参考边界见 [Agent 架构](../docs/agent-architecture.md#工作台组合边界)。仅改 UI 时使用开发服务器与 HMR，按 [AGENTS.md](AGENTS.md) 完成前端检查。
 
 ## 发布（Electron）
 

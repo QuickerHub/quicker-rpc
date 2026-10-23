@@ -17,6 +17,7 @@ QuickerAgent (Electron + Next.js + AI SDK)
 | ID | 用户能力 | 状态 | 事实入口 |
 |---|---|---|---|
 | CHAT | Agent/Ask/Launcher、流式工具、审批、多线程历史、上下文压缩 | 已实现 | `agent-gui/lib/agent-harness/`、`agent-core/`、`lib/db/` |
+| WORKBENCH | V2 风格主工作台、深浅主题、可组合会话布局、声明式快捷入口 | 已实现，复用已有业务能力 | `components/shell/AgentWorkbenchShell.tsx`、`app/agent-workbench.css`、`lib/agent-workbench-features.ts` |
 | AUTHOR | V1 动作 YAML open/save；动作/子程序搜索、旧 workspace 编辑、diagnostics、run/trace | 已实现，YAML 首期覆盖现有 V1 动作程序体 | Console/MCP source-bundle、AgentModel codec、`action-editor/`、Runtime |
 | LAUNCH | 全局快捷键、临时会话、command cache/resolve direct | 已实现 | `lib/launcher/`、`electron/commands/launcher.mjs` |
 | WORK | 文件、Grep、Shell、终端、后台/用户浏览器、网络搜索、浏览器转动作 | 已实现 | `workspace-*-tool*`、`shell-*`、`browser-*` |
@@ -28,6 +29,15 @@ QuickerAgent (Electron + Next.js + AI SDK)
 | RPC-V2 | net10 插件覆盖 net472 能力 | 对齐中 | Plugin.V2 仍有 stub 和关闭 capability |
 
 Coding Agent 修改前按 [任务路由](../agents/README.md) 进入代码。
+
+<a id="p-workbench"></a>
+## WORKBENCH：主 Agent 工作台
+
+主界面沿用 Quicker V2 Agent 工作台的平坦中性灰深浅主题与紧凑布局。会话与输入区共享内容轨道，新会话居中；已有侧栏、工具消息、审批与 dock 由展示框架组合。
+
+设置、资源、浏览器、小窗、工具测试和发布预览通过统一的快捷入口定义连接现有功能，保留开发/调试可用条件。功能定义不改变工具权限或后端 capability。当前未增加专用 YAML 编辑面板或动态 UI 插件加载能力。
+
+体验约定见 [工作台设计](../../agent-gui/DESIGN.md)，工程边界见 [Agent 架构](../agent-architecture.md#工作台组合边界)。验证使用开发态 frontend check，并检查深浅主题、新/已有会话、审批与侧面板。
 
 <a id="p-chat"></a>
 ## CHAT：对话与上下文

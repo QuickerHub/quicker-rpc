@@ -1,5 +1,90 @@
 /* Cursor-aligned tokens — dark fallbacks on :root, then light/dark overrides */
 
+/* V2 workbench palette. Applied only by .agent-workbench in agent-workbench.css. */
+:root,
+[data-theme="dark"] {
+  --workbench-canvas: #141414;
+  --workbench-chrome: #181818;
+  --workbench-panel: #1e1e1e;
+  --workbench-popup: #252526;
+  --workbench-input: #2a2a2a;
+  --workbench-composer: #212121;
+  --workbench-border: #2b2b2b;
+  --workbench-input-border: #333333;
+  --workbench-chrome-border: rgba(255, 255, 255, 0.04);
+  --workbench-text: #e4e4e4;
+  --workbench-muted: #8b8b8b;
+  --workbench-accent: #82aaff;
+  --workbench-accent-hover: #a8c7ff;
+  --workbench-hover: rgba(255, 255, 255, 0.05);
+  --workbench-hover-strong: rgba(255, 255, 255, 0.09);
+  --workbench-selected: #2c2c2c;
+  --workbench-code: #141414;
+  --workbench-user: #2a2a2a;
+  --workbench-user-border: #2b2b2b;
+  --workbench-send: #e4e4e4;
+  --workbench-send-hover: #ffffff;
+  --workbench-on-send: #141414;
+  --workbench-popup-shadow: 0 12px 40px rgba(0, 0, 0, 0.42);
+  --workbench-user-shadow: none;
+}
+
+[data-theme="light"] {
+  --workbench-canvas: #f3f3f3;
+  --workbench-chrome: #f3f3f3;
+  --workbench-panel: #ffffff;
+  --workbench-popup: #ffffff;
+  --workbench-input: #ffffff;
+  --workbench-composer: #ffffff;
+  --workbench-border: #c8c8c8;
+  --workbench-input-border: #c4c4c4;
+  --workbench-chrome-border: rgba(0, 0, 0, 0.08);
+  --workbench-text: #1a1a1a;
+  --workbench-muted: #6e6e6e;
+  --workbench-accent: #2b7abf;
+  --workbench-accent-hover: #246ca9;
+  --workbench-hover: rgba(0, 0, 0, 0.06);
+  --workbench-hover-strong: rgba(0, 0, 0, 0.09);
+  --workbench-selected: #e8e8e8;
+  --workbench-code: #e5e5e5;
+  --workbench-user: #ffffff;
+  --workbench-user-border: #e0e0e0;
+  --workbench-send: #2b7abf;
+  --workbench-send-hover: #246ca9;
+  --workbench-on-send: #ffffff;
+  --workbench-popup-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --workbench-user-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --workbench-canvas: #f3f3f3;
+    --workbench-chrome: #f3f3f3;
+    --workbench-panel: #ffffff;
+    --workbench-popup: #ffffff;
+    --workbench-input: #ffffff;
+    --workbench-composer: #ffffff;
+    --workbench-border: #c8c8c8;
+    --workbench-input-border: #c4c4c4;
+    --workbench-chrome-border: rgba(0, 0, 0, 0.08);
+    --workbench-text: #1a1a1a;
+    --workbench-muted: #6e6e6e;
+    --workbench-accent: #2b7abf;
+    --workbench-accent-hover: #246ca9;
+    --workbench-hover: rgba(0, 0, 0, 0.06);
+    --workbench-hover-strong: rgba(0, 0, 0, 0.09);
+    --workbench-selected: #e8e8e8;
+    --workbench-code: #e5e5e5;
+    --workbench-user: #ffffff;
+    --workbench-user-border: #e0e0e0;
+    --workbench-send: #2b7abf;
+    --workbench-send-hover: #246ca9;
+    --workbench-on-send: #ffffff;
+    --workbench-popup-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+    --workbench-user-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+}
+
 :root,
 [data-theme="dark"] {
   color-scheme: dark;

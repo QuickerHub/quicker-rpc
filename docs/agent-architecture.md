@@ -39,6 +39,27 @@ UI / HTTP adapters
 当前 `AsyncLocalStorage` 是旧工具的兼容层。新代码优先显式接收
 `AgentTurnContext`/`ToolExecutionContext`；只有 adapter 边界可以读取 ALS。
 
+### 工作台组合边界
+
+工作台的产品意图见 [`agent-gui/DESIGN.md`](../agent-gui/DESIGN.md)。展示层按以下入口组合已有能力：
+
+| 入口 | 职责 |
+|---|---|
+| `components/shell/AgentWorkbenchShell.tsx` | `AgentWorkbenchShell` 组合侧栏与主区域；`AgentConversationFrame` 组合 header、messages、approval、composer 与 dock |
+| `components/chat/Chat.tsx` | 持有现有会话与面板状态，向框架传入内容、回调与 DOM refs |
+| `lib/agent-workbench-features.ts` | 声明快捷入口的稳定 id、文案、panel/command/route 目标及可用条件 |
+| `components/chat/ComposerShortcutCards.tsx` | 将功能定义绑定到已有图标、面板 hook、命令和路由 |
+| `app/agent-workbench.css`、`app/theme.css` | 在 `.agent-workbench` 作用域应用 `--workbench-*` 深浅主题与布局尺寸 |
+
+框架组件为纯展示组合，不启动 Agent、不持久化会话、不注册模型工具。保留现有分栏 DOM 与 refs，拖动、消息滚动和面板状态继续由原有组件负责。功能定义是界面入口目录；运行时工具目录与策略仍由 `TurnPlan` 和工具层负责。
+
+DSH 参考固定为 [DeepSeek Harness `687f282`](https://github.com/deepseek-ai/deepseek-harness/tree/687f282e8625c6b8d11ff58211a90524be2e4317)：
+
+- [布局槽位](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/client/ui-layout/src/client/index.ts) 将框架几何与业务区域分开。
+- [面板定义](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/client/ui-sidebar-right/src/client/tab-registry.ts) 将静态身份、渲染器与实例状态分开。
+
+本项目采用这些组合边界，以 React props 和静态类型定义实现；没有引入 Cordis、DSH loop、DSH Session 格式或动态插件加载。后续功能先接入已有业务服务，在需要展示的位置增加组件与入口；不要为布局扩展复制工具注册表、事件流或会话状态源。
+
 ## 3. Turn 生命周期
 
 一次聊天 turn 固定经过以下阶段：

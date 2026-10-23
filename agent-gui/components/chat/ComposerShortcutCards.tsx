@@ -4,6 +4,10 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
 import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
+import {
+  visibleWorkbenchFeatures,
+  type WorkbenchFeatureId,
+} from "@/lib/agent-workbench-features";
 import { useSidePanelBrowserToggle } from "@/lib/use-side-panel-browser-toggle";
 import { useSidePanelExplorerToggle } from "@/lib/use-side-panel-explorer-toggle";
 import { openLauncherWindow } from "@/lib/launcher/launcher-window";
@@ -105,6 +109,15 @@ function IconReleasePreview() {
   );
 }
 
+const FEATURE_ICONS: Record<WorkbenchFeatureId, ReactNode> = {
+  settings: <SettingsGearIcon size={15} />,
+  explorer: <IconExplorer />,
+  browser: <IconBrowser />,
+  launcher: <IconLauncher />,
+  "tool-test": <IconToolTest />,
+  "release-preview": <IconReleasePreview />,
+};
+
 type ShortcutCardProps = {
   label: string;
   hint: string;
@@ -192,67 +205,39 @@ export function ComposerShortcutCards({
   const { active: releasePreviewActive, toggle: toggleReleasePreview } =
     useReleasePreviewToggle();
 
+  const panelBindings = {
+    settings: { active: settingsOpen, onClick: onToggleSettings },
+    explorer: { active: explorerOpen, onClick: toggleExplorer },
+    browser: { active: browserOpen, onClick: toggleBrowser },
+  };
+  const commandBindings = {
+    launcher: { active: false, onClick: () => { void openLauncherWindow(); } },
+    "release-preview": { active: releasePreviewActive, onClick: toggleReleasePreview },
+  };
+
   return (
     <div className="composer-shortcuts" role="group" aria-label="快捷入口">
-      <ShortcutCard
-        label="设置"
-        hint="模型、工具、工作目录"
-        icon={<SettingsGearIcon size={15} />}
-        active={settingsOpen}
-        disabled={disabled}
-        onClick={onToggleSettings}
-      />
-      <ShortcutCard
-        label="资源"
-        hint="动作与子程序工程目录"
-        icon={<IconExplorer />}
-        active={explorerOpen}
-        disabled={disabled}
-        onClick={toggleExplorer}
-      />
-      <ShortcutCard
-        label="浏览器"
-        hint="内嵌 Agent 操控浏览器"
-        icon={<IconBrowser />}
-        active={browserOpen}
-        disabled={disabled}
-        onClick={toggleBrowser}
-      />
-      <ShortcutCard
-        label="小窗"
-        hint="独立小窗，Enter 一次性发送"
-        icon={<IconLauncher />}
-        disabled={disabled}
-        onClick={() => {
-          void openLauncherWindow();
-        }}
-      />
-      {devExperienceEnabled ? (
-        <Link
-          href="/tool-test"
-          className={`composer-shortcut-btn composer-shortcut-btn--link${disabled ? " composer-shortcut-btn--disabled" : ""}`}
-          title="工具套件与 Prompt 测试"
-          aria-label="测试：工具套件与 Prompt 测试"
-          aria-disabled={disabled || undefined}
-          tabIndex={disabled ? -1 : undefined}
-          onClick={(e) => {
-            if (disabled) e.preventDefault();
-          }}
-        >
-          <IconToolTest />
-          <span className="composer-shortcut-btn__label">测试</span>
-        </Link>
-      ) : null}
-      {showReleasePreview ? (
-        <ShortcutCard
-          label="预览"
-          hint="查看发布版用户所见界面"
-          icon={<IconReleasePreview />}
-          active={releasePreviewActive}
-          disabled={disabled}
-          onClick={toggleReleasePreview}
-        />
-      ) : null}
+      {visibleWorkbenchFeatures({
+        development: devExperienceEnabled,
+        debug: showReleasePreview,
+      }).map((feature) => {
+        const target = feature.target;
+        const binding = target.kind === "panel"
+          ? panelBindings[target.panel]
+          : target.kind === "command"
+            ? commandBindings[target.command]
+            : { href: target.href };
+        return (
+          <ShortcutCard
+            key={feature.id}
+            label={feature.label}
+            hint={feature.hint}
+            icon={FEATURE_ICONS[feature.id]}
+            disabled={disabled}
+            {...binding}
+          />
+        );
+      })}
     </div>
   );
 }

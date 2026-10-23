@@ -1,0 +1,309 @@
+/* V2 workbench chrome; session state and tools remain owned by the existing chat. */
+.agent-workbench {
+  --bg: var(--workbench-canvas);
+  --app-bg: var(--workbench-canvas);
+  --chat-bg: var(--workbench-canvas);
+  --panel: var(--workbench-panel);
+  --panel-bg: var(--workbench-chrome);
+  --border: var(--workbench-border);
+  --text: var(--workbench-text);
+  --text-assistant: var(--workbench-text);
+  --text-tool-name: color-mix(in srgb, var(--workbench-text) 46%, var(--workbench-muted));
+  --muted: var(--workbench-muted);
+  --accent: var(--workbench-accent);
+  --accent-dim: var(--workbench-accent-hover);
+  --accent-subtle: color-mix(in srgb, var(--workbench-accent) 12%, transparent);
+  --accent-border: color-mix(in srgb, var(--workbench-accent) 36%, transparent);
+  --accent-hover-text: var(--workbench-accent-hover);
+  --hover-overlay: var(--workbench-hover);
+  --hover-overlay-strong: var(--workbench-hover-strong);
+  --md-code-bg: var(--workbench-code);
+  --md-table-bg: var(--workbench-hover);
+  --md-table-header-bg: var(--workbench-hover-strong);
+  --md-table-row-border: var(--workbench-border);
+  --composer-footer-bg: var(--workbench-canvas);
+  --composer-bg: var(--workbench-canvas);
+  --composer-input-bg: var(--workbench-composer);
+  --composer-border: var(--workbench-input-border);
+  --composer-focus-border: color-mix(in srgb, var(--workbench-text) 22%, var(--workbench-input-border));
+  --composer-focus-shadow: transparent;
+  --composer-send-bg: var(--workbench-send);
+  --composer-send-bg-hover: var(--workbench-send-hover);
+  --composer-send-fg: var(--workbench-on-send);
+  --composer-voice-fg: var(--workbench-canvas);
+  --user-msg-bg: var(--workbench-user);
+  --user-msg-border: var(--workbench-user-border);
+  --user-code-bg: var(--workbench-hover);
+  --blockquote-bg: var(--workbench-hover);
+  --tool-card-open-bg: var(--workbench-hover);
+  --popup-bg: var(--workbench-popup);
+  --popup-shadow: var(--workbench-popup-shadow);
+  --scrollbar-thumb: color-mix(in srgb, var(--workbench-muted) 32%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--workbench-muted) 50%, transparent);
+  --ws-sidebar-width: 240px;
+  --app-titlebar-height: 36px;
+  --chat-content-max-width: 960px;
+  --chat-main-min-width: 320px;
+  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-size: 14px;
+  background: var(--workbench-canvas);
+  color: var(--workbench-text);
+}
+
+/* Keep both the transcript and composer on the same 960px content rail. */
+.agent-workbench .app-main-chat-column {
+  --chat-rail-inset-inline: max(20px, calc((100% - 960px) / 2));
+}
+
+.agent-workbench.app-shell--sidebar-collapsed,
+html.sidebar-collapsed-init .agent-workbench {
+  --ws-sidebar-width: 0px;
+}
+
+.agent-workbench :is(.workspace-rail, .app-titlebar) {
+  background: var(--workbench-chrome);
+  border-color: var(--workbench-chrome-border);
+  backdrop-filter: none;
+}
+
+.agent-workbench .app-titlebar {
+  height: var(--app-titlebar-height);
+  min-height: var(--app-titlebar-height);
+}
+
+.agent-workbench .titlebar-tab {
+  border-right-color: transparent;
+  max-width: 184px;
+}
+
+.agent-workbench .titlebar-tab--active {
+  background: var(--workbench-canvas);
+  border-bottom-color: var(--workbench-canvas);
+}
+
+.agent-workbench .titlebar-tab-main {
+  gap: 6px;
+  padding-left: 10px;
+  font-size: 12px;
+}
+
+.agent-workbench .titlebar-tab-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.agent-workbench .workspace-sidebar {
+  background: var(--workbench-chrome);
+}
+
+.agent-workbench .ws-section {
+  padding-inline: 8px;
+  border-color: var(--workbench-chrome-border);
+}
+
+.agent-workbench .ws-section-head--titlebar {
+  margin-inline: -8px;
+  padding-right: 8px;
+  border-color: var(--workbench-chrome-border);
+}
+
+.agent-workbench .ws-projects-label {
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.agent-workbench .ws-new-chat-btn {
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.agent-workbench .ws-cwd-group-head {
+  min-height: 30px;
+  gap: 6px;
+  padding-inline: 6px;
+  font-size: 13px;
+}
+
+.agent-workbench :is(.ws-row, .ws-thread-row, .ws-thread-item) {
+  height: 30px;
+  min-height: 30px;
+  border-radius: 6px;
+}
+
+.agent-workbench :is(.ws-row--active, .ws-row--active:hover) {
+  background: var(--workbench-selected);
+}
+
+.agent-workbench .ws-item {
+  padding: 5px 6px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.agent-workbench :is(.ws-footer-path, .ws-restore-btn) {
+  font-size: 12px;
+}
+
+.agent-workbench .ws-footer {
+  padding: 8px;
+  border-color: var(--workbench-chrome-border);
+}
+
+.agent-workbench .messages {
+  --chat-text-inset: 10px;
+  padding-bottom: 0;
+  background: var(--workbench-canvas);
+}
+
+.agent-workbench :is(.markdown-body, .composer-inline-input) {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.agent-workbench .markdown-body :is(.md-pre, .md-pre code, .md-inline-code),
+.agent-workbench .tool-json,
+.agent-workbench .messages .file-editor-cm :is(.cm-editor, .cm-content) {
+  font-size: 12px;
+}
+
+.agent-workbench .terminal-output-editor__body--terminal {
+  --shell-terminal-font-size: 12px;
+}
+
+.agent-workbench .msg--user .msg-content {
+  box-shadow: var(--workbench-user-shadow);
+}
+
+.agent-workbench .composer {
+  padding-top: 10px;
+  padding-bottom: 24px;
+}
+
+.agent-workbench .composer-surface {
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.agent-workbench .composer-box:focus-within .composer-surface {
+  box-shadow: none;
+}
+
+.agent-workbench .composer-field--markup {
+  padding: 12px 14px 8px;
+}
+
+.agent-workbench .composer .composer-inline-input {
+  min-height: 44px;
+  max-height: 192px;
+}
+
+.agent-workbench .composer-inline-input--empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  inset: 0;
+  color: var(--muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+.agent-workbench .composer-toolbar {
+  min-height: 38px;
+  padding: 4px 8px 8px;
+  border-top: 0;
+  gap: 8px;
+}
+
+.agent-workbench .composer-toolbar-left {
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.agent-workbench .composer-toolbar .tool-selector-trigger {
+  min-height: 28px;
+  border-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12px;
+}
+
+.agent-workbench .composer-toolbar .tool-selector-trigger:hover:not(:disabled) {
+  background: var(--workbench-hover);
+}
+
+.agent-workbench .composer-onboarding {
+  max-width: 720px;
+  padding: 0 0 12px;
+  border: 0;
+  background: transparent;
+}
+
+.agent-workbench .composer-onboarding__title {
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.agent-workbench .composer-onboarding__tip {
+  padding: 9px 10px;
+  background: transparent;
+  border-color: var(--workbench-chrome-border);
+  border-radius: 8px;
+}
+
+.agent-workbench .composer-onboarding__tip:hover:not(:disabled) {
+  background: var(--workbench-hover);
+  border-color: var(--workbench-border);
+}
+
+.agent-workbench .composer-onboarding__tip-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.agent-workbench .composer-onboarding__tip-hint {
+  font-size: 12px;
+}
+
+.agent-workbench .composer-shortcuts {
+  max-width: none;
+  margin-bottom: 10px;
+  gap: 6px;
+}
+
+.agent-workbench .composer-shortcuts .composer-shortcut-btn {
+  border-color: var(--workbench-chrome-border);
+  padding: 6px 10px;
+}
+
+.agent-workbench .composer-shortcuts .composer-shortcut-btn__label {
+  font-size: 12px;
+}
+
+/* Keep the whole fresh-conversation composer reachable in short windows. */
+.agent-workbench .app-main--empty .app-main-chat-column {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.agent-workbench .app-main--empty .composer {
+  flex: 0 0 auto;
+  margin-block: auto;
+  padding-block: 24px;
+}
+
+@media (max-width: 700px) {
+  .agent-workbench .app-main-chat-column {
+    --chat-rail-inset-inline: 12px;
+  }
+
+  .agent-workbench .composer {
+    padding-bottom: 12px;
+  }
+
+  .agent-workbench .composer-onboarding__tips {
+    grid-template-columns: 1fr;
+  }
+}

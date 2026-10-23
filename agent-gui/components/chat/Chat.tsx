@@ -5,6 +5,10 @@ import { collectPendingAskQuestions } from "@/lib/ask-question-tool";
 import { AskQuestionDock } from "@/components/chat/AskQuestionDock";
 import { AppLoadingIndicator } from "@/components/shell/AppLoadingIndicator";
 import {
+  AgentConversationFrame,
+  AgentWorkbenchShell,
+} from "@/components/shell/AgentWorkbenchShell";
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -1218,24 +1222,16 @@ function ChatPanel({
 
   return (
     <ChatToolActionsProvider addToolOutput={addToolOutput}>
-    <div
-      ref={appMainRef}
-      className={`app-main${isEmptyThread ? " app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${designerEmbed ? " app-main--designer-embed" : ""}${visible ? "" : " app-main--hidden"}`}
+    <AgentConversationFrame
+      frameRef={appMainRef}
+      mainBodyRef={appMainBodyRef}
+      chatColumnRef={appMainChatColumnRef}
+      className={`${isEmptyThread ? "app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${designerEmbed ? " app-main--designer-embed" : ""}`}
       style={splitStyle}
-      aria-hidden={visible ? undefined : true}
-    >
-      <div className="app-main-split-header">
-        <div className="app-main-split-header__chat">
-          <ChatConversationHeader />
-        </div>
-        {panelOpen && visible ? (
-          <div className="app-main-split-header__side">
-            <WorkspaceSidePanelTabBar />
-          </div>
-        ) : null}
-      </div>
-      <div ref={appMainBodyRef} className="app-main-body">
-        <div ref={appMainChatColumnRef} className="app-main-chat-column">
+      visible={visible}
+      header={<ChatConversationHeader />}
+      dockHeader={panelOpen && visible ? <WorkspaceSidePanelTabBar /> : null}
+      messages={
       <div className="messages-view">
       <main
         ref={messagesRef}
@@ -1315,7 +1311,8 @@ function ChatPanel({
         <div ref={messagesEndRef} className="messages-anchor" aria-hidden />
       </main>
       </div>
-
+      }
+      approval={<>
       {pendingApprovals.length > 0 && (
         <ApprovalDock
           approvals={pendingApprovals}
@@ -1335,7 +1332,8 @@ function ChatPanel({
           disabled={busy}
         />
       ) : null}
-
+      </>}
+      composer={
       <ChatComposerFooter
         ref={composerRef}
         visible={visible}
@@ -1368,10 +1366,9 @@ function ChatPanel({
         workingDirectory={workingDirectory}
         designerEmbed={designerEmbed}
       />
-        </div>
-        {visible ? <WorkspaceExplorerPanel /> : null}
-      </div>
-    </div>
+      }
+      dock={visible ? <WorkspaceExplorerPanel /> : null}
+    />
     {exportDialog}
     </ChatToolActionsProvider>
   );
@@ -1661,21 +1658,17 @@ export function Chat() {
 
   return (
     <WorkspaceExplorerShellProvider>
-    <div
-      className={`app-shell${sidebarCollapsed ? " app-shell--sidebar-collapsed" : ""}${designerEmbed.enabled ? " app-shell--designer-embed" : ""}${designerEmbed.debugMode ? " app-shell--designer-embed-debug" : ""}`}
-      suppressHydrationWarning
-    >
-        {(showMainChrome || showDesignerDebugSidebar) ? (
-          <div className="app-shell-toggle-slot">
+    <AgentWorkbenchShell
+      className={`${showMainChrome ? "agent-workbench" : ""}${designerEmbed.enabled ? " app-shell--designer-embed" : ""}${designerEmbed.debugMode ? " app-shell--designer-embed-debug" : ""}`}
+      sidebarCollapsed={sidebarCollapsed}
+      sidebarToggle={(showMainChrome || showDesignerDebugSidebar) ? (
             <SidebarToggle
               sidebarOpen={!sidebarCollapsed}
               onClick={toggleSidebar}
               className="shell-sidebar-toggle"
             />
-          </div>
         ) : null}
-        {(showMainChrome || showDesignerDebugSidebar) ? (
-          <div className="workspace-rail" aria-hidden={sidebarCollapsed}>
+      sidebar={(showMainChrome || showDesignerDebugSidebar) ? (
             <ChatSidebar
               store={store}
               defaultCwd={defaultCwd}
@@ -1685,9 +1678,8 @@ export function Chat() {
               onActivateThread={handleActivateThread}
               groupBy={designerEmbed.debugMode ? "actionDesigner" : "cwd"}
             />
-          </div>
         ) : null}
-        <div className="app-main-column">
+    >
           <WorkspaceExplorerPanelProvider
             cwd={activeThreadWorkingDirectory}
             cwdPending={cwdPending}
@@ -1795,8 +1787,7 @@ export function Chat() {
               </EmbeddedBrowserProvider>
             </DocsViewerProvider>
           </WorkspaceExplorerPanelProvider>
-        </div>
-      </div>
+    </AgentWorkbenchShell>
     </WorkspaceExplorerShellProvider>
   );
 }

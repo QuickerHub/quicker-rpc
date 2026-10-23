@@ -14,6 +14,7 @@ import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar-prefs";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-constants";
 import { TAURI_DEV_HMR_MUTE_SCRIPT } from "@/lib/tauri-dev-hmr-mute-script";
 import "./globals.css";
+import "./agent-workbench.css";
 
 export const metadata: Metadata = {
   title: "QuickerAgent",
