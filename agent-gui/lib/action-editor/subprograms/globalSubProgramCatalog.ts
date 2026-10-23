@@ -1,3 +1,4 @@
+import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
 import { ActionSubProgram } from "@/lib/action-editor/types/common";
 import { ActionSubProgramKind } from "@/lib/action-editor/subprograms/subProgramUi";
 
@@ -86,18 +87,17 @@ export function mergeSubProgramsForStepEditor(
 
 export async function fetchGlobalSubProgramCatalog(
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<ActionSubProgram[]> {
-  const res = await fetch("/api/subprogram/list?limit=200", {
-    cache: "no-store",
-    signal,
-  });
-  const data = (await res.json()) as {
-    ok?: boolean;
-    error?: string;
-    items?: unknown[];
-  };
-  if (!res.ok || data.ok === false) {
-    throw new Error(data.error ?? `HTTP ${res.status}`);
+  if (port && !port.remoteEnabled) return [];
+  type ResponseBody = { ok?: boolean; error?: string; items?: unknown[] };
+  let data: ResponseBody;
+  if (port) {
+    data = await port.request<ResponseBody>("/api/subprogram/list", { limit: 200 }, signal);
+  } else {
+    const res = await fetch("/api/subprogram/list?limit=200", { cache: "no-store", signal });
+    data = await res.json() as ResponseBody;
+    if (!res.ok || data.ok === false) throw new Error(data.error ?? `HTTP ${res.status}`);
   }
 
   const items: GlobalSubProgramCatalogItem[] = [];

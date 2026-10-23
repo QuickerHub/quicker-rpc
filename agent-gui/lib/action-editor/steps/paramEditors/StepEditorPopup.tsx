@@ -1,3 +1,4 @@
+import { useDesignerCatalogPort } from "../../catalog/DesignerCatalogProvider";
 import { useCallback, useEffect, useMemo, useRef, useState, memo, type JSX } from "react";
 import { createPortal } from "react-dom";
 import type { ActionStep, ActionSubProgram, ActionVariable, ActionStepParam } from "@/lib/action-editor/types/common";
@@ -178,6 +179,8 @@ export function StepEditorPopup({
   const draftSyncRef = useRef({ stepFp: "", runnerFp: "" });
   /** Last successfully fetched `runnerKey\\0controlLiteral` (controlLiteral empty = base schema). */
   const loadedSchemaKeyRef = useRef("");
+  const catalogPort = useDesignerCatalogPort();
+  const catalogOwnerRef = useRef(catalogPort);
   const schemaFetchSeqRef = useRef(0);
   const hydratedRunnerRef = useRef(hydratedRunnerItem);
   hydratedRunnerRef.current = hydratedRunnerItem;
@@ -246,12 +249,14 @@ export function StepEditorPopup({
         ? designerHostGrpcGetGlobalSubProgramIo(
             designerHostBaseUrl,
             { subProgramId: subProgramIoFetchTarget.subProgramId, callerStepJson },
-            ac.signal
+            ac.signal,
+            catalogPort,
           )
         : designerHostGrpcGetSharedSubProgramIo(
             designerHostBaseUrl,
             { identifier: subProgramIoFetchTarget.identifier, callerStepJson },
-            ac.signal
+            ac.signal,
+            catalogPort,
           );
 
     void fetchPromise
@@ -292,7 +297,7 @@ export function StepEditorPopup({
     return () => {
       ac.abort();
     };
-  }, [open, step, subProgramIoFetchTarget, designerHostBaseUrl, subPrograms]);
+  }, [open, step, subProgramIoFetchTarget, designerHostBaseUrl, subPrograms, catalogPort]);
 
   const subProgramVariablesForAugment = useMemo(() => {
     const rowVars = resolvedSubProgramRow?.variables;
@@ -322,6 +327,16 @@ export function StepEditorPopup({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [schemaLoadIssue, setSchemaLoadIssue] = useState<string | undefined>(undefined);
+  if (catalogOwnerRef.current !== catalogPort) {
+    catalogOwnerRef.current = catalogPort;
+    schemaFetchSeqRef.current += 1;
+    loadedSchemaKeyRef.current = "";
+    setHydratedRunnerItem(runnerItem);
+    setSchemaLoadIssue(undefined);
+    setGlobalIoVariables(undefined);
+    setGlobalIoDisplayName("");
+    setGlobalIoError(undefined);
+  }
 
   const bootstrapDraft = useMemo((): ActionStep | null => {
     if (!open || !step) {
@@ -397,7 +412,7 @@ export function StepEditorPopup({
     const catalogItem = runnerItemRef.current;
     const resolvedItem = resolveLocalStepRunnerDetailItem(runnerKey, {
       catalogItem,
-      cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined),
+      cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined, catalogPort),
     });
     const hasResolvedDefs = (resolvedItem?.inputParamDefs?.length ?? 0) > 0;
 
@@ -423,14 +438,14 @@ export function StepEditorPopup({
     const requestSeq = ++schemaFetchSeqRef.current;
     setLoadingRunnerSchema((currentRunner?.inputParamDefs?.length ?? 0) === 0);
     setSchemaLoadIssue(undefined);
-    void fetchStepRunnerDetailItem(runnerKey, undefined, ac.signal)
+    void fetchStepRunnerDetailItem(runnerKey, undefined, ac.signal, catalogPort)
       .then((detail) => {
         if (ac.signal.aborted || requestSeq !== schemaFetchSeqRef.current) return;
         const nextItem =
           detail
           ?? resolveLocalStepRunnerDetailItem(runnerKey, {
             catalogItem: catalogItem ?? undefined,
-            cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined),
+            cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined, catalogPort),
           });
         if (!nextItem) {
           setSchemaLoadIssue(
@@ -454,6 +469,10 @@ export function StepEditorPopup({
           return nextItem;
         });
       })
+      .catch((error: unknown) => {
+        if (ac.signal.aborted || requestSeq !== schemaFetchSeqRef.current) return;
+        setSchemaLoadIssue(error instanceof Error ? error.message : String(error));
+      })
       .finally(() => {
         if (requestSeq === schemaFetchSeqRef.current) {
           setLoadingRunnerSchema(false);
@@ -466,7 +485,7 @@ export function StepEditorPopup({
         setLoadingRunnerSchema(false);
       }
     };
-  }, [open, step?.stepId, step?.stepRunnerKey, runnerItemSchemaFp]);
+  }, [open, step?.stepId, step?.stepRunnerKey, runnerItemSchemaFp, catalogPort]);
 
   const runnerFp = runnerSchemaFingerprint(editorRunnerItem);
   if (runnerFp !== runnerDefsCacheRef.current.fp) {

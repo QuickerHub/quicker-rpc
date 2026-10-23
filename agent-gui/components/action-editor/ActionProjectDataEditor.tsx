@@ -1,5 +1,9 @@
 "use client";
 
+import { useDocumentDesignerCatalogPort } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
+import type { DesignerCatalogPort } from "@/lib/action-editor/catalog/designerCatalogPort";
+import type { DesignerCatalogScope } from "@/lib/action-editor/catalog/designerCatalogContext";
+
 import {
   useCallback,
   useEffect,
@@ -308,31 +312,11 @@ export function ActionProjectDataEditor({
     if (!parsed.ok) return undefined;
     return serializeWireSubProgramsJson(parsed.extraTopLevel.subPrograms);
   }, [parsed]);
-  const [globalCatalogSubPrograms, setGlobalCatalogSubPrograms] = useState<ActionSubProgram[]>([]);
+  const [globalCatalogState, setGlobalCatalogState] = useState<{ port?: DesignerCatalogPort; items: ActionSubProgram[] }>({ items: [] });
   const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
   const isGlobalSubProgram = useMemo(() => isGlobalSubProgramDataPath(path), [path]);
   const parentActionId = useMemo(() => actionIdFromDataPath(path), [path]);
 
-  useEffect(() => {
-    if (isEmbeddedSubProgram || isGlobalSubProgram) {
-      setGlobalCatalogSubPrograms([]);
-      return;
-    }
-    const ac = new AbortController();
-    void (async () => {
-      try {
-        const catalog = await fetchGlobalSubProgramCatalog(ac.signal);
-        if (!ac.signal.aborted) {
-          setGlobalCatalogSubPrograms(catalog);
-        }
-      } catch {
-        if (!ac.signal.aborted) {
-          setGlobalCatalogSubPrograms([]);
-        }
-      }
-    })();
-    return () => ac.abort();
-  }, [isEmbeddedSubProgram, isGlobalSubProgram, path]);
   const projectFolder = useMemo(() => {
     const normalized = path.replace(/\\/g, "/");
     const parent = normalized.replace(/\/data\.json$/i, "");
@@ -372,6 +356,30 @@ export function ActionProjectDataEditor({
   const targetBlocked = mainAction && (projectBinding === undefined || Boolean(targetError));
   const syncTarget: ActionProjectSyncTarget | undefined = mainAction && projectDirectory && projectBinding
     ? { projectDirectory, projectBinding } : undefined;
+  const catalogScope: DesignerCatalogScope = !mainAction ? undefined
+    : targetBlocked || !projectDirectory ? null
+    : { cwd, projectDirectory, expectedProjectBinding: projectBinding ?? null };
+  const catalogPort = useDocumentDesignerCatalogPort(catalogScope, session ?? null);
+  useEffect(() => {
+    if (isEmbeddedSubProgram || isGlobalSubProgram) {
+      setGlobalCatalogState({ port: catalogPort, items: [] });
+      return;
+    }
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const catalog = await fetchGlobalSubProgramCatalog(ac.signal, catalogPort);
+        if (!ac.signal.aborted) {
+          setGlobalCatalogState({ port: catalogPort, items: catalog });
+        }
+      } catch {
+        if (!ac.signal.aborted) {
+          setGlobalCatalogState({ port: catalogPort, items: [] });
+        }
+      }
+    })();
+    return () => ac.abort();
+  }, [isEmbeddedSubProgram, isGlobalSubProgram, path, catalogPort]);
   const targetKey = actionProjectSyncTargetKey(syncTarget);
   const syncOwnerKey = `${documentOwnerKey}::${targetKey}`;
   const syncOwnerRef = useRef({ key: syncOwnerKey, session });
@@ -973,7 +981,8 @@ export function ActionProjectDataEditor({
               active={tab === "visual"}
               mainSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}
-              globalSubPrograms={globalCatalogSubPrograms}
+              catalogPort={catalogPort}
+              globalSubPrograms={globalCatalogState.port === catalogPort ? globalCatalogState.items : []}
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
               onSnapshotChange={handleSnapshotChange}
               onHandleChange={handleWorkspaceChange}

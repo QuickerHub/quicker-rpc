@@ -1,5 +1,8 @@
 "use client";
 
+import { DesignerCatalogProvider } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
+import type { DesignerCatalogPort } from "@/lib/action-editor/catalog/designerCatalogPort";
+
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type JSX, type ReactNode } from "react";
 import XProgramEditor from "@/lib/action-editor/program/XProgramEditor";
 import {
@@ -35,6 +38,7 @@ export type ProgramEditorTabWorkspaceProps = {
   onHandleChange?: (handle: ProgramEditorWorkspaceHandle | null) => void;
   onPinStepToChat?: (stepId: string) => void;
   metadataPanel?: ReactNode;
+  catalogPort?: DesignerCatalogPort;
 };
 
 type ProgramTab = { surface: string; row: ActionSubProgram; label: string };
@@ -54,9 +58,11 @@ export function ProgramEditorTabWorkspace(props: ProgramEditorTabWorkspaceProps)
   const subProgramTabs = useMemo(() => collectInternalTabs(props.payload.subPrograms)
     .map((tab) => ({ id: tab.surface, row: tab.row })), [props.payload.subPrograms]);
   return (
+    <DesignerCatalogProvider port={props.catalogPort}>
     <ActiveXProgramBridgeProvider activeTabId={activeTabId} subProgramTabs={subProgramTabs}>
       <ProgramEditorTabWorkspaceBody {...props} activeTabId={activeTabId} onSelectTab={setActiveTabId} />
     </ActiveXProgramBridgeProvider>
+    </DesignerCatalogProvider>
   );
 }
 

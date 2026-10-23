@@ -1,3 +1,4 @@
+import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
 import type { GetStepRunnersResponse } from "@/lib/action-editor/types/action_query";
 import type {
   GetGlobalSubProgramIoRequest,
@@ -25,11 +26,12 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 export async function designerHostGrpcGetStepRunners(
   _baseUrl: string,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<GetStepRunnersResponse> {
-  const data = await fetchJson<{ items: Record<string, unknown>[] }>(
-    "/api/step-runner/list",
-    { signal },
-  );
+  if (port && !port.remoteEnabled) return { count: 0, items: [] };
+  const data = port
+    ? await port.request<{ items: Record<string, unknown>[] }>("/api/step-runner/list", {}, signal)
+    : await fetchJson<{ items: Record<string, unknown>[] }>("/api/step-runner/list", { signal });
   return {
     count: data.items.length,
     items: data.items.map(mapSearchItemToStepRunnerItem),
@@ -40,7 +42,12 @@ export async function designerHostGrpcGetActionStepSummary(
   _baseUrl: string,
   stepRunnerKey: string,
   stepJson: string,
+  port?: DesignerCatalogPort,
 ): Promise<string> {
+  if (port) {
+    const json = await designerHostGrpcPostStepRunnersSummariesJson(_baseUrl, JSON.stringify({ steps: [{ stepId: "single", stepRunnerKey, stepJson }] }), undefined, port);
+    return (JSON.parse(json).items?.[0]?.summary ?? "").trim();
+  }
   const res = await fetch("/api/step-runner/summaries", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -70,6 +77,7 @@ export async function designerHostGrpcPostStepRunnersSummariesJson(
   _baseUrl: string,
   requestJson: string,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<string> {
   let body: { steps?: unknown[]; subProgramsJson?: string | null } = {};
   try {
@@ -78,6 +86,11 @@ export async function designerHostGrpcPostStepRunnersSummariesJson(
     return JSON.stringify({ items: [] });
   }
 
+  if (port) {
+    if (!port.remoteEnabled) return "{\"items\":[]}";
+    const data = await port.request<{ items?: unknown[]; json?: string }>("/api/step-runner/summaries", JSON.parse(requestJson) as object, signal);
+    return JSON.stringify({ items: data.items ?? [] });
+  }
   const res = await fetch("/api/step-runner/summaries", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -103,7 +116,13 @@ export async function designerHostGrpcPostStepQuickInsertSearchJson(
   _baseUrl: string,
   requestJson: string,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<string> {
+  if (port) {
+    if (!port.remoteEnabled) return "{\"items\":[],\"totalCount\":0,\"hasMore\":false}";
+    const data = await port.request<{ items?: unknown[]; json?: string }>("/api/step-runner/quick-insert", JSON.parse(requestJson) as object, signal);
+    return data.json ?? "{\"items\":[],\"totalCount\":0,\"hasMore\":false}";
+  }
   const res = await fetch("/api/step-runner/quick-insert", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -122,7 +141,13 @@ export async function designerHostGrpcPostToolboxSearchJson(
   _baseUrl: string,
   requestJson: string,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<string> {
+  if (port) {
+    if (!port.remoteEnabled) return "{\"items\":[]}";
+    const data = await port.request<{ items?: unknown[]; json?: string }>("/api/step-runner/toolbox-search", JSON.parse(requestJson) as object, signal);
+    return data.json ?? "{\"items\":[]}";
+  }
   const res = await fetch("/api/step-runner/toolbox-search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -141,7 +166,12 @@ export async function designerHostGrpcGetGlobalSubProgramIo(
   _baseUrl: string,
   request: GetGlobalSubProgramIoRequest,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<GetGlobalSubProgramIoResponse> {
+  if (port) {
+    if (!port.remoteEnabled) return { found: false } as GetGlobalSubProgramIoResponse;
+    return port.request<GetGlobalSubProgramIoResponse>("/api/step-runner/subprogram-io", { kind: "global", id: request.subProgramId ?? "", callerStepJson: request.callerStepJson }, signal);
+  }
   const params = new URLSearchParams();
   params.set("kind", "global");
   params.set("id", request.subProgramId ?? "");
@@ -156,7 +186,12 @@ export async function designerHostGrpcGetSharedSubProgramIo(
   _baseUrl: string,
   request: GetSharedSubProgramIoRequest,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<GetGlobalSubProgramIoResponse> {
+  if (port) {
+    if (!port.remoteEnabled) return { found: false } as GetGlobalSubProgramIoResponse;
+    return port.request<GetGlobalSubProgramIoResponse>("/api/step-runner/subprogram-io", { kind: "shared", id: request.identifier ?? "", callerStepJson: request.callerStepJson }, signal);
+  }
   const params = new URLSearchParams();
   params.set("kind", "shared");
   params.set("id", request.identifier ?? "");
@@ -170,6 +205,13 @@ export async function designerHostGrpcGetSharedSubProgramIo(
 const stepRunnerDetailCache = new Map<string, StepRunnerItem>();
 const stepRunnerDetailInflight = new Map<string, Promise<StepRunnerItem | null>>();
 
+function detailCache(port?: DesignerCatalogPort): Map<string, StepRunnerItem> {
+  if (!port) return stepRunnerDetailCache;
+  let cache = port.get<Map<string, StepRunnerItem>>("details");
+  if (!cache) { cache = new Map(); port.set("details", cache); }
+  return cache;
+}
+
 function stepRunnerDetailCacheKey(key: string, controlField: string): string {
   return `${key.trim()}\0${controlField}`;
 }
@@ -177,6 +219,7 @@ function stepRunnerDetailCacheKey(key: string, controlField: string): string {
 /** Seed session cache from StepListEditor / localStorage primed schemas. */
 export function seedStepRunnerDetailCache(
   schemaByCacheKey: Readonly<Record<string, StepRunnerItem>>,
+  port?: DesignerCatalogPort,
 ): void {
   for (const [cacheKey, item] of Object.entries(schemaByCacheKey)) {
     if ((item.inputParamDefs?.length ?? 0) === 0 && (item.outputParamDefs?.length ?? 0) === 0) {
@@ -185,7 +228,7 @@ export function seedStepRunnerDetailCache(
     const sep = cacheKey.indexOf("\0");
     const runnerKey = sep >= 0 ? cacheKey.slice(0, sep) : cacheKey;
     const control = sep >= 0 ? cacheKey.slice(sep + 1) : "";
-    stepRunnerDetailCache.set(stepRunnerDetailCacheKey(runnerKey, control), item);
+    detailCache(port).set(stepRunnerDetailCacheKey(runnerKey, control), item);
   }
 }
 
@@ -193,25 +236,27 @@ export function seedStepRunnerDetailCache(
 export function getCachedStepRunnerDetailItem(
   key: string,
   controlField?: string,
+  port?: DesignerCatalogPort,
 ): StepRunnerItem | undefined {
-  return stepRunnerDetailCache.get(stepRunnerDetailCacheKey(key, (controlField ?? "").trim()));
+  return detailCache(port).get(stepRunnerDetailCacheKey(key, (controlField ?? "").trim()));
 }
 
 async function fetchStepRunnerDetailItemOnce(
   key: string,
   controlField: string | undefined,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<StepRunnerItem | null> {
   const params = new URLSearchParams();
   params.set("key", key);
   if (controlField) {
     params.set("controlField", controlField);
   }
-  const data = await fetchJson<{ item: Record<string, unknown> }>(
-    `/api/step-runner/get?${params.toString()}`,
-    { signal },
-  );
+  const data = port
+    ? await port.request<{ item: Record<string, unknown> }>("/api/step-runner/get", { key, ...(controlField ? { controlField } : {}) }, signal)
+    : await fetchJson<{ item: Record<string, unknown> }>(`/api/step-runner/get?${params.toString()}`, { signal });
   const item = data.item;
+  if (!item) return null;
   if (isMappedStepRunnerItem(item)) {
     return item as unknown as StepRunnerItem;
   }
@@ -289,7 +334,23 @@ export async function fetchStepRunnerDetailItem(
   key: string,
   controlField?: string,
   signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<StepRunnerItem | null> {
+  signal?.throwIfAborted();
+  if (port) {
+    const control = (controlField ?? "").trim();
+    if (!port.remoteEnabled) return resolveEssentialStepRunnerFallback(key, control) ?? null;
+    const cacheKey = stepRunnerDetailCacheKey(key, control);
+    const cached = detailCache(port).get(cacheKey);
+    if (cached) return cached;
+    return port.shared(`detail\0${cacheKey}`, async (ownedSignal) => {
+      const item = await fetchStepRunnerDetailItemOnce(key, control || undefined, ownedSignal, port);
+      ownedSignal.throwIfAborted();
+      const resolved = item ?? resolveEssentialStepRunnerFallback(key, control) ?? null;
+      if (resolved) detailCache(port).set(cacheKey, resolved);
+      return resolved;
+    }, signal);
+  }
   const cacheKey = stepRunnerDetailCacheKey(key, (controlField ?? "").trim());
   const cached = stepRunnerDetailCache.get(cacheKey);
   if (cached && (cached.icon ?? "").trim()) {
