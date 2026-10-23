@@ -76,8 +76,10 @@ CI 独立推进上述检查，先保护现有可运行版本。R4 已开始的�
 独立 Node 入口现已提供 `dev:agent-service`：`/health` 不导入模型配置、不打开 DB；首个
 `POST /api/chat` 才加载原 `runAgentChatTurn`。标准 AI SDK client transport 可完成工具执行、
 审批回传与续跑，不新增 Agent loop、会话协议或数据库格式。当前 UI/Electron 仍使用 Next，
-该入口只供受控开发验证；其他 API、显式数据根/单 writer 切换、静态 renderer 与打包资源
-布局尚未迁移，不能与现有壳共享真实用户资料并作为完成验收。
+该入口只供受控开发验证。显式 profile 与单 writer 已接入：`--data-dir` / `QUICKER_AGENT_DATA_DIR`
+启动时固定资料根，Next 与 Node 共用 canonical SQLite lease，第二 writer 在迁移前拒绝；
+生成资料与真实子进程覆盖竞争、崩溃和重开。旧二进制不遵守新租约，不能视为已受保护。
+其他 API、静态 renderer 与打包资源布局尚未迁移，完整桌面用户资料升级仍待验收。
 
 服务停止先终止接收、取消各自请求并等待 response reader/producer 结束，再释放 runtime。
 超过有界 grace 明确返回超时，仍保留 DB，待 `whenSettled()` 后延迟释放，不能一边关闭存储

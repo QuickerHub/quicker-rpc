@@ -20,6 +20,13 @@ const shellAppRoot = join(electronRoot, "shell-app");
 
 const SKIP_DIRS = new Set(["resources", "dist", "build", "shell-app"]);
 
+/** Shared pure path policy is needed by both app.asar/electron and browser-runtime. */
+export function stageShellProfileModule(sourceRoot, targetRoot) {
+  const destination = join(targetRoot, "lib");
+  mkdirSync(destination, { recursive: true });
+  cpSync(join(sourceRoot, "lib", "agent-data-profile.mjs"), join(destination, "agent-data-profile.mjs"));
+}
+
 /** @param {string} agentGuiRoot */
 function stageBrowserRuntimeForShell(agentGuiRoot) {
   const src = join(agentGuiRoot, "browser-runtime");
@@ -103,6 +110,7 @@ export function stageElectronShell({ version = "0.1.0" } = {}) {
   }
   mkdirSync(shellAppRoot, { recursive: true });
   copyElectronSources(electronRoot, join(shellAppRoot, "electron"));
+  stageShellProfileModule(agentGuiRoot, shellAppRoot);
   stageBrowserRuntimeForShell(agentGuiRoot);
   writeShellPackageJson(version);
   installShellDeps();

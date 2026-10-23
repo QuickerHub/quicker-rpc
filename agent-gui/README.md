@@ -75,14 +75,21 @@ pwsh ./dev.ps1 -Electron
 ```powershell
 cd agent-gui
 pnpm dev:agent-service --help
+pnpm dev:agent-service --data-dir D:\AgentProfiles\designer-dev
 pnpm check:agent-backend      # 只检查依赖图，不执行产物
 pnpm check:agent-offline      # 类型检查 + 显式 fake/fixture 清单
 pnpm test:agent-service       # 自有 loopback + fake SDK 工具/审批 + 隔离 CLI/SQLite fixture
 ```
 
 服务默认绑定 `127.0.0.1:0`，在 stdout 输出实际 origin；仅支持 loopback。
-该源码入口尚未并入 Electron 包，也没有完成所有 API、数据根/单 writer 和资源布局迁移。
-只供受控开发验证，不与现有壳共享真实用户资料作迁移验收。架构、停止顺序和未完成门槛见
+`--data-dir` 优先于 `QUICKER_AGENT_DATA_DIR`，两者都要求绝对路径；不设置时保留原系统默认。
+显式目录只使用该资料根，不自动发现或导入默认 AppData、安装目录与旧 WebView 历史。
+同一进程选择后固定，切换需重启。安装资源、SQL migrations 与 bundled 配置仍从资源根读取。
+Next 与 Node 现在共用 SQLite writer lease：第二个新版进程在迁移/写入前明确拒绝；
+正常关闭或进程崩溃后可重新取得租约。细节与旧版进程限制见 [对话存储](../docs/agent-gui-chat-storage.md)。
+
+该源码入口尚未并入 Electron 包，其他 API、静态 renderer 和资源布局迁移仍未完成。
+显式 profile 和单 writer 已通过生成资料/真实子进程验证；完整桌面包迁移尚未验收。架构、停止顺序和未完成门槛见
 [框架去耦与目标运行边界](../docs/agent-architecture.md#框架去耦与目标运行边界)。
 
 ## 发布（Electron）

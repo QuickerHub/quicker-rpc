@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveAgentDataProfile, resolveDefaultAgentDataDirectory } from "../lib/agent-data-profile.mjs";
 
 const VOICE_ASR_PLUGIN_ID = "voice-asr";
 const CLIPBOARD_HISTORY_PLUGIN_ID = "clipboard-history";
@@ -9,22 +10,11 @@ export function quickerAgentInstallDir() {
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
     return join(process.env.LOCALAPPDATA, "QuickerAgent");
   }
-  return quickerAgentAppDataDir();
+  return resolveDefaultAgentDataDirectory();
 }
 
 export function quickerAgentAppDataDir() {
-  if (process.platform === "win32" && process.env.APPDATA) {
-    return join(process.env.APPDATA, "QuickerAgent");
-  }
-  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
-    return join(process.env.LOCALAPPDATA, "QuickerAgent");
-  }
-  if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "QuickerAgent");
-  }
-  const xdg = process.env.XDG_DATA_HOME;
-  if (xdg) return join(xdg, "QuickerAgent");
-  return join(homedir(), ".local", "share", "QuickerAgent");
+  return resolveAgentDataProfile().directory;
 }
 
 export function pluginCacheDir() {
@@ -69,6 +59,7 @@ function pluginInstalledAt(root) {
 
 export function voicePluginRoot() {
   const primary = primaryVoicePluginRoot();
+  if (resolveAgentDataProfile().explicit) return primary;
   const legacy = legacyVoicePluginRoot();
   if (voiceAsrLayoutReady(primary)) return primary;
   if (voiceAsrLayoutReady(legacy)) return legacy;
@@ -82,6 +73,8 @@ export function clipboardHistoryPluginRoot() {
 }
 
 function tauriWebviewUserDataRoot() {
+  const profile = resolveAgentDataProfile();
+  if (profile.explicit) return join(profile.directory, "webview");
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
     return join(process.env.LOCALAPPDATA, "ai.quicker.agent");
   }

@@ -9,6 +9,7 @@ test("the actual Node entry serves lazy health and rejects an unconfigured model
   const parent = resolve("..", ".tmp");
   mkdirSync(parent, { recursive: true });
   const root = realpathSync(mkdtempSync(join(parent, "agent-service-cli-")));
+  const profile = join(root, "selected profile");
   const expectedParent = realpathSync(parent);
   const env = { ...process.env,
     APPDATA: join(root, "roaming"), LOCALAPPDATA: join(root, "local"), USERPROFILE: join(root, "home"), HOME: join(root, "home"),
@@ -16,10 +17,11 @@ test("the actual Node entry serves lazy health and rejects an unconfigured model
     LLM_CONFIG_PATH: join(root, "absent-llm.json"), BUNDLED_LLM_CONFIG_PATH: join(root, "absent-publish.json"),
     BUNDLED_LLM_DEV_CONFIG_PATH: join(root, "absent-dev.json"), BUNDLED_LLM_CONFIG: "{}", NODE_ENV: "production",
     AGENT_GUI_SKIP_BROWSER_RUNTIME: "1", AGENT_GUI_SKIP_TERMINAL_RUNTIME: "1", AGENT_GUI_SKIP_VOICE_RUNTIME: "1",
+    QUICKER_AGENT_DATA_DIR: join(root, "environment-profile"),
   };
   const child = spawn(process.execPath, [
     "--conditions=react-server", "--import", "tsx", "--import", "./scripts/agent-offline-network-guard.mjs",
-    "./service/main.ts", "--port", "0",
+    "./service/main.ts", "--port", "0", "--data-dir", profile,
   ], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
   const exited = once(child, "exit");
   let stderr = "";
@@ -45,6 +47,7 @@ test("the actual Node entry serves lazy health and rejects an unconfigured model
     assert.equal(response.status, 200);
     assert.equal((await response.json()).runtime, "lazy");
     assert.equal(existsSync(join(env.APPDATA, "QuickerAgent", "agent.db")), false);
+    assert.equal(existsSync(profile), false, "health leaves the selected profile lazy");
     assert.equal(existsSync(env.AGENT_GUI_ROOT), false, "health does not initialize the app/config directory");
     mkdirSync(env.AGENT_GUI_DEFAULT_CWD, { recursive: true });
     const chat = await fetch(origin + "/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
@@ -56,7 +59,10 @@ test("the actual Node entry serves lazy health and rejects an unconfigured model
     assert.deepEqual(await chat.json(), { error: "Model selection is not configured" });
     const dataRoot = process.platform === "win32" ? env.APPDATA
       : process.platform === "darwin" ? join(env.HOME, "Library", "Application Support") : env.XDG_DATA_HOME;
-    assert.equal(existsSync(join(dataRoot, "QuickerAgent", "agent.db")), true);
+    assert.equal(existsSync(join(profile, "agent.db")), true, "CLI profile takes precedence before production runtime loads");
+    assert.equal(existsSync(join(profile, "agent.db.writer.sqlite")), true);
+    assert.equal(existsSync(join(dataRoot, "QuickerAgent", "agent.db")), false);
+    assert.equal(existsSync(env.QUICKER_AGENT_DATA_DIR), false);
     assert.equal(stderr.includes("attempted a real network request"), false);
   } finally {
     if (child.exitCode === null && child.signalCode === null) child.kill();

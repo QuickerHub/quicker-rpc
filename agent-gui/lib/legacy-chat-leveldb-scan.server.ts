@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractJsonObjectsAfterMarker } from "@/lib/legacy-leveldb-json";
 import { LEGACY_CHAT_LEVELDB_MARKERS } from "@/lib/legacy-chat-scan-markers";
+import { resolveAgentDataProfile } from "./agent-data-profile.mjs";
 import {
   QUICKER_AGENT_DIRNAME,
   QUICKER_AGENT_TAURI_IDENTIFIER,
@@ -108,6 +109,7 @@ export function collectLegacyLevelDbDirectories(): Array<{ label: string; path: 
     "leveldb",
   );
   pushUniqueLevelDbDir(dirs, "QuickerAgent 应用数据", appDataWebView);
+  if (resolveAgentDataProfile().explicit) return dirs;
 
   const installWebView = resolveInstallDirWebView2LevelDbDir();
   if (installWebView) {

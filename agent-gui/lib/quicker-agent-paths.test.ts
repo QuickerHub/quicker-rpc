@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import {
   QUICKER_AGENT_WORKSPACE_SUBDIR,
@@ -7,6 +7,13 @@ import {
   resolveReleaseDefaultWorkingDirectory,
   resolveVoiceAsrPluginDirectory,
 } from "./quicker-agent-paths.ts";
+
+const previousProfile = process.env.QUICKER_AGENT_DATA_DIR;
+delete process.env.QUICKER_AGENT_DATA_DIR;
+after(() => {
+  if (previousProfile === undefined) delete process.env.QUICKER_AGENT_DATA_DIR;
+  else process.env.QUICKER_AGENT_DATA_DIR = previousProfile;
+});
 
 test("release workspace is under Documents/QuickerAgent/workspace", () => {
   const cwd = resolveReleaseDefaultWorkingDirectory();

@@ -142,7 +142,8 @@ Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完�
 独立 Node chat service 已有实验性源码入口（`agent-gui/service/main.ts`）：健康检查懒加载、
 标准 HTTP/SSE、原 runner/SDK loop、审批往返与取消/停止回归已接通；当前主壳仍运行 Next。
 生产依赖图检查拒绝 Next，browser/terminal 的服务关闭只回收本进程真实登记的子进程。
-完整的数据根/单 writer 切换、其余 API 分组、静态 renderer 与桌面资源打包仍待实施。
+显式数据根与新版 Next/Node 的单 writer 约束已实现，隔离 CLI/真实子进程验证通过；
+其余 API 分组、静态 renderer、桌面资源打包和真实资料升级仍待实施。
 
 重构目标是让权限、执行生命周期、会话状态和展示扩展各有唯一归属，新增能力无需复制
 Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作台设计](../../agent-gui/DESIGN.md)，

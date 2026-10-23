@@ -3,6 +3,7 @@ import { createConnection, createServer } from "node:net";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { reserveSmokeUiPort, startSmokeRpcGuard, writeSmokeHandshake } from "./smoke-isolation.mjs";
+import { AGENT_DATA_DIRECTORY_ENV } from "../lib/agent-data-profile.mjs";
 
 const UI_PORT_PREFERRED = 3000;
 const QKRPC_PORT_DEFAULT = 9477;
@@ -144,6 +145,7 @@ function buildBundledChildEnv(host, port, extra = {}) {
     USERPROFILE: process.env.USERPROFILE,
     LOCALAPPDATA: process.env.LOCALAPPDATA,
     APPDATA: process.env.APPDATA,
+    [AGENT_DATA_DIRECTORY_ENV]: process.env[AGENT_DATA_DIRECTORY_ENV],
     PATH: process.env.PATH,
     PATHEXT: process.env.PATHEXT,
     HOSTNAME: host,

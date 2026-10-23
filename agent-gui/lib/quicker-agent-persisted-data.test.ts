@@ -1,114 +1,104 @@
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import test from "node:test";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { test, type TestContext } from "node:test";
+import Database from "better-sqlite3";
+import { AppKvKey, readAppKvJson } from "./db/app-kv";
+import { closeAgentDatabase, getAgentSqlite, getChatDatabase } from "./db/client";
+import { acquireAgentDatabaseWriterLease, AgentDatabaseWriterBusyError } from "./db/writer-lease";
+import { resolveQuickerAgentAppDataDirectory, resolveQuickerAgentInstallDirectory } from "./quicker-agent-paths";
+import { resetPersistedDataMigrationForTests, resolveQuickerAgentPersistedDataDirectory } from "./quicker-agent-persisted-data";
 
-function setWindowsDataDirs(tempRoot: string) {
-  process.env.LOCALAPPDATA = join(tempRoot, "install-local");
-  process.env.APPDATA = join(tempRoot, "appdata");
+function fixture(t: TestContext) {
+  const base = resolve("..", "..", "..", ".tmp");
+  mkdirSync(base, { recursive: true });
+  const root = mkdtempSync(join(base, "agent-persisted-"));
+  const values = {
+    APPDATA: join(root, "roaming"), LOCALAPPDATA: join(root, "install-local"),
+    HOME: join(root, "home"), USERPROFILE: join(root, "home"), XDG_DATA_HOME: join(root, "xdg"),
+    AGENT_GUI_ROOT: join(root, "install-app"), QUICKER_AGENT_DATA_DIR: "", OneDrive: "",
+  };
+  const previous = Object.keys(values).map((name) => [name, process.env[name]] as const);
+  Object.assign(process.env, values);
+  resetPersistedDataMigrationForTests();
+  t.after(() => {
+    closeAgentDatabase();
+    resetPersistedDataMigrationForTests();
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+    const suffix = relative(realpathSync(base), realpathSync(root));
+    assert.ok(suffix && suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix));
+    rmSync(root, { recursive: true, force: true });
+  });
+  return {
+    appData: resolveQuickerAgentAppDataDirectory(),
+    install: resolveQuickerAgentInstallDirectory(),
+    legacy: join(values.AGENT_GUI_ROOT, ".local"),
+    write(path: string, content = "fixture-only") {
+      mkdirSync(resolve(path, ".."), { recursive: true });
+      writeFileSync(path, content);
+    },
+  };
 }
 
-test("migrates legacy install .local into Roaming app-data", async () => {
-  const prevLocal = process.env.LOCALAPPDATA;
-  const prevAppData = process.env.APPDATA;
-  const prevAgentRoot = process.env.AGENT_GUI_ROOT;
-  const tempRoot = mkdtempSync(join(tmpdir(), "qa-persisted-"));
-  setWindowsDataDirs(tempRoot);
-  const appData = join(tempRoot, "appdata", "QuickerAgent");
-  const legacyLocal = join(tempRoot, "install-app", ".local");
-
-  process.env.AGENT_GUI_ROOT = join(tempRoot, "install-app");
-
-  mkdirSync(legacyLocal, { recursive: true });
-  writeFileSync(
-    join(legacyLocal, "llm-secrets.json"),
-    '{"version":2,"providers":{}}\n',
-    "utf8",
-  );
-
-  const mod = await import("@/lib/quicker-agent-persisted-data");
-  mod.resetPersistedDataMigrationForTests();
-
-  const target = mod.resolveQuickerAgentPersistedDataDirectory();
-  assert.equal(target, appData);
-  assert.ok(existsSync(join(target, "llm-secrets.json")));
-  assert.equal(
-    readFileSync(join(target, "llm-secrets.json"), "utf8"),
-    '{"version":2,"providers":{}}\n',
-  );
-
-  if (prevLocal === undefined) delete process.env.LOCALAPPDATA;
-  else process.env.LOCALAPPDATA = prevLocal;
-  if (prevAppData === undefined) delete process.env.APPDATA;
-  else process.env.APPDATA = prevAppData;
-  if (prevAgentRoot === undefined) delete process.env.AGENT_GUI_ROOT;
-  else process.env.AGENT_GUI_ROOT = prevAgentRoot;
-  mod.resetPersistedDataMigrationForTests();
-  rmSync(tempRoot, { recursive: true, force: true });
+test("settings migration skips application DBs and lease sidecars at every copied depth", (t) => {
+  const { appData, legacy, write } = fixture(t);
+  write(join(legacy, "llm-secrets.json"), '{"fixture":true}');
+  const databaseFiles = ["agent.db", "chats.db", "agent.db-wal", "chats.db-shm", "agent.db-journal", "agent.db.writer.sqlite", "agent.db.writer.sqlite-journal"];
+  for (const name of databaseFiles) {
+    write(join(legacy, name));
+    write(join(legacy, "nested", name));
+  }
+  write(join(legacy, "nested", "settings.json"), "{}");
+  assert.equal(resolveQuickerAgentPersistedDataDirectory(), appData);
+  assert.equal(readFileSync(join(appData, "llm-secrets.json"), "utf8"), '{"fixture":true}');
+  assert.equal(readFileSync(join(appData, "nested", "settings.json"), "utf8"), "{}");
+  for (const name of databaseFiles) {
+    assert.equal(existsSync(join(appData, name)), false);
+    assert.equal(existsSync(join(appData, "nested", name)), false);
+  }
 });
 
-test("merges missing legacy files without overwriting existing app-data", async () => {
-  const prevLocal = process.env.LOCALAPPDATA;
-  const prevAppData = process.env.APPDATA;
-  const prevAgentRoot = process.env.AGENT_GUI_ROOT;
-  const tempRoot = mkdtempSync(join(tmpdir(), "qa-persisted-merge-"));
-  setWindowsDataDirs(tempRoot);
-  const appData = join(tempRoot, "appdata", "QuickerAgent");
-  const legacyLocal = join(tempRoot, "install-app", ".local");
-
-  process.env.AGENT_GUI_ROOT = join(tempRoot, "install-app");
-
-  mkdirSync(appData, { recursive: true });
-  writeFileSync(join(appData, "device-fingerprint.json"), '{"version":1,"deviceId":"new"}\n', "utf8");
-
-  mkdirSync(legacyLocal, { recursive: true });
-  writeFileSync(join(legacyLocal, "llm-secrets.json"), '{"version":2}\n', "utf8");
-  mkdirSync(join(legacyLocal, "llm-usage", "users"), { recursive: true });
-  writeFileSync(join(legacyLocal, "llm-usage", "users", "u1.json"), '{"version":1}\n', "utf8");
-
-  const mod = await import("@/lib/quicker-agent-persisted-data");
-  mod.resetPersistedDataMigrationForTests();
-  mod.resolveQuickerAgentPersistedDataDirectory();
-
-  assert.equal(readFileSync(join(appData, "device-fingerprint.json"), "utf8"), '{"version":1,"deviceId":"new"}\n');
-  assert.ok(existsSync(join(appData, "llm-secrets.json")));
+test("settings migration merges missing files without replacing existing profile values", (t) => {
+  const { appData, legacy, write } = fixture(t);
+  write(join(appData, "device-fingerprint.json"), '{"fixture":"current"}');
+  write(join(legacy, "device-fingerprint.json"), '{"fixture":"old"}');
+  write(join(legacy, "llm-usage", "users", "u1.json"), "{}");
+  resolveQuickerAgentPersistedDataDirectory();
+  assert.equal(readFileSync(join(appData, "device-fingerprint.json"), "utf8"), '{"fixture":"current"}');
   assert.ok(existsSync(join(appData, "llm-usage", "users", "u1.json")));
-
-  if (prevLocal === undefined) delete process.env.LOCALAPPDATA;
-  else process.env.LOCALAPPDATA = prevLocal;
-  if (prevAppData === undefined) delete process.env.APPDATA;
-  else process.env.APPDATA = prevAppData;
-  if (prevAgentRoot === undefined) delete process.env.AGENT_GUI_ROOT;
-  else process.env.AGENT_GUI_ROOT = prevAgentRoot;
-  mod.resetPersistedDataMigrationForTests();
-  rmSync(tempRoot, { recursive: true, force: true });
 });
 
-test("migrates user data from colocated install tree to Roaming app-data", async () => {
-  const prevLocal = process.env.LOCALAPPDATA;
-  const prevAppData = process.env.APPDATA;
-  const tempRoot = mkdtempSync(join(tmpdir(), "qa-persisted-install-"));
-  setWindowsDataDirs(tempRoot);
-  const installRoot = join(tempRoot, "install-local", "QuickerAgent");
-  const appData = join(tempRoot, "appdata", "QuickerAgent");
-
-  mkdirSync(join(installRoot, "local"), { recursive: true });
-  writeFileSync(join(installRoot, "local", "chats.db"), "legacy-db", "utf8");
-  mkdirSync(join(installRoot, "plugins", "voice-asr"), { recursive: true });
-  writeFileSync(join(installRoot, "plugins", "voice-asr", "manifest.json"), "{}", "utf8");
-
-  const mod = await import("@/lib/quicker-agent-persisted-data");
-  mod.resetPersistedDataMigrationForTests();
-  mod.resolveQuickerAgentPersistedDataDirectory();
-
-  assert.ok(existsSync(join(appData, "local", "chats.db")));
+test("colocated install plugins migrate while its databases remain for the leased importer", (t) => {
+  const { appData, install, write } = fixture(t);
+  write(join(install, "local", "chats.db"));
+  write(join(install, "plugins", "voice-asr", "manifest.json"), "{}");
+  resolveQuickerAgentPersistedDataDirectory();
+  assert.equal(existsSync(join(appData, "local", "chats.db")), false);
   assert.ok(existsSync(join(appData, "plugins", "voice-asr", "manifest.json")));
+});
 
-  if (prevLocal === undefined) delete process.env.LOCALAPPDATA;
-  else process.env.LOCALAPPDATA = prevLocal;
-  if (prevAppData === undefined) delete process.env.APPDATA;
-  else process.env.APPDATA = prevAppData;
-  mod.resetPersistedDataMigrationForTests();
-  rmSync(tempRoot, { recursive: true, force: true });
+test("default client acquires its lease before settings migration or legacy database import", (t) => {
+  const { appData, legacy, install, write } = fixture(t);
+  write(join(legacy, "llm-secrets.json"), '{"fixture":"legacy"}');
+  const source = new Database(join(legacy, "agent.db"));
+  source.exec("CREATE TABLE fixture_marker(value TEXT); INSERT INTO fixture_marker VALUES ('legacy fixture');");
+  source.close();
+  mkdirSync(join(install, "local"), { recursive: true });
+  const older = new Database(join(install, "local", "chats.db"));
+  older.exec("CREATE TABLE fixture_marker(value TEXT); INSERT INTO fixture_marker VALUES ('older chats fixture');");
+  older.close();
+  const path = join(appData, "agent.db");
+  const lease = acquireAgentDatabaseWriterLease(path);
+  try {
+    assert.throws(() => getChatDatabase(), AgentDatabaseWriterBusyError);
+    assert.equal(existsSync(path), false);
+    assert.equal(existsSync(join(appData, "llm-secrets.json")), false);
+  } finally {
+    lease.release();
+  }
+  getChatDatabase();
+  assert.deepEqual(getAgentSqlite().prepare("SELECT value FROM fixture_marker").get(), { value: "legacy fixture" });
+  assert.deepEqual(readAppKvJson(AppKvKey.llmSecrets), { fixture: "legacy" });
 });

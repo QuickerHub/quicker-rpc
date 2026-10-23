@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolveAgentDataProfile } from "./agent-data-profile.mjs";
 import {
   QUICKER_AGENT_DIRNAME,
   resolveQuickerAgentAppDataDirectory,
@@ -39,6 +40,7 @@ export function resolvePersistedDataDirPath(...segments: string[]): string {
 /** Candidate paths for a legacy JSON settings file (newest layout first). */
 export function resolveLegacyPersistedJsonPaths(filename: string): string[] {
   const appData = resolveQuickerAgentAppDataDirectory();
+  if (resolveAgentDataProfile().explicit) return [join(appData, filename)];
   const installRoot = resolveQuickerAgentInstallDirectory();
   const candidates = [
     join(appData, filename),
@@ -75,14 +77,21 @@ function mergeLegacyTree(legacyRoot: string, targetRoot: string): void {
   for (const name of readdirSync(legacyRoot)) {
     const src = join(legacyRoot, name);
     const dest = join(targetRoot, name);
+    if (!isNonDatabaseLegacyFile(src)) continue;
     if (existsSync(dest)) {
       if (isDirectory(src) && isDirectory(dest)) {
         mergeLegacyTree(src, dest);
       }
       continue;
     }
-    cpSync(src, dest, { recursive: true });
+    cpSync(src, dest, { recursive: true, filter: isNonDatabaseLegacyFile });
   }
+}
+
+function isNonDatabaseLegacyFile(path: string): boolean {
+  // Database copying belongs to db/client after it acquires the destination writer lease.
+  // A lease file must never be copied: an OS lock cannot be transferred with its bytes.
+  return !/^(?:agent|chats)\.db(?:\.writer\.sqlite)?(?:-(?:wal|shm|journal))?$/i.test(basename(path));
 }
 
 function resolveColocatedInstallPersistedDataDirectories(): string[] {
@@ -116,6 +125,7 @@ function migrateInstallTreeToAppData(): void {
 }
 
 function ensurePersistedDataMigrated(): void {
+  if (resolveAgentDataProfile().explicit) return;
   if (migrationDone) return;
   migrationDone = true;
 
@@ -132,7 +142,7 @@ function ensurePersistedDataMigrated(): void {
   for (const legacyRoot of legacyRoots) {
     if (!directoryHasEntries(legacyRoot)) continue;
     if (!directoryHasEntries(targetRoot)) {
-      cpSync(legacyRoot, targetRoot, { recursive: true });
+      cpSync(legacyRoot, targetRoot, { recursive: true, filter: isNonDatabaseLegacyFile });
       continue;
     }
     mergeLegacyTree(legacyRoot, targetRoot);

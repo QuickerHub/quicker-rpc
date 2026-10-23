@@ -6,8 +6,9 @@ import { join, resolve, sep } from "node:path";
 import { afterEach, beforeEach, mock, test } from "node:test";
 import Database from "better-sqlite3";
 import { AppKvKey, readAppKvJson } from "./app-kv";
-import { getAgentSqlite, openChatDatabaseAt, resetChatDatabaseClientForTests } from "./client";
+import { closeAgentDatabase, getAgentSqlite, openChatDatabaseAt, resetChatDatabaseClientForTests } from "./client";
 import { resolveMigrationsFolder } from "./paths";
+import { acquireAgentDatabaseWriterLease, AgentDatabaseWriterBusyError } from "./writer-lease";
 
 let directory = "";
 let legacyDirectory = "";
@@ -100,4 +101,53 @@ test("explicit legacy import rejects relative source directories", () => {
     /must be absolute/,
   );
   assert.equal(fs.existsSync(join(directory, "invalid.db")), false);
+});
+
+test("failed database initialization releases its lease and does not publish a partial connection", () => {
+  const path = join(directory, "broken.db");
+  fs.writeFileSync(path, "fixture: deliberately invalid SQLite file");
+  withFixtureFileAccess(() => {
+    assert.throws(() => openChatDatabaseAt(path, { legacyImport: false }), /not a database/);
+    const lease = acquireAgentDatabaseWriterLease(path);
+    lease.release();
+    fs.unlinkSync(path);
+    openChatDatabaseAt(path, { legacyImport: false });
+    assert.ok(getAgentSqlite().prepare("SELECT name FROM sqlite_master WHERE name = 'app_kv'").get());
+    assert.equal(readAppKvJson(AppKvKey.llmSecrets), null);
+  });
+});
+
+test("failed close retains the writer lease until the SQLite connection can actually close", () => {
+  const path = join(directory, "busy-statement.db");
+  withFixtureFileAccess(() => {
+    openChatDatabaseAt(path, { legacyImport: false });
+    const sqlite = getAgentSqlite();
+    const iterator = sqlite.prepare("SELECT 1 AS value UNION ALL SELECT 2").iterate();
+    assert.deepEqual(iterator.next().value, { value: 1 });
+    assert.throws(() => closeAgentDatabase(), /busy/);
+    assert.equal(sqlite.open, true);
+    assert.throws(() => acquireAgentDatabaseWriterLease(path), AgentDatabaseWriterBusyError);
+    iterator.return?.();
+    closeAgentDatabase();
+    assert.equal(sqlite.open, false);
+    acquireAgentDatabaseWriterLease(path).release();
+  });
+});
+
+test("a competing lease refuses initialization before any legacy database or JSON is copied", () => {
+  const path = join(directory, "contended.db");
+  const owner = acquireAgentDatabaseWriterLease(path);
+  try {
+    withFixtureFileAccess(() => {
+      assert.throws(
+        () => openChatDatabaseAt(path, { legacyImport: { directory: legacyDirectory } }),
+        AgentDatabaseWriterBusyError,
+      );
+      assert.equal(fs.existsSync(path), false);
+    });
+  } finally {
+    owner.release();
+  }
+  openChatDatabaseAt(path, { legacyImport: { directory: legacyDirectory } });
+  assert.deepEqual(readAppKvJson(AppKvKey.llmSecrets), { marker: "fixture-only" });
 });
