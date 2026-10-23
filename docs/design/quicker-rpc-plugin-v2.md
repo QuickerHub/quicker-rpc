@@ -11,6 +11,11 @@
 3. V2 宿主不具备的能力有明确“不支持”决策，而不是假成功或长期 stub。
 4. 离线 composition/probe 与真实 Quicker V2 活进程验证同时通过。
 
+用户已将近期重点调整为自动识别 V1/V2、迁入 Quicker 新动作设计器、统一 Agent 写动作。
+交付顺序以 [主线计划](../product/README.md#统一-rpc-与动作设计器当前主线) 为准；本文继续维护
+V2 adapter 的真实能力与对齐门槛。动作编辑链优先于分享、Chrome 等其余完整 parity，
+不能因尚有无关能力 stub 而推迟设计器迁移，也不能提前开放未实现操作。
+
 ## 当前结构
 
 ```text
@@ -38,16 +43,28 @@ QuickerRpc.Plugin.V2
 | 端口/能力 | 当前 V2 | 对齐要求 |
 |---|---|---|
 | Session | 已有 adapter | 与 V1 health/session 语义一致 |
-| ActionPrograms | 已有 get/patch 路径 | roundtrip、Designer guard、错误结构一致 |
+| ActionPrograms | 已有旧 body/get/patch 与 Designer 打开保存保护；未实现 native source host，YAML open/save 当前 unsupported | 补 `IQuickerRpcActionProgramSourceHost`、typed/native body 与 codec bridge；roundtrip、storage identity/revision、Designer guard、错误和部分保存语义一致 |
 | SubPrograms | 已有读写/同步路径 | create/update/delete/publish 逐项验证 |
 | ActionRuns/trace | 已有 V2 run/trace service | 普通运行、trace、失败位置与取消一致 |
 | ActionCatalog/Search | 已有查询/搜索；部分布局操作 stub | action/profile/layout 操作逐项清零或决策不支持 |
 | Settings/ActionDocs/StepRunners/Launcher | 已有 adapter | 与对应 V1 命令做 parity smoke |
 | ActionSharing | 仍有 stub | publish/update/preflight 完成或明确宿主边界 |
-| Expressions | 仍有 stub | 实现与 V1 相同契约或明确 capability |
+| Expressions | 已接共享表达式服务 | 按实际 V1/V2 行为验证，不再按未实现处理 |
 | ChromeControl | `false`/`null` | 实现后再开启 capability |
 | Triggers | `false`/`null` | 实现后再开启 capability |
 | Designer UI | `false`/`null` | 只有真正支持打开/内存态保护后开启 |
+
+## 自动识别与设计器接入优先项
+
+1. 将已有 `IQuickerRpcHost.Info` 与实际逐操作 capability 暴露为 wire 握手，建立实例发现与
+   session 绑定；当前两插件共用固定 pipe，不能据此确认连到哪个版本。
+2. Designer 初期复用 Quicker 的结构化编辑会话、`ActionStorageIdentity`、预期编辑版本与
+   host persistence 语义；适配 V1/V2，而不是将 V1 压缩 Agent JSON 当作完整设计器文档。
+3. 补 V2 native source 后再开放 YAML；已有 `TrySaveAction` 的编辑器打开检查继续保留。
+4. Runtime 所有可选端口先检查支持性；当前部分 `_host.Designer!` 路径需要改为结构化
+   unsupported，不能让 null port 变成空引用异常。
+5. 分别在 V1/V2 专用测试动作上验收读取、编辑、校验、保存、重读、冲突和重启；写入不对
+   另一个实例自动重试。其余 capability 逐项继续下表流程，不冒充全量 parity。
 
 ## 对齐工作顺序
 

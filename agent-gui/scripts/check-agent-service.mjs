@@ -10,6 +10,8 @@ const tests = [
   "lib/agent-service/node-http.loopback.test.ts",
   "lib/agent-service/service.integration.test.ts",
   "service/cli.integration.test.ts",
+  "lib/db/writer-lease.process.test.ts",
+  "lib/db/client.process.test.ts",
 ];
 for (const path of tests) {
   if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing service test: ${path}`);

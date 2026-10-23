@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { resolveAgentDataProfile } from "../lib/agent-data-profile.mjs";
 
 export const RUNTIME_VERSION = "0.4.0";
 export const PROTOCOL_VERSION = "quicker-browser-v1";
@@ -42,6 +43,8 @@ function resolveChannel(raw) {
 /** @param {string | undefined} override */
 function resolveUserDataDir(override) {
   if (override?.trim()) return resolve(override.trim());
+  const profile = resolveAgentDataProfile();
+  if (profile.explicit) return join(profile.directory, "browser-profile");
   const local = process.env.LOCALAPPDATA?.trim();
   if (local) return join(local, "QuickerAgent", "browser-profile");
   return join(homedir(), ".local", "share", "QuickerAgent", "browser-profile");

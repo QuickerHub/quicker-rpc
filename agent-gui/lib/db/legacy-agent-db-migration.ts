@@ -6,6 +6,8 @@ import {
   resolveQuickerAgentInstallDirectory,
 } from "@/lib/quicker-agent-paths";
 import { AGENT_DB_FILENAME } from "@/lib/db/client";
+import { resolveAgentDataProfile } from "../agent-data-profile.mjs";
+import { resolveLegacyInstallPersistedDataDirectory } from "@/lib/quicker-agent-persisted-data";
 
 const CHAT_DB_LEGACY_FILENAME = "chats.db";
 
@@ -21,16 +23,28 @@ function copySqliteBundle(src: string, dest: string): void {
 }
 
 function defaultLegacyDatabaseCandidates(): string[] {
+  if (resolveAgentDataProfile().explicit) return [];
   const appData = resolveQuickerAgentAppDataDirectory();
   const installRoot = resolveQuickerAgentInstallDirectory();
+  // Preserve the old generic migration's preference for a current agent.db before chats.db.
+  const persistedRoots = [
+    resolveLegacyInstallPersistedDataDirectory(),
+    join(installRoot, "resources", "app", ".local"),
+    join(installRoot, "resources", "resources", "app", ".local"),
+    join(installRoot, "resources", "app", "local"),
+    join(installRoot, "resources", "resources", "app", "local"),
+    join(installRoot, "local"),
+  ];
   const candidates = [
+    ...persistedRoots.map((root) => join(root, AGENT_DB_FILENAME)),
     join(appData, "local", CHAT_DB_LEGACY_FILENAME),
     join(appData, CHAT_DB_LEGACY_FILENAME),
+    ...persistedRoots.map((root) => join(root, CHAT_DB_LEGACY_FILENAME)),
+    join(appData, "local", AGENT_DB_FILENAME),
     join(installRoot, "local", CHAT_DB_LEGACY_FILENAME),
     join(installRoot, "local", AGENT_DB_FILENAME),
     join(installRoot, CHAT_DB_LEGACY_FILENAME),
   ];
-
   if (process.platform === "win32") {
     const local = process.env.LOCALAPPDATA?.trim();
     if (local) {
@@ -42,7 +56,7 @@ function defaultLegacyDatabaseCandidates(): string[] {
     }
   }
 
-  return candidates;
+  return [...new Set(candidates)];
 }
 
 /** Explicit candidates never fall back to user or install data. */

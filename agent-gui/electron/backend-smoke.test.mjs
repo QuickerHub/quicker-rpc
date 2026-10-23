@@ -10,6 +10,9 @@ import { mock, test } from "node:test";
 
 for (const failure of [false, true]) {
   test(`isolated backend ${failure ? "spawn failure" : "success"} owns only its Node child and RPC guard`, async () => {
+    const previousProfile = process.env.QUICKER_AGENT_DATA_DIR;
+    const profile = resolve("fixture", "dedicated profile");
+    process.env.QUICKER_AGENT_DATA_DIR = profile;
     const servers = [];
     const spawned = [], killed = [], writes = [];
     const serverFactory = () => {
@@ -50,9 +53,12 @@ for (const failure of [false, true]) {
       assert.equal(spawned.length, 1);
       assert.equal(spawned[0].executable, "fixture-node");
       assert.equal(spawned[0].options.env.QKRPC_HTTP_URL, "http://127.0.0.1:45000");
+      assert.equal(spawned[0].options.env.QUICKER_AGENT_DATA_DIR, profile, "the shared normal/smoke child environment preserves the selected profile");
       assert.deepEqual(killed, [], "the launcher Job owner performs all smoke process cleanup");
       assert.ok(servers.every((server) => server.closed === 1));
     } finally {
+      if (previousProfile === undefined) delete process.env.QUICKER_AGENT_DATA_DIR;
+      else process.env.QUICKER_AGENT_DATA_DIR = previousProfile;
       for (const patch of mocks) patch.mock.restore();
       syncBuiltinESMExports();
     }

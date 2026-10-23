@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { EMBEDDED_BROWSER_DATA_DIRECTORY } from "@/lib/embedded-browser-profile.constants";
 import { WORKSPACE_BROWSER_WEBVIEW_LABEL } from "@/lib/embedded-webview-label";
+import { resolveAgentDataProfile, resolveDefaultAgentDataDirectory } from "./agent-data-profile.mjs";
 
 export const QUICKER_AGENT_DIRNAME = "QuickerAgent";
 export const QUICKER_AGENT_WORKSPACE_SUBDIR = "workspace";
@@ -33,7 +34,7 @@ export function resolveQuickerAgentInstallDirectory(): string {
     const local = process.env.LOCALAPPDATA?.trim();
     if (local) return join(local, QUICKER_AGENT_DIRNAME);
   }
-  return resolveQuickerAgentAppDataDirectory();
+  return resolveDefaultAgentDataDirectory();
 }
 
 /**
@@ -41,22 +42,13 @@ export function resolveQuickerAgentInstallDirectory(): string {
  * Windows: %APPDATA%/QuickerAgent (Roaming)
  */
 export function resolveQuickerAgentAppDataDirectory(): string {
-  if (process.platform === "win32") {
-    const roaming = process.env.APPDATA?.trim();
-    if (roaming) return join(roaming, QUICKER_AGENT_DIRNAME);
-    const local = process.env.LOCALAPPDATA?.trim();
-    if (local) return join(local, QUICKER_AGENT_DIRNAME);
-  }
-  if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", QUICKER_AGENT_DIRNAME);
-  }
-  const xdgData = process.env.XDG_DATA_HOME?.trim();
-  if (xdgData) return join(xdgData, QUICKER_AGENT_DIRNAME);
-  return join(homedir(), ".local", "share", QUICKER_AGENT_DIRNAME);
+  return resolveAgentDataProfile().directory;
 }
 
 /** Release default agent workspace: Documents/QuickerAgent/workspace */
 export function resolveReleaseDefaultWorkingDirectory(): string {
+  const profile = resolveAgentDataProfile();
+  if (profile.explicit) return join(profile.directory, QUICKER_AGENT_WORKSPACE_SUBDIR);
   return join(
     resolveUserDocumentsDirectory(),
     QUICKER_AGENT_DIRNAME,
@@ -72,6 +64,8 @@ export const QUICKER_AGENT_TAURI_IDENTIFIER = "ai.quicker.agent";
  * Lives under %LOCALAPPDATA%, **not** the install directory — survives NSIS in-place updates.
  */
 export function resolveTauriWebviewUserDataRoot(): string {
+  const profile = resolveAgentDataProfile();
+  if (profile.explicit) return join(profile.directory, "webview");
   if (process.platform === "win32") {
     const local = process.env.LOCALAPPDATA?.trim();
     if (local) return join(local, QUICKER_AGENT_TAURI_IDENTIFIER);

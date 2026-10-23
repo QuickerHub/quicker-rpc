@@ -210,6 +210,7 @@ function stageBrowserRuntime(agentGuiRoot, appRoot) {
 
 /** lib/*.mjs required by terminal-runtime child (not always in Next standalone trace). */
 const TERMINAL_LIB_FILES = [
+  "agent-data-profile.mjs",
   "qkrpc-toolchain-env.mjs",
   "qkrpc-bin.mjs",
   "rg-bin.mjs",

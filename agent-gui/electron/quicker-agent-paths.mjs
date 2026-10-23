@@ -1,30 +1,21 @@
-
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveAgentDataProfile, resolveDefaultAgentDataDirectory } from "../lib/agent-data-profile.mjs";
 
 export function quickerAgentInstallDir() {
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
     return join(process.env.LOCALAPPDATA, "QuickerAgent");
   }
-  return quickerAgentAppDataDir();
+  return resolveDefaultAgentDataDirectory();
 }
 
 export function quickerAgentAppDataDir() {
-  if (process.platform === "win32" && process.env.APPDATA) {
-    return join(process.env.APPDATA, "QuickerAgent");
-  }
-  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
-    return join(process.env.LOCALAPPDATA, "QuickerAgent");
-  }
-  if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "QuickerAgent");
-  }
-  const xdg = process.env.XDG_DATA_HOME;
-  if (xdg) return join(xdg, "QuickerAgent");
-  return join(homedir(), ".local", "share", "QuickerAgent");
+  return resolveAgentDataProfile().directory;
 }
 
 function tauriWebviewUserDataRoot() {
+  const profile = resolveAgentDataProfile();
+  if (profile.explicit) return join(profile.directory, "webview");
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
     return join(process.env.LOCALAPPDATA, "ai.quicker.agent");
   }

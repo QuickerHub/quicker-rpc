@@ -140,6 +140,7 @@
       "electron/**/*.mjs",
       "electron/**/*.cjs",
       "browser-runtime/**/*.mjs",
+      "lib/agent-data-profile.mjs",
       "package.json"
     ],
     "extraResources": [

@@ -57,7 +57,8 @@ Electron shell → 窗口、preload/IPC、原生集成与所属服务进程的�
 生产阶段仍使用 Next standalone，不能把目标拓扑写成已落地事实。当前也不是单进程系统：
 Next/Agent、qkrpc、browser 与 terminal 已有各自进程，重构要统一 owner，不能再新增一套平行服务。
 
-迁移按以下可审查门槛推进：
+移除 Next 需要满足以下门槛；近期实现按 [产品主线](product/README.md#统一-rpc-与动作设计器当前主线)
+优先搬入设计器，API 随其可运行竖切片分组迁移：
 
 1. **切断框架依赖**：domain/application 与业务策略不导入 Next；cookies 留在 HTTP adapter。
    首个切片已将 release-preview 的 ALS 策略与 Next cookies 读取分开，支持无 Next 的并发测试。
@@ -76,8 +77,10 @@ CI 独立推进上述检查，先保护现有可运行版本。R4 已开始的�
 独立 Node 入口现已提供 `dev:agent-service`：`/health` 不导入模型配置、不打开 DB；首个
 `POST /api/chat` 才加载原 `runAgentChatTurn`。标准 AI SDK client transport 可完成工具执行、
 审批回传与续跑，不新增 Agent loop、会话协议或数据库格式。当前 UI/Electron 仍使用 Next，
-该入口只供受控开发验证；其他 API、显式数据根/单 writer 切换、静态 renderer 与打包资源
-布局尚未迁移，不能与现有壳共享真实用户资料并作为完成验收。
+该入口只供受控开发验证。显式 profile 与单 writer 已接入：`--data-dir` / `QUICKER_AGENT_DATA_DIR`
+启动时固定资料根，Next 与 Node 共用 canonical SQLite lease，第二 writer 在迁移前拒绝；
+生成资料与真实子进程覆盖竞争、崩溃和重开。旧二进制不遵守新租约，不能视为已受保护。
+其他 API、静态 renderer 与打包资源布局尚未迁移，完整桌面用户资料升级仍待验收。
 
 服务停止先终止接收、取消各自请求并等待 response reader/producer 结束，再释放 runtime。
 超过有界 grace 明确返回超时，仍保留 DB，待 `whenSettled()` 后延迟释放，不能一边关闭存储
@@ -95,6 +98,62 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
 外部依据：[AI SDK 后端支持](https://ai-sdk.dev/docs/getting-started#backend-framework-examples)
 包含 Node HTTP 与其他服务端框架；[Electron 进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)
 明确区分 main、renderer 与 Node 能力。这些说明技术可行性，不证明本项目已完成迁移。
+
+### 统一宿主与动作编辑边界
+
+已确认目标是同一 RPC 支持 V1/V2，优先复用 Quicker 新动作设计器，再研究通信效率。
+下面是待实施的契约边界，当前状态/交付顺序统一见 [主线计划](product/README.md#统一-rpc-与动作设计器当前主线)。
+
+```text
+React renderer：Agent 工作台 + Quicker Designer 组件/文档 controller
+  → Agent service：同一权限、编辑会话与动作应用端口
+    → qkrpc Contracts / Runtime / 经身份核验的宿主会话
+      → V1 adapter → Quicker V1
+      → V2 adapter → Quicker V2
+```
+
+| 边界 | 契约与约束 |
+|---|---|
+| 宿主会话 | 发现候选后握手，返回稳定实例标识、本次 session、实例专属 endpoint、host kind/version、RPC/schema 版本和逐方法 capability；不能以端口可达、`ok` 或固定管道名代替身份 |
+| 目标绑定 | 单个兼容实例自动选中；多个实例明确选择；动作读/校验/保存绑定同一 session。断连或重启后重新验证，不对写入跨宿主重试或 failover |
+| 动作身份 | 复用 Quicker `ActionStorageIdentity` 的 catalog/draft、draftId/version 语义，并绑定 host session、action id 和预期编辑版本；GUID 本身不足以定位一个可写文档 |
+| 文档编辑 | 复用 Designer 的 React workspace、history/present 与统一 snapshot 组装；一个 document controller 协调主程序、子程序、元数据、脏状态、撤销与保存。展示状态留在 renderer，不把整套编辑器状态搬进 Node |
+| Agent 修改 | 通过同一动作应用端口与文档 revision 流程修改，不另建可覆盖 UI 草稿的写入通道；AI SDK loop、权限与工具注册表继续唯一。未打开设计器的 YAML bundle 流程继续保留 |
+| 保存 | typed program body + storage identity + expected revision，由 adapter 处理原生版本差异、未知字段/baseline 和宿主持久化；校验、版本冲突、Designer 内存态、部分保存均返回明确结果 |
+| 能力判定 | 按实际注入端口/操作声明并执行门禁；V2 source 或 Designer 未完成就返回结构化 unsupported，不能靠版本推断、空引用或假成功；UI 禁用与后端门禁一致 |
+
+离线 codec 校验与 source dry-run 保持离线能力；其逻辑目标身份随文档保存，不要求为了
+校验而连接运行中的宿主。实际写回时才重新核验目标 session、能力和预期版本。
+
+当前内部 `IQuickerRpcHost.Info` 已有 V1/V2 与版本信息，但 wire health 没有完整宿主握手，
+两版本仍共用固定管道。V1 native source 与保存保护已实现；V2 有旧 body/patch 与宿主保存
+保护，尚未实现 `IQuickerRpcActionProgramSourceHost`。这与 V2 Designer UI port 为 null 是
+两个不同缺口，不能互相替代验证。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
+
+设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
+`pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，
+`features/program/ProgramEditorTabWorkspace.tsx` 与 `XProgramEditor` 负责程序编辑。
+`ActiveXProgramBridgeProvider` 与 `assembleActionProgramSnapshot` 已有多 surface 编辑与
+保存组装路径。迁移应抽 host ports、复用这些业务路径，不在 qkrpc 再写一套步骤编辑器。
+原 `designerHostGrpcApi`、session hub/events、资源与运行/调试调用分别接 adapter；
+WebView/HTTP/SignalR 的宿主接线不直接进入可复用组件。
+
+其中 `designerProtoServiceClient.ts` 当前把 proto service 映射为 JSON Bridge 方法，
+`hostClient.ts` 已有 `installHostTransport` 注入入口，可用于接独立服务；不能因文件名含
+gRPC 就推断线上已是二进制 gRPC。现有 timeline 的防抖快照与 C# snapshot store 只维护
+client/surface 的 latest slot，部分 mutation snapshot 不含子程序；它们不能直接充当完整文档
+事务 owner。迁移须补齐完整文档 revision 与 UI/Agent 并发协议，保留子程序与全部未保存内容。
+
+来源 Designer 的 ResourcePane 是动作/子程序/模块 catalog；YAML bundle 的外置脚本、
+默认值文件和 `files/` 是另一类资源。迁移须同时保留 qkrpc 已有 `programWire` / 文件内容
+adapter，分别验收 catalog 拖放与外置文件保真往返。typed/proto 是编辑契约，不替代原生
+baseline；不能从生成模型的 `toJSON` 重建整个 V1 动作并丢弃未知字段。
+
+协议语义优先参考 Quicker `Designer/Protos/designer_host.proto` 中的 edit session、
+typed `ActionProgramBody`、`ActionStorageIdentity` 与 expected edit version；已有 catalog
+snapshot/etag 先复用。先保持当前请求/响应与聊天 SSE，测量 catalog 首次加载/复用、大动作
+载入、连续编辑与大资源的字节、耗时、内存和取消，再选择缓存、批量、增量或编码优化。
+传输更换不得改变动作身份、事务/revision、错误、背压与取消语义。
 
 ## 2. 依赖规则
 

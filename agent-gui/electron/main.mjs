@@ -31,6 +31,7 @@ import { createUpdaterCommands } from "./commands/updater.mjs";
 import { createShellCommands } from "./commands/shell.mjs";
 import { createAppNativeIcon } from "./app-icon.mjs";
 import { waitForSmokeApproval } from "./smoke-isolation.mjs";
+import { configureAgentDataProfile, resolveAgentDataProfile } from "../lib/agent-data-profile.mjs";
 
 const smoke = globalThis.__QUICKER_ELECTRON_SMOKE__ ?? null;
 
@@ -63,10 +64,12 @@ function isDev() {
 function writeBootLog(message) {
   const line = `${new Date().toISOString()} ${message}`;
   console.error(`[electron-boot] ${message}`);
-  const candidates = [
-    join(tmpdir(), "quicker-agent-electron-boot.log"),
-  ];
-  if (process.env.LOCALAPPDATA) {
+  let profile;
+  try { profile = resolveAgentDataProfile(); } catch { return; }
+  const candidates = profile.explicit
+    ? [join(profile.directory, "logs", "electron-boot.log")]
+    : [join(tmpdir(), "quicker-agent-electron-boot.log")];
+  if (!profile.explicit && process.env.LOCALAPPDATA) {
     candidates.push(join(process.env.LOCALAPPDATA, "QuickerAgent", "electron-boot.log"));
   }
   for (const path of candidates) {
@@ -439,6 +442,12 @@ async function bootProduction() {
 }
 
 async function main() {
+  const profile = configureAgentDataProfile();
+  if (profile.explicit) {
+    const userData = join(profile.directory, "electron");
+    mkdirSync(userData, { recursive: true });
+    app.setPath("userData", userData);
+  }
   writeBootLog("main entered");
   if (!ensureSingleInstance()) {
     writeBootLog("single-instance lock not acquired; exiting");
