@@ -65,6 +65,7 @@ const tests = [
   "lib/action-source-directory.test.ts",
   "lib/action-source-read-guard.test.ts",
   "lib/action-editor/programWire.test.ts",
+  "lib/input-param-wire.test.ts",
   "lib/action-editor/document/programDocumentWire.test.ts",
   "lib/action-editor/document/programDocumentSession.test.ts",
   "lib/action-editor/document/programDocumentHistory.test.ts",
