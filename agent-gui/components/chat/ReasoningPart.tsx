@@ -96,12 +96,14 @@ function useReasoningDuration(streaming: boolean): {
 function ReasoningBody({
   text,
   streaming,
+  visible,
 }: {
   text: string;
   streaming: boolean;
+  visible: boolean;
 }) {
   const bodyRef = useRef<HTMLPreElement>(null);
-  const followHandlers = useWorkFoldFollow(bodyRef, streaming, text);
+  const followHandlers = useWorkFoldFollow(bodyRef, streaming && visible, text);
 
   return (
     <pre
@@ -138,9 +140,10 @@ function ReasoningDisclosure({
       summaryClassName="reasoning-summary"
       expandedClassName="reasoning-card--expanded"
       collapsedClassName="reasoning-card--collapsed"
+      keepMounted
       summary={<span className="reasoning-label">{summary}</span>}
     >
-      <ReasoningBody text={text} streaming={streaming} />
+      <ReasoningBody text={text} streaming={streaming} visible={open} />
     </ToolDisclosure>
   );
 }

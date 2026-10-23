@@ -26,10 +26,11 @@ import {
 import { qkrpcActionCommandRunningMeta } from "@/lib/qkrpc-action-tool";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
 import {
-  ToolResultPopup,
   toolCanShowDetails,
   useToolResultPopup,
+  type ToolResultPopupControl,
 } from "./ToolResultPopup";
+import { ToolPartDetailsPopup } from "./ToolPartDetailsPopup";
 import { WorkspaceFileOpenRow } from "./WorkspaceFileOpenRow";
 import { WorkspaceFileEditorRow } from "./WorkspaceFileToolBody";
 import { WorkspaceFileReadRow } from "./WorkspaceFileReadRow";
@@ -54,6 +55,7 @@ function ToolPartInner({
   part,
   inBatch = false,
 }: ToolPartProps) {
+  const popup = useToolResultPopup();
   if (!isToolOrDynamicToolUIPart(part)) return null;
 
   const name = getToolOrDynamicToolName(part);
@@ -101,6 +103,7 @@ function ToolPartInner({
       ? part.toolCallId
       : undefined;
 
+  const row = (() => {
   const traceSync = (
     <ActionTraceToolSync
       toolName={name}
@@ -163,6 +166,7 @@ function ToolPartInner({
           output={output}
           errorText={errorText}
           inBatch={inBatch}
+          popup={popup}
         />
       </>
     );
@@ -180,6 +184,7 @@ function ToolPartInner({
         running={isRunning}
         inBatch={inBatch}
         errorText={errorText}
+        sharedPopup={popup}
       />
     );
   }
@@ -195,6 +200,7 @@ function ToolPartInner({
         running={isRunning}
         inBatch={inBatch}
         errorText={errorText}
+        sharedPopup={popup}
       />
     );
   }
@@ -211,6 +217,7 @@ function ToolPartInner({
         output={workspaceFileOutput}
         inBatch={inBatch}
         errorText={errorText}
+        sharedPopup={popup}
       />
     );
   }
@@ -229,7 +236,27 @@ function ToolPartInner({
         output={output}
         errorText={errorText}
         inBatch={inBatch}
+        popup={popup}
       />
+    </>
+  );
+  })();
+
+  return (
+    <>
+      {row}
+      {popup.open ? (
+        <ToolPartDetailsPopup
+          popup={popup}
+          toolName={name}
+          displayName={displayName}
+          meta={meta}
+          input={input}
+          output={output}
+          errorText={errorText}
+          running={isRunning}
+        />
+      ) : null}
     </>
   );
 }
@@ -247,6 +274,7 @@ function PopupToolRow({
   output,
   errorText,
   inBatch,
+  popup,
 }: {
   toolName: string;
   displayName: string;
@@ -258,8 +286,8 @@ function PopupToolRow({
   output?: unknown;
   errorText?: string;
   inBatch?: boolean;
+  popup: ToolResultPopupControl;
 }) {
-  const popup = useToolResultPopup();
   const canOpen = toolCanShowDetails(input, output, errorText, isRunning);
   const err = isError ?? state === "output-error";
 
@@ -288,19 +316,6 @@ function PopupToolRow({
           <pre className="tool-error">{errorText}</pre>
         ) : null}
       </div>
-      {popup.open ? (
-        <ToolResultPopup
-          open
-          onClose={popup.closePopup}
-          title={displayName}
-          subtitle={meta}
-          toolName={toolName}
-          input={input}
-          output={output}
-          errorText={errorText}
-          followTail={isRunning}
-        />
-      ) : null}
     </>
   );
 }
