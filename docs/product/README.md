@@ -94,7 +94,7 @@ publish 只在用户明确要求时执行。
 - Write/StrReplace 在读取写前快照前检查实际目标仍在 cwd 内，拒绝工具管理的 source sidecar/baseline、NTFS alternate streams 和多硬链接文件；普通独立文件继续使用原编辑流程。
 - Shell/终端共用审批和安全策略，UI 终端不能绕过 policy。
 - 后台浏览器不继承用户登录态；用户浏览器通过 Quicker Connector。
-- `browser` 的 SDK/turn 取消已贯通探测、等待与 HTTP 调用，取消不回退、不录制迟到结果；不会关闭共享 session。runtime 内已发出的页面操作仍待 request-owner 合作取消，边界见 [浏览器自动化](../browser-automation.md#取消边界)。
+- `browser` 的 SDK/turn 取消已贯通探测、等待、HTTP 与两个 runtime 的 request owner；取消不回退、不录制迟到结果，也不关闭共享 session。每次原生等待及共享状态提交前核验 owner，队列等待 native promise 结束，已发副作用不可撤销，边界见 [浏览器自动化](../browser-automation.md#取消边界)。
 - 浏览器转动作只生成草稿，写入仍走 `workspace_program`。
 - 临时工作区清理只删除本地目录，保留所有 Quicker 宿主内容；文件里的程序 ID 不作为自动删除依据。管理目录及其祖先重定向到其他路径时拒绝创建与清理。
 
@@ -296,7 +296,8 @@ catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录
 构建的插件重载/CLI publish 成功，用户安装遇到 MCP 占用而明确报失败；随后仅修复六个
 不同文件，540 个用户 CLI 文件与发布源校验一致，CLI/serve/插件均独立确认是 161。
 同版重跑构建会碰到已加载的插件 DLL，不能把这次构建记为整次成功；安装复制计划与进程
-退出确认继续单独修补。自动审批拦截了后续安装脚本重跑，未重复执行该动作。
+退出确认修补已合并并通过 Windows 共享锁及 fake 进程回归，真实自动升级仍单独验收。
+自动审批拦截了后续安装脚本重跑，未重复执行该动作。
 
 下一项设计器基础已在纯 session 加入 80 条完整文档历史：主/嵌套正文、未知字段和已支持
 的标题/说明/图标共用事务，undo/redo 比较完整身份及 revision，保存/部分确认不倒退宿主
@@ -327,7 +328,7 @@ Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作
 |---|---|---|---|---|---|
 | R0 / P0：可信基线 | 重构前先知道什么真的能跑；隔离用户数据、宿主动作和付费模型请求，记录已存在失败 | CHAT / AUTHOR / WORKBENCH；`package.json`、离线 fixtures、`agent-harness/*.test.ts`、`qkrpc-argv.test.ts` | 无 | 有可重复的离线检查入口；不自动启用真实 Electron/动作删除测试；已知失败明确归因，不写成全部通过 | 离线入口、DB fixture 隔离与临时目录本地清理已实现；静态 Electron 打包与 Windows Job 隔离启动、所属进程回收已验收，smoke 内 RPC 禁用。安装/升级、旧资料和真实动作仍单独验收 |
 | R1 / P0：能力与父子权限 | Ask、命令 allowlist、MCP 和子代理不能互相绕过；空交集不能恢复全部工具 | EXT / CHAT；`select-chat-tools.server.ts`、`turn-runtime.server.ts`、`agent-mcp/`、`task-tool.server.ts` | R0 | 未指定与显式空集合分开；最终工具集取所有限制的交集；未知风险 MCP 不进入 Ask；子代理复用父工具策略闭包，无递归 task；Ask 浏览器当前关闭，后续须以仅连接已有会话、无导航/启动副作用的观测端口逐项验收再开放 | 首轮权限边界已实现；操作描述与 TurnPlan 执行约束仍待统一 |
-| R2 / P0：取消与资源生命周期 | 点击停止、关闭连接或运行失败后，不继续悄悄请求模型、重试或占用工具连接 | CHAT / WORK / EXT；`api/chat/route.ts`、`run-turn.server.ts`、`stream-loop.server.ts`、工具上下文及 transport | R1 | 请求信号贯穿模型、压缩、工具和子代理；取消不转换成重试；MCP/reader/计时器至少有明确 owner 且只释放一次；两个并行 turn 互不取消 | 模型、压缩、qkrpc、Shell、MCP 首轮取消链已验收；web_search 三 provider 已贯通父 turn 与 SDK/显式信号、请求及正文、晚结果检查和独立 timeout，fake 回归通过。浏览器实际页面操作取消及其请求归属仍待补 |
+| R2 / P0：取消与资源生命周期 | 点击停止、关闭连接或运行失败后，不继续悄悄请求模型、重试或占用工具连接 | CHAT / WORK / EXT；`api/chat/route.ts`、`run-turn.server.ts`、`stream-loop.server.ts`、工具上下文及 transport | R1 | 请求信号贯穿模型、压缩、工具和子代理；取消不转换成重试；MCP/reader/计时器至少有明确 owner 且只释放一次；两个并行 turn 互不取消 | 模型、压缩、qkrpc、Shell、MCP 首轮取消链已验收；web_search 三 provider 已贯通父 turn 与 SDK/显式信号、请求及正文、晚结果检查和独立 timeout，fake 回归通过。headless/embedded 已补独立 HTTP request owner、按 session 串行的 native tail、协作等待和实际共享状态提交前检查；取消不关闭共享页面。相关 fake 回归覆盖断连、排队、迟到原生结果和微任务竞态并通过独立审查；真实浏览器及其它资源 owner 继续单独验收 |
 | R3 / P1：会话控制与可见性 | 常驻隐藏会话仍可能响应全局输入；页面组件混合消息、审批、滚动、设置与 Launcher 生命周期 | CHAT / WORKBENCH；`Chat.tsx`、`useAgentChatSession.ts`、`ChatComposerFooter.tsx`、Launcher bridge | R1–R2 | 后台运行可以继续，但全局快捷键只归前台 owner；切会话保留草稿与审批；控制器持有业务状态，展示组件只消费明确契约 | 隐藏输入、IME 与面板串会话已验收；执行事实按 turn 隔离并移除 thread 全局 Map；会话控制器拆分待实施 |
 | R4 / P1：消息投影与工具展示 | 工具越来越多时，摘要、工作折叠、详情、失败与流式参数容易各写一套判断 | CHAT / EXT；`ChatMessageArticle.tsx`、`ToolPart.tsx`、`ToolPopupBody.tsx`、消息与结果 helpers | R1–R3 | 同一工具调用以 id/阶段/结果投影；流式未完成参数不当成完整对象；未知工具有通用回退；正文、展示全文、模型摘要与持久历史不混存 | 跟随、显式展开、稳定 call owner 与流式节流已通过离线 SSE/真实 DOM；单条转批量及输入转预览保留详情与焦点，更多工具的摘要投影统一仍待整改 |
 | R5 / P1：面板扩展契约 | 快捷入口表还不是可扩展工作台；增加文件、结果或动作面板仍可能扩写多处 switch | WORKBENCH / WORK；`agent-workbench-features.ts`、`workspace-explorer.tsx`、`WorkspaceSidePanelTabBar.tsx` | R3–R4 | 面板静态身份、renderer 与会话实例状态分离；已有文件/资源/终端/浏览器接入同一契约；脏编辑和正在运行的任务不会因切换呈现而卸载 | 待实施 |
