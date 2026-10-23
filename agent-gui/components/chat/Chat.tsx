@@ -177,18 +177,11 @@ import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
 import { isTauriDevShell } from "@/lib/tauri-shell";
 import {
   canEditUserMessage,
-  clearUserMessageDraftsFromIndex,
-  confirmBranchUserMessageEdit,
-  countMessagesRemovedOnBranch,
-  findMessageIndex,
-  getUserMessageDisplayText,
-  hasNonCollapsedTextSelection,
-  pruneUserMessageDrafts,
   resolveUserMessageDisplayText,
-  upsertUserMessageDraft,
   userMessageHasLocalDraft,
 } from "@/lib/user-message-edit";
 import { useAgentChatSession } from "@/components/chat/useAgentChatSession";
+import { useChatMessageEditing } from "./useChatMessageEditing";
 import { formatChatError } from "@/lib/chat-error-format";
 import {
   exportThreadLikeWithLiveMessages,
@@ -251,13 +244,6 @@ function ChatPanel({
   designerEmbedScoped = false,
   actionDesigner,
 }: ChatPanelProps) {
-  const [editAnchorLiveDraft, setEditAnchorLiveDraft] = useState("");
-  const [editAnchorMessageId, setEditAnchorMessageId] = useState<string | null>(
-    null,
-  );
-  const [userMessageDrafts, setUserMessageDrafts] = useState<
-    Record<string, string>
-  >({});
   const [enabledTools, setEnabledTools] = useState(() => loadStoredEnabledTools());
   const [chatMode, setChatMode] = useState<ChatMode>(() =>
     ephemeral ? CHAT_MODE_LAUNCHER : loadStoredChatMode(),
@@ -336,6 +322,7 @@ function ChatPanel({
     messages,
     sendMessageSafe,
     setMessages,
+    replaceMessagesIfCurrent,
     status,
     error,
     stop,
@@ -503,6 +490,35 @@ function ChatPanel({
     removeFromQueue,
     flushNextQueuedNow,
   } = useComposerMessageQueue(busy, sendMessageSafe, interruptAgentRun);
+  const focusComposerAtEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        composerRef.current?.focusAtEnd();
+      });
+    });
+  }, []);
+
+  const {
+    editAnchorMessageId,
+    editAnchorLiveDraft,
+    userMessageDrafts,
+    editAnchorIndex,
+    setEditAnchorLiveDraft,
+    beginEditFromUserMessage,
+    exitMessageEdit,
+    commitBranchMessageEdit,
+  } = useChatMessageEditing({
+    threadId,
+    visible,
+    messages,
+    composerRef,
+    replaceMessagesIfCurrent,
+    enqueueOrSend,
+    clearError,
+    focusComposerAtEnd,
+    pinToStream: () => pinToStream(),
+  });
+
   const scrollRevisionKey = useMemo(
     () => buildChatScrollRevisionKey(messages, status, error),
     [messages, status, error],
@@ -592,22 +608,6 @@ function ChatPanel({
     return () => container.removeEventListener("wheel", onWheel);
   }, [visible]);
 
-  const focusComposerAtEnd = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        composerRef.current?.focusAtEnd();
-      });
-    });
-  }, []);
-
-  const editAnchorIndex = useMemo(
-    () =>
-      editAnchorMessageId
-        ? findMessageIndex(messages, editAnchorMessageId)
-        : -1,
-    [messages, editAnchorMessageId],
-  );
-
   const streamingActive = busy;
 
   const [expandedColdTurns, setExpandedColdTurns] = useState<Set<number>>(
@@ -689,119 +689,13 @@ function ChatPanel({
     });
   }, [messageWindow.startTurnIndex]);
 
-  useEffect(() => {
-    setUserMessageDrafts((prev) => pruneUserMessageDrafts(messages, prev));
-  }, [messages]);
-
-  useEffect(() => {
-    if (editAnchorMessageId && editAnchorIndex < 0) {
-      setEditAnchorMessageId(null);
-    }
-  }, [editAnchorMessageId, editAnchorIndex]);
-
-  const exitMessageEdit = useCallback(() => {
-    if (!editAnchorMessageId) return;
-    const message = messages.find((m) => m.id === editAnchorMessageId);
-    const savedDraft = composerRef.current?.getValue() ?? "";
-    setEditAnchorMessageId(null);
-    setEditAnchorLiveDraft("");
-    composerRef.current?.clear();
-    if (!message) return;
-    setUserMessageDrafts((prev) =>
-      upsertUserMessageDraft(message, savedDraft, prev),
-    );
-  }, [editAnchorMessageId, messages]);
-
-  const discardMessageEditSession = useCallback(() => {
-    setEditAnchorMessageId(null);
-    setEditAnchorLiveDraft("");
-    composerRef.current?.clear();
-  }, []);
-
-  useEffect(() => {
-    if (!editAnchorMessageId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      discardMessageEditSession();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editAnchorMessageId, discardMessageEditSession]);
-
-  const beginEditFromUserMessage = useCallback(
-    (message: AgentUIMessage) => {
-      if (
-        !canEditUserMessage(message, userMessageDrafts)
-        || hasNonCollapsedTextSelection()
-      ) {
-        return;
-      }
-
-      if (editAnchorMessageId && editAnchorMessageId !== message.id) {
-        const previous = messages.find((m) => m.id === editAnchorMessageId);
-        if (previous) {
-          const savedDraft = composerRef.current?.getValue() ?? "";
-          setUserMessageDrafts((prev) =>
-            upsertUserMessageDraft(previous, savedDraft, prev),
-          );
-        }
-      }
-
-      const nextText = resolveUserMessageDisplayText(message, userMessageDrafts);
-      setEditAnchorMessageId(message.id);
-      setEditAnchorLiveDraft(nextText);
-      composerRef.current?.setValue(nextText);
-      clearError();
-      focusComposerAtEnd();
-    },
-    [
-      clearError,
-      editAnchorMessageId,
-      messages,
-      userMessageDrafts,
-      focusComposerAtEnd,
-    ],
-  );
-
   const readComposerText = useCallback(() => {
     return (composerRef.current?.getValue() ?? "").trim();
   }, []);
 
-  const commitBranchMessageEdit = useCallback(() => {
-    void (async () => {
-    if (!editAnchorMessageId) return;
-    const anchorIndex = findMessageIndex(messages, editAnchorMessageId);
-    if (anchorIndex < 0) return;
-
-    const text = readComposerText();
-    if (!canSendComposedMessage(text)) return;
-
-    const removedCount = countMessagesRemovedOnBranch(messages, anchorIndex);
-    if (!(await confirmBranchUserMessageEdit(removedCount))) return;
-
-    setEditAnchorMessageId(null);
-    setEditAnchorLiveDraft("");
-    composerRef.current?.clear();
-    setUserMessageDrafts((prev) =>
-      clearUserMessageDraftsFromIndex(messages, anchorIndex, prev),
-    );
-    setMessages(messages.slice(0, anchorIndex));
-    pinToStream();
-    enqueueOrSend(text);
-    })();
-  }, [
-    editAnchorMessageId,
-    readComposerText,
-    enqueueOrSend,
-    messages,
-    pinToStream,
-    setMessages,
-  ]);
-
   const submitComposer = useCallback(() => {
     if (editAnchorMessageId) {
-      commitBranchMessageEdit();
+      void commitBranchMessageEdit();
       return;
     }
     const text = readComposerText();
@@ -914,24 +808,6 @@ function ChatPanel({
     clearQueue();
     interruptAgentRun();
   }, [clearQueue, interruptAgentRun]);
-
-  useEffect(() => {
-    if (!editAnchorMessageId) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (
-        target.closest(
-          ".composer-box, .composer-edit-banner, .msg--edit-anchor .msg-content",
-        )
-      ) {
-        return;
-      }
-      exitMessageEdit();
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [editAnchorMessageId, exitMessageEdit]);
 
   const respondToAllPendingApprovals = useCallback(
     (approved: boolean, options?: { deleteWorkspace?: boolean }) => {

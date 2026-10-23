@@ -50,6 +50,7 @@ const tests = [
   "lib/task-tool.test.ts",
   "lib/task-tool-capabilities.test.ts",
   "lib/composer-keyboard.test.ts",
+  "lib/chat-message-edit-branch.test.ts",
   "lib/work-fold-interaction.test.ts",
   "components/chat/tool-part-layout.test.ts",
   "lib/tool-popup-view.test.ts",

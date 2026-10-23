@@ -17,6 +17,7 @@ import {
   flushPendingChatStoreSaveAsync,
 } from "@/lib/chat-store";
 import { isChatStoreHydrated } from "@/lib/use-chat-store";
+import { replaceChatMessagesIfCurrent } from "@/lib/chat-message-edit-branch";
 
 const CHAT_PERSIST_DEBOUNCE_MS = 400;
 const CHAT_PERSIST_MAX_INTERVAL_MS = 5000;
@@ -123,6 +124,9 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
 
   messagesForPersistRef.current = messages;
 
+  const replaceMessagesIfCurrent = useCallback((expected: AgentUIMessage[], next: AgentUIMessage[]) =>
+    replaceChatMessagesIfCurrent(setMessages, expected, next), [setMessages]);
+
   useEffect(() => {
     if (ephemeral) return;
     if (initialMessages.length === 0) return;
@@ -215,6 +219,7 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     sendMessage,
     sendMessageSafe,
     setMessages,
+    replaceMessagesIfCurrent,
     status,
     error,
     stop,
