@@ -113,10 +113,19 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     assert.ok(definitions.skills.some((item: { name: string }) => item.name === "quicker-authoring"));
     assert.equal((await json("/api/docs/program-source")).success, true);
     assert.equal((await json(`/api/workspace?op=read&path=hello.txt&cwd=${encodeURIComponent(workspace)}`)).content, "workspace fixture");
-    const documentRequest = { op: "save-program-document", cwd: workspace, path: `${actionPath}/data.json`,
+    const documentRequest = { op: "save-program-document", cwd: workspace, path: `${actionPath}/data.json`, expectedProjectBinding: null,
       expectedContent: originalBody, content: originalBody.replace('"note":"before"', '"note":"after"'),
       metadata: { expectedContent: originalInfo, content: originalInfo.replace('"Original title"', '"Saved title"') } };
     const requestsBeforeSave = requests.length;
+    const targetUrl = `/api/workspace?${new URLSearchParams({ cwd: workspace, path: `${actionPath}/data.json`, op: "program-document-target" })}`;
+    assert.deepEqual(await json(targetUrl), { ok: true, projectDirectory: actionPath, projectBinding: null });
+    const postDocument = (request: object) => fetch(origin + "/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
+    const { expectedProjectBinding: _omittedBinding, ...oldClientRequest } = documentRequest;
+    const oldClientSave = await postDocument(oldClientRequest);
+    assert.equal(oldClientSave.status, 409);
+    assert.equal((await oldClientSave.json()).code, "identity_conflict");
+    assert.equal(readFileSync(join(actionDirectory, "data.json"), "utf8"), originalBody);
+    assert.equal(readFileSync(join(actionDirectory, "info.json"), "utf8"), originalInfo);
     assert.equal((await json("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(documentRequest) })).ok, true);
     const savedBody = readFileSync(join(actionDirectory, "data.json"), "utf8");
     const savedInfo = readFileSync(join(actionDirectory, "info.json"), "utf8");
@@ -132,6 +141,29 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     assert.equal((await staleSave.json()).code, "body_conflict");
     assert.equal(readFileSync(join(actionDirectory, "data.json"), "utf8"), savedBody);
     assert.equal(readFileSync(join(actionDirectory, "info.json"), "utf8"), savedInfo);
+    const projectBinding = { schemaVersion: 1, kind: "action", actionId: "11111111-1111-4111-8111-111111111111", hostBinding: {
+      hostInstanceId: "static-fixture", hostSessionId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      endpoint: "QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fixture", capabilities: { "action.legacyBody.write": true },
+    } };
+    mkdirSync(join(actionDirectory, ".qkrpc"));
+    const bindingPath = join(actionDirectory, ".qkrpc", "project-binding.json");
+    writeFileSync(bindingPath, JSON.stringify(projectBinding));
+    assert.deepEqual(await json(targetUrl), { ok: true, projectDirectory: actionPath, projectBinding });
+    const boundRequest = { ...documentRequest, expectedContent: savedBody, content: savedBody.replace(/("note"\s*:\s*)"after"/, '$1"bound"'),
+      metadata: { expectedContent: savedInfo, content: savedInfo }, expectedProjectBinding: projectBinding };
+    assert.equal((await postDocument(boundRequest)).status, 200);
+    const boundBody = readFileSync(join(actionDirectory, "data.json"), "utf8");
+    assert.equal(JSON.parse(boundBody).steps[0].note, "bound");
+    assert.match(boundBody, /0\.123456789012345678901/);
+    assert.match(boundBody, /9007199254740993/);
+    writeFileSync(bindingPath, JSON.stringify({ ...projectBinding, hostBinding: { ...projectBinding.hostBinding, capabilities: { "action.legacyBody.write": false } } }));
+    const changedBindingSave = await postDocument({ ...boundRequest, expectedContent: boundBody, content: boundBody.replace(/("note"\s*:\s*)"bound"/, '$1"unexpected"') });
+    assert.equal(changedBindingSave.status, 409);
+    assert.equal((await changedBindingSave.json()).code, "identity_conflict");
+    assert.equal(readFileSync(join(actionDirectory, "data.json"), "utf8"), boundBody);
+    assert.equal(readFileSync(join(actionDirectory, "info.json"), "utf8"), savedInfo);
+    assert.equal(requests.length, requestsBeforeSave, "local target reads and bound/unbound saves never call the host");
     assert.equal((await json("/api/designer/context")).designers[0].title, "Fixture Designer");
     assert.equal((await fetch(origin + "/api/designer/context", { method: "PUT" })).status, 405);
     for (const path of ["/api/browser/runtime", "/api/terminal/runtime"]) {
