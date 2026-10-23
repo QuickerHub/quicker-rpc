@@ -135,6 +135,18 @@ public sealed class ActionProgramSourceRpcTests
     }
 
     [TestMethod]
+    public async Task SourceOperations_reject_unavailable_native_storage_before_dispatch()
+    {
+        var host = new SourceHost();
+        host.Source.IsProgramSourceAvailable = false;
+        var scheduler = new Scheduler();
+        var service = CreateService(host, scheduler);
+        Assert.AreEqual("UNSUPPORTED_HOST", (await service.GetActionProgramSourceAsync("action-1")).ErrorCode);
+        Assert.AreEqual("UNSUPPORTED_HOST", (await service.ApplyActionProgramSourceAsync("action-1", NativeBody, 123)).ErrorCode);
+        Assert.AreEqual(0, scheduler.UiCalls);
+    }
+
+    [TestMethod]
     public async Task Cancelled_source_operations_never_reach_host()
     {
         var host = new SourceHost();
@@ -148,14 +160,60 @@ public sealed class ActionProgramSourceRpcTests
         Assert.AreEqual(0, host.Source.Writes);
     }
 
+    [TestMethod]
+    public async Task Storage_source_write_uses_distinct_optional_port_and_preserves_identity_and_cancellation()
+    {
+        var source = new StorageSourcePort();
+        var host = new SourceHost { Source = source };
+        var scheduler = new Scheduler();
+        var service = CreateService(host, scheduler);
+        using var cancellation = new CancellationTokenSource();
+        var identity = new QuickerRpcActionStorageIdentity { Kind = "draft", DraftId = "fixture", Version = 123, ContentHash = "hash" };
+        var result = await service.ApplyActionProgramSourceWithStorageAsync(" action-1 ", NativeBody, identity, 123, cancellationToken: cancellation.Token);
+        Assert.IsTrue(result.Success);
+        Assert.AreSame(identity, source.LastStorageIdentity);
+        Assert.AreEqual(cancellation.Token, source.LastCancellation);
+        Assert.AreEqual("action-1", source.LastId);
+        Assert.AreEqual(1, source.Writes);
+        Assert.AreEqual(1, scheduler.UiCalls);
+    }
+
+    [TestMethod]
+    public async Task Identity_bound_write_never_falls_back_to_legacy_source_port()
+    {
+        var host = new SourceHost(); // Original V1 adapter contract only.
+        var scheduler = new Scheduler();
+        var service = CreateService(host, scheduler);
+        var identity = new QuickerRpcActionStorageIdentity { Version = 123 };
+        var result = await service.ApplyActionProgramSourceWithStorageAsync("action-1", NativeBody, identity, 123);
+        Assert.AreEqual("UNSUPPORTED_HOST", result.ErrorCode);
+        Assert.AreEqual(0, host.Source.Writes);
+        Assert.AreEqual(0, scheduler.UiCalls);
+        Assert.AreEqual("STORAGE_IDENTITY_REQUIRED", (await service.ApplyActionProgramSourceWithStorageAsync("action-1", NativeBody, null!, 123)).ErrorCode);
+        Assert.IsTrue((await service.ApplyActionProgramSourceAsync("action-1", NativeBody, 123, false, CancellationToken.None)).Success);
+        Assert.AreEqual(1, host.Source.Writes);
+    }
+
+    [TestMethod]
+    public void Legacy_source_CLR_signatures_remain_exact_and_new_RPC_name_is_unambiguous()
+    {
+        var signature = new[] { typeof(string), typeof(string), typeof(long?), typeof(bool), typeof(CancellationToken) };
+        Assert.IsNotNull(typeof(IQuickerRpcService).GetMethod(nameof(IQuickerRpcService.ApplyActionProgramSourceAsync), signature));
+        Assert.IsNotNull(typeof(QuickerRpcService).GetMethod(nameof(QuickerRpcService.ApplyActionProgramSourceAsync), signature));
+        Assert.IsNotNull(typeof(IQuickerRpcActionProgramSourceHost).GetMethod(nameof(IQuickerRpcActionProgramSourceHost.ApplyProgramSourceAsync), signature));
+        Assert.AreEqual(1, typeof(IQuickerRpcService).GetMethods().Count(method => method.Name == nameof(IQuickerRpcService.ApplyActionProgramSourceAsync)));
+        Assert.AreEqual(1, typeof(IQuickerRpcService).GetMethods().Count(method => method.Name == nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync)));
+    }
+
     private static QuickerRpcService CreateService(SourceHost host, Scheduler scheduler)
     {
         var deps = new QuickerRpcRuntimeDependencies(() => new StepRunnerCatalog(), "catalog");
         return new QuickerRpcService(host, scheduler, new Feedback(), new ActionProgramRpcHandler(deps), new SubProgramRpcHandler(deps));
     }
 
-    private sealed class SourcePort : ProgramPort, IQuickerRpcActionProgramSourceHost
+    private class SourcePort : ProgramPort, IQuickerRpcActionProgramSourceHost, IQuickerRpcActionProgramSourceAvailability
     {
+        public bool IsProgramSourceAvailable { get; set; } = true;
         public QuickerRpcGetActionProgramSourceResult ReadResult { get; set; } = new() { Success = true };
         public QuickerRpcApplyXActionResult WriteResult { get; set; } = new() { Success = true };
         public int Reads { get; private set; }
@@ -186,6 +244,17 @@ public sealed class ActionProgramSourceRpcTests
 
     }
 
+    private sealed class StorageSourcePort : SourcePort, IQuickerRpcActionProgramSourceStorageHost
+    {
+        public QuickerRpcActionStorageIdentity? LastStorageIdentity { get; private set; }
+        public Task<QuickerRpcApplyXActionResult> ApplyProgramSourceWithStorageAsync(string actionId, string bodyJson,
+            QuickerRpcActionStorageIdentity storageIdentity, long? expectedEditVersion, bool force, CancellationToken cancellationToken = default)
+        {
+            LastStorageIdentity = storageIdentity;
+            return ApplyProgramSourceAsync(actionId, bodyJson, expectedEditVersion, force, cancellationToken);
+        }
+    }
+
     private class ProgramPort : IQuickerRpcActionProgramHost
     {
         public Task<QuickerRpcActionProgramSnapshot?> TryGetProgramAsync(string actionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -196,7 +265,7 @@ public sealed class ActionProgramSourceRpcTests
 
     private sealed class SourceHost : IQuickerRpcHost
     {
-        public SourcePort Source { get; } = new();
+        public SourcePort Source { get; set; } = new();
         public bool SupportsSourcePort { get; set; } = true;
         public QuickerRpcHostInfo Info { get; set; } = new() { Kind = QuickerHostKind.V1 };
         public IQuickerRpcActionProgramHost ActionPrograms => SupportsSourcePort ? Source : new ProgramPort();

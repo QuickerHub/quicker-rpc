@@ -277,15 +277,24 @@ public interface IQuickerRpcService
         string? returnMode = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Read complete native V1 action JSON for reversible YAML/source editing.</summary>
+    /// <summary>Read complete native action JSON for reversible YAML/source editing.</summary>
     Task<QuickerRpcGetActionProgramSourceResult> GetActionProgramSourceAsync(
         string actionId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Replace native V1 program arrays while preserving catalog root metadata. An open designer always blocks this write.</summary>
+    /// <summary>Replace native program arrays while preserving storage identity and root metadata. An open designer always blocks this write.</summary>
     Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceAsync(
         string actionId,
         string bodyJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Identity-bound source write. A distinct RPC name preserves the original V1 wire and CLR signature.</summary>
+    Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceWithStorageAsync(
+        string actionId,
+        string bodyJson,
+        QuickerRpcActionStorageIdentity storageIdentity,
         long? expectedEditVersion = null,
         bool force = false,
         CancellationToken cancellationToken = default);

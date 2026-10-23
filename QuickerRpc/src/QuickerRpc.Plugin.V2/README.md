@@ -17,6 +17,7 @@ V2 service locator: `Quicker.Domain.Services.Launcher.GetService` (fallback: leg
 |------|--------|
 | `Session` | `IUserInfoService` |
 | `ActionPrograms` | `ActionRuntimeLookupService` + `ActionItem2Store` + `ActionItem2Extensions` |
+| Native action source | Raw catalog/draft repositories + native conditional writes; shared YAML codec and Runtime |
 | `SubPrograms` | `GlobalSubProgramDataService` |
 | `StepRunners` | `IStepRunnerService.GetAllRunners` (full inputParams mapping) |
 | `Search` | `GetAllActionsWithLocation` + `SnapshotAll` linear scan |
@@ -46,3 +47,9 @@ Headless editing workflow (`action get/patch`, `subprogram get/patch`, `step-run
 | Ship | `quicker.rpc` getquicker package | `quicker.rpc.net10` getquicker package (`build.net10.yaml` + `.\build.ps1 -Net10 -Publish`) |
 
 Offline API probes: `tests/QuickerRpc.Runtime.Test/QuickerV2HostProbeTests.cs` (metadata scan of `tools/quicker-host/net10`).
+
+Native source uses the Quicker UI dispatcher and requires catalog ChangeToken CAS, draft storage,
+and native upload-policy/notification APIs. Older hosts keep source capability disabled. Native
+`XActionDto` is used for validation only; unknown fields are persisted from the raw JSON snapshot.
+Source bundles carry storage identity and content hash. See [V2 source boundary](../../../docs/design/quicker-rpc-plugin-v2.md#v2-native-source-边界)
+for offline fixture commands and the remaining bound live-host acceptance.

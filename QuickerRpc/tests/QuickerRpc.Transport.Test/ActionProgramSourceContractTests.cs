@@ -24,6 +24,7 @@ public sealed class ActionProgramSourceContractTests
             Success = true,
             ActionId = "action-1",
             EditVersion = 9007199254740993L,
+            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 9007199254740993L, ContentHash = "native-hash" },
             BodyJson = NativeBody,
             ReadSource = "catalog",
             Title = "中文动作",
@@ -40,6 +41,9 @@ public sealed class ActionProgramSourceContractTests
         Assert.AreEqual("action-1", implementation.ActionId);
         Assert.IsTrue(result.Success);
         Assert.AreEqual(9007199254740993L, result.EditVersion);
+        Assert.AreEqual("draft-1", result.StorageIdentity!.DraftId);
+        Assert.AreEqual("native-hash", result.StorageIdentity.ContentHash);
+        Assert.AreEqual(9007199254740993L, result.StorageIdentity.Version);
         Assert.AreEqual(NativeBody, result.BodyJson);
         Assert.AreEqual("catalog", result.ReadSource);
         Assert.AreEqual("中文动作", result.Title);
@@ -66,12 +70,15 @@ public sealed class ActionProgramSourceContractTests
         using var session = await ContractSession.ConnectAsync(target);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        var conflict = await session.Proxy.ApplyActionProgramSourceAsync(
-            "action-1", NativeBody, 9007199254740993L, cancellationToken: timeout.Token);
+        var conflict = await session.Proxy.ApplyActionProgramSourceWithStorageAsync(
+            "action-1", NativeBody, new() { Kind = "draft", DraftId = "draft-1", Version = 9007199254740993L, ContentHash = "native-hash" },
+            9007199254740993L, cancellationToken: timeout.Token);
 
         Assert.AreEqual(NativeBody, implementation.BodyJson);
         Assert.AreEqual(9007199254740993L, implementation.ExpectedEditVersion);
         Assert.IsFalse(implementation.Force);
+        Assert.AreEqual("draft-1", implementation.StorageIdentity!.DraftId);
+        Assert.AreEqual("native-hash", implementation.StorageIdentity.ContentHash);
         Assert.IsFalse(conflict.Success);
         Assert.AreEqual("VERSION_CONFLICT", conflict.ErrorCode);
         Assert.AreEqual(true, conflict.VersionConflict);
@@ -84,6 +91,74 @@ public sealed class ActionProgramSourceContractTests
         Assert.IsNull(implementation.ExpectedEditVersion);
         Assert.AreEqual("DESIGNER_OPEN", designer.ErrorCode);
         Assert.IsFalse(designer.Success);
+        implementation.WriteResult = new QuickerRpcApplyXActionResult
+        { Persisted = true, ErrorCode = "SOURCE_POST_COMMIT_FAILED", EditVersion = 9007199254740995L,
+            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 9007199254740995L } };
+        var partial = await session.Proxy.ApplyActionProgramSourceAsync("action-1", NativeBody, cancellationToken: timeout.Token);
+        Assert.AreEqual(true, partial.Persisted);
+        Assert.AreEqual("SOURCE_POST_COMMIT_FAILED", partial.ErrorCode);
+        Assert.AreEqual(9007199254740995L, partial.StorageIdentity!.Version);
+    }
+
+    [TestMethod]
+    public async Task New_client_calls_original_source_wire_on_legacy_server_without_extra_null_identity()
+    {
+        var target = new LegacySourceTarget();
+        using var session = await ContractSession.ConnectAsync(target);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var result = await session.Proxy.ApplyActionProgramSourceAsync("action-1", NativeBody, 123, false, timeout.Token);
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, target.Writes);
+        Assert.AreEqual(NativeBody, target.BodyJson);
+        Assert.AreEqual(123L, target.ExpectedEditVersion);
+    }
+
+    [TestMethod]
+    public async Task Legacy_client_calls_new_server_using_unchanged_source_method()
+    {
+        var target = DispatchProxy.Create<IQuickerRpcService, SourceTarget>();
+        var implementation = (SourceTarget)(object)target;
+        implementation.WriteResult = new() { Success = true, EditVersion = 124 };
+        using var session = await ContractSession.ConnectAsync(target);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var result = await session.LegacyProxy.ApplyActionProgramSourceAsync("action-1", NativeBody, 123, true, timeout.Token);
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(123L, implementation.ExpectedEditVersion);
+        Assert.IsTrue(implementation.Force);
+        Assert.IsNull(implementation.StorageIdentity);
+    }
+
+    [TestMethod]
+    public async Task Identity_bound_method_missing_on_legacy_server_does_not_replay_through_original_entry()
+    {
+        var target = new LegacySourceTarget();
+        using var session = await ContractSession.ConnectAsync(target);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await Assert.ThrowsExceptionAsync<RemoteMethodNotFoundException>(() => session.Proxy.ApplyActionProgramSourceWithStorageAsync(
+            "action-1", NativeBody, new() { Kind = "draft", DraftId = "fixture", Version = 123 }, 123, cancellationToken: timeout.Token));
+        Assert.AreEqual(0, target.Writes);
+    }
+
+    // Deliberately isolated from the current interface to model an already-deployed CLI/server wire signature.
+    public interface ILegacySourceClient
+    {
+        Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceAsync(string actionId, string bodyJson,
+            long? expectedEditVersion = null, bool force = false, CancellationToken cancellationToken = default);
+    }
+
+    public sealed class LegacySourceTarget : ILegacySourceClient
+    {
+        public int Writes { get; private set; }
+        public string? BodyJson { get; private set; }
+        public long? ExpectedEditVersion { get; private set; }
+        public Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceAsync(string actionId, string bodyJson,
+            long? expectedEditVersion = null, bool force = false, CancellationToken cancellationToken = default)
+        {
+            Writes++;
+            BodyJson = bodyJson;
+            ExpectedEditVersion = expectedEditVersion;
+            return Task.FromResult(new QuickerRpcApplyXActionResult { Success = true, ActionId = actionId, EditVersion = 124 });
+        }
     }
 
     public class SourceTarget : DispatchProxy
@@ -94,6 +169,7 @@ public sealed class ActionProgramSourceContractTests
         public string? BodyJson { get; private set; }
         public long? ExpectedEditVersion { get; private set; }
         public bool Force { get; private set; }
+        public QuickerRpcActionStorageIdentity? StorageIdentity { get; private set; }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
@@ -106,6 +182,13 @@ public sealed class ActionProgramSourceContractTests
                     BodyJson = (string?)args[1];
                     ExpectedEditVersion = (long?)args[2];
                     Force = (bool)args[3]!;
+                    StorageIdentity = null;
+                    return Task.FromResult(WriteResult);
+                case nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync):
+                    BodyJson = (string?)args[1];
+                    StorageIdentity = (QuickerRpcActionStorageIdentity?)args[2];
+                    ExpectedEditVersion = (long?)args[3];
+                    Force = (bool)args[4]!;
                     return Task.FromResult(WriteResult);
                 default:
                     throw new NotSupportedException(targetMethod.Name);
@@ -120,19 +203,23 @@ public sealed class ActionProgramSourceContractTests
         private readonly JsonRpc _serverRpc;
         private readonly JsonRpc _clientRpc;
 
-        private ContractSession(NamedPipeServerStream server, NamedPipeClientStream client, IQuickerRpcService target)
+        private ContractSession(NamedPipeServerStream server, NamedPipeClientStream client, object target)
         {
             _server = server;
             _client = client;
-            _serverRpc = StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(server, target);
+            _serverRpc = target is IQuickerRpcService current
+                ? StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(server, current)
+                : StreamJsonRpcFactory.StartListeningServer(server, target);
             _clientRpc = StreamJsonRpcFactory.CreateDuplexJsonRpc(client);
             Proxy = _clientRpc.Attach<IQuickerRpcService>();
+            LegacyProxy = _clientRpc.Attach<ILegacySourceClient>();
             _clientRpc.StartListening();
         }
 
         public IQuickerRpcService Proxy { get; }
+        public ILegacySourceClient LegacyProxy { get; }
 
-        public static async Task<ContractSession> ConnectAsync(IQuickerRpcService target)
+        public static async Task<ContractSession> ConnectAsync(object target)
         {
             var pipeName = "qkrpc-source-contract-" + Guid.NewGuid().ToString("N");
             var server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);

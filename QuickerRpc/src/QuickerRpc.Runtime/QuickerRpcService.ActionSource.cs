@@ -1,5 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
@@ -22,7 +24,8 @@ public sealed partial class QuickerRpcService
             });
         }
 
-        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost)
+        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost
+            || sourceHost is IQuickerRpcActionProgramSourceAvailability { IsProgramSourceAvailable: false })
         {
             return Task.FromResult(new QuickerRpcGetActionProgramSourceResult
             {
@@ -42,7 +45,21 @@ public sealed partial class QuickerRpcService
         string bodyJson,
         long? expectedEditVersion = null,
         bool force = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ApplyActionProgramSourceCoreAsync(actionId, bodyJson, expectedEditVersion, force, null, false, cancellationToken);
+
+    public Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceWithStorageAsync(
+        string actionId,
+        string bodyJson,
+        QuickerRpcActionStorageIdentity storageIdentity,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default) =>
+        ApplyActionProgramSourceCoreAsync(actionId, bodyJson, expectedEditVersion, force, storageIdentity, true, cancellationToken);
+
+    private Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceCoreAsync(
+        string actionId, string bodyJson, long? expectedEditVersion, bool force,
+        QuickerRpcActionStorageIdentity? storageIdentity, bool requireStorage, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(actionId))
@@ -50,11 +67,17 @@ public sealed partial class QuickerRpcService
             return SourceWriteFailure(actionId, "MISSING_ACTION_ID", "actionId is required.");
         }
 
-        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost)
+        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost
+            || sourceHost is IQuickerRpcActionProgramSourceAvailability { IsProgramSourceAvailable: false })
         {
             return SourceWriteFailure(actionId, "UNSUPPORTED_HOST",
                 "The current host does not provide native action source editing. Use its supported editing interface.");
         }
+
+        if (requireStorage && storageIdentity is null)
+            return SourceWriteFailure(actionId, "STORAGE_IDENTITY_REQUIRED", "Reopen the source to obtain its native storage identity.");
+        if (requireStorage && sourceHost is not IQuickerRpcActionProgramSourceStorageHost)
+            return SourceWriteFailure(actionId, "UNSUPPORTED_HOST", "The current host does not support identity-bound source writes. Reopen the action on its original host.");
 
         if (!force && !expectedEditVersion.HasValue)
         {
@@ -63,7 +86,8 @@ public sealed partial class QuickerRpcService
 
         try
         {
-            var body = JObject.Parse(bodyJson);
+            using var reader = new JsonTextReader(new StringReader(bodyJson)) { DateParseHandling = DateParseHandling.None, MaxDepth = 256 };
+            var body = JObject.Load(reader, new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
             if ((body["steps"] ?? body["Steps"]) is not JArray
                 || (body["variables"] ?? body["Variables"]) is not JArray
                 || ((body["subPrograms"] ?? body["SubPrograms"]) is JToken subPrograms && subPrograms is not JArray))
@@ -78,7 +102,9 @@ public sealed partial class QuickerRpcService
         }
 
         return InvokeOnDispatcherAsync(
-            () => sourceHost.ApplyProgramSourceAsync(actionId.Trim(), bodyJson, expectedEditVersion, force, cancellationToken),
+            () => requireStorage
+                ? ((IQuickerRpcActionProgramSourceStorageHost)sourceHost).ApplyProgramSourceWithStorageAsync(actionId.Trim(), bodyJson, storageIdentity!, expectedEditVersion, force, cancellationToken)
+                : sourceHost.ApplyProgramSourceAsync(actionId.Trim(), bodyJson, expectedEditVersion, force, cancellationToken),
             cancellationToken);
     }
 

@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.XAction.Source;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -11,18 +12,8 @@ internal static class NativeActionProgramSourceBody
 {
     public static JObject Parse(string json)
     {
-        // Program parameters are strings even when they look like ISO timestamps.
-        using var reader = new JsonTextReader(new StringReader(json)) { DateParseHandling = DateParseHandling.None };
-        var body = JObject.Load(reader);
-        while (reader.Read())
-        {
-            if (reader.TokenType != JsonToken.Comment)
-            {
-                throw new JsonReaderException("Additional content after the native program JSON.");
-            }
-        }
-
-        return body;
+        // Dates stay strings; unknown native numbers must not pass through rounded Double values.
+        return LosslessProgramJson.ParseObject(json);
     }
 
     public static string Merge(JObject catalogBody, JObject submittedBody)
