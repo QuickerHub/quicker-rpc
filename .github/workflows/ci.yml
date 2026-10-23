@@ -53,6 +53,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: agent-gui/pnpm-lock.yaml
       - name: Install locked dependencies including native SQLite
+        id: install
         working-directory: agent-gui
         run: pnpm install --frozen-lockfile
       - name: Ensure dependency manifests were not rewritten
@@ -61,6 +62,7 @@ jobs:
         working-directory: agent-gui
         run: node scripts/check-agent-offline.mjs
       - name: Guarded tool, eval, authoring and trace regressions
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/ci/check-agent-regressions.mjs
 
   dotnet:

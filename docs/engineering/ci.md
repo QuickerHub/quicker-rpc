@@ -60,6 +60,7 @@ pwsh -NoProfile -File scripts/ci/Test-OfflineDotNet.ps1
 ```
 
 所有安装、类型、文档、构建和测试失败均阻断 job；矩阵不提前取消其它平台结果。
+只要安装成功，扩展回归也会在显式离线检查失败后运行并报告结果，原失败仍然阻断 job。
 `.NET` job 即使失败也上传已有 `.tmp/ci-results/**/*.trx`，保留 7 天。
 仓库管理员可把 `Generated knowledge`、两个 `Offline Agent (...)` 和
 `Host-independent .NET` 配成 required checks。工作流文件本身不修改分支保护；
