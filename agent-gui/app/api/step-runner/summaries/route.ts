@@ -1,4 +1,5 @@
 import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
+import { postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +24,10 @@ function unwrapPayload(data: unknown): Record<string, unknown> | null {
 }
 
 export async function POST(req: Request) {
-  let body: SummariesRequest;
-  try {
-    body = (await req.json()) as SummariesRequest;
-  } catch {
-    return Response.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
-  }
+  return postDesignerCatalogRequest(req, (body, request) => summaries(body as SummariesRequest, request));
+}
+
+async function summaries(body: SummariesRequest, request: DesignerCatalogRequest) {
 
   const steps = (body.steps ?? [])
     .map((step) => ({
@@ -52,8 +51,9 @@ export async function POST(req: Request) {
       op: "step-runner.summaries",
       args: { steps, subProgramsJson },
     },
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, ...request.rpcOptions },
   );
+  requireDesignerCatalogResult(result, request);
 
   if (!result?.ok) {
     return Response.json(

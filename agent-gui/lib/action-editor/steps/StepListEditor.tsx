@@ -1,3 +1,4 @@
+import { useDesignerCatalogPort } from "../catalog/DesignerCatalogProvider";
 import {
   Fragment,
   useCallback,
@@ -292,13 +293,15 @@ export default function StepListEditor({
   onPinStepToChat,
   registerToolboxInsert,
 }: StepListEditorProps): JSX.Element {
+  const catalogPort = useDesignerCatalogPort();
   const activeRef = useRef(active);
   activeRef.current = active;
   const insertGeneration = useRef(0);
-  useLayoutEffect(() => () => { insertGeneration.current += 1; }, [active]);
+  useLayoutEffect(() => () => { insertGeneration.current += 1; }, [active, catalogPort]);
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
+  const catalogOwnerRef = useRef(catalogPort);
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
-  const primedCatalogRef = useRef(getPrimedStepRunnerCatalogState(backendBaseUrl));
+  const primedCatalogRef = useRef(getPrimedStepRunnerCatalogState(backendBaseUrl, catalogPort));
   const shouldRevalidateStepRunnerCacheRef = useRef(primedCatalogRef.current != null);
   const [runnerLookup, setRunnerLookup] = useState<StepRunnerLookup>(
     () => {
@@ -318,12 +321,12 @@ export default function StepListEditor({
   >(() => primedCatalogRef.current?.schemaByCacheKey ?? {});
   useEffect(() => {
     if (primedCatalogRef.current?.schemaByCacheKey) {
-      seedStepRunnerDetailCache(primedCatalogRef.current.schemaByCacheKey);
+      seedStepRunnerDetailCache(primedCatalogRef.current.schemaByCacheKey, catalogPort);
     }
   }, []);
   useEffect(() => {
-    seedStepRunnerDetailCache(runnerSchemaByCacheKey);
-  }, [runnerSchemaByCacheKey]);
+    seedStepRunnerDetailCache(runnerSchemaByCacheKey, catalogPort);
+  }, [runnerSchemaByCacheKey, catalogPort]);
   const [editorTargetId, setEditorTargetId] = useState<string | null>(null);
   /** Toolbox drag: edit before insert; cleared on cancel or after confirm. */
   const [pendingToolboxInsert, setPendingToolboxInsert] = useState<PendingToolboxInsert | null>(null);
@@ -355,11 +358,25 @@ export default function StepListEditor({
     Record<string, GlobalSubProgramListLabel>
   >({});
 
+  if (catalogOwnerRef.current !== catalogPort) {
+    catalogOwnerRef.current = catalogPort;
+    const primed = getPrimedStepRunnerCatalogState(backendBaseUrl, catalogPort);
+    primedCatalogRef.current = primed;
+    shouldRevalidateStepRunnerCacheRef.current = primed != null && !catalogPort;
+    setRunnerLookup(primed?.lookup ?? {});
+    setRunnerItems(primed?.catalogItems ?? []);
+    setRunnerSchemaByCacheKey(primed?.schemaByCacheKey ?? {});
+    setSummariesByStepId({});
+    setGlobalSubProgramLabelsById({});
+    setSharedSubProgramLabelsById({});
+  }
+
   useEffect(() => {
     let cancelled = false;
+    const ac = new AbortController();
     void (async () => {
       try {
-        const items = await fetchStepRunnersItems(backendBaseUrl);
+        const items = await fetchStepRunnersItems(backendBaseUrl, { signal: ac.signal, catalogPort });
         if (!cancelled) {
           setRunnerLookup((prev) =>
             mergeStepRunnerLookupEntries(prev, buildStepRunnerLookup(items)),
@@ -375,8 +392,9 @@ export default function StepListEditor({
     })();
     return () => {
       cancelled = true;
+      ac.abort();
     };
-  }, [backendBaseUrl]);
+  }, [backendBaseUrl, catalogPort]);
 
   const stepRunnerKeysKey = useMemo(
     () => collectStepRunnerKeysFromSteps(steps).join("\0"),
@@ -410,6 +428,7 @@ export default function StepListEditor({
         const hydrated = await hydrateMissingStepRunnerEntries(keys, prev, ac.signal, {
           revalidate: shouldRevalidateStepRunnerCacheRef.current,
           baseUrl: backendBaseUrl,
+          catalogPort,
         });
         if (cancelled) return;
         const changed = keys.some((key) => hydrated[key] !== prev[key]);
@@ -425,7 +444,7 @@ export default function StepListEditor({
       cancelled = true;
       ac.abort();
     };
-  }, [stepRunnerKeysKey, backendBaseUrl, runnerItems.length]);
+  }, [stepRunnerKeysKey, backendBaseUrl, runnerItems.length, catalogPort]);
 
   useEffect(() => {
     if (stepSchemaRequestsKey.length === 0) return;
@@ -444,6 +463,7 @@ export default function StepListEditor({
           {
             revalidate: shouldRevalidateStepRunnerCacheRef.current,
             baseUrl: backendBaseUrl,
+            catalogPort,
           },
         );
         shouldRevalidateStepRunnerCacheRef.current = false;
@@ -476,7 +496,7 @@ export default function StepListEditor({
       cancelled = true;
       ac.abort();
     };
-  }, [stepSchemaRequestsKey, backendBaseUrl, steps]);
+  }, [stepSchemaRequestsKey, backendBaseUrl, steps, catalogPort]);
 
   useEffect(() => {
     const specs = new Set<string>();
@@ -543,6 +563,7 @@ export default function StepListEditor({
             flat,
             ac.signal,
             embeddedSubProgramsWireJson,
+            catalogPort,
           );
           if (!cancelled) {
             setSummariesByStepId(buildStepSummaryCacheFromBatch(flat, next));
@@ -559,7 +580,7 @@ export default function StepListEditor({
       ac.abort();
       window.clearTimeout(timer);
     };
-  }, [stepSummariesFingerprint, backendBaseUrl, embeddedSubProgramsWireJson]);
+  }, [stepSummariesFingerprint, backendBaseUrl, embeddedSubProgramsWireJson, catalogPort]);
 
   useEffect(() => {
     const ids = collectGlobalSubProgramLiteralIdsForFetch(collectAllSteps(steps), subPrograms);
@@ -579,7 +600,8 @@ export default function StepListEditor({
                 const resp = await designerHostGrpcGetGlobalSubProgramIo(
                   backendBaseUrl,
                   { subProgramId: id },
-                  ac.signal
+                  ac.signal,
+                  catalogPort,
                 );
                 if (!resp.found) {
                   return null;
@@ -629,7 +651,7 @@ export default function StepListEditor({
       ac.abort();
       window.clearTimeout(timer);
     };
-  }, [globalSubProgramIdsKey, backendBaseUrl]);
+  }, [globalSubProgramIdsKey, backendBaseUrl, catalogPort]);
 
   useEffect(() => {
     const idents = collectSharedSubProgramIdentifiersForFetch(collectAllSteps(steps), subPrograms);
@@ -649,7 +671,8 @@ export default function StepListEditor({
                 const resp = await designerHostGrpcGetSharedSubProgramIo(
                   backendBaseUrl,
                   { identifier },
-                  ac.signal
+                  ac.signal,
+                  catalogPort,
                 );
                 if (!resp.found) {
                   return null;
@@ -700,7 +723,7 @@ export default function StepListEditor({
       ac.abort();
       window.clearTimeout(timer);
     };
-  }, [sharedSubProgramIdsKey, backendBaseUrl]);
+  }, [sharedSubProgramIdsKey, backendBaseUrl, catalogPort]);
 
   useEffect(() => {
     if (!editorTargetId) return;
@@ -938,7 +961,7 @@ export default function StepListEditor({
     setQuickInsert(null);
     const generation = ++insertGeneration.current;
     try {
-      const step = await prepareToolboxStep(payload, runnerItems, () => stepIdManagerRef.current.nextId(), fetchStepRunnerDetailItem);
+      const step = await prepareToolboxStep(payload, runnerItems, () => stepIdManagerRef.current.nextId(), (key, control) => fetchStepRunnerDetailItem(key, control, undefined, catalogPort));
       if (!activeRef.current || generation !== insertGeneration.current) return;
       setPendingToolboxInsert({ dropIndicator: target, step });
       setEditorTargetId(step.stepId);
@@ -947,7 +970,7 @@ export default function StepListEditor({
         notifyClipboard?.(error instanceof Error ? error.message : String(error), "error");
       }
     }
-  }, [flushCompactSync, runnerItems, notifyClipboard]);
+  }, [flushCompactSync, runnerItems, notifyClipboard, catalogPort]);
 
   useEffect(() => {
     if (!active || !registerToolboxInsert) return;

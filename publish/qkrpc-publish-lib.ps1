@@ -7,7 +7,9 @@ function Get-QkrpcDefaultInstallDir {
 function Stop-QkrpcProcesses {
     param(
         [switch] $ServeOnly,
-        [int] $GraceMs = 500
+        [int] $GraceMs = 500,
+        [ValidateRange(1, 60000)]
+        [int] $ExitWaitMs = 2000
     )
 
     $stopped = [System.Collections.Generic.List[int]]::new()
@@ -21,24 +23,33 @@ function Stop-QkrpcProcesses {
         }
 
         $procId = $proc.ProcessId
+        $process = Get-Process -Id $procId -ErrorAction SilentlyContinue
+        if ($null -eq $process) { continue }
         try {
-            & taskkill.exe /PID $procId /T /F 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                $stopped.Add($procId) | Out-Null
-                continue
+            if ($process.HasExited -or $process.ProcessName -ne 'qkrpc') { continue }
+            # Retain this instance's handle before stopping; never wait on a newly reused PID.
+            $null = $process.Handle
+            $killed = $false
+            try {
+                & taskkill.exe /PID $procId /T /F 2>$null | Out-Null
+                $killed = $LASTEXITCODE -eq 0
             }
+            catch { # fall through to Stop-Process
+            }
+            if (-not $killed) {
+                Stop-Process -InputObject $process -Force -ErrorAction Stop
+            }
+            if (-not $process.WaitForExit($ExitWaitMs)) {
+                throw "Stopped qkrpc instance $procId did not exit within ${ExitWaitMs}ms."
+            }
+            $stopped.Add($procId) | Out-Null
         }
-        catch {
-            # fall through to Stop-Process
-        }
-
-        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-        $stopped.Add($procId) | Out-Null
+        finally { $process.Dispose() }
     }
 
     if ($stopped.Count -gt 0) {
         Write-Host "Stopped qkrpc (PID(s): $($stopped -join ', '))" -ForegroundColor DarkYellow
-        Start-Sleep -Milliseconds $GraceMs
+        if ($GraceMs -gt 0) { Start-Sleep -Milliseconds $GraceMs }
     }
 
     return $stopped.Count
@@ -233,31 +244,56 @@ function Install-QkrpcFromDirectory {
 
     $sourcePath = (Resolve-Path -LiteralPath $SourceDirectory -ErrorAction Stop).Path
     $exePath = Join-Path $sourcePath 'qkrpc.exe'
-    if (-not (Test-Path -LiteralPath $exePath)) {
+    if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
         throw "Source directory does not contain qkrpc.exe: $sourcePath"
     }
 
     Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
 
-    # Release install may overlap MCP / CLI; stop all qkrpc so DLLs unlock (serve was stopped earlier in build.ps1).
-    $stopped = Stop-QkrpcProcesses -GraceMs 1500
-    if ($stopped -gt 0) {
-        Write-Host "Stopped $stopped qkrpc process(es) before user install." -ForegroundColor DarkYellow
-    }
-
-    if (-not (Test-Path -LiteralPath $InstallDir)) {
-        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    }
-
-    # In-place overlay �?never Remove-Item -Recurse the install dir (clrjit.dll stays locked while any qkrpc runs).
     try {
-        Copy-Item -Path (Join-Path $sourcePath '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
+        # Complete enumeration, path checks and hashes before stopping a potentially auto-restarted MCP.
+        if ((Test-Path -LiteralPath $InstallDir) -and -not (Test-Path -LiteralPath $InstallDir -PathType Container)) {
+            throw "A file occupies the install directory: $InstallDir"
+        }
+        $copyPlan = [System.Collections.Generic.List[object]]::new()
+        foreach ($sourceFile in Get-ChildItem -LiteralPath $sourcePath -File -Recurse -Force -ErrorAction Stop) {
+            $relativePath = [System.IO.Path]::GetRelativePath($sourcePath, $sourceFile.FullName)
+            $targetPath = Join-Path $InstallDir $relativePath
+            $sourceHash = (Get-FileHash -LiteralPath $sourceFile.FullName -Algorithm SHA256 -ErrorAction Stop).Hash
+            if (Test-Path -LiteralPath $targetPath) {
+                if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+                    throw "A directory occupies a published file path: $targetPath"
+                }
+                $targetHash = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256 -ErrorAction Stop).Hash
+                if ($sourceHash -eq $targetHash) { continue }
+            }
+            $copyPlan.Add([pscustomobject]@{ Source = $sourceFile.FullName; Target = $targetPath; Hash = $sourceHash })
+        }
+        New-Item -ItemType Directory -Path $InstallDir -Force -ErrorAction Stop | Out-Null
+        foreach ($targetParent in @($copyPlan | ForEach-Object { Split-Path -Parent $_.Target } | Sort-Object -Unique)) {
+            New-Item -ItemType Directory -Path $targetParent -Force -ErrorAction Stop | Out-Null
+        }
+
+        # Existing process selection is unchanged. Exit is confirmed, so do not add a blind grace delay.
+        $stopped = Stop-QkrpcProcesses -GraceMs 0
+        foreach ($item in $copyPlan) {
+            Copy-Item -LiteralPath $item.Source -Destination $item.Target -Force -ErrorAction Stop
+        }
+        # Verify after the entire copy burst; hashing must not delay replacement of another changed DLL.
+        foreach ($item in $copyPlan) {
+            if ((Get-FileHash -LiteralPath $item.Target -Algorithm SHA256 -ErrorAction Stop).Hash -ne $item.Hash) {
+                throw "Installed file does not match the publish source: $($item.Target)"
+            }
+        }
+        if ($stopped -gt 0) {
+            Write-Host "Stopped $stopped qkrpc process(es) before user install." -ForegroundColor DarkYellow
+        }
     }
     catch {
         Write-Warning "User install overlay failed: $($_.Exception.Message)"
         Write-Host "  CLI is still available at: $sourcePath\qkrpc.exe" -ForegroundColor DarkGray
         Write-Host "  Close Cursor MCP / other qkrpc.exe using $InstallDir, then re-run install or build." -ForegroundColor DarkGray
-        return $InstallDir
+        throw
     }
 
     Remove-StaleQkrpcUserPaths -InstallDir $InstallDir | Out-Null

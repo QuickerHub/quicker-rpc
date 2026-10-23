@@ -1,4 +1,5 @@
 import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
+import { postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +22,10 @@ function unwrapPayloadJson(data: unknown): string | null {
 }
 
 export async function POST(req: Request) {
-  let body: ToolboxSearchRequest;
-  try {
-    body = (await req.json()) as ToolboxSearchRequest;
-  } catch {
-    return Response.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
-  }
+  return postDesignerCatalogRequest(req, (body, request) => search(body as ToolboxSearchRequest, request));
+}
+
+async function search(body: ToolboxSearchRequest, request: DesignerCatalogRequest) {
 
   const result = await invokeQkrpcHttp(
     {
@@ -36,8 +35,9 @@ export async function POST(req: Request) {
         skip: Math.max(0, Number(body.skip ?? 0)),
       },
     },
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, ...request.rpcOptions },
   );
+  requireDesignerCatalogResult(result, request);
 
   if (!result?.ok) {
     return Response.json(

@@ -14,6 +14,8 @@ const READ_OPS = new Set([
   "settings.search", "settings.list", "settings.get", "settings.pages", "settings.links", "settings.resolve",
   "trigger.list", "trigger.events", "launcher.resolve", "search-index.status", "designer.context",
   "project.diagnostics.get",
+  "step-runner.list", "step-runner.search", "step-runner.get", "step-runner.getUi", "step-runner.getui",
+  "step-runner.summaries", "step-runner.quickinsertsearch", "step-runner.toolboxsearch",
 ]);
 
 export function isOfflineSourceInvoke(invoke: QkrpcInvoke): boolean {
@@ -23,7 +25,7 @@ export function isOfflineSourceInvoke(invoke: QkrpcInvoke): boolean {
 /** New operations default to no replay; the read allowlist is deliberately explicit. */
 export function isQkrpcReadOnlyInvoke(invoke: QkrpcInvoke): boolean {
   return isOfflineSourceInvoke(invoke) || READ_OPS.has(invoke.op)
-    || invoke.op.startsWith("step-runner.") || invoke.op.startsWith("guide.");
+    || invoke.op.startsWith("guide.");
 }
 
 export function currentQkrpcTarget(): QkrpcBoundTarget | undefined {

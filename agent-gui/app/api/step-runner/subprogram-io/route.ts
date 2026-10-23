@@ -1,5 +1,6 @@
 import { runQkrpc } from "@/lib/qkrpc";
 import { mapSubprogramCompressedVariables } from "@/lib/action-editor/wire/subprogramIoWire";
+import { runDesignerCatalogRequest, postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 import {
   isNetworkSubProgramStoredValue,
   normalizeGlobalSubProgramStoredId,
@@ -68,10 +69,7 @@ function sharedSubProgramIoResponse(identifier: string): Response {
   });
 }
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const kind = (url.searchParams.get("kind") ?? "global").trim().toLowerCase();
-  const id = url.searchParams.get("id")?.trim() ?? "";
+async function get(kind: string, id: string, request: DesignerCatalogRequest) {
 
   if (!id) {
     return Response.json({ ok: false, error: "id is required" }, { status: 400 });
@@ -91,8 +89,9 @@ export async function GET(req: Request) {
 
   const result = await runQkrpc(
     ["subprogram", "get", "--id", normalizedId, "--return-mode", "full", "--json"],
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, ...request.rpcOptions },
   );
+  requireDesignerCatalogResult(result, request);
 
   if (!result.ok) {
     return Response.json(
@@ -124,4 +123,13 @@ export async function GET(req: Request) {
     bindingHints: [],
     resolveStatusMessage: "",
   });
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  return runDesignerCatalogRequest(req, {}, (request) => get((url.searchParams.get("kind") ?? "global").trim().toLowerCase(), url.searchParams.get("id")?.trim() ?? "", request));
+}
+
+export async function POST(req: Request) {
+  return postDesignerCatalogRequest(req, (body, request) => get(typeof body.kind === "string" ? body.kind.trim().toLowerCase() : "global", typeof body.id === "string" ? body.id.trim() : "", request));
 }

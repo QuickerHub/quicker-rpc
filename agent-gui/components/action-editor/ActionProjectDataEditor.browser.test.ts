@@ -26,6 +26,7 @@ state.targetFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id),bindingFor(i
 state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.json$/,'info.json'),makeInfo(id)]));
 state.documentCalls=[];state.documentPending=[];state.documentMode='success';
 state.syncCalls=[];state.syncPending=[];state.syncMode='success';
+state.catalogRequests=[];state.catalogPending=[];
 state.syncStatusMode='success';state.statusPending=[];
 state.deferInfoRead=false;state.infoPending=[];state.infoReadError=null;
 state.syncStatus={state:'in_sync',message:'fixture in sync',localEditVersion:1,remoteEditVersion:1};
@@ -35,6 +36,8 @@ window.fetch = async (input, init) => {
  state.requests.push(url.pathname);
  let value;
  let syncRequest;
+ const catalogRequest=init?.method==='POST'?JSON.parse(init.body||'{}'):{key:url.searchParams.get('key')};
+ if(url.pathname.startsWith('/api/step-runner/')||url.pathname==='/api/subprogram/list')state.catalogRequests.push({path:url.pathname,method:init?.method||'GET',body:catalogRequest});
  if(url.pathname==='/api/workspace' && url.searchParams.get('op')==='program-document-target') {
    const path=url.searchParams.get('path');
    const result=state.targetMode==='error'?{ok:false,code:'unsafe_path',error:'fixture unsafe target'}:{ok:true,projectDirectory:path.replace(/\\/data.json$/,''),projectBinding:state.targetMode==='unbound'?null:state.targetFiles[path]};
@@ -53,8 +56,13 @@ window.fetch = async (input, init) => {
    else {state.unexpected.push('sync:'+request.op);throw new Error('Unexpected sync operation');}
  }
  else if(url.pathname==='/api/step-runner/list') value={ok:true,items:[runner,capability]};
- else if(url.pathname==='/api/step-runner/get' && url.searchParams.get('key')==='sys:fixture_note') value={ok:true,item:runner};
- else if(url.pathname==='/api/step-runner/get' && url.searchParams.get('key')==='sys:fixture_capability') value={ok:true,item:capability};
+ else if(url.pathname==='/api/step-runner/get' && catalogRequest.key==='sys:fixture_note') {
+   const id=catalogRequest.catalogContext?.expectedProjectBinding?.hostBinding?.hostInstanceId?.endsWith('-b')?'b':'a';
+   const item=window.fixtureOptions?.catalogByTarget?StepRunnerItem.fromPartial({...runner,inputParamDefs:[{key:id+'_input',name:id.toUpperCase()+' parameter',varType:0,variableMode:1,allowInput:true}]}):runner;
+   const result={ok:true,item};
+   value=window.fixtureOptions?.catalogDeferA&&id==='a'?await new Promise(resolve=>state.catalogPending.push({id,resolve:()=>resolve(result)})):result;
+ }
+ else if(url.pathname==='/api/step-runner/get' && catalogRequest.key==='sys:fixture_capability') value={ok:true,item:capability};
  else if(url.pathname==='/api/step-runner/toolbox-search') value={ok:true,json:JSON.stringify({items:[{kind:'runner',id:'r:sys:fixture_capability:copy',label:'Copy fixture',parentLabel:'Fixture capability',payload:{stepRunnerKey:'sys:fixture_capability',name:'Fixture capability',controlFieldValue:'copy',inputPresets:{mode:'copy',text:'preset text'}}}],totalCount:1,hasMore:false})};
  else if(url.pathname==='/api/step-runner/summaries') {const request=JSON.parse(init?.body||'{}');value={ok:true,items:(request.steps||[]).map(row=>({stepId:row.stepId,summary:'Fixture summary'}))};}
  else if(url.pathname==='/api/subprogram/list') value={ok:true,items:[]};
@@ -163,7 +171,7 @@ before(async () => {
 
 after(async () => { await browser?.close(); });
 
-async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean }): Promise<{ page: Page; errors: string[] }> {
+async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean }): Promise<{ page: Page; errors: string[] }> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page.setDefaultTimeout(5_000);
   const errors: string[] = [];
@@ -214,6 +222,7 @@ test("a delayed local identity read retains edits and saves the exact displayed 
   const { page, errors } = await openFixture({ targetMode: "defer" });
   try {
     await editNote(page, "draft before target read");
+    assert.equal(await page.evaluate(() => (window as any).fixture.catalogRequests.length), 0);
     assert.equal(await saveButton(page).isDisabled(), true);
     assert.equal(await page.locator(".project-info-sync-btn").isDisabled(), true);
     for (const label of ["运行", "调试", "编辑", "悬浮"]) assert.equal(await page.getByRole("button", { name: label, exact: true }).isDisabled(), true);
@@ -258,6 +267,7 @@ test("unbound projects can save locally with null identity while invalid targets
   const { page, errors } = await openFixture({ targetMode: "unbound" });
   try {
     await editNote(page, "unbound local draft");
+    assert.equal(await page.evaluate(() => (window as any).fixture.catalogRequests.length), 0);
     await waitSaveEnabled(page);
     assert.match(await page.locator(".action-project-target").innerText(), /未绑定宿主/);
     assert.equal(await page.locator(".project-info-sync-btn").isDisabled(), true);
@@ -733,6 +743,48 @@ test("Int64 sync versions keep push available and show distinct adjacent version
     assert.equal(await page.evaluate(() => (window as any).fixture.syncCalls.filter((call: any) => call.op === "push").length), 1, "a conflict never dispatches an implicit second write");
     await dialog.getByRole("button", { name: "取消", exact: true }).click();
     assert.equal(await title.inputValue(), "unsynced Int64 title");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+
+test("document catalog schemas and late responses remain owned by their target across main and embedded surfaces", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ catalogByTarget: true, catalogDeferA: true });
+  try {
+    await page.waitForFunction(() => (window as any).fixture.catalogPending.length > 0);
+    await editNote(page, "A draft with pending catalog");
+    await page.getByLabel("打开嵌入子程序", { exact: true }).click();
+    await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Child", exact: true }).click();
+    await page.waitForSelector('[data-step-id="s-child"]');
+    assert.equal(await page.evaluate(() => (window as any).fixture.catalogRequests.filter((row: any) => row.body.catalogContext?.expectedProjectBinding?.hostBinding.hostInstanceId !== "instance-a").length), 0);
+    await page.getByRole("tab", { name: "主程序", exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "A draft with pending catalog");
+
+    await page.evaluate(() => (window as any).fixture.setDocument("b"));
+    await page.waitForSelector('[data-step-id="s-b"]');
+    await editNote(page, "B retained draft");
+    await page.locator('.program-editor-surface:visible .step-row').first().dblclick();
+    const popup = page.locator('.step-editor-popup');
+    await popup.waitFor();
+    await popup.getByText("B parameter", { exact: true }).waitFor();
+    await page.evaluate(() => { for (const pending of (window as any).fixture.catalogPending) pending.resolve(); });
+    await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    assert.equal(await popup.getByText("A parameter", { exact: true }).count(), 0);
+    assert.equal(await popup.getByText("B parameter", { exact: true }).count(), 1);
+    await popup.getByRole("button", { name: "取消", exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "B retained draft");
+    await page.locator('.program-editor-surface:visible .step-row').first().focus();
+    await page.keyboard.press("Control+z");
+    assert.equal(await currentNote(page).inputValue(), "b initial", "catalog lifecycle must not reset document undo history");
+    await page.keyboard.press("Control+y");
+    await waitSaveEnabled(page);
+    await saveButton(page).click();
+    await waitClean(page);
+    const saved = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    assert.equal(saved.steps[0].note, "B retained draft");
+    assert.deepEqual(saved.fixtureRoot, { keep: true });
+    assert.deepEqual(saved.steps[0].fixtureStep, { keep: true });
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.catalogRequests.map((row: any) => row.method).filter((method: string) => method !== "POST")), []);
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });

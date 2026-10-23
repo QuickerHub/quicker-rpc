@@ -25,6 +25,7 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public int Handshakes;
     public int LegacyReads;
     public int MetadataWrites;
+    public int CatalogReads;
     public string LegacyBodyJson = "{\"steps\":[],\"variables\":[],\"subPrograms\":[]}";
     public bool DropAfterWrite;
     public Func<string, long?, QuickerRpcApplyXActionResult>? Apply;
@@ -135,6 +136,18 @@ public sealed class FakeBindingHost : IAsyncDisposable
         }
         public Task<QuickerRpcSearchStepRunnersResult> SearchStepRunnersAsync(string query, int? maxResults = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(new QuickerRpcSearchStepRunnersResult { Success = true, Keyword = owner.Info.Host.Kind });
+        public Task<QuickerRpcSearchStepRunnersResult> ListStepRunnersAsync(int? maxResults = null, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref owner.CatalogReads);
+            return Task.FromResult(new QuickerRpcSearchStepRunnersResult { Success = true, MatchCount = 1,
+                Items = new List<QuickerRpcStepRunnerSearchItem> { new() { Key = "sys:fixture", Name = owner.Info.Host.Kind } } });
+        }
+        public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerUiDetailAsync(string key, string? controlField = null, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref owner.CatalogReads);
+            return Task.FromResult(new QuickerRpcStepRunnerDetailResult { Success = true,
+                SchemaJson = "{\"key\":\"sys:fixture\",\"name\":\"" + owner.Info.Host.Kind + "\"}" });
+        }
         public Task<QuickerRpcActionRunResult> RunActionAsync(string id, string? param = null, bool enableDebugging = false, bool waitForComplete = false, CancellationToken cancellationToken = default)
         { Interlocked.Increment(ref owner.Writes); return Task.FromResult(new QuickerRpcActionRunResult()); }
         public Task<QuickerRpcActionTraceRunResult> RunActionTraceAsync(string id, string? param = null,
