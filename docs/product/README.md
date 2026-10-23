@@ -158,10 +158,10 @@ launch smoke 已验证；NSIS 安装/升级、真实旧资料与 P1–P3 的完�
 
 | 顺序 | 交付与边界 | 负责入口 | 验收门槛 / 当前状态 |
 |---|---|---|---|
-| A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | 一个兼容实例自动选中；多实例明确选择；断连不把保存切往另一宿主；未知/不支持能力返回结构化错误。wire 握手、专属 endpoint、选择、source/Agent 写前绑定与断线禁重发已完成离线集成。source bundle 保留 HostBinding 与 V2 StorageIdentity，旧插件只读；本机 0.14.8.158 已安装，V1 endpoint/HTTP 与专用 source 动作写回已核验。legacy JSON 项目持久绑定已有离线实现和审查；其本机验证、前端目标/身份 CAS 与双宿主活进程仍待验收 |
+| A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | wire 握手、专属 endpoint、选择、source/Agent 写前绑定与断线禁重发已有离线集成。source bundle 保留 HostBinding 与 V2 StorageIdentity，旧插件只读；V1 source 连续写回及 legacy JSON 持久绑定在本机 0.14.8.159 验收。主动作目标显示、本地完整记录 CAS 和 CLI/HTTP lease 内再次核验已实现；多宿主选择、catalog 绑定、原生 V2 文档与双宿主活进程仍待验收 |
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。资源目录、完整属性/子程序操作与 host session 接线仍待迁移 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 adapter/保真条件存储、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已验证；V2 活进程、Designer、进程重启与完整打包流程仍待集成验收 |
-| A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | Agent 生成或修改的动作能进入同一设计器检查并保存；手工编辑与 Agent 并发修改有 revision/冲突处理；Ask 不写、不绕过脏状态或基线。待实施 |
+| A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。Agent 工具仍未接 UI 的实时文档 revision；多宿主选择、catalog/命令绑定和完整人工/Agent 交错编辑仍待实施 |
 | A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。72 API、静态 React/Node、资源/native/真实子进程与隔离 Electron 打包启动已验证；安装/升级及 P1–P3 完整流程待集成，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
 
@@ -241,7 +241,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 
 | 来源区域 | 必须覆盖的交互与数据 | 当前事实 / 下一步 |
 |---|---|---|
-| `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 现有磁盘入口已接 body controller；宿主 session/storage 接线待完成 |
+| `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；原生 V2 storage、选择宿主和 Agent 实时会话仍待接线 |
 | `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；继续补子程序创建/删除/属性和完整文档历史 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
@@ -266,11 +266,16 @@ R6 验收 V1 YAML 真实宿主链；R7 检查主题、浮层、焦点、键盘�
 旧 JSON 动作项目已加入 `.qkrpc/project-binding.json`，CLI/MCP/serve/Agent 的导出、创建和
 同步跨请求保留来源宿主，写前核验 action ID、目录和 info；多个同 ID 项目不取首个，
 未绑定旧项目不自动继承当前连接。C#/Node 共用项目 lease，部分 bootstrap 不重发宿主创建，
-generic 文件工具不能改写此记录。544 项离线 Agent 与 95 项 Console 测试通过；其后 GUID
-目录变体的窄修通过 16 项定向检查及 TypeScript，独立审查通过。本机当前仍为已核验的
-`0.14.8.158`；本切片预增 `0.14.8.159`，合入后串行安装/热更并另记真实验证结果。
-前端多宿主选择/目标展示、普通 Save 的完整身份 CAS 与 Agent 实时文档协同仍需 A1/A3
-接线，不能以持久来源已保存代替整个编辑会话已统一。trace 展示也仍有独立缺口：现有 bridge/页签按 actionId+param 全局
+generic 文件工具不能改写此记录。`0.14.8.159` 已安装/热更，V1 专用动作已完成 JSON 导出、
+错误会话拒绝、正确目标 apply，再以新 YAML bundle 重读确认外置资源逐字一致，未运行动作。
+主动作设计器的目标读取/展示、保留草稿的晚加载、不可变票据、完整身份 CAS 和 Sync
+精确目录已接线。560 项离线 Agent、102 项 Console、12 项真实浏览器及后续针对回归、
+深浅/窄窗截图检查通过；移位后的静态 React/Node 产物也以实际 HTTP 验证本地 target
+读取、bound/unbound Save、旧客户端/改绑拒绝及零宿主调用。当前切片预增 `0.14.8.160`，
+合并后的安装和真实 GUI/宿主验证独立记录，不把这些 fixture 当成 V2 活进程验收。
+运行/调试/宿主编辑器/悬浮在此入口暂禁用，删除只清理本地项目；后续恢复必须显式绑定。
+多宿主选择、catalog 请求/缓存、原生 V2 存储和 Agent 实时文档协同仍未完成，不能以本地
+CAS 代替整个编辑会话已统一。trace 展示也仍有独立缺口：现有 bridge/页签按 actionId+param 全局
 复用，需由执行侧与 UI 共享每次运行 owner，再处理终结、清理与历史重放；仅把 key 换成
 未保证全局唯一的 SDK toolCallId 不能证明跨会话隔离。此项继续归 R2/R4 验收。
 

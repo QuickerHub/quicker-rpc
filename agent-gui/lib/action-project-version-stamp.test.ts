@@ -101,6 +101,7 @@ test("whole production Sync owns preflight, body and metadata RPC so local two-f
       let localFinished = false;
       const localWrites: string[] = [];
       const saving = saveProgramDocument({ path: `${project}/data.json`, expectedContent: beforeBody, content: beforeBody.replace('"revision":1', '"revision":2'),
+        expectedProjectBinding: { schemaVersion: 1, kind: "action", actionId: id, hostBinding: binding },
         metadata: { expectedContent: beforeInfo, content: beforeInfo.replace("Local A", "Local B") } },
       { writeWorkspaceFile: async (...args) => { localWrites.push(args[0]); throw new Error("A stale local transaction must not write"); } })
         .then((result) => { localFinished = true; return result; });

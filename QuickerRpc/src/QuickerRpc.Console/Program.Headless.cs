@@ -391,7 +391,16 @@ internal static partial class Program
 
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var expected = ActionProjectExpectedBinding.FromEnvironment();
+            expected?.RequireHostWrite();
+            var projectDir = expected is null ? null : ActionProjectExpectedBinding.RequireDirectory(
+                Environment.GetEnvironmentVariable(ActionProjectExpectedBinding.DirectoryEnvironmentKey) ?? options.Dir);
+            using var projectOwner = expected is null ? null : ActionProjectHostBinding.ClaimValidation(projectDir!, expected);
+            var projectBinding = expected is null ? null : ActionProjectHostBinding.Read(projectDir!, actionId);
+            if (projectBinding is not null) ActionProjectHostBinding.RequireExplicitSelection(projectBinding);
+            await using var session = projectBinding is null
+                ? await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false)
+                : await ConnectProjectBindingAsync(projectBinding.HostBinding, options.TimeoutSeconds).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var response = await session.Proxy
                 .UpdateActionMetadataAsync(

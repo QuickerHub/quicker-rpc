@@ -2,12 +2,15 @@ import type { ActionProgramSnapshot } from "../program/assembleActionProgramSnap
 import { parseLosslessJson, stringifyLosslessJson } from "../shared/losslessJson";
 import { fingerprintProgramDocumentContent, parseProgramDocumentSnapshot, programDocumentFingerprint, serializeProgramDocumentSnapshot } from "./programDocumentWire";
 import { fingerprintProgramDocumentMetadataContent, patchProgramDocumentMetadata, readProgramDocumentMetadata, validateProgramDocumentMetadataForSave, type ProgramDocumentMetadataPatch } from "./programDocumentMetadata";
+import { fingerprintActionProjectBinding, sameActionProjectBinding, type ActionProjectBinding } from "../../action-project-binding";
 
 /** Identity is supplied by the storage/host adapter; a disk-only document has no invented host. */
 export type ProgramDocumentIdentity = {
   documentKey: string;
   host?: { kind: string; instanceId: string; actionId: string; version?: string };
   storage?: { key: string; version?: string };
+  /** undefined is not loaded; null is an explicitly unbound local action. */
+  projectBinding?: ActionProjectBinding | null;
 };
 
 export type ProgramDocumentChangeSource = "ui" | "agent";
@@ -58,6 +61,16 @@ function immutableIdentity(identity: ProgramDocumentIdentity): Readonly<ProgramD
   if (!cloned.documentKey.trim()) throw new Error("Program document requires a documentKey");
   if (cloned.host) Object.freeze(cloned.host);
   if (cloned.storage) Object.freeze(cloned.storage);
+  if (cloned.projectBinding) {
+    const seen = new WeakSet<object>();
+    const freeze = (value: unknown): void => {
+      if (!value || typeof value !== "object" || seen.has(value)) return;
+      seen.add(value);
+      Object.values(value).forEach(freeze);
+      Object.freeze(value);
+    };
+    freeze(cloned.projectBinding);
+  }
   return Object.freeze(cloned);
 }
 
@@ -70,8 +83,9 @@ function sameTarget(a: ProgramDocumentIdentity, b: ProgramDocumentIdentity): boo
     documentKey: identity.documentKey,
     ...(identity.host ? { host: { kind: identity.host.kind, instanceId: identity.host.instanceId, actionId: identity.host.actionId } } : {}),
     ...(identity.storage ? { storage: { key: identity.storage.key } } : {}),
+    ...(identity.projectBinding !== undefined ? { projectBinding: identity.projectBinding === null ? null : fingerprintActionProjectBinding(identity.projectBinding) } : {}),
   });
-  return sameIdentity(target(a), target(b));
+  return programDocumentFingerprint(target(a)) === programDocumentFingerprint(target(b));
 }
 
 function metadataState(source: ProgramDocumentMetadataSource, baselineContent = source.content): ProgramDocumentMetadataState {
@@ -138,6 +152,18 @@ export function createProgramDocumentSession(initial: { content: string; identit
     getState: (): ProgramDocumentState => state,
     readSnapshot: (): ActionProgramSnapshot => parseProgramDocumentSnapshot(state.content),
     readMetadata: () => state.metadata ? readProgramDocumentMetadata(state.metadata.content) : null,
+    /** A late local identity read attaches to the existing draft; it never creates another editor history. */
+    reconcileProjectBinding: (binding: ActionProjectBinding | null): ProgramDocumentEditResult => {
+      if (closed) return failure("closed", "Program document session is closed");
+      const current = state.identity.projectBinding;
+      if (current !== undefined) {
+        const same = current === null || binding === null ? current === binding : sameActionProjectBinding(current, binding);
+        return same ? { ok: true, changed: false, state } : failure("identity_conflict", "Action project host binding changed; reopen the document before saving");
+      }
+      if (pending || preparingSave) return failure("identity_conflict", "Cannot attach an action target during a save");
+      state = Object.freeze({ ...state, identity: immutableIdentity({ ...state.identity, projectBinding: binding }), revision: state.revision + 1 });
+      return { ok: true, changed: true, state };
+    },
     /** Attach a sibling source without replacing body drafts; external changes never overwrite metadata edits. */
     reconcileMetadataSource: (source: ProgramDocumentMetadataSource): ProgramDocumentEditResult => {
       if (closed) return failure("closed", "Program document session is closed");

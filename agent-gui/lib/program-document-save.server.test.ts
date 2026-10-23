@@ -35,7 +35,7 @@ async function fixture(run: (root: string, outer: string) => Promise<void>) {
 }
 
 function request() {
-  return { path, content: changedBody, expectedContent: initialBody,
+  return { path, content: changedBody, expectedContent: initialBody, expectedProjectBinding: null,
     metadata: { content: changedMetadata, expectedContent: initialMetadata } };
 }
 
@@ -46,11 +46,11 @@ test("saves an existing body and presentation metadata through the real workspac
   assert.equal(await readFile(join(root, infoPath), "utf8"), changedMetadata);
   assert.match(await readFile(join(root, infoPath), "utf8"), /9223372036854775807/);
   assert.match(await readFile(join(root, infoPath), "utf8"), /9007199254740993/);
-  assert.deepEqual(await saveProgramDocument({ path, content: body, expectedContent: body, metadata: { content: changedMetadata, expectedContent: changedMetadata } }, {
+  assert.deepEqual(await saveProgramDocument({ path, content: body, expectedContent: body, expectedProjectBinding: null, metadata: { content: changedMetadata, expectedContent: changedMetadata } }, {
     writeWorkspaceFile: async () => { throw new Error("Unchanged parts must not be written"); },
   }), { ok: true });
   const next = JSON.stringify({ steps: [], variables: [], subPrograms: [], future: { revision: 3 } });
-  assert.deepEqual(await saveProgramDocument({ path, content: next, expectedContent: body }), { ok: true });
+  assert.deepEqual(await saveProgramDocument({ path, content: next, expectedContent: body, expectedProjectBinding: null }), { ok: true });
   assert.equal(fingerprintProgramDocumentContent(await readFile(join(root, path), "utf8")), fingerprintProgramDocumentContent(next));
 }));
 
@@ -75,7 +75,7 @@ test("a real document ticket preserves opaque Int64s through both-file saving an
     const started = session.beginSave(() => snapshot);
     if (!started.ok) assert.fail(started.error);
     const ticket = started.ticket;
-    const result = await saveProgramDocument({ path, content: ticket.content, expectedContent: ticket.baselineContent,
+    const result = await saveProgramDocument({ path, content: ticket.content, expectedContent: ticket.baselineContent, expectedProjectBinding: null,
       metadata: { content: ticket.metadata!.content, expectedContent: ticket.metadata!.baselineContent } });
     assert.deepEqual(result, { ok: true });
     session.completeSave(ticket, result);
@@ -90,7 +90,7 @@ test("a real document ticket preserves opaque Int64s through both-file saving an
     const external = disk.replace(/("futureMain":\s*)9223372036854775807/, (_match, prefix: string) => `${prefix}9223372036854775806`);
     assert.notEqual(external, disk);
     await writeFile(join(root, path), external);
-    const conflict = await saveProgramDocument({ path, content: disk, expectedContent: disk, metadata: { content: metadata, expectedContent: metadata } });
+    const conflict = await saveProgramDocument({ path, content: disk, expectedContent: disk, expectedProjectBinding: null, metadata: { content: metadata, expectedContent: metadata } });
     assert.equal(conflict.ok, false);
     if (!conflict.ok) { assert.equal(conflict.code, "body_conflict"); assert.equal(conflict.persistedParts, undefined); }
     assert.equal(await readFile(join(root, path), "utf8"), external);

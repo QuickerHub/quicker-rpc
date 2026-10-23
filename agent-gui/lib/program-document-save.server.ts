@@ -1,5 +1,5 @@
 import { lstat, open, realpath } from "node:fs/promises";
-import { isAbsolute, parse, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, parse, relative, resolve, sep } from "node:path";
 import { fingerprintProgramDocumentContent } from "./action-editor/document/programDocumentWire";
 import {
   fingerprintProgramDocumentMetadataContent,
@@ -7,11 +7,13 @@ import {
   readProgramDocumentMetadata,
   validateProgramDocumentMetadataForSave,
 } from "./action-editor/document/programDocumentMetadata";
-import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult } from "./program-document-save";
+import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult, ProgramDocumentTargetResult } from "./program-document-save";
 import { runWithQkrpcCwdAsync } from "./qkrpc-request-context";
 import { MAX_UI_READ_BYTES } from "./workspace-file-helpers";
 import { resolveWorkspaceRoot, writeWorkspaceFile } from "./workspace-fs";
 import { resolveWorkspacePathChain } from "./workspace-path-chain";
+import { ACTION_PROJECT_BINDING_PATH, ActionProjectBindingError, parseActionProjectBinding, sameActionProjectBinding, type ActionProjectBinding } from "./action-project-binding";
+import { readNullableActionProjectBinding, validateActionProjectPaths, withActionProjectLease } from "./action-project-host-binding.server";
 
 const ownerSymbol = Symbol.for("qkrpc.programDocumentWriteOwners.v1");
 const ownerGlobal = globalThis as typeof globalThis & { [ownerSymbol]?: Map<string, Promise<void>> };
@@ -116,6 +118,55 @@ async function readExistingFile(root: string, path: string): Promise<string> {
   } finally { await handle.close(); }
 }
 
+/** Identity is read only from guarded local metadata; no host discovery or RPC is involved. */
+async function readProjectBinding(directory: string): Promise<ActionProjectBinding | null> {
+  await validateActionProjectPaths(directory);
+  let actionId: string | undefined;
+  for (const leaf of ["info.json", ACTION_PROJECT_BINDING_PATH]) {
+    const path = `${directory}/${leaf}`;
+    try {
+      const inspected = await inspectExistingFile(resolveWorkspaceRoot(), path);
+      if (inspected.stats.size > 128_000n) throw new SaveError("identity_conflict", "Action identity metadata exceeds the size limit.");
+      const value = JSON.parse(await readExistingFile(resolveWorkspaceRoot(), path)) as Record<string, unknown>;
+      const id = leaf === "info.json" ? value.id ?? value.Id ?? value.ID ?? value.actionId : value.actionId;
+      if (typeof id === "string" && id) { actionId = id; break; }
+    } catch (error) {
+      if (error instanceof SaveError && error.code === "not_found") continue;
+      throw error;
+    }
+  }
+  return readNullableActionProjectBinding(directory, actionId ?? basename(directory));
+}
+
+async function requireExpectedProjectBinding(directory: string, request: ProgramDocumentSaveRequest): Promise<void> {
+  try {
+    if (!Object.hasOwn(request, "expectedProjectBinding")) throw new Error("The action document target must be loaded before saving.");
+    const current = await readProjectBinding(directory);
+    const raw = request.expectedProjectBinding;
+    const expected = raw === null ? null : parseActionProjectBinding(raw, raw?.actionId ?? "");
+    if (current === null || expected === null ? current !== expected : !sameActionProjectBinding(current, expected)) {
+      throw new Error("Action project host binding changed. Reopen the document before saving.");
+    }
+  } catch (error) {
+    throw new SaveError("identity_conflict", error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function readProgramDocumentTarget(path: string): Promise<ProgramDocumentTargetResult> {
+  try {
+    return await withProgramDocumentWriteOwner(path, async () => {
+      const root = resolveWorkspaceRoot();
+      const target = documentPath(root, path);
+      if (!actionBodyPathPattern.test(target.relative)) throw new SaveError("invalid_path", "Only a main action document has a project target.");
+      await inspectExistingFile(root, target.relative);
+      const directory = target.relative.replace(/\/data\.json$/i, "");
+      return withActionProjectLease(directory, async () => ({ ok: true, projectDirectory: directory, projectBinding: await readProjectBinding(directory) }));
+    });
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error), code: error instanceof SaveError || error instanceof ActionProjectBindingError ? error.code : "identity_read_failed" };
+  }
+}
+
 function metadataCandidate(content: string, expected: string): void {
   validateProgramDocumentMetadataForSave(content);
   const values = readProgramDocumentMetadata(content);
@@ -144,6 +195,11 @@ export async function saveProgramDocument(value: unknown, dependencies: ProgramD
     return await withProgramDocumentWriteOwner(request.path, async () => {
       const root = resolveWorkspaceRoot();
       const target = documentPath(root, request.path);
+      const mainAction = actionBodyPathPattern.test(target.relative);
+      const directory = target.relative.replace(/\/data\.json$/i, "");
+      await inspectExistingFile(root, target.relative);
+      const persist = async (): Promise<ProgramDocumentSaveResult> => {
+      if (mainAction) await requireExpectedProjectBinding(directory, request);
       if (request.metadata && !actionBodyPathPattern.test(target.relative)) throw new SaveError("invalid_path", "Action metadata is only supported beside an action data.json.");
       const metadataPath = target.relative.replace(/data\.json$/i, "info.json");
       const currentBody = await readExistingFile(root, target.relative);
@@ -161,6 +217,7 @@ export async function saveProgramDocument(value: unknown, dependencies: ProgramD
       if (nextBody !== expectedBody) await writePart(target.relative, request.content);
       persistedParts = { body: true };
       if (request.metadata) {
+        if (mainAction) await requireExpectedProjectBinding(directory, request);
         // An external writer can change metadata while the body is being written.
         const latestMetadata = await readExistingFile(root, metadataPath);
         if (fingerprintProgramDocumentMetadataContent(latestMetadata) !== expectedMetadata) throw new SaveError("metadata_conflict", "Action metadata changed while saving the program body.");
@@ -168,9 +225,11 @@ export async function saveProgramDocument(value: unknown, dependencies: ProgramD
         persistedParts.metadata = true;
       }
       return { ok: true };
+      };
+      return mainAction ? withActionProjectLease(directory, persist) : persist();
     });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error),
-      code: error instanceof SaveError ? error.code : "save_failed", ...(persistedParts ? { persistedParts } : {}) };
+      code: error instanceof SaveError ? error.code : error instanceof ActionProjectBindingError ? (error.code === "PROJECT_BUSY" ? "project_busy" : "identity_conflict") : "save_failed", ...(persistedParts ? { persistedParts } : {}) };
   }
 }

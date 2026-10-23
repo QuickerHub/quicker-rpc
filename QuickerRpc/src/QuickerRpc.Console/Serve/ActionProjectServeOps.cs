@@ -67,7 +67,7 @@ internal static class ActionProjectServeOps
             }
 
             var binding = QuickerRpcClient.GetBinding(rpc);
-            using var exportOwner = ActionProjectHostBinding.ClaimExport(projectDir, actionId.Trim(), binding);
+            using var exportOwner = ActionProjectHostBinding.ClaimExport(projectDir, actionId.Trim(), binding, expected: ActionProjectExpectedBinding.FromArgs(args));
             var latestData = ParseProgramBodyFromCompressed(fullResponse.CompressedJson);
             QuickerProjectFiles.TryReadDataIfExists(projectDir, out var templateData);
             var exportResult = XActionFileRefExporter.Export(
@@ -179,6 +179,7 @@ internal static class ActionProjectServeOps
                 return Fail("INFO_NOT_FOUND", $"info.json not found under {projectDir}.");
             }
 
+            using var validationOwner = ActionProjectHostBinding.ClaimValidation(projectDir, ActionProjectExpectedBinding.FromArgs(args));
             var info = QuickerProjectFiles.ReadActionInfo(projectDir);
             var actionId = ActionProjectIdentity.FromInfoOrDirectory(info, projectDir);
             if (string.IsNullOrWhiteSpace(actionId))
@@ -226,6 +227,7 @@ internal static class ActionProjectServeOps
                 payload,
             });
         }
+        catch (QuickerRpcClientException ex) { return Fail(ex.ErrorCode, ex.Message); }
         catch (Exception ex)
         {
             return Fail("ACTION_VALIDATE_FAILED", ex.Message);
@@ -262,7 +264,7 @@ internal static class ActionProjectServeOps
         {
             ActionProjectHostBinding.RequireConnection(projectDir, rpc, string.IsNullOrWhiteSpace(explicitId) ? null : explicitId);
             var projectBinding = ActionProjectHostBinding.Read(projectDir, string.IsNullOrWhiteSpace(explicitId) ? null : explicitId);
-            using var projectOwner = ActionProjectHostBinding.ClaimExport(projectDir, projectBinding.ActionId, projectBinding.HostBinding);
+            using var projectOwner = ActionProjectHostBinding.ClaimExport(projectDir, projectBinding.ActionId, projectBinding.HostBinding, expected: ActionProjectExpectedBinding.FromArgs(args));
             if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
             {
                 return Fail("INFO_NOT_FOUND", $"info.json not found under {projectDir}.");

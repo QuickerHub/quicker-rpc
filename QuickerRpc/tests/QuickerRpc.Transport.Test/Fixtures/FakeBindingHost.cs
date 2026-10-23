@@ -24,6 +24,7 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public int StorageWrites;
     public int Handshakes;
     public int LegacyReads;
+    public int MetadataWrites;
     public string LegacyBodyJson = "{\"steps\":[],\"variables\":[],\"subPrograms\":[]}";
     public bool DropAfterWrite;
     public Func<string, long?, QuickerRpcApplyXActionResult>? Apply;
@@ -47,6 +48,7 @@ public sealed class FakeBindingHost : IAsyncDisposable
                 [QuickerRpcHostCapabilityNames.ActionLegacyBodyRead] = true,
                 [QuickerRpcHostCapabilityNames.ActionLegacyBodyWrite] = true,
                 [QuickerRpcHostCapabilityNames.ActionLegacyBodyPatch] = true,
+                [QuickerRpcHostCapabilityNames.ActionPresentationWrite] = true,
             },
         };
         target = legacy ? new LegacyTarget(this) : storage ? new StorageTarget(this) : new Target(this);
@@ -107,6 +109,14 @@ public sealed class FakeBindingHost : IAsyncDisposable
         {
             Interlocked.Increment(ref owner.Writes);
             return Task.FromResult(new QuickerRpcApplyXActionResult { Success = true, ActionId = id, EditVersion = (version ?? 7) + 1 });
+        }
+        public Task<QuickerRpcUpdateActionMetadataResult> UpdateActionMetadataAsync(string id, string? title = null, string? description = null,
+            string? icon = null, string? contextMenuData = null, long? version = null, bool force = false, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref owner.MetadataWrites);
+            if (owner.DropAfterWrite) owner.Disconnect();
+            return Task.FromResult(new QuickerRpcUpdateActionMetadataResult { Success = true, ActionId = id, EditVersion = (version ?? 7) + 1,
+                Title = title, Description = description, Icon = icon, ContextMenuData = contextMenuData });
         }
         public Task<QuickerRpcGetActionProgramSourceResult> GetActionProgramSourceAsync(string id, CancellationToken cancellationToken = default) =>
             Task.FromResult(new QuickerRpcGetActionProgramSourceResult { Success = true, ActionId = id,

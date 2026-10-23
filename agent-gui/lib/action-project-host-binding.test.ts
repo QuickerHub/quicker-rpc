@@ -76,7 +76,7 @@ test("create bootstrap captures verified turn provenance only after complete loc
     assert.equal(created.ok, true, JSON.stringify(created));
     assert.deepEqual((await readActionProjectBinding(project, id)).hostBinding, a);
     const content = await readFile(join(root, project, "data.json"), "utf8");
-    const saved = await saveProgramDocument({ path: `${project}/data.json`, expectedContent: content, content: body });
+    const saved = await saveProgramDocument({ path: `${project}/data.json`, expectedContent: content, content: body, expectedProjectBinding: await readActionProjectBinding(project, id) });
     assert.equal(saved.ok, true);
   }));
 });
@@ -86,7 +86,7 @@ test("old unbound projects can Save locally, but status, pull and push fail befo
     await seed(root, project, null);
     await runWithAgentRequestContextAsync({ cwd: root }, async () => {
       assert.equal(await readNullableActionProjectBinding(project, id), null);
-      assert.equal((await saveProgramDocument({ path: `${project}/data.json`, expectedContent: body, content: '{"steps":[],"variables":[],"future":1}' })).ok, true);
+      assert.equal((await saveProgramDocument({ path: `${project}/data.json`, expectedContent: body, content: '{"steps":[],"variables":[],"future":1}', expectedProjectBinding: null })).ok, true);
       for (const result of [await getActionProjectSyncStatus(id), await pullActionProjectToWorkspace(id), await saveActionFromWorkspace({ id })]) {
         assert.equal(result.ok, false);
         assert.match(JSON.stringify(result), /HOST_BINDING_REQUIRED/);

@@ -428,6 +428,61 @@ test("Agent version schemas accept exact Int64 strings across dedicated, flat, s
   }
 });
 
+test("document CAS expectations preserve omitted, null and full records in HTTP and isolated CLI child environments", async () => {
+  const record = { schemaVersion: 1 as const, kind: "action" as const, actionId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", hostBinding: a };
+  const expectations = [{}, { expectedProjectBinding: null }, { expectedProjectBinding: record, projectDirectory: "C:/fixture/.quicker/actions/fixture" }];
+  const originalExpected = process.env.QKRPC_EXPECTED_PROJECT_BINDING;
+  const originalDirectory = process.env.QKRPC_EXPECTED_PROJECT_DIRECTORY;
+  process.env.QKRPC_EXPECTED_PROJECT_BINDING = '{"ambient":"must not inherit"}';
+  process.env.QKRPC_EXPECTED_PROJECT_DIRECTORY = "C:/ambient/foreign";
+  const children: NodeJS.ProcessEnv[] = [];
+  const spawn = mock.method(childProcess, "spawn", (_bin: unknown, _args: unknown, options: unknown) => {
+    children.push((options as { env: NodeJS.ProcessEnv }).env);
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill() {} });
+    setImmediate(() => { child.emit("spawn"); child.stdout.write('{"success":true}'); child.emit("close", 0); });
+    return child as unknown as ReturnType<typeof childProcess.spawn>;
+  });
+  syncBuiltinESMExports();
+  try {
+    let index = 0;
+    await isolated(async (url, init) => {
+      if (String(url).endsWith("/health")) return Response.json({ ok: true, service: "qkrpc" });
+      const invoke = JSON.parse(String(init?.body));
+      assert.equal(invoke.op, "action.validate");
+      assert.deepEqual(invoke.hostBinding, a);
+      const expected = expectations[index++]!;
+      assert.equal(Object.hasOwn(invoke.args, "expectedProjectBinding"), Object.hasOwn(expected, "expectedProjectBinding"));
+      if (Object.hasOwn(expected, "expectedProjectBinding")) assert.deepEqual(invoke.args.expectedProjectBinding, expected.expectedProjectBinding);
+      if (expected.projectDirectory) assert.equal(invoke.args.dir, expected.projectDirectory);
+      return Response.json({ ok: true, data: { success: true } });
+    }, async () => {
+      for (const expectation of expectations) {
+        const result = await runWithAgentRequestContextAsync({}, () => runQkrpcForTool(["action", "validate", "--dir", ".quicker/actions/fixture"], { hostBinding: a, ...expectation }));
+        assert.equal(result.ok, true, JSON.stringify(result));
+      }
+      assert.equal(index, 3);
+      process.env.QKRPC_TRANSPORT = "cli";
+      process.env.QKRPC_BIN = process.execPath;
+      for (const expectation of expectations) {
+        const result = await runWithAgentRequestContextAsync({}, () => runQkrpcForTool(["action", "validate", "--dir", ".quicker/actions/fixture"], { hostBinding: a, ...expectation }));
+        assert.equal(result.ok, true, JSON.stringify(result));
+      }
+      assert.equal(children.length, 3);
+      assert.equal(Object.hasOwn(children[0]!, "QKRPC_EXPECTED_PROJECT_BINDING"), false);
+      assert.equal(children[1]!.QKRPC_EXPECTED_PROJECT_BINDING, "null");
+      assert.deepEqual(JSON.parse(children[2]!.QKRPC_EXPECTED_PROJECT_BINDING!), record);
+      assert.equal(Object.hasOwn(children[0]!, "QKRPC_EXPECTED_PROJECT_DIRECTORY"), false);
+      assert.equal(Object.hasOwn(children[1]!, "QKRPC_EXPECTED_PROJECT_DIRECTORY"), false);
+      assert.equal(children[2]!.QKRPC_EXPECTED_PROJECT_DIRECTORY, expectations[2]!.projectDirectory);
+      assert.ok(children.every((env) => JSON.parse(env.QKRPC_HOST_BINDING!).hostSessionId === a.hostSessionId));
+    });
+  } finally {
+    spawn.mock.restore(); syncBuiltinESMExports();
+    if (originalExpected === undefined) delete process.env.QKRPC_EXPECTED_PROJECT_BINDING; else process.env.QKRPC_EXPECTED_PROJECT_BINDING = originalExpected;
+    if (originalDirectory === undefined) delete process.env.QKRPC_EXPECTED_PROJECT_DIRECTORY; else process.env.QKRPC_EXPECTED_PROJECT_DIRECTORY = originalDirectory;
+  }
+});
+
 test("Agent set_metadata schema and strict Execute preserve a raw numeric host version through bound HTTP CAS", async () => {
   const { QKRPC_ACTION_SET_METADATA_TOOL_DEF, QKRPC_ACTION_TOOL_DEF } = await import("./qkrpc-action-tool.server");
   const { normalizeQkrpcActionInput } = await import("./qkrpc-action-tool");

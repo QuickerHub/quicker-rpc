@@ -146,7 +146,7 @@ V1 安装/热更、专用 source 动作连续保存、冲突及 checkpoint 部�
 浏览器与服务端共用 `qkrpc-host-binding-contract.ts` 及 `action-project-binding.ts` 的纯身份
 契约、解析和文档指纹；包含 ALS 的 `qkrpc-host-binding.ts` 仅保留服务端绑定职责和兼容导出。
 Transport 沿用 instance/session/endpoint 比较；文档比较完整 binding。浏览器打包检查拒绝
-Node/ALS/server-only 依赖。这些契约尚不代表 UI 已展示目标或本地保存已接身份 CAS。
+Node/ALS/server-only 依赖。主动作的目标显示、本地读取与保存 CAS 也复用这两份契约。
 
 旧 JSON 动作项目现在用 `.qkrpc/project-binding.json` 持久保存经过核验的完整宿主绑定与
 动作 ID。CLI extract/export、MCP 和 Agent create 在文件写完后才提交此记录；apply、
@@ -155,8 +155,15 @@ serve 与 Agent Sync 在调用前交叉核验目录、info 和 sidecar，并固�
 来源并向宿主同步。generic Write/StrReplace 也不能改写独立导出目录内的该记录。
 C# 与 Node 通过同一 create-new 项目 lease 排除并发导出；绑定写入失败保留已落盘部分，
 宿主 create 成功即记为已创建，本地 bootstrap 失败不能触发再次创建。
-这一层持久来源约束不替代前端文档目标展示、完整记录 CAS 或 Agent/UI 共享实时 revision；
-它们继续属于 A1/A3 的接线范围。
+主动作通过本地 target API 读取实际 sidecar，晚加载只附加到既有 session，不清除草稿和历史。
+完整记录进入不可变保存票据；普通 Save 在文档 owner 与同一项目 lease 内比较记录及正文/
+属性基线，未加载、改绑、删除或损坏的身份不能覆盖文件。unbound null 是显式本地状态。
+Sync 传递精确目录与预期记录；CLI 的逐子进程环境和 HTTP args 保留 omitted/null/record
+区别，持久 serve 不继承其它请求的预期身份。apply、validate、extract 和 set-metadata
+在各自 lease 内再比较完整原始记录，包含能力与保留的未知 host 字段；属性失配不重发正文。
+结构化错误和已持久化部分跨 API 保留，缓存、事件及 busy 回执按文档 generation 与完整目标
+隔离。多宿主选择、catalog 缓存/请求绑定、trace run owner 与 Agent/UI 共享实时 revision
+仍待接线；完整新版 Designer 和 V2 原生存储身份不能由这一层持久来源约束替代。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
 持久化。V2 已有 `IQuickerRpcActionProgramSourceHost` 的原生 catalog/draft adapter，复用

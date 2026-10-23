@@ -12,7 +12,7 @@ import React, { StrictMode, useCallback, useEffect, useRef, useState } from 'rea
 import { createRoot } from 'react-dom/client';
 import { ActionProjectDataEditor } from '@/components/action-editor/ActionProjectDataEditor';
 import { StepRunnerItem } from '@/lib/action-editor/types/action_query';
-import '@/app/theme.css';
+import '@/app/globals.css';
 const pathFor = id => '.quicker/actions/'+(id==='a'?'11111111-1111-4111-8111-111111111111':'22222222-2222-4222-8222-222222222222')+'/data.json';
 const step = (id, note) => ({stepId:id,stepRunnerKey:'sys:fixture_note',note,inputParams:{'script.file':'files/script.cs'},fixtureStep:{keep:true}});
 const body = id => ({steps:[step('s-'+id, id+' initial')],variables:[{id:'v-'+id,key:'var_'+id,varType:'Text','default.file':'files/default.txt',fixtureVariable:{keep:true}}]});
@@ -21,9 +21,12 @@ const makeInfo = id => '{"kind":"action","id":"'+pathFor(id).split('/').at(-2)+'
 const runner = StepRunnerItem.fromPartial({key:'sys:fixture_note',name:'Fixture module',icon:'iconify:mdi:code-tags',inputParamDefs:[],outputParamDefs:[]});
 const capability = StepRunnerItem.fromPartial({key:'sys:fixture_capability',name:'Fixture capability',category:'Text',secondaryCategories:['System'],inputParamDefs:[{key:'mode',name:'Mode',isControlField:true,varType:9,variableMode:1,allowInput:true,selectionItems:[{value:'copy',name:'Copy fixture'}]},{key:'text',name:'Text',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]});
 const state = window.fixture = {calls:[],saved:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument};
+const bindingFor=id=>({schemaVersion:1,kind:'action',actionId:pathFor(id).split('/').at(-2),hostBinding:{hostInstanceId:'instance-'+id,hostSessionId:(id==='a'?'a':'b').repeat(32),endpoint:'QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_'+(id==='a'?'a':'b').repeat(32),protocolVersion:1,schemaVersion:1,hostKind:id==='a'?'v1':'v2',quickerVersion:window.fixtureOptions?.invalidVersion?{future:true}:'fixture-'+id,capabilities:{'action.legacyBody.read':true,'action.legacyBody.write':true}}});
+state.targetFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id),bindingFor(id)]));state.targetMode=window.fixtureOptions?.targetMode||'bound';state.targetPending=[];state.transportCalls=[];
 state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.json$/,'info.json'),makeInfo(id)]));
 state.documentCalls=[];state.documentPending=[];state.documentMode='success';
 state.syncCalls=[];state.syncPending=[];state.syncMode='success';
+state.syncStatusMode='success';state.statusPending=[];
 state.deferInfoRead=false;state.infoPending=[];state.infoReadError=null;
 state.syncStatus={state:'in_sync',message:'fixture in sync',localEditVersion:1,remoteEditVersion:1};
 state.commitDocument=(request,outcome)=>{if(request.metadata&&(outcome.ok||outcome.persistedParts?.metadata))state.infoFiles[request.path.replace(/data.json$/,'info.json')]=request.metadata.content;return outcome;};
@@ -31,9 +34,20 @@ window.fetch = async (input, init) => {
  const url = new URL(typeof input==='string'?input:input.url,'http://fixture.invalid');
  state.requests.push(url.pathname);
  let value;
- if(url.pathname==='/api/workspace/action-sync') {
+ let syncRequest;
+ if(url.pathname==='/api/workspace' && url.searchParams.get('op')==='program-document-target') {
+   const path=url.searchParams.get('path');
+   const result=state.targetMode==='error'?{ok:false,code:'unsafe_path',error:'fixture unsafe target'}:{ok:true,projectDirectory:path.replace(/\\/data.json$/,''),projectBinding:state.targetMode==='unbound'?null:state.targetFiles[path]};
+   value=state.targetMode==='defer'?await new Promise(resolve=>state.targetPending.push({path,resolve:()=>resolve(result)})):result;
+ }
+ else if(url.pathname==='/api/workspace' && init?.method==='POST') {
+   const request=JSON.parse(init.body);state.transportCalls.push(request);value=await state.legacySave(request.content);
+ }
+ else if(url.pathname==='/api/workspace/action-sync') {
    const request=JSON.parse(init?.body||'{}');state.syncCalls.push(request);
-   if(request.op==='status')value={ok:true,status:state.syncStatus};
+   syncRequest=request;
+   if(request.op==='status' && state.syncStatusMode==='defer')value=await new Promise(resolve=>state.statusPending.push({request,resolve}));
+   else if(request.op==='status')value={ok:true,status:state.syncStatus};
    else if(request.op==='push' && state.syncMode==='defer')value=await new Promise(resolve=>state.syncPending.push({request,resolve}));
    else if(request.op==='push')value={ok:true,message:'fixture synced',editVersion:2};
    else {state.unexpected.push('sync:'+request.op);throw new Error('Unexpected sync operation');}
@@ -45,11 +59,13 @@ window.fetch = async (input, init) => {
  else if(url.pathname==='/api/step-runner/summaries') {const request=JSON.parse(init?.body||'{}');value={ok:true,items:(request.steps||[]).map(row=>({stepId:row.stepId,summary:'Fixture summary'}))};}
  else if(url.pathname==='/api/subprogram/list') value={ok:true,items:[]};
  else {state.unexpected.push(url.pathname+url.search);throw new Error('Unexpected fixture request: '+url.pathname+url.search);}
+ if(syncRequest?.expectedProjectBinding&&value.ok)value={...value,projectBinding:syncRequest.expectedProjectBinding,projectDirectory:syncRequest.projectDirectory};
  return new Response(JSON.stringify(value),{status:200,headers:{'Content-Type':'application/json'}});
 };
 function Fixture(){
  const [document,setDocument]=useState({path:pathFor('a'),content:makeDocument('a')});
  const [documentSaveEnabled,setDocumentSaveEnabled]=useState(false);
+ const [generation,setGeneration]=useState(0);
  const documentRef=useRef(document);documentRef.current=document;
  const onSave=useCallback(async content=>{
    const call={path:document.path,content};state.calls.push(call);
@@ -57,11 +73,13 @@ function Fixture(){
    if(state.mode==='defer') return new Promise(resolve=>state.pending.push({call,resolve}));
    return {ok:true};
  },[document.path]);
+ state.legacySave=onSave;
  const onSaveDocument=useCallback(async request=>{
    state.documentCalls.push(request);
    if(state.documentMode==='defer')return new Promise(resolve=>state.documentPending.push({request,resolve:outcome=>resolve(state.commitDocument(request,outcome))}));
    if(state.documentMode==='partial')return state.commitDocument(request,{ok:false,error:'fixture metadata write failed',persistedParts:{body:true}});
    if(state.documentMode==='conflict')return {ok:false,code:'metadata_conflict',error:'fixture external metadata conflict'};
+   if(state.documentMode==='identity')return {ok:false,code:'identity_conflict',error:'fixture external target changed'};
    return state.commitDocument(request,{ok:true});
  },[]);
  const onSaved=useCallback(()=>state.saved.push(document.path),[document.path]);
@@ -72,9 +90,10 @@ function Fixture(){
    state.echoPending=index=>{const pending=state.pending[index];setDocument(current=>current.path===pending.call.path?{...current,content:pending.call.content}:current)};
    state.resolvePending=(index,outcome)=>state.pending[index].resolve(outcome);
    state.enableDocumentSave=()=>setDocumentSaveEnabled(true);
+   state.remountEditor=()=>setGeneration(value=>value+1);
    state.resolveDocumentPending=(index,outcome)=>state.documentPending[index].resolve(outcome);
  },[]);
- return <div className="fixture-shell" data-fixture-path={document.path}><ActionProjectDataEditor path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaveDocument={documentSaveEnabled?onSaveDocument:undefined} onSaved={onSaved}/></div>;
+ return <div className="fixture-shell" data-fixture-path={document.path}><ActionProjectDataEditor key={generation} path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaveDocument={documentSaveEnabled?onSaveDocument:undefined} onSaved={onSaved}/></div>;
 }
 createRoot(document.getElementById('root')).render(<StrictMode><Fixture/></StrictMode>);
 `;
@@ -95,6 +114,7 @@ export async function fetchWorkspaceFile(_cwd,path){
 }
 export async function fetchWorkspaceFileList(){return{ok:true,entries:[{path:'data.json',kind:'file'},{path:'info.json',kind:'file'},{path:'files/script.cs',kind:'file'},{path:'files/default.txt',kind:'file'}]}}
 export async function writeWorkspaceFileApi(){throw new Error('No fixture file writes allowed')}
+export async function deleteActionProjectApi(_cwd,path){const f=window.fixture;f.localDeletes=(f.localDeletes||[]).concat(path);return{ok:true}}
 `;
 
 let browser: Browser;
@@ -105,9 +125,11 @@ const screenshotDirectory = requestedScreenshotDirectory ? path.resolve(requeste
 
 before(async () => {
   if (screenshotDirectory) {
-    const temporaryRoot = path.resolve(process.cwd(), "../../..", ".tmp");
-    const relative = path.relative(temporaryRoot, screenshotDirectory);
-    assert.ok(path.isAbsolute(requestedScreenshotDirectory!) && !path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`), "Screenshots must use an absolute directory inside workspace .tmp");
+    const temporaryRoots = [path.resolve(process.cwd(), "../.tmp"), path.resolve(process.cwd(), "../../..", ".tmp")];
+    assert.ok(path.isAbsolute(requestedScreenshotDirectory!) && temporaryRoots.some((root) => {
+      const relative = path.relative(root, screenshotDirectory);
+      return !path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`);
+    }), "Screenshots must use an absolute directory inside workspace .tmp");
     await mkdir(screenshotDirectory, { recursive: true });
   }
   const compiled = await build({
@@ -117,11 +139,14 @@ before(async () => {
     define: { "process.env.NODE_ENV": '"development"' },
     tsconfig: path.join(process.cwd(), "tsconfig.json"),
     plugins: [{ name: "offline-editor-boundaries", setup(builder) {
-      builder.onResolve({ filter: /(^@\/components\/(chat\/(FileEditorCard|ActionIcon|FaIconProvider)|workspace\/(ActionProjectToolbar|ProgramProjectDeleteControl))$|shared\/IconControl$|^@\/lib\/(workspace-file-tool|workspace-explorer-api|chat-composer-bridge)$)/ }, (args) => ({ path: args.path, namespace: "fixture-boundary" }));
+      builder.onResolve({ filter: /(^@\/components\/chat\/(FileEditorCard|ActionIcon|FaIconProvider)$|shared\/IconControl$|^@\/lib\/(workspace-file-tool|workspace-explorer-api|workspace-explorer|chat-composer-bridge|action-command-client|action-trace-client)$)/ }, (args) => ({ path: args.path, namespace: "fixture-boundary" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture-boundary" }, (args) => {
         if (args.path.endsWith("workspace-explorer-api")) return { contents: fileBoundary, loader: "js" };
         if (args.path.endsWith("workspace-file-tool")) return { contents: "export const basenamePath=value=>value.replace(/\\\\/g,'/').split('/').pop()||'';export const guessFileLanguage=()=> 'text';", loader: "js" };
         if (args.path.endsWith("chat-composer-bridge")) return { contents: "export const chatComposerActionsRef={current:{insertProgramStepTag(){},focusComposer(){}}};", loader: "js" };
+        if (args.path.endsWith("action-command-client")) return { contents: "export function isQuickerActionMissingError(){return false}export function invokeActionCommand(){window.fixture.unexpected.push('unbound toolbar command');throw new Error('Toolbar must be gated')}", loader: "js" };
+        if (args.path.endsWith("action-trace-client")) return { contents: "export function startActionTrace(){window.fixture.unexpected.push('unbound toolbar trace');throw new Error('Toolbar must be gated')}", loader: "js" };
+        if (args.path.endsWith("workspace-explorer")) return { contents: "export const workspaceExplorerActionsRef={current:{notifyProjectRemoved(){}}};", loader: "js" };
         if (args.path.endsWith("IconControl")) return { contents: "export function IconControl(){return null}", loader: "js" };
         if (args.path.endsWith("ActionIcon")) return { contents: "export function ActionIcon(){return null}", loader: "js" };
         if (args.path.endsWith("FaIconProvider")) return { contents: "export function FaIconProvider(p){return p.children}", loader: "js" };
@@ -138,7 +163,7 @@ before(async () => {
 
 after(async () => { await browser?.close(); });
 
-async function openFixture(): Promise<{ page: Page; errors: string[] }> {
+async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean }): Promise<{ page: Page; errors: string[] }> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page.setDefaultTimeout(5_000);
   const errors: string[] = [];
@@ -147,6 +172,7 @@ async function openFixture(): Promise<{ page: Page; errors: string[] }> {
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   await page.setContent('<html data-theme="light"><body><div id="root"></div></body></html>');
   await page.addStyleTag({ content: `${stylesheet}\nhtml,body,#root,.fixture-shell{height:100%;margin:0}body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}.fixture-shell{display:flex;flex-direction:column;padding:12px;box-sizing:border-box}` });
+  if (options) await page.evaluate((value) => { (window as any).fixtureOptions = value; }, options);
   await page.addScriptTag({ content: javascript });
   await page.waitForSelector('[data-step-id="s-a"]');
   await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
@@ -183,6 +209,106 @@ async function capture(page: Page, filename: string, theme: "light" | "dark"): P
   await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   await page.screenshot({ path: path.join(screenshotDirectory, filename), fullPage: true });
 }
+
+test("a delayed local identity read retains edits and saves the exact displayed full target", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ targetMode: "defer" });
+  try {
+    await editNote(page, "draft before target read");
+    assert.equal(await saveButton(page).isDisabled(), true);
+    assert.equal(await page.locator(".project-info-sync-btn").isDisabled(), true);
+    for (const label of ["运行", "调试", "编辑", "悬浮"]) assert.equal(await page.getByRole("button", { name: label, exact: true }).isDisabled(), true);
+    await page.evaluate(() => { for (const pending of (window as any).fixture.targetPending) pending.resolve(); });
+    await waitSaveEnabled(page);
+    assert.equal(await currentNote(page).inputValue(), "draft before target read");
+    await page.locator(".action-project-target summary").click();
+    assert.match(await page.locator(".action-project-target").innerText(), /V1.*fixture-a/s);
+    assert.match(await page.locator(".action-project-target").innerText(), /instance-a/);
+    assert.match(await page.locator(".action-project-target").innerText(), /QuickerRpc_User_A{24}_a{32}/);
+    for (const label of ["运行", "调试", "编辑", "悬浮"]) assert.equal(await page.getByRole("button", { name: label, exact: true }).isDisabled(), true);
+    await capture(page, "00-target-details-light.png", "light");
+    await capture(page, "00-target-details-dark.png", "dark");
+    await page.setViewportSize({ width: 420, height: 820 });
+    const narrowTarget = await page.locator(".action-project-target dd").evaluateAll((elements) => elements.map((element) => ({ width: element.clientWidth, content: element.scrollWidth })));
+    assert.ok(narrowTarget.every(({ width, content }) => content <= width), JSON.stringify(narrowTarget));
+    const narrowButtonHeights = await page.locator(".action-project-data-editor-toolbar button").evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
+    assert.ok(narrowButtonHeights.every((height) => height <= 48), JSON.stringify(narrowButtonHeights));
+    await capture(page, "00-target-details-narrow-light.png", "light");
+    await capture(page, "00-target-details-narrow-dark.png", "dark");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await saveButton(page).click();
+    await waitClean(page);
+    assert.equal(await page.evaluate(() => {
+      const f = (window as any).fixture;
+      return JSON.stringify(f.transportCalls.at(-1).expectedProjectBinding) === JSON.stringify(f.targetFiles[f.pathFor("a")]);
+    }), true);
+    await page.locator(".program-project-delete-btn").click();
+    const deletion = page.getByRole("alertdialog");
+    await deletion.waitFor();
+    assert.equal(await deletion.getByRole("checkbox").count(), 0);
+    assert.match(await deletion.innerText(), /Quicker 内的项目保留/);
+    await deletion.getByRole("button", { name: "删除", exact: true }).click();
+    await page.waitForFunction(() => (window as any).fixture.localDeletes?.length === 1);
+    assert.equal(await page.evaluate(() => (window as any).fixture.localDeletes[0]), await page.evaluate(() => (window as any).fixture.pathFor("a").replace(/\/data.json$/, "")));
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("unbound projects can save locally with null identity while invalid targets and identity conflicts retain the draft", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ targetMode: "unbound" });
+  try {
+    await editNote(page, "unbound local draft");
+    await waitSaveEnabled(page);
+    assert.match(await page.locator(".action-project-target").innerText(), /未绑定宿主/);
+    assert.equal(await page.locator(".project-info-sync-btn").isDisabled(), true);
+    assert.equal(await page.evaluate(() => (window as any).fixture.syncCalls.length), 0);
+    await saveButton(page).click(); await waitClean(page);
+    assert.equal(await page.evaluate(() => (window as any).fixture.transportCalls.at(-1).expectedProjectBinding), null);
+    await page.evaluate(() => { const f = (window as any).fixture; f.enableDocumentSave(); f.documentMode = "identity"; });
+    await editNote(page, "preserved on identity conflict"); await waitSaveEnabled(page);
+    await saveButton(page).click();
+    await page.getByRole("alert").filter({ hasText: "动作目标已在外部变更" }).waitFor();
+    assert.equal(await currentNote(page).inputValue(), "preserved on identity conflict");
+    assert.equal(await saveButton(page).isDisabled(), true);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+  const invalid = await openFixture({ targetMode: "error" });
+  try {
+    await editNote(invalid.page, "unsafe target draft");
+    await invalid.page.getByRole("alert").filter({ hasText: "无法确认动作目标" }).waitFor();
+    assert.equal(await saveButton(invalid.page).isDisabled(), true);
+    assert.equal(await invalid.page.evaluate(() => (window as any).fixture.syncCalls.length), 0);
+    await assertIsolated(invalid.page, invalid.errors);
+  } finally { await invalid.page.close(); }
+  const future = await openFixture({ invalidVersion: true });
+  try {
+    await future.page.waitForFunction(() => document.querySelector(".action-project-target summary")?.textContent?.includes("版本未知"));
+    await assertIsolated(future.page, future.errors);
+  } finally { await future.page.close(); }
+});
+
+test("late status from the previous binding cannot clear a new document busy owner or show its status", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.locator(".action-project-target summary").waitFor();
+    await page.evaluate(() => { (window as any).fixture.syncStatusMode = "defer"; });
+    await page.locator(".project-info-sync-btn").click();
+    await page.waitForFunction(() => (window as any).fixture.statusPending.length >= 1);
+    await page.evaluate(() => { (window as any).fixture.setDocument("b"); });
+    await page.locator('[data-step-id="s-b"]').waitFor();
+    await page.waitForFunction(() => document.querySelector(".action-project-target summary")?.textContent?.includes("V2"));
+    await page.locator(".project-info-sync-btn").click();
+    await page.waitForFunction(() => (window as any).fixture.statusPending.filter((p: any) => p.request.expectedProjectBinding.hostBinding.hostKind === "v2").length >= 2);
+    await page.evaluate(() => { const f = (window as any).fixture; for (const p of f.statusPending.filter((p: any) => p.request.expectedProjectBinding.hostBinding.hostKind === "v1")) p.resolve({ ok: false, error: "stale A status must stay hidden" }); });
+    await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    assert.equal(await page.locator(".project-info-sync-btn").isDisabled(), true);
+    assert.doesNotMatch(await page.locator(".action-project-data-editor").innerText(), /stale A status/);
+    await page.evaluate(() => { const f = (window as any).fixture; for (const p of f.statusPending.filter((p: any) => p.request.expectedProjectBinding.hostBinding.hostKind === "v2")) p.resolve({ ok: true, status: f.syncStatus }); });
+    await page.waitForFunction(() => !(document.querySelector(".project-info-sync-btn") as HTMLButtonElement)?.disabled);
+    assert.equal(await currentNote(page).inputValue(), "b initial");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
 
 test("StrictMode starts clean; real compact/variable edits and nested tabs retain the full latest document and history", { timeout: 45_000 }, async () => {
   const { page, errors } = await openFixture();
