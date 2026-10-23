@@ -34,6 +34,7 @@ import { useXProgramEditorHistory } from "./useXProgramEditorHistory";
 import { useActiveXProgramBridgeOptional } from "./activeXProgramBridge";
 import { ownsProgramKeyboardTarget } from "../shared/programKeyboardOwner";
 import type { RegisterToolboxInsert } from "../toolbox/toolboxInsertionRegistry";
+import type { XProgramEditorControl } from "./programDocumentEditorController";
 
 export type XProgramEditorProps = {
   initialPresent: XProgramPresent;
@@ -54,6 +55,8 @@ export type XProgramEditorProps = {
   programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
   registerToolboxInsert?: RegisterToolboxInsert;
+  control?: XProgramEditorControl;
+  keyboardOwnerId?: string;
 };
 
 function XProgramEditorInner({
@@ -70,11 +73,22 @@ function XProgramEditorInner({
   programDocumentKey,
   onPinStepToChat,
   registerToolboxInsert,
+  control,
+  keyboardOwnerId: documentKeyboardOwnerId,
 }: XProgramEditorProps): JSX.Element {
   const { showToast } = useToast();
-  const keyboardOwnerId = useId();
+  const localKeyboardOwnerId = useId();
+  const keyboardOwnerId = documentKeyboardOwnerId ?? localKeyboardOwnerId;
   const editorRootRef = useRef<HTMLDivElement>(null);
-  const { history: hist, historyRef: histRef, dispatch, handle } = useXProgramEditorHistory(initialPresent);
+  const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, present } = useXProgramEditorHistory(initialPresent, control);
+  const draftFlushers = useRef(new Set<() => void>());
+  const registerDraftFlusher = useCallback((flush: () => void) => {
+    draftFlushers.current.add(flush);
+    return () => { draftFlushers.current.delete(flush); };
+  }, []);
+  const handle = useMemo<XProgramEditorHandle>(() => ({ ...stateHandle,
+    flushPendingEdits: () => { for (const flush of draftFlushers.current) flush(); },
+  }), [stateHandle]);
   const bridge = useActiveXProgramBridgeOptional();
   const registerEditor = bridge?.registerEditor;
   const unregisterEditor = bridge?.unregisterEditor;
@@ -93,18 +107,20 @@ function XProgramEditorInner({
   initialPresentRef.current = initialPresent;
 
   useEffect(() => {
+    if (control) return;
     dispatch({
       type: "reset",
       present: normalizeProgramPresentForEditor(initialPresentRef.current),
     });
-  }, [baselineFingerprint, dispatch]);
+  }, [baselineFingerprint, dispatch, control]);
 
   useEffect(() => {
+    if (control) return;
     const present = handle.getPresent();
     const dirty =
       fingerprintXProgramPresent(present) !== baselineFingerprint;
     onPresentChange?.(present, { dirty });
-  }, [hist.present, baselineFingerprint, handle, onPresentChange]);
+  }, [present, baselineFingerprint, handle, onPresentChange, control]);
 
   const commitSteps = useCallback((updater: ActionStep[] | ((prev: ActionStep[]) => ActionStep[])) => {
     dispatch({ type: "commitSteps", updater });
@@ -119,7 +135,7 @@ function XProgramEditorInner({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (!active || event.defaultPrevented) return;
+      if (control || !active || event.defaultPrevented) return;
       if (!(event.ctrlKey || event.metaKey)) return;
       if (!ownsProgramKeyboardTarget(editorRootRef.current, keyboardOwnerId, event.target, document.activeElement)) return;
       const t = event.target;
@@ -129,9 +145,11 @@ function XProgramEditorInner({
         if (isKeyboardInputSurface(t) || isKeyboardInputFocus()) return;
       }
       const key = event.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      handle.flushPendingEdits?.();
       const h = histRef.current;
       if (key === "z" && !event.shiftKey) {
-        if (h.past.length === 0) {
+        if (!h || h.past.length === 0) {
           if (inHistoryIsolate) event.preventDefault();
           return;
         }
@@ -140,7 +158,7 @@ function XProgramEditorInner({
         return;
       }
       if (key === "y" || (key === "z" && event.shiftKey)) {
-        if (h.future.length === 0) {
+        if (!h || h.future.length === 0) {
           if (inHistoryIsolate) event.preventDefault();
           return;
         }
@@ -150,13 +168,13 @@ function XProgramEditorInner({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [active, dispatch, histRef, keyboardOwnerId]);
+  }, [active, control, dispatch, handle, histRef, keyboardOwnerId]);
 
-  const canUndo = hist.past.length > 0;
-  const canRedo = hist.future.length > 0;
+  const canUndo = (hist?.past.length ?? 0) > 0;
+  const canRedo = (hist?.future.length ?? 0) > 0;
   const [variablesOpen, setVariablesOpen] = useState(false);
-  const variableCount = hist.present.variables.length;
-  const stepParamFileContents = useStepParamFileContents(hist.present.steps, workspaceContext);
+  const variableCount = present.variables.length;
+  const stepParamFileContents = useStepParamFileContents(present.steps, workspaceContext);
 
   useEffect(() => {
     if (!active || !variablesOpen) return;
@@ -176,6 +194,7 @@ function XProgramEditorInner({
       className={`x-program-editor${variablesOpen ? " x-program-editor--variables-open" : ""}`}
     >
       <div className="x-program-editor-toolbar" role="toolbar" aria-label="程序编辑">
+        {!control ? <>
         <button
           type="button"
           className="variable-toolbar-btn"
@@ -195,6 +214,7 @@ function XProgramEditorInner({
           <IconControl spec={AD_ICONIFY_SPEC.redo} size={12} resourceBaseUrl={backendBaseUrl} />
         </button>
         <span className="x-program-editor-toolbar-hint">步骤与变量共用一条撤销/重做历史</span>
+        </> : null}
         <span className="x-program-editor-toolbar-spacer" aria-hidden />
         <button
           type="button"
@@ -220,9 +240,10 @@ function XProgramEditorInner({
           <StepListEditor
             active={active}
             keyboardOwnerId={keyboardOwnerId}
-            steps={hist.present.steps}
+            steps={present.steps}
             onCommitSteps={commitSteps}
-            variables={hist.present.variables}
+            variables={present.variables}
+            registerDraftFlusher={registerDraftFlusher}
             programSurface={programSurface}
             programDocumentKey={programDocumentKey}
             onCommitProgram={(present) =>
@@ -257,8 +278,9 @@ function XProgramEditorInner({
                 <VariableEditor
                   active={active}
                   programSurface={programSurface}
-                  variables={hist.present.variables}
-                  steps={hist.present.steps}
+                  variables={present.variables}
+                  steps={present.steps}
+                  registerDraftFlusher={registerDraftFlusher}
                   workspaceContext={workspaceContext}
                   stepParamFileContents={stepParamFileContents}
                   onCommitVariables={commitVariables}

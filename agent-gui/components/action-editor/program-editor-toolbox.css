@@ -1,7 +1,9 @@
 .program-editor-catalog-layout {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
-  min-height: 360px;
+  min-height: 0;
+  overflow: auto;
   align-items: stretch;
 }
 .program-editor-catalog {

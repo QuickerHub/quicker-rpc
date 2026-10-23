@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { after, before, test } from "node:test";
+import { after, before, beforeEach, test } from "node:test";
 import { build } from "esbuild";
 import { chromium, type Browser, type Page } from "playwright";
 
@@ -101,7 +101,10 @@ function Fixture(){
    state.remountEditor=()=>setGeneration(value=>value+1);
    state.resolveDocumentPending=(index,outcome)=>state.documentPending[index].resolve(outcome);
  },[]);
- return <div className="fixture-shell" data-fixture-path={document.path}><ActionProjectDataEditor key={generation} path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaveDocument={documentSaveEnabled?onSaveDocument:undefined} onSaved={onSaved}/></div>;
+ const editor=<ActionProjectDataEditor key={generation} path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaveDocument={documentSaveEnabled?onSaveDocument:undefined} onSaved={onSaved}/>;
+ return window.fixtureOptions?.dualDocuments?<div className="fixture-shell" style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:12}}>
+  <div data-fixture-document="a">{editor}</div><div data-fixture-document="b"><ActionProjectDataEditor path={pathFor('b')} content={makeDocument('b')} cwd="C:/fixture-workspace" onSave={async()=>({ok:true})}/></div>
+ </div>:<div className="fixture-shell" data-fixture-path={document.path}>{editor}</div>;
 }
 createRoot(document.getElementById('root')).render(<StrictMode><Fixture/></StrictMode>);
 `;
@@ -128,6 +131,13 @@ export async function deleteActionProjectApi(_cwd,path){const f=window.fixture;f
 let browser: Browser;
 let javascript = "";
 let stylesheet = "";
+let closingBrowser = false;
+let activeTest = "setup";
+let pageSequence = 0;
+const browserDiagnostics = process.env.QKRPC_ACTION_EDITOR_BROWSER_DIAGNOSTICS === "1";
+const diagnose = (event: string) => {
+  if (browserDiagnostics) console.error(JSON.stringify({ fixture: "action-project-data-editor", event, test: activeTest, pageSequence, connected: browser?.isConnected(), at: new Date().toISOString() }));
+};
 const requestedScreenshotDirectory = process.env.QKRPC_ACTION_EDITOR_SCREENSHOTS;
 const screenshotDirectory = requestedScreenshotDirectory ? path.resolve(requestedScreenshotDirectory) : undefined;
 
@@ -155,7 +165,21 @@ before(async () => {
         if (args.path.endsWith("action-command-client")) return { contents: "export function isQuickerActionMissingError(){return false}export function invokeActionCommand(){window.fixture.unexpected.push('unbound toolbar command');throw new Error('Toolbar must be gated')}", loader: "js" };
         if (args.path.endsWith("action-trace-client")) return { contents: "export function startActionTrace(){window.fixture.unexpected.push('unbound toolbar trace');throw new Error('Toolbar must be gated')}", loader: "js" };
         if (args.path.endsWith("workspace-explorer")) return { contents: "export const workspaceExplorerActionsRef={current:{notifyProjectRemoved(){}}};", loader: "js" };
-        if (args.path.endsWith("IconControl")) return { contents: "export function IconControl(){return null}", loader: "js" };
+        if (args.path.endsWith("IconControl")) return { contents: `
+          import React from 'react';
+          import { IconifyIconSlot } from '@/lib/action-editor/shared/IconifyIconSlot';
+          import { parseIconifyIconId } from '@/lib/action-editor/shared/parseIconifySpec';
+          import { parseQuickerAssetIcon } from '@/lib/action-editor/shared/parseQuickerAssetIcon';
+          import { resolveResIconToIconifyId } from '@/lib/action-editor/shared/resIconCatalog';
+          import { faVectorSpecToBundledIconifyId } from '@/lib/action-editor/shared/faVectorToIconifyFallback';
+          // Use the production bundled SVG renderer/assets, isolating only host/raster resolution.
+          export function IconControl(props) {
+            const spec = props.spec?.trim() || '';
+            const asset = parseQuickerAssetIcon(spec);
+            const iconId = parseIconifyIconId(spec) || (asset && resolveResIconToIconifyId(asset.path))
+              || (/^fa:/i.test(spec) ? faVectorSpecToBundledIconifyId(spec) : null);
+            return iconId ? <IconifyIconSlot {...props} iconId={iconId}/> : props.fallback ?? null;
+          }`, loader: "jsx", resolveDir: process.cwd() };
         if (args.path.endsWith("ActionIcon")) return { contents: "export function ActionIcon(){return null}", loader: "js" };
         if (args.path.endsWith("FaIconProvider")) return { contents: "export function FaIconProvider(p){return p.children}", loader: "js" };
         if (args.path.endsWith("FileEditorCard")) return { contents: "import React from 'react';export function FileEditorCard(p){return <pre data-source-content data-source-path={p.path}>{p.content}</pre>}", loader: "jsx", resolveDir: process.cwd() };
@@ -166,13 +190,18 @@ before(async () => {
   });
   javascript = compiled.outputFiles.find((file) => file.path.endsWith(".js"))!.text;
   stylesheet = compiled.outputFiles.find((file) => file.path.endsWith(".css"))?.text ?? "";
-  browser = await chromium.launch({ channel: "msedge", headless: true });
+  browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
+  browser.on("disconnected", () => diagnose(closingBrowser ? "expected-browser-disconnect" : "unexpected-browser-disconnect"));
 });
 
-after(async () => { await browser?.close(); });
+beforeEach((context) => { activeTest = context.name; });
+after(async () => { closingBrowser = true; await browser?.close(); });
 
-async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean }): Promise<{ page: Page; errors: string[] }> {
+async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean }): Promise<{ page: Page; errors: string[] }> {
+  pageSequence += 1;
+  diagnose("create-page");
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("close", () => diagnose("page-closed"));
   page.setDefaultTimeout(5_000);
   const errors: string[] = [];
   await page.route("**/*", (route) => { errors.push(`network:${route.request().url()}`); return route.abort(); });
@@ -184,7 +213,7 @@ async function openFixture(options?: { targetMode?: string; invalidVersion?: boo
   await page.addScriptTag({ content: javascript });
   await page.waitForSelector('[data-step-id="s-a"]');
   await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-  await page.locator(".program-editor-surface:visible .step-form-note-input").waitFor();
+  await page.locator(".program-editor-surface:visible .step-form-note-input").first().waitFor();
   return { page, errors };
 }
 
@@ -215,7 +244,7 @@ async function capture(page: Page, filename: string, theme: "light" | "dark"): P
   if (!screenshotDirectory) return;
   await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
   await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-  await page.screenshot({ path: path.join(screenshotDirectory, filename), fullPage: true });
+  await page.screenshot({ path: path.join(screenshotDirectory, filename), fullPage: false });
 }
 
 test("a delayed local identity read retains edits and saves the exact displayed full target", { timeout: 45_000 }, async () => {
@@ -785,6 +814,175 @@ test("document catalog schemas and late responses remain owned by their target a
     assert.deepEqual(saved.fixtureRoot, { keep: true });
     assert.deepEqual(saved.steps[0].fixtureStep, { keep: true });
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.catalogRequests.map((row: any) => row.method).filter((method: string) => method !== "POST")), []);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+
+test("one document history orders main, variable, nested and property edits without replacing opened surface nodes", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => (window as any).fixture.enableDocumentSave());
+    await page.getByRole("tab", { name: "属性", exact: true }).waitFor();
+    await page.evaluate(() => { (window as any).historyMainRow = document.querySelector('[data-step-id="s-a"]'); });
+    await editNote(page, "unified main");
+    await page.getByRole("button", { name: "打开变量面板", exact: true }).click();
+    await page.locator('.variable-form input[title="备注"]').fill("unified variable");
+    await page.locator(".variable-toolbar-btn--close").click();
+    await page.locator('summary[aria-label="打开嵌入子程序"]').click();
+    await page.locator(".program-editor-tab-menu button").filter({ hasText: "Child / Nested" }).click();
+    await editNote(page, "unified nested");
+    await page.evaluate(() => { (window as any).historyNestedRow = document.querySelector('[data-step-id="s-nested"]'); });
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    await page.getByRole("textbox", { name: "标题", exact: true }).fill("Unified title");
+    const undo = page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("撤销 (Ctrl+Z)", { exact: true });
+    const redo = page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("重做 (Ctrl+Y / Ctrl+Shift+Z)", { exact: true });
+    assert.equal(await undo.locator("svg path").count(), 1, "undo uses its actual bundled SVG");
+    assert.equal(await redo.locator("svg path").count(), 1, "redo uses its actual bundled SVG");
+    await undo.click();
+    assert.equal(await page.getByRole("textbox", { name: "标题", exact: true }).inputValue(), "Fixture action");
+    await undo.click();
+    await page.getByRole("tab", { name: "Nested", exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "nested initial");
+    await undo.click();
+    await page.getByRole("tab", { name: "主程序", exact: true }).click();
+    await page.getByRole("button", { name: "打开变量面板", exact: true }).click();
+    assert.equal(await page.locator('.variable-form input[title="备注"]').inputValue(), "");
+    await page.locator(".variable-toolbar-btn--close").click();
+    await undo.click();
+    assert.equal(await currentNote(page).inputValue(), "a initial");
+    await waitClean(page);
+    assert.equal(await undo.isDisabled(), true);
+    for (let i = 0; i < 4; i++) await redo.click();
+    assert.equal(await currentNote(page).inputValue(), "unified main");
+    await page.getByRole("tab", { name: "Nested", exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "unified nested");
+    assert.equal(await page.evaluate(() => (window as any).historyMainRow === document.querySelector('[data-step-id="s-a"]')
+      && (window as any).historyNestedRow === document.querySelector('[data-step-id="s-nested"]')), true);
+    await page.setViewportSize({ width: 480, height: 760 });
+    await currentNote(page).focus();
+    await page.locator(".program-editor-surface:visible .step-row").first().focus();
+    assert.equal(await page.evaluate(() => {
+      const root = document.querySelector(".program-editor-tab-workspace") as HTMLElement;
+      const toolbar = root.querySelector('[aria-label="文档历史"]')!.getBoundingClientRect();
+      const container = root.getBoundingClientRect();
+      return root.scrollTop === 0 && toolbar.top >= container.top && toolbar.bottom <= container.bottom;
+    }), true, "focusing a narrow editor scrolls its content, retaining the document history toolbar");
+    await capture(page, "05-history-controls-dark-480px.png", "dark");
+    await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => (window as any).fixture.documentCalls.at(-1));
+    const body = JSON.parse(saved.content);
+    assert.equal(body.variables[0].desc, "unified variable");
+    assert.equal(body.variables[0]["default.file"], "files/default.txt");
+    assert.deepEqual(body.subPrograms[0].subPrograms[0].steps[0].fixtureStep, { keep: true });
+    assert.equal(JSON.parse(saved.metadata.content).title, "Unified title");
+    assert.match(saved.metadata.content, /9223372036854775807/);
+    assert.match(saved.metadata.content, /9007199254740993/);
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    await capture(page, "06-properties-dark-480px.png", "dark");
+    const toolbarAncestors = await page.evaluate(() => {
+      const toolbar = document.querySelector('[aria-label="文档历史"]')!.getBoundingClientRect();
+      const toolbarNode = document.querySelector('[aria-label="文档历史"]') as HTMLElement;
+      const ancestors: { className: string; scrollTop: number; top: number; bottom: number }[] = [];
+      let parent = document.querySelector(".program-editor-tab-workspace") as HTMLElement | null;
+      while (parent) {
+        const rect = parent.getBoundingClientRect();
+        ancestors.push({ className: parent.className, scrollTop: parent.scrollTop, top: rect.top, bottom: rect.bottom });
+        parent = parent.parentElement;
+      }
+      const strip = document.querySelector(".program-editor-tab-strip")!.getBoundingClientRect();
+      return { toolbar: { top: toolbar.top, bottom: toolbar.bottom, height: toolbar.height, display: getComputedStyle(toolbarNode).display,
+        painted: document.elementFromPoint(toolbar.left + 10, toolbar.top + 10)?.outerHTML.slice(0, 180) }, strip: { top: strip.top, bottom: strip.bottom }, ancestors };
+    });
+    if (browserDiagnostics) console.error(JSON.stringify({ phase: "metadata-toolbar-bounds", ...toolbarAncestors }));
+    assert.equal(toolbarAncestors.toolbar.height > 0 && toolbarAncestors.ancestors.every((rect) => toolbarAncestors.toolbar.top >= rect.top && toolbarAncestors.toolbar.bottom <= rect.bottom), true,
+      `metadata also retains the document toolbar inside every clipping ancestor: ${JSON.stringify(toolbarAncestors)}`);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("document undo flushes inline drafts once and late save acknowledgements retain the shared history", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await currentNote(page).fill("uncommitted first draft");
+    await page.keyboard.press("Control+z");
+    assert.equal(await currentNote(page).inputValue(), "a initial");
+    await page.locator(".program-editor-surface:visible .step-row").first().focus();
+    await waitClean(page);
+    await editNote(page, "saved first");
+    await currentNote(page).fill("saved last draft");
+    await page.evaluate(() => (document.querySelector(".action-project-data-editor-save") as HTMLButtonElement).click());
+    await waitClean(page);
+    assert.equal(await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content).steps[0].note), "saved last draft");
+    const toolbar = page.getByRole("toolbar", { name: "文档历史", exact: true });
+    await toolbar.getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "saved first", "one committed inline draft creates exactly one history entry");
+    await page.evaluate(() => { (window as any).fixture.mode = "defer"; });
+    await saveButton(page).click();
+    await page.waitForFunction(() => (window as any).fixture.pending.length === 1);
+    await toolbar.getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "a initial");
+    await page.evaluate(() => (window as any).fixture.resolvePending(0, { ok: true }));
+    await waitSaveEnabled(page);
+    assert.equal(await currentNote(page).inputValue(), "a initial");
+    await toolbar.getByTitle("重做 (Ctrl+Y / Ctrl+Shift+Z)", { exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "saved first");
+    await waitClean(page);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("two mounted document owners and their body portals isolate shared document undo", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ dualDocuments: true });
+  try {
+    const first = page.locator('[data-fixture-document="a"]');
+    const second = page.locator('[data-fixture-document="b"]');
+    for (const [root, note] of [[first, "first edit"], [second, "second edit"]] as const) {
+      await root.locator(".step-form-note-input").fill(note);
+      await root.locator(".step-row").first().focus();
+      await root.locator(".step-row").filter({ hasText: note }).waitFor();
+    }
+    await page.keyboard.press("Control+z");
+    assert.equal(await second.locator(".step-form-note-input").inputValue(), "b initial");
+    assert.equal(await first.locator(".step-form-note-input").inputValue(), "first edit");
+    await page.keyboard.press("Control+y");
+    assert.equal(await second.locator(".step-form-note-input").inputValue(), "second edit");
+    await first.locator(".step-row").first().focus();
+    await page.keyboard.press("Control+z");
+    assert.equal(await first.locator(".step-form-note-input").inputValue(), "a initial");
+    assert.equal(await second.locator(".step-form-note-input").inputValue(), "second edit");
+    await second.locator(".step-row").first().dblclick();
+    const popup = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "确定", exact: true }) });
+    await popup.waitFor();
+    await popup.getByRole("button", { name: "取消", exact: true }).focus();
+    await page.keyboard.press("Control+z");
+    await popup.getByRole("button", { name: "取消", exact: true }).click();
+    assert.equal(await second.locator(".step-form-note-input").inputValue(), "b initial", "the body portal keeps its exact document owner");
+    assert.equal(await first.locator(".step-form-note-input").inputValue(), "a initial");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+
+test("native property text undo stays inside the input while document toolbar follows the shared timeline", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => (window as any).fixture.enableDocumentSave());
+    await page.getByRole("tab", { name: "属性", exact: true }).waitFor();
+    await editNote(page, "body before native text");
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    const title = page.getByRole("textbox", { name: "标题", exact: true });
+    await title.focus();
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("Native input edit");
+    await page.keyboard.press("Control+z");
+    assert.equal(await title.inputValue(), "Fixture action");
+    await page.getByRole("tab", { name: "主程序", exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "body before native text", "native input undo never consumes body history");
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    await title.fill("one property transaction");
+    await page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    assert.equal(await title.inputValue(), "Fixture action");
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });

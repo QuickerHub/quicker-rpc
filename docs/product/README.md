@@ -243,7 +243,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | 来源区域 | 必须覆盖的交互与数据 | 当前事实 / 下一步 |
 |---|---|---|
 | `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；原生 V2 storage、选择宿主和 Agent 实时会话仍待接线 |
-| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；纯 session 已补完整正文/三项属性事务及历史，surface 按钮/快捷键仍须统一 owner，再补子程序创建/删除/属性 |
+| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；主/嵌套正文、变量和三项属性已共用 Session present/history，surface 不再有独立 timeline；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序创建/删除/属性继续迁移 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；动作/子程序完整目录、分页和操作仍待迁移，不能以受限搜索冒充完整目录 |
@@ -301,9 +301,14 @@ catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录
 
 下一项设计器基础已在纯 session 加入 80 条完整文档历史：主/嵌套正文、未知字段和已支持
 的标题/说明/图标共用事务，undo/redo 比较完整身份及 revision，保存/部分确认不倒退宿主
-版本或清除历史。九项新回归及相关 59 项纯层测试、类型检查与独立代码审查通过。当前
-界面仍用原 surface 时间线，完整文档按钮/快捷键、子程序属性和字面调用同步重命名继续
-接线，未将纯接口记为完整文档 undo 已交付。
+版本或清除历史。九项新回归及相关 59 项纯层测试、类型检查与独立代码审查通过。主动作
+界面现已接同一 Session：所有 surface 即时投影，原本各自的 present/history、Workspace
+初始快照和 overrides 已移除。统一按钮/快捷键、portal、属性及未 blur 步骤/变量草稿 flush
+已通过 17 项真实 Edge DOM；吸收 PR18 后 622 项离线检查、类型检查及独立审查通过。最终深浅/
+480px 截图使用真实 bundled SVG，工具栏、属性输入及所有 clipping 祖先范围均已检查。
+吸收当前主线后的移位静态 React/Node 也通过实际 API、renderer、frontend check 和所属进程清理验收。
+独立 X 入口保留原本历史；子程序属性及字面调用同步重命名、完整资源目录和 Agent live
+文档协同继续迁移。当前证据仍不替代真实 V2 或完整双宿主设计器验收。
 
 **每个 PR 的验收与合并要求**：
 

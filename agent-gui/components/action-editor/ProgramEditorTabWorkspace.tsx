@@ -10,10 +10,14 @@ import {
   useActiveXProgramBridge,
 } from "@/lib/action-editor/program/activeXProgramBridge";
 import {
-  assembleActionProgramSnapshot,
   type ActionProgramSnapshot,
 } from "@/lib/action-editor/program/assembleActionProgramSnapshot";
-import { fingerprintXProgramPresent, type XProgramPresent } from "@/lib/action-editor/program/xProgramHistory";
+import { fingerprintXProgramPresent, X_PROGRAM_HISTORY_ISOLATE_CLASS } from "@/lib/action-editor/program/xProgramHistory";
+import type { ProgramDocumentEditorController } from "@/lib/action-editor/program/programDocumentEditorController";
+import { ownsProgramKeyboardTarget } from "@/lib/action-editor/shared/programKeyboardOwner";
+import { isKeyboardInputFocus, isKeyboardInputSurface } from "@/lib/action-editor/shared/keyboardInputSurface";
+import { IconControl } from "@/lib/action-editor/shared/IconControl";
+import { AD_ICONIFY_SPEC } from "@/lib/action-editor/shared/actionDesignerIconify";
 import type { ActionSubProgram } from "@/lib/action-editor/types/common";
 import type { ActionProjectWorkspaceContext } from "@/lib/action-editor/steps/paramEditors/FormDefEditorDialog";
 import { ActionSubProgramKind } from "@/lib/action-editor/subprograms/subProgramUi";
@@ -24,17 +28,18 @@ import "./program-editor-toolbox.css";
 
 export type ProgramEditorWorkspaceHandle = {
   getSnapshot(): ActionProgramSnapshot;
+  flushPendingEdits(): void;
 };
 
 export type ProgramEditorTabWorkspaceProps = {
   documentKey: string;
-  payload: ActionProgramSnapshot;
+  controller: ProgramDocumentEditorController;
   active?: boolean;
+  historyDisabled?: boolean;
   mainSurface?: "main" | "subProgram";
   workspaceContext?: ActionProjectWorkspaceContext;
   globalSubPrograms?: ActionSubProgram[];
   embeddedSubProgramsWireJson?: string;
-  onSnapshotChange?: (snapshot: ActionProgramSnapshot) => void;
   onHandleChange?: (handle: ProgramEditorWorkspaceHandle | null) => void;
   onPinStepToChat?: (stepId: string) => void;
   metadataPanel?: ReactNode;
@@ -52,11 +57,11 @@ function collectInternalTabs(rows: readonly ActionSubProgram[], parent = ""): Pr
   });
 }
 
-/** Adapted from Quicker.Headless's ProgramEditorTabWorkspace: retain each opened surface and its history. */
+/** Opened surfaces retain selection and drafts; their document owns the only present and history. */
 export function ProgramEditorTabWorkspace(props: ProgramEditorTabWorkspaceProps): JSX.Element {
   const [activeTabId, setActiveTabId] = useState("main");
-  const subProgramTabs = useMemo(() => collectInternalTabs(props.payload.subPrograms)
-    .map((tab) => ({ id: tab.surface, row: tab.row })), [props.payload.subPrograms]);
+  const payload = props.controller.getSnapshot();
+  const subProgramTabs = collectInternalTabs(payload.subPrograms).map((tab) => ({ id: tab.surface, row: tab.row }));
   return (
     <DesignerCatalogProvider port={props.catalogPort}>
     <ActiveXProgramBridgeProvider activeTabId={activeTabId} subProgramTabs={subProgramTabs}>
@@ -67,43 +72,52 @@ export function ProgramEditorTabWorkspace(props: ProgramEditorTabWorkspaceProps)
 }
 
 function ProgramEditorTabWorkspaceBody({
-  documentKey, payload, active = true, mainSurface = "main", workspaceContext,
-  globalSubPrograms = [], embeddedSubProgramsWireJson, onSnapshotChange, onHandleChange,
+  documentKey, controller, active = true, historyDisabled = false, mainSurface = "main", workspaceContext,
+  globalSubPrograms = [], embeddedSubProgramsWireJson, onHandleChange,
   onPinStepToChat, metadataPanel, activeTabId, onSelectTab,
 }: ProgramEditorTabWorkspaceProps & { activeTabId: string; onSelectTab: (id: string) => void }): JSX.Element {
   const bridge = useActiveXProgramBridge();
   const insertionRegistry = useRef(createToolboxInsertionRegistry());
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [visitedTabs, setVisitedTabs] = useState<string[]>([]);
-  const [liveSnapshot, setLiveSnapshot] = useState(payload);
-  const overrides = useRef<Record<string, XProgramPresent>>({});
-  const initialPayload = useRef(payload);
-  const changeListener = useRef(onSnapshotChange);
-  changeListener.current = onSnapshotChange;
+  const payload = controller.getSnapshot();
+  const workspaceRootRef = useRef<HTMLDivElement>(null);
+  const keyboardOwnerId = useId();
   const available = useMemo(() => collectInternalTabs(payload.subPrograms), [payload.subPrograms]);
   const duplicateIds = available.some((tab) => !tab.row.id.trim())
     || new Set(available.map((tab) => tab.surface)).size !== available.length;
   const tabsById = useMemo(() => new Map(available.map((tab) => [tab.surface, tab])), [available]);
-  const readSnapshot = useCallback(() => assembleActionProgramSnapshot({
-    payload: initialPayload.current,
-    getEditorForSurface: bridge.getEditorForSurface,
-    liveOverrides: overrides.current,
-  }), [bridge.getEditorForSurface]);
+  const flushPendingEdits = useCallback(() => {
+    for (const surface of ["main", ...available.map((tab) => tab.surface)]) {
+      bridge.getEditorForSurface(surface)?.flushPendingEdits?.();
+    }
+  }, [available, bridge.getEditorForSurface]);
+  const runHistory = useCallback((direction: "undo" | "redo") => {
+    if (!active || historyDisabled) return;
+    flushPendingEdits();
+    controller[direction]();
+  }, [active, historyDisabled, controller, flushPendingEdits]);
   useEffect(() => {
-    const handle: ProgramEditorWorkspaceHandle = { getSnapshot: readSnapshot };
+    const handle: ProgramEditorWorkspaceHandle = { getSnapshot: controller.getSnapshot, flushPendingEdits };
     onHandleChange?.(handle);
     return () => onHandleChange?.(null);
-  }, [onHandleChange, readSnapshot]);
-
-  const handlePresentChange = useCallback((surface: string, present: XProgramPresent) => {
-    if (surface !== "main") overrides.current[surface.replace(/^sub-/, "")] = present;
-    const snapshot = readSnapshot();
-    setLiveSnapshot(snapshot);
-    changeListener.current?.(snapshot);
-  }, [readSnapshot]);
-  const changeHandlers = useMemo(() => new Map(["main", ...available.map((tab) => tab.surface)]
-    .map((surface) => [surface, (present: XProgramPresent) => handlePresentChange(surface, present)])),
-  [available, handlePresentChange]);
+  }, [controller, onHandleChange, flushPendingEdits]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!active || historyDisabled || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
+      if (!ownsProgramKeyboardTarget(workspaceRootRef.current, keyboardOwnerId, event.target, document.activeElement)) return;
+      const isolated = event.target instanceof Element && event.target.closest(`.${X_PROGRAM_HISTORY_ISOLATE_CLASS}`) != null;
+      if (!isolated && (isKeyboardInputSurface(event.target) || isKeyboardInputFocus())) return;
+      const key = event.key.toLowerCase();
+      const direction = key === "z" && !event.shiftKey ? "undo" : key === "y" || (key === "z" && event.shiftKey) ? "redo" : null;
+      if (!direction) return;
+      event.preventDefault();
+      runHistory(direction);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [active, historyDisabled, keyboardOwnerId, runHistory]);
+  const history = controller.getHistoryState();
   const insertionHandlers = useMemo(() => new Map(["main", ...available.map((tab) => tab.surface)]
     .map((surface) => [surface, (handler: Parameters<typeof insertionRegistry.current.register>[1]) => insertionRegistry.current.register(surface, handler)])),
   [available]);
@@ -112,8 +126,8 @@ function ProgramEditorTabWorkspaceBody({
     return insertionRegistry.current.request(activeTabId, payload);
   }, [active, activeTabId]);
   const subPrograms = useMemo(
-    () => mergeSubProgramsForStepEditor(liveSnapshot.subPrograms, globalSubPrograms),
-    [liveSnapshot.subPrograms, globalSubPrograms],
+    () => mergeSubProgramsForStepEditor(payload.subPrograms, globalSubPrograms),
+    [payload.subPrograms, globalSubPrograms],
   );
   const menuRef = useRef<HTMLDetailsElement | null>(null);
   const openTab = (surface: string) => {
@@ -157,7 +171,16 @@ function ProgramEditorTabWorkspaceBody({
     buttons[next]?.click();
   };
   return (
-    <div className="program-editor-tab-workspace" data-program-workspace={documentKey}>
+    <div ref={workspaceRootRef} className="program-editor-tab-workspace" data-program-workspace={documentKey} data-program-keyboard-owner={keyboardOwnerId}>
+      <div className="x-program-editor-toolbar" role="toolbar" aria-label="文档历史">
+        <button type="button" className="variable-toolbar-btn" title="撤销 (Ctrl+Z)" disabled={!active || historyDisabled || !history.canUndo} onClick={() => runHistory("undo")}>
+          <IconControl spec={AD_ICONIFY_SPEC.undo} size={12} />
+        </button>
+        <button type="button" className="variable-toolbar-btn" title="重做 (Ctrl+Y / Ctrl+Shift+Z)" disabled={!active || historyDisabled || !history.canRedo} onClick={() => runHistory("redo")}>
+          <IconControl spec={AD_ICONIFY_SPEC.redo} size={12} />
+        </button>
+        <span className="x-program-editor-toolbar-hint">主程序、子程序与属性共用撤销/重做历史</span>
+      </div>
       <div className="program-editor-tab-strip" role="tablist" aria-label="程序文档" onKeyDown={handleTabKey}>
         <button type="button" role="tab" aria-selected={activeTabId === "main"}
           aria-controls={mainPanelId} onClick={() => onSelectTab("main")}>
@@ -203,10 +226,11 @@ function ProgramEditorTabWorkspaceBody({
         hidden={!metadataVisible} className="program-editor-metadata-surface">{metadataPanel}</div> : null}
       <div id={mainPanelId} role="tabpanel" aria-label={mainSurface === "subProgram" ? "子程序" : "主程序"}
         hidden={!mainVisible} className="program-editor-surface">
-        <XProgramEditor initialPresent={initialPayload.current} baselineFingerprint={fingerprintXProgramPresent(initialPayload.current)}
+        <XProgramEditor initialPresent={payload} baselineFingerprint={fingerprintXProgramPresent(payload)}
+          control={controller.getSurface("main")} keyboardOwnerId={keyboardOwnerId}
           editorTabId="main" active={mainVisible} programDocumentKey={documentKey} programSurface={mainSurface}
           workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-          onPresentChange={changeHandlers.get("main")} onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get("main")} />
+          onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get("main")} />
       </div>
       {visitedTabs.map((surface) => {
         const tab = tabsById.get(surface);
@@ -215,9 +239,10 @@ function ProgramEditorTabWorkspaceBody({
         return <div key={surface} id={`${mainPanelId}-${encodeURIComponent(surface)}`} role="tabpanel" aria-label={tab.row.name || tab.row.id}
           hidden={!visible} className="program-editor-surface">
           <XProgramEditor initialPresent={tab.row} baselineFingerprint={fingerprintXProgramPresent(tab.row)}
+            control={controller.getSurface(surface)} keyboardOwnerId={keyboardOwnerId}
             editorTabId={surface} active={visible} programDocumentKey={`${documentKey}#${surface}`} programSurface="subProgram"
             workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-            onPresentChange={changeHandlers.get(surface)} registerToolboxInsert={insertionHandlers.get(surface)} />
+            registerToolboxInsert={insertionHandlers.get(surface)} />
         </div>;
       })}
       </div>
