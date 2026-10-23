@@ -43,6 +43,21 @@ const CACHE_FILE = "llm-remote-publish.config.json";
 let groupsCache: LlmEndpointGroupsConfig | undefined;
 let startupRefreshScheduled = false;
 let refreshInFlight: Promise<RefreshRemotePublishConfigResult> | null = null;
+let refreshLifetime = new AbortController();
+const activeRefreshes = new Set<Promise<RefreshRemotePublishConfigResult>>();
+
+/** The Node composition root owns background refreshes independently of HTTP requests. */
+export function startRemotePublishConfigRefreshOwner(): void {
+  if (refreshLifetime.signal.aborted && activeRefreshes.size === 0) {
+    refreshLifetime = new AbortController();
+    startupRefreshScheduled = false;
+  }
+}
+
+export async function stopRemotePublishConfigRefreshes(): Promise<void> {
+  refreshLifetime.abort(new DOMException("Agent service stopped", "AbortError"));
+  await Promise.allSettled([...activeRefreshes]);
+}
 
 export function isRemotePublishConfigEnabled(): boolean {
   if (process.env.BUNDLED_LLM_REMOTE_CONFIG_DISABLED?.trim() === "1") {
@@ -187,6 +202,7 @@ export function getRemotePublishConfigStatus(): RemotePublishConfigStatus | null
 async function fetchRemotePublishConfigRaw(
   sourceUrl: string,
   etag?: string,
+  signal?: AbortSignal,
 ): Promise<{ raw: unknown; etag?: string }> {
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -198,6 +214,7 @@ async function fetchRemotePublishConfigRaw(
   const res = await fetch(sourceUrl, {
     cache: "no-store",
     headers,
+    signal,
   });
 
   if (res.status === 304) {
@@ -231,6 +248,8 @@ export async function refreshRemotePublishConfig(
   if (!isRemotePublishConfigEnabled()) {
     return { ok: false, error: "Remote publish config is disabled." };
   }
+  const signal = refreshLifetime.signal;
+  if (signal.aborted) return { ok: false, error: "Agent service is stopped." };
 
   if (refreshInFlight && !options.force) {
     return refreshInFlight;
@@ -244,7 +263,10 @@ export async function refreshRemotePublishConfig(
       const { raw, etag } = await fetchRemotePublishConfigRaw(
         sourceUrl,
         previous?.meta.etag,
+        signal,
       );
+      // A fetch implementation may settle after abort; it must never revive storage.
+      signal.throwIfAborted();
       const endpointCount = assertPublishConfigShape(raw);
       const changed = !previous || !configsEqual(previous.config, raw);
       const meta: RemotePublishConfigMeta = {
@@ -284,10 +306,13 @@ export async function refreshRemotePublishConfig(
     }
   };
 
-  refreshInFlight = run().finally(() => {
-    refreshInFlight = null;
+  const pending = run().finally(() => {
+    activeRefreshes.delete(pending);
+    if (refreshInFlight === pending) refreshInFlight = null;
   });
-  return refreshInFlight;
+  activeRefreshes.add(pending);
+  refreshInFlight = pending;
+  return pending;
 }
 
 /** Fire-and-forget refresh on agent startup; uses cache until fetch completes. */

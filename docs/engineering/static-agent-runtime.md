@@ -72,7 +72,8 @@ pepper 的生成步骤；需要发布的配置由原发布流程提供，不复�
 Node service 为 browser/terminal 分配独立端口和 owner，状态写入选定 profile 的 `runtime/`。
 相同版本但不同 owner 也拒绝复用；占用端口或旧磁盘 PID 不构成杀进程的授权。
 只回收实际登记并保有 child handle 的进程。正常退出通过 IPC，父 IPC 断连也触发停止；
-Windows fallback 不阻塞观察 exit 的 event loop。清理失败保留 owner 并报错。
+Windows fallback 不阻塞观察 exit 的 event loop。清理失败保留 owner 并报错。后台发布配置刷新同样由服务持有，停止时取消并等待所有刷新，
+再关闭数据库；晚到的响应不能重开存储。
 Electron 重复退出/升级调用等待同一个 shutdown Promise，先排空 Node，再清理所属 qkrpc；
 复用的外部 qkrpc 不属于这个 shell。
 
