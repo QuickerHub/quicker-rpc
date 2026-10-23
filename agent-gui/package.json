@@ -65,6 +65,7 @@
     "test:app-update:installed": "pwsh -NoProfile -File scripts/Test-AppUpdateApply.ps1 -Action full -SkipBuild -UseInstalled -RemoteVersion 0.11.5 -ExitInstall",
     "repair:quicker-agent": "pwsh -NoProfile -File scripts/Repair-QuickerAgentResources.ps1",
     "browser:dev-server": "node browser-runtime/server.mjs",
+    "test:browser-runtime-live": "node scripts/check-browser-runtime-live.mjs",
     "terminal:dev-server": "node terminal-runtime/server.mjs",
     "browser:install": "playwright install msedge",
     "probe:llm-configs": "tsx scripts/probe-llm-configs.ts",

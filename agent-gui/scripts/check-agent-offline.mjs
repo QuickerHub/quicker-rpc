@@ -98,6 +98,7 @@ const tests = [
   "browser-runtime/operation-owner.test.mjs",
   "browser-runtime/invoke-request.test.mjs",
   "browser-runtime/runtime-cancellation.test.mjs",
+  "browser-runtime/page-script-invocation.test.mjs",
   "lib/shell-runner-cancellation.test.ts",
   "lib/context-compression-reactive.test.ts",
   "lib/context-compression.integration.test.ts",
