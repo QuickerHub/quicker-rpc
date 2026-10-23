@@ -1,12 +1,36 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  ensureFaIconsResolved,
-  getFaIconFromCache,
-  subscribeFaIconCache,
-} from "./fa-icon-cache";
+
+test("global FA persistence is lazy on import, then retains the existing cache format and batching", async () => {
+  let reads = 0, writes = 0, fetches = 0;
+  const saved = { spec: "fa:Light_Saved", enumName: "Light_Saved", path: "saved", width: 31, height: 17, color: "#123456" };
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const previousFetch = globalThis.fetch;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { get localStorage() {
+    reads++; return { getItem: (key: string) => { assert.equal(key, "agent-gui:fa-icon-cache:v1"); return JSON.stringify([saved]); },
+      setItem: () => { writes++; } };
+  } } });
+  globalThis.fetch = async (_path, init) => { fetches++; assert.equal(String(_path), "/api/fa/resolve");
+    assert.deepEqual(JSON.parse(String(init?.body)), { specs: ["fa:Light_New"] });
+    return Response.json({ ok: true, items: [{ ...saved, spec: "fa:Light_New", path: "new" }] }); };
+  try {
+    const cache = await import("./fa-icon-cache");
+    assert.equal(reads, 0, "a scoped consumer importing the module must not read global persistence");
+    assert.deepEqual(cache.getFaIconFromCache(saved.spec), saved);
+    const initialReads = reads;
+    cache.getFaIconCacheSnapshot(); cache.getFaIconFromCache(saved.spec); assert.equal(reads, initialReads);
+    const unsubscribe = cache.subscribeFaIconCache(() => {});
+    cache.ensureFaIconsResolved([saved.spec, "fa:Light_New", "fa:Light_New"]); await cache.flushFaIconCache();
+    assert.equal(fetches, 1); assert.equal(cache.getFaIconFromCache("fa:Light_New")?.path, "new");
+    unsubscribe(); assert.equal(writes, 0, "the existing deferred persistence remains deferred");
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow); else Reflect.deleteProperty(globalThis, "window");
+    globalThis.fetch = previousFetch;
+  }
+});
 
 test("ensureFaIconsResolved coalesces duplicate specs in one batch", async () => {
+  const { ensureFaIconsResolved, getFaIconFromCache, subscribeFaIconCache } = await import("./fa-icon-cache");
   const spec = "fa:Light_Test_Cache";
   const geometry = {
     spec,

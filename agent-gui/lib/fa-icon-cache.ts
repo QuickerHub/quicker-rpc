@@ -10,6 +10,13 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let flushQueue = new Set<string>();
 let flushScheduled = false;
 let inFlight: Promise<void> | null = null;
+let initialized = false;
+
+function initialize(): void {
+  if (initialized) return;
+  initialized = true;
+  loadPersisted();
+}
 
 function notify(): void {
   for (const listener of listeners) {
@@ -85,15 +92,18 @@ function putGeometry(item: FaIconGeometry): void {
 }
 
 export function getFaIconFromCache(spec: string): FaIconGeometry | undefined {
+  initialize();
   return memory.get(spec.trim());
 }
 
 export function subscribeFaIconCache(listener: () => void): () => void {
+  initialize();
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
 export function getFaIconCacheSnapshot(): ReadonlyMap<string, FaIconGeometry> {
+  initialize();
   return memory;
 }
 
@@ -150,6 +160,7 @@ function scheduleFlush(): void {
 
 /** Queue FA specs for batched resolve; returns immediately if already cached. */
 export function ensureFaIconsResolved(specs: Iterable<string | undefined>): void {
+  initialize();
   const list = uniqueFaSpecs(specs);
   for (const spec of list) {
     if (!memory.has(spec)) flushQueue.add(spec);
@@ -159,6 +170,7 @@ export function ensureFaIconsResolved(specs: Iterable<string | undefined>): void
 
 /** Await pending + in-flight FA resolves (safe to call right after ensureFaIconsResolved). */
 export async function flushFaIconCache(): Promise<void> {
+  initialize();
   if (flushQueue.size > 0) {
     scheduleFlush();
   }
@@ -166,5 +178,3 @@ export async function flushFaIconCache(): Promise<void> {
     await inFlight;
   }
 }
-
-loadPersisted();
