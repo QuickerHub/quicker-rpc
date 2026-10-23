@@ -1,4 +1,6 @@
 using System.Reflection;
+using QuickerRpc.Testing;
+using QuickerRpc.Transport;
 using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
@@ -74,25 +76,25 @@ public sealed class ActionSourceWorkspaceTests
     [TestMethod]
     public async Task Save_AdvancesVersionOnlyAfterHostSuccess()
     {
-        ActionSourceWorkspace.Open(_directory, ActionId, 7, "fixture", "catalog", Native());
-        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
-        var proxy = (SourceRpcProxy)(object)rpc;
+        await using var host = new FakeBindingHost();
+        ActionSourceWorkspace.Open(_directory, ActionId, 7, "fixture", "catalog", Native(), hostBinding: host.Binding);
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(host.Binding);
+        var rpc = session.Rpc;
         var versions = new List<long?>();
-        proxy.Handler = (method, args) =>
+        host.Apply = (id, version) =>
         {
-            Assert.AreEqual(nameof(IQuickerRpcService.ApplyActionProgramSourceAsync), method.Name);
-            Assert.AreEqual(ActionId, args![0]);
-            versions.Add((long?)args[2]);
-            Assert.AreEqual(false, args[3]);
-            return Task.FromResult(new QuickerRpcApplyXActionResult
-            { Success = true, ActionId = ActionId, EditVersion = versions.Count + 7 });
+            Assert.AreEqual(ActionId, id);
+            versions.Add(version);
+            return new QuickerRpcApplyXActionResult
+            { Success = true, ActionId = ActionId, EditVersion = versions.Count + 7 };
         };
-        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None)).Ok);
+        var first = await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None);
+        Assert.IsTrue(first.Ok, first.Error + ": " + first.Message);
         Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None)).Ok);
         CollectionAssert.AreEqual(new long?[] { 7, 8 }, versions);
 
-        proxy.Handler = (_, _) => Task.FromResult(new QuickerRpcApplyXActionResult
-        { Success = false, ErrorCode = "EDIT_VERSION_CONFLICT", VersionConflict = true });
+        host.Apply = (_, _) => new QuickerRpcApplyXActionResult
+        { Success = false, ErrorCode = "EDIT_VERSION_CONFLICT", VersionConflict = true };
         Assert.IsFalse((await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None)).Ok);
         Assert.AreEqual(9, ActionSourceWorkspace.Prepare(_directory).EditVersion);
     }

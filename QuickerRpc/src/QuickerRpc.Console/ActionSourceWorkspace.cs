@@ -1,4 +1,5 @@
 using System.Globalization;
+using QuickerRpc.Contracts.Rpc;
 using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json;
@@ -16,11 +17,11 @@ internal static class ActionSourceWorkspace
     internal const string BundleSchema = "quicker.source-bundle.v1";
     private static readonly UTF8Encoding Utf8 = new(false, true);
 
-    internal sealed record Prepared(string Directory, string ActionId, long EditVersion, JObject Body, JObject Caw);
+    internal sealed record Prepared(string Directory, string ActionId, long EditVersion, JObject Body, JObject Caw, QuickerRpcHostBinding? HostBinding);
 
     internal static object Open(
         string directory, string actionId, long editVersion, string? title, string? readSource,
-        JObject nativeBody, int minLines = 4, bool noAutoFiles = false, IEnumerable<string>? warnings = null)
+        JObject nativeBody, int minLines = 4, bool noAutoFiles = false, IEnumerable<string>? warnings = null, QuickerRpcHostBinding? hostBinding = null)
     {
         var dir = ResolveDirectory(directory);
         RequireLocalPath(dir);
@@ -54,13 +55,14 @@ internal static class ActionSourceWorkspace
         {
             ["schema"] = BundleSchema, ["kind"] = "action", ["actionId"] = actionId,
             ["title"] = title, ["editVersion"] = editVersion.ToString(CultureInfo.InvariantCulture),
+            ["hostBinding"] = hostBinding is null ? null : JObject.FromObject(hostBinding),
             ["readSource"] = readSource ?? "catalog", ["exportedUtc"] = DateTime.UtcNow.ToString("O"),
         };
         WriteJson(Path.Combine(dir, IdentityFile), identity);
-        WriteBaseline(dir, actionId, editVersion, nativeBody, baselineCaw);
+        WriteBaseline(dir, actionId, editVersion, nativeBody, baselineCaw, hostBinding);
         return new
         {
-            ok = true, actionId, editVersion, title, readSource = readSource ?? "catalog",
+            ok = true, actionId, editVersion, title, hostBinding, readSource = readSource ?? "catalog",
             projectDirectoryAbsolute = dir, sourcePath = Path.Combine(dir, SourceFile),
             warnings = warnings?.ToArray() ?? Array.Empty<string>(),
             writtenFiles = new[] { SourceFile, IdentityFile, BaselineFile }.Concat(resources.Keys).ToArray(),
@@ -94,21 +96,25 @@ internal static class ActionSourceWorkspace
         var updatedEnvelope = ReadOnlyEnvelope(native);
         if (!JToken.DeepEquals(originalEnvelope, updatedEnvelope))
             throw new InvalidOperationException("This workflow edits steps, variables and embedded subprograms only. Root identity and metadata are read-only.");
-        return new Prepared(dir, actionId!, version, native, caw);
+        if (!JToken.DeepEquals(identity["hostBinding"], checkpoint["hostBinding"]))
+            throw new InvalidOperationException("Source host binding/checkpoint mismatch. Reopen into a new directory.");
+        var binding = identity["hostBinding"] is JObject bindingJson ? bindingJson.ToObject<QuickerRpcHostBinding>() : null;
+        return new Prepared(dir, actionId!, version, native, caw, binding);
     }
 
     internal static void Checkpoint(Prepared prepared, long editVersion)
     {
         var identity = ReadJson(prepared.Directory, IdentityFile);
         identity["editVersion"] = editVersion.ToString(CultureInfo.InvariantCulture);
-        WriteBaseline(prepared.Directory, prepared.ActionId, editVersion, prepared.Body, prepared.Caw);
+        WriteBaseline(prepared.Directory, prepared.ActionId, editVersion, prepared.Body, prepared.Caw, prepared.HostBinding);
         WriteJson(Path.Combine(prepared.Directory, IdentityFile), identity);
     }
 
-    private static void WriteBaseline(string dir, string id, long version, JObject body, JObject caw) =>
+    private static void WriteBaseline(string dir, string id, long version, JObject body, JObject caw, QuickerRpcHostBinding? binding) =>
         WriteJson(Path.Combine(dir, BaselineFile.Replace('/', Path.DirectorySeparatorChar)), new JObject
         {
             ["schema"] = "qkrpc.native-baseline.v1", ["actionId"] = id,
+            ["hostBinding"] = binding is null ? null : JObject.FromObject(binding),
             ["editVersion"] = version.ToString(CultureInfo.InvariantCulture),
             ["bodyHash"] = Hash(body), ["body"] = body.DeepClone(),
             ["cawHash"] = Hash(caw), ["caw"] = caw.DeepClone(),

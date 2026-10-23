@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console.Serve;
@@ -12,39 +13,41 @@ internal static class StepRunnerServeCache
     // Bump when search match/rank behavior changes (9: controlFields for OR queries).
     private const int SearchCacheSchemaVersion = 9;
 
-    private static readonly ConcurrentDictionary<string, QuickerRpcSearchStepRunnersResult> Search =
-        new(StringComparer.Ordinal);
-
-    private static readonly ConcurrentDictionary<string, QuickerRpcStepRunnerDetailResult> GetAgent =
-        new(StringComparer.Ordinal);
-
-    private static readonly ConcurrentDictionary<string, QuickerRpcStepRunnerDetailResult> GetUi =
-        new(StringComparer.Ordinal);
-
-    public static bool TryGetSearch(string query, int? limit, out QuickerRpcSearchStepRunnersResult? result)
+    private sealed class SessionCache
     {
-        return Search.TryGetValue(SearchKey(query, limit), out result);
+        internal readonly ConcurrentDictionary<string, QuickerRpcSearchStepRunnersResult> Search = new(StringComparer.Ordinal);
+        internal readonly ConcurrentDictionary<string, QuickerRpcStepRunnerDetailResult> GetAgent = new(StringComparer.Ordinal);
+        internal readonly ConcurrentDictionary<string, QuickerRpcStepRunnerDetailResult> GetUi = new(StringComparer.Ordinal);
+    }
+    private static readonly ConditionalWeakTable<IQuickerRpcService, SessionCache> Sessions = new();
+    private static SessionCache For(IQuickerRpcService rpc) => Sessions.GetValue(rpc, _ => new SessionCache());
+
+    public static bool TryGetSearch(IQuickerRpcService rpc, string query, int? limit, out QuickerRpcSearchStepRunnersResult? result)
+    {
+        return For(rpc).Search.TryGetValue(SearchKey(query, limit), out result);
     }
 
-    public static void SetSearch(string query, int? limit, QuickerRpcSearchStepRunnersResult result)
+    public static void SetSearch(IQuickerRpcService rpc, string query, int? limit, QuickerRpcSearchStepRunnersResult result)
     {
         if (!result.Success)
         {
             return;
         }
 
-        Search[SearchKey(query, limit)] = result;
+        For(rpc).Search[SearchKey(query, limit)] = result;
     }
 
     public static bool TryGetAgentDetail(
+        IQuickerRpcService rpc,
         string stepRunnerKey,
         string? controlField,
         out QuickerRpcStepRunnerDetailResult? result)
     {
-        return GetAgent.TryGetValue(DetailKey("agent", stepRunnerKey, controlField), out result);
+        return For(rpc).GetAgent.TryGetValue(DetailKey("agent", stepRunnerKey, controlField), out result);
     }
 
     public static void SetAgentDetail(
+        IQuickerRpcService rpc,
         string stepRunnerKey,
         string? controlField,
         QuickerRpcStepRunnerDetailResult result)
@@ -54,18 +57,20 @@ internal static class StepRunnerServeCache
             return;
         }
 
-        GetAgent[DetailKey("agent", stepRunnerKey, controlField)] = result;
+        For(rpc).GetAgent[DetailKey("agent", stepRunnerKey, controlField)] = result;
     }
 
     public static bool TryGetUiDetail(
+        IQuickerRpcService rpc,
         string stepRunnerKey,
         string? controlField,
         out QuickerRpcStepRunnerDetailResult? result)
     {
-        return GetUi.TryGetValue(DetailKey("ui", stepRunnerKey, controlField), out result);
+        return For(rpc).GetUi.TryGetValue(DetailKey("ui", stepRunnerKey, controlField), out result);
     }
 
     public static void SetUiDetail(
+        IQuickerRpcService rpc,
         string stepRunnerKey,
         string? controlField,
         QuickerRpcStepRunnerDetailResult result)
@@ -75,14 +80,7 @@ internal static class StepRunnerServeCache
             return;
         }
 
-        GetUi[DetailKey("ui", stepRunnerKey, controlField)] = result;
-    }
-
-    public static void Clear()
-    {
-        Search.Clear();
-        GetAgent.Clear();
-        GetUi.Clear();
+        For(rpc).GetUi[DetailKey("ui", stepRunnerKey, controlField)] = result;
     }
 
     private static string SearchKey(string query, int? limit) =>

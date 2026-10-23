@@ -15,7 +15,8 @@ internal static class ServeInvokeDispatcher
         string op,
         JsonElement args,
         int timeoutSeconds,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        QuickerRpcHostBinding? binding = null)
     {
         var normalized = (op ?? string.Empty).Trim().ToLowerInvariant();
         if (string.IsNullOrEmpty(normalized))
@@ -25,7 +26,39 @@ internal static class ServeInvokeDispatcher
 
         try
         {
-            return normalized switch
+            if (normalized == "action.binding")
+            {
+                var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty);
+                return Ok(new { hostBinding = prepared.HostBinding, prepared.ActionId, prepared.EditVersion });
+            }
+            if (normalized == "action.save" && ServeJsonArgs.GetBool(args, "dryRun"))
+                return await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false);
+            if (normalized == "host.list")
+                return Ok(new { service = "qkrpc", candidates = await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false) });
+            if (binding is null && args.ValueKind == JsonValueKind.Object && args.TryGetProperty("hostBinding", out var bindingJson))
+                binding = JsonSerializer.Deserialize<QuickerRpcHostBinding>(bindingJson.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var selectedSession = ServeJsonArgs.GetString(args, "hostSessionId");
+            if (binding is null && string.IsNullOrWhiteSpace(selectedSession))
+            {
+                var raw = Environment.GetEnvironmentVariable("QKRPC_HOST_BINDING");
+                if (!string.IsNullOrWhiteSpace(raw))
+                    binding = JsonSerializer.Deserialize<QuickerRpcHostBinding>(raw, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                else selectedSession = Environment.GetEnvironmentVariable("QKRPC_HOST_SESSION");
+            }
+            if (normalized == "action.save" && !ServeJsonArgs.GetBool(args, "dryRun"))
+            {
+                var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty);
+                if (prepared.HostBinding is null) return Fail(QuickerRpcBindingErrors.Required, "This bundle has no verified host binding. Reopen explicitly.");
+                if (binding is not null && !binding.SameDestination(prepared.HostBinding))
+                    return Fail(QuickerRpcBindingErrors.Mismatch, "Requested host differs from the source bundle.");
+                binding = prepared.HostBinding;
+            }
+            if (binding is not null && !string.IsNullOrWhiteSpace(selectedSession) && selectedSession != binding.HostSessionId)
+                return Fail(QuickerRpcBindingErrors.Mismatch, "Requested session differs from the bound document/connection.");
+            if (binding is null && !string.IsNullOrWhiteSpace(selectedSession))
+                binding = QuickerRpcHostDiscovery.Select(await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false), selectedSession);
+            if (binding is not null) pool = pool.ForBinding(binding);
+            var response = normalized switch
             {
                 "ping" => await PingAsync(pool, timeoutSeconds, cancellationToken).ConfigureAwait(false),
                 "wait" => await WaitAsync(args, cancellationToken).ConfigureAwait(false),
@@ -38,20 +71,23 @@ internal static class ServeInvokeDispatcher
                 _ => await RpcOpAsync(pool, normalized, args, timeoutSeconds, cancellationToken)
                     .ConfigureAwait(false),
             };
+            response.HostBinding = pool.Binding ?? binding;
+            return response;
         }
         catch (QuickerRpcClientException ex)
         {
-            await pool.InvalidateAsync().ConfigureAwait(false);
-            return Fail(ex.ErrorCode, ex.Message);
+            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
+            return new ServeInvokeResponse { Ok = false, Error = ex.ErrorCode, Message = ex.Message, HostBinding = pool.Binding ?? binding };
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            await pool.InvalidateAsync().ConfigureAwait(false);
+            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
             return Fail("RPC_TIMEOUT", $"RPC timed out after {timeoutSeconds}s.");
         }
         catch (Exception ex)
         {
-            await pool.InvalidateAsync().ConfigureAwait(false);
+            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
             return Fail("INVOKE_FAILED", ex.Message);
         }
     }
@@ -63,8 +99,11 @@ internal static class ServeInvokeDispatcher
         int timeoutSeconds,
         CancellationToken cancellationToken)
     {
-        var rpc = await pool.GetRpcAsync(cancellationToken).ConfigureAwait(false);
-        var token = QuickerRpcClient.CreateRpcCancellationToken(timeoutSeconds);
+        var rpc = await pool.GetRpcAsync(cancellationToken,
+            op == "action.open" ? new[] { QuickerRpcHostCapabilityNames.ActionSourceRead } : null).ConfigureAwait(false);
+        using var rpcTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        rpcTimeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
+        var token = rpcTimeout.Token;
 
         return op switch
         {
@@ -162,7 +201,9 @@ internal static class ServeInvokeDispatcher
         CancellationToken cancellationToken)
     {
         var rpc = await pool.GetRpcAsync(cancellationToken).ConfigureAwait(false);
-        var token = QuickerRpcClient.CreateRpcCancellationToken(timeoutSeconds);
+        using var rpcTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        rpcTimeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
+        var token = rpcTimeout.Token;
         var health = await ServeHealthQuery.ReadAsync(rpc, token).ConfigureAwait(false);
         return Ok(new
         {
@@ -2006,13 +2047,13 @@ internal static class ServeInvokeDispatcher
 
         var limit = ServeJsonArgs.GetInt(args, "limit");
         var trimmedQuery = query.Trim();
-        if (StepRunnerServeCache.TryGetSearch(trimmedQuery, limit, out var cached) && cached is not null)
+        if (StepRunnerServeCache.TryGetSearch(rpc, trimmedQuery, limit, out var cached) && cached is not null)
         {
             return Ok(new { ok = cached.Success, action = "step-runner-search", payload = cached });
         }
 
         var response = await rpc.SearchStepRunnersAsync(trimmedQuery, limit, token).ConfigureAwait(false);
-        StepRunnerServeCache.SetSearch(trimmedQuery, limit, response);
+        StepRunnerServeCache.SetSearch(rpc, trimmedQuery, limit, response);
         return Ok(new { ok = response.Success, action = "step-runner-search", payload = response });
     }
 
@@ -2033,7 +2074,7 @@ internal static class ServeInvokeDispatcher
         var action = forAgent ? "step-runner-get" : "step-runner-get-ui";
         if (forAgent)
         {
-            if (StepRunnerServeCache.TryGetAgentDetail(trimmedKey, controlField, out var cached) && cached is not null)
+            if (StepRunnerServeCache.TryGetAgentDetail(rpc, trimmedKey, controlField, out var cached) && cached is not null)
             {
                 return Ok(new
                 {
@@ -2043,7 +2084,7 @@ internal static class ServeInvokeDispatcher
                 });
             }
         }
-        else if (StepRunnerServeCache.TryGetUiDetail(trimmedKey, controlField, out var cachedUi) && cachedUi is not null)
+        else if (StepRunnerServeCache.TryGetUiDetail(rpc, trimmedKey, controlField, out var cachedUi) && cachedUi is not null)
         {
             return Ok(new
             {
@@ -2058,11 +2099,11 @@ internal static class ServeInvokeDispatcher
             : await rpc.GetStepRunnerUiDetailAsync(trimmedKey, controlField, token).ConfigureAwait(false);
         if (forAgent)
         {
-            StepRunnerServeCache.SetAgentDetail(trimmedKey, controlField, response);
+            StepRunnerServeCache.SetAgentDetail(rpc, trimmedKey, controlField, response);
         }
         else
         {
-            StepRunnerServeCache.SetUiDetail(trimmedKey, controlField, response);
+            StepRunnerServeCache.SetUiDetail(rpc, trimmedKey, controlField, response);
         }
 
         return Ok(new

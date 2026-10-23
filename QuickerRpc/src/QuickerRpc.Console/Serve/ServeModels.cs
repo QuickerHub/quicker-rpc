@@ -5,6 +5,9 @@ namespace QuickerRpc.Console.Serve;
 
 internal sealed class ServeInvokeRequest
 {
+    [JsonPropertyName("hostBinding")]
+    public QuickerRpc.Contracts.Rpc.QuickerRpcHostBinding? HostBinding { get; set; }
+
     [JsonPropertyName("op")]
     public string Op { get; set; } = string.Empty;
 
@@ -17,6 +20,10 @@ internal sealed class ServeInvokeRequest
 
 internal sealed class ServeInvokeResponse
 {
+    [JsonPropertyName("hostBinding")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public QuickerRpc.Contracts.Rpc.QuickerRpcHostBinding? HostBinding { get; set; }
+
     [JsonPropertyName("ok")]
     public bool Ok { get; set; }
 
@@ -32,6 +39,11 @@ internal sealed class ServeInvokeResponse
 
 internal sealed class ServeHealthResponse
 {
+    public string Service { get; set; } = "qkrpc";
+    public QuickerRpc.Contracts.Rpc.QuickerRpcHostBinding? HostBinding { get; set; }
+    public string? Error { get; set; }
+    public string? Message { get; set; }
+
     [JsonPropertyName("ok")]
     public bool Ok { get; set; }
 

@@ -17,13 +17,15 @@ internal static class ActionSourceServeOps
             var dir = ResolveDirectory(args);
             if (!Guid.TryParse(id, out _) || string.IsNullOrWhiteSpace(dir))
                 return Fail("INVALID_ARGS", "Provide id (local action GUID) and dir (empty directory).");
+            var binding = QuickerRpcClient.GetBinding(rpc);
+            if (binding is null) return Fail(QuickerRpcBindingErrors.Required, "Source export requires a verified host binding. Upgrade the plugin.");
             var result = await rpc.GetActionProgramSourceAsync(id, token).ConfigureAwait(false);
             if (!result.Success || string.IsNullOrWhiteSpace(result.BodyJson) || !result.EditVersion.HasValue)
                 return Fail(result.ErrorCode ?? "SOURCE_READ_FAILED", result.ErrorMessage ?? "Native action source is unavailable.");
             using var reader = new JsonTextReader(new StringReader(result.BodyJson)) { DateParseHandling = DateParseHandling.None };
             var output = ActionSourceWorkspace.Open(dir, result.ActionId ?? id, result.EditVersion.Value, result.Title, result.ReadSource,
                 JObject.Load(reader), ServeJsonArgs.GetInt(args, "minLines") ?? 4,
-                ServeJsonArgs.GetBool(args, "noAutoFiles"), result.Warnings);
+                ServeJsonArgs.GetBool(args, "noAutoFiles"), result.Warnings, binding);
             return new ServeInvokeResponse { Ok = true, Data = output };
         }
         catch (ProgramSourceException ex) { return Fail(ex.Code, ex.Message); }
@@ -42,12 +44,14 @@ internal static class ActionSourceServeOps
             if (dryRun)
                 return new ServeInvokeResponse { Ok = true, Data = new
                 {
-                    ok = true, dryRun = true, prepared.ActionId, prepared.EditVersion,
+                    ok = true, dryRun = true, prepared.ActionId, prepared.EditVersion, hostBinding = prepared.HostBinding,
                     projectDirectoryAbsolute = prepared.Directory,
                     stepCount = ActionSourceWorkspace.ProgramArray(prepared.Body, "Steps").Count,
                     variableCount = ActionSourceWorkspace.ProgramArray(prepared.Body, "Variables").Count,
                 }};
             if (rpc is null) throw new InvalidOperationException("A live V1 host is required to save.");
+            if (prepared.HostBinding is null) return Fail(QuickerRpcBindingErrors.Required, "This bundle has no verified host binding. Reopen explicitly before saving.");
+            QuickerRpcClient.RequireBinding(rpc, prepared.HostBinding);
             // Submit only the editable body; metadata may have been refreshed by the host on the previous save.
             var body = new JObject
             {
@@ -73,7 +77,7 @@ internal static class ActionSourceServeOps
             }
             return new ServeInvokeResponse { Ok = true, Data = new
             {
-                ok = true, dryRun = false, persisted = true, result.ActionId, result.EditVersion,
+                ok = true, dryRun = false, persisted = true, result.ActionId, result.EditVersion, hostBinding = prepared.HostBinding,
                 projectDirectoryAbsolute = prepared.Directory, result.Warnings,
             }};
         }

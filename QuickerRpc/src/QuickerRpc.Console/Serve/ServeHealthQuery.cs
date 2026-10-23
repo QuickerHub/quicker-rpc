@@ -15,7 +15,8 @@ internal static class ServeHealthQuery
         return new ServeHealthResponse
         {
             Ok = true, Pong = pong, ProtocolVersion = version,
-            Pipe = QuickerRpcPipeNames.ServerPipe, HostSession = hostSession,
+            Pipe = QuickerRpcClient.GetBinding(rpc)?.Endpoint ?? QuickerRpcPipeNames.ServerPipe, HostSession = hostSession,
+            HostBinding = QuickerRpcClient.GetBinding(rpc),
         };
     }
 }

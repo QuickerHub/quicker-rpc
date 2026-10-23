@@ -16,6 +16,7 @@
     <PackageReference Include="MSTest.TestFramework" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../QuickerRpc.Transport.Test/Fixtures/FakeBindingHost.cs" Link="Fixtures/FakeBindingHost.cs" />
     <ProjectReference Include="..\..\src\QuickerRpc.Console\QuickerRpc.Console.csproj" />
   </ItemGroup>
 </Project>

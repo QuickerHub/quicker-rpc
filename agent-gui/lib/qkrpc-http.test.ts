@@ -4,7 +4,13 @@ import { argvToInvoke, type QkrpcInvoke } from "./qkrpc-argv";
 import { invokeQkrpcHttp } from "./qkrpc-http";
 import { runWithQkrpcCwdAsync } from "./qkrpc-request-context";
 
-type InvokeRequest = QkrpcInvoke & { timeoutSeconds: number };
+export const fakeBinding = {
+  hostInstanceId: "fixture", hostSessionId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  endpoint: "QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fixture",
+  capabilities: { "action.source.read": true, "action.source.write": true },
+};
+type InvokeRequest = QkrpcInvoke & { timeoutSeconds: number; hostBinding?: typeof fakeBinding };
 const fakeBase = "http://qkrpc-test.invalid:9477";
 
 /** All discovery and invoke requests stay inside this fake transport. */
@@ -20,11 +26,13 @@ async function withFakeServe(
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url === `${fakeBase}/health`) {
-      return Response.json({ ok: pluginConnected }, { status: pluginConnected ? 200 : 503 });
+      return Response.json({ service: "qkrpc", ok: pluginConnected }, { status: pluginConnected ? 200 : 503 });
     }
     assert.equal(url, `${fakeBase}/v1/invoke`);
     assert.equal(init?.method, "POST");
     const request = JSON.parse(String(init?.body)) as InvokeRequest;
+    if (request.op === "action.binding") return Response.json({ ok: true, data: { hostBinding: fakeBinding } });
+    if (request.op === "host.list") return Response.json({ ok: true, data: { candidates: [fakeBinding] } });
     requests.push(request);
     return dispatch(request);
   };
@@ -65,6 +73,7 @@ test("source open forwards options and resolves relative directories in the requ
           workspaceRoot: cwd,
         },
         timeoutSeconds: 120,
+        hostBinding: fakeBinding,
       }]);
       assert.equal(invoke.args.workspaceRoot, undefined);
     },

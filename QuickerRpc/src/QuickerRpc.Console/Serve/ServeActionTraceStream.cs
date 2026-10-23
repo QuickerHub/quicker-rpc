@@ -9,6 +9,8 @@ namespace QuickerRpc.Console.Serve;
 
 internal sealed class ServeActionTraceStreamRequest
 {
+    public QuickerRpcHostBinding? HostBinding { get; set; }
+
     public string? Id { get; set; }
 
     public string? Param { get; set; }
@@ -33,15 +35,15 @@ internal static class ServeActionTraceStream
         HttpContext context,
         int defaultTimeoutSeconds,
         bool tryBootstrap,
-        CancellationToken cancellationToken) =>
-        HandleAsync(context, defaultTimeoutSeconds, tryBootstrap, cancellationToken, request: null);
+        CancellationToken cancellationToken, QkrpcRpcSessionPool? pool = null) =>
+        HandleAsync(context, defaultTimeoutSeconds, tryBootstrap, cancellationToken, request: null, pool);
 
     public static async Task HandleAsync(
         HttpContext context,
         int defaultTimeoutSeconds,
         bool tryBootstrap,
         CancellationToken cancellationToken,
-        ServeActionTraceStreamRequest? request)
+        ServeActionTraceStreamRequest? request, QkrpcRpcSessionPool? pool = null)
     {
         var body = request ?? await ReadRequestAsync(context, cancellationToken).ConfigureAwait(false);
         if (body is null)
@@ -104,11 +106,15 @@ internal static class ServeActionTraceStream
 
         try
         {
+            var binding = body.HostBinding ?? (pool is null ? null : (await pool.GetSessionAsync(cancellationToken).ConfigureAwait(false)).Binding);
+            if (binding is null)
+                throw new QuickerRpcClientException(QuickerRpcBindingErrors.Required, "Trace requires the gateway's verified host binding.");
             await using var session = await QuickerRpcClient
-                .ConnectAsync(timeoutSeconds, tryBootstrap, callbacks, cancellationToken)
-                .ConfigureAwait(false);
+                .ConnectBoundAsync(binding, timeoutSeconds, callbacks, cancellationToken).ConfigureAwait(false);
 
-            var rpcToken = QuickerRpcClient.CreateRpcCancellationToken(timeoutSeconds);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+            var rpcToken = timeout.Token;
             var progress = new Progress<QuickerRpcActionTraceEvent>(evt =>
             {
                 _ = callbacks.EmitTraceAsync(evt);
@@ -238,6 +244,8 @@ internal static class ServeActionTraceStream
         var xactionEl = ServeJsonArgs.GetObject(root, "xaction");
         return new ServeActionTraceStreamRequest
         {
+            HostBinding = root.TryGetProperty("hostBinding", out var hostBinding)
+                ? JsonSerializer.Deserialize<QuickerRpcHostBinding>(hostBinding.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) : null,
             Id = ServeJsonArgs.GetString(root, "id", "actionId"),
             Param = ServeJsonArgs.GetString(root, "param"),
             Xaction = xactionEl ?? default,
