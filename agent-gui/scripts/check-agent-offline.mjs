@@ -82,6 +82,7 @@ const tests = [
   "lib/qkrpc-tool-call.test.ts",
   "lib/qkrpc-http.test.ts",
   "lib/qkrpc-host-binding.test.ts",
+  "lib/qkrpc-host-binding-contract.test.ts",
   "lib/qkrpc-cancellation.test.ts",
   "lib/web-search-cancellation.test.ts",
   "lib/shell-runner-cancellation.test.ts",
