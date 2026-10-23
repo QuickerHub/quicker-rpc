@@ -128,7 +128,14 @@ React renderer：Agent 工作台 + Quicker Designer 组件/文档 controller
 `GetHostSessionAsync` 已将实际 host kind/version、协议/schema、bootstrap session 和动作
 能力暴露到 RPC、CLI `ping --json` 与 HTTP `/health`。session 在同一次插件加载内稳定，
 不等同于跨重启的实例 ID。旧插件仅在方法不存在时兼容返回未知身份，不按版本猜能力；
-取消、断连和其它错误继续传播。两版本仍共用固定管道，尚无完整实例发现和写入绑定。
+取消、断连和其它错误继续传播。两版本每次 bootstrap 现在启动当前用户命名空间内的专属 endpoint；固定管道仅兼容读取。
+Transport 通过最多 64 个候选及共享握手时限核验身份，只自动选择唯一兼容候选；多候选需显式
+session。每条连接在核验同一 instance/session/endpoint 后才允许写，server 端也要求本连接先握手。
+`HostBinding` 保留已核验能力的不可变副本，source identity/checkpoint 同时保存该绑定；断线、重启、
+能力不足或绑定不一致均不能切往其它宿主，写后断线返回 `WRITE_RESULT_UNKNOWN`。
+CLI、MCP、serve 和 Agent 共用这一约束；Agent 在写前固定 turn 目标，源码保存先离线读取 bundle
+绑定。pool 重连保留 session，catalog cache 按连接隔离，SSE 的独立连接也携带相同绑定和取消。
+双宿主活进程和安装/热更验收仍由集成阶段执行。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
 持久化。V2 尚未实现 `IQuickerRpcActionProgramSourceHost`；这与 V2 Designer UI port 为

@@ -116,7 +116,7 @@ CLI、MCP 和 HTTP 共用 Contracts/Runtime/Transport，Quicker 版本差异只�
 - V1/net472 是当前完整宿主。
 - 现有 V1 动作源码编辑提供 CLI `action open/save`、MCP `qkrpc_action_open/save` 与 HTTP `action.open/save`；范围限 V1 动作程序体。
 - V2/net10 已接共享表达式服务及多项核心 adapter；ActionSharing/部分布局操作仍有 stub，ChromeControl/Triggers/Designer capability 当前关闭。
-- RPC/CLI health 已返回宿主类型、版本、本次加载 session 与动作能力；实例选择、写入目标绑定和 V2 source/codec 仍待完成。
+- RPC/CLI health 已返回宿主类型、版本、本次加载 session 与动作能力；专属 endpoint、候选选择、不可变写入绑定已实现并通过离线 fake/入口贯通测试。双宿主活进程、安装/热更验收与 V2 source/codec 仍待完成。
 - capability 必须反映真实实现；能编译不等于能力对齐。
 
 V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。外部接入见 [MCP/CLI 集成](../agent-mcp-integration.md)。
@@ -152,7 +152,7 @@ Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完�
 
 | 顺序 | 交付与边界 | 负责入口 | 验收门槛 / 当前状态 |
 |---|---|---|---|
-| A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | 一个兼容实例自动选中；多实例明确选择；断连不把保存切往另一宿主；未知/不支持能力返回结构化错误。已实现 wire 握手与 bootstrap session，旧插件保持身份未知；V1 活进程已核验。实例发现/专属 endpoint、选择与写入绑定仍待实现 |
+| A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | 一个兼容实例自动选中；多实例明确选择；断连不把保存切往另一宿主；未知/不支持能力返回结构化错误。已实现 wire 握手与 bootstrap session，旧插件保持身份未知；V1 活进程已核验。实例发现/专属 endpoint、选择、source/Agent 写前绑定与断线禁重发已在 P2 隔离分支实现并验证；双宿主活进程及集成热更仍待验收 |
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface workspace/live snapshot，接入统一文档 revision、保存票据和保真落盘，真实 DOM 回归通过；当前接既有磁盘项目，metadata/catalog 与完整 host session 接线待迁移 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | 两版本分别验证读取→编辑→校验→保存→重读，以及版本冲突、宿主 Designer 内存态、重启、取消和部分保存；未完成能力保持关闭。当前 V1 source 可用，V2 source 尚不支持 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | Agent 生成或修改的动作能进入同一设计器检查并保存；手工编辑与 Agent 并发修改有 revision/冲突处理；Ask 不写、不绕过脏状态或基线。待实施 |
@@ -179,7 +179,7 @@ Agent 执行循环、文档会话、权限和工具服务。代码整理、界�
 
 **现有基线**：宿主握手、V1 source bundle/codec、独立 Node chat service、隔离资料根、
 设计器多 surface/history、完整 body snapshot 与保存票据已实现。当前运行的主界面仍依赖
-Next；V2 source、宿主多实例路由、实时 Agent/Designer 文档共享和完整新版设计器未完成。
+Next；V2 source、实时 Agent/Designer 文档共享和完整新版设计器未完成；宿主多实例路由与写入绑定已有 P2 离线实现，真实双宿主和主产品集成未验收。
 本节状态必须随实现更新，不把“分支已编译”写成“主产品已可用”。
 
 | 并行工作包 | 独立交付与主要文件所有权 | 现在可做 / 依赖 | 完成证据 |
