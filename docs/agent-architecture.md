@@ -275,7 +275,7 @@ Electron smoke 的 `verify` 只检查包产物；`launch/full` 仍须明确执�
 脚本先核验 runId、profile、job 内 PID 与精确监听端口，再探测本轮 UI 并允许窗口加载。
 该 smoke 的 RPC 端口由本轮进程拥有，明确 `hostRpcDisabled=true`，拒绝所有调用；不验收真实
 Quicker 插件、动作读写或模型请求。旧包缺协议时先拒绝启动，需重新构建匹配的包。
-离线验证为 `node --test agent-gui/electron/*smoke*.test.mjs`（shell 展开按平台调整）与
+离线验证为 `node --test agent-gui/electron/smoke-isolation.test.mjs agent-gui/electron/backend-smoke.test.mjs` 与
 `pwsh -NoProfile -File agent-gui/scripts/Test-QuickerAgentElectronSmokeIsolation.ps1`；只用 fake app、
 socket、spawn、job/监听快照和生成目录。原生 Job Object 执行、打包 Electron 与实际窗口仍须单独验收，
 本轮未执行；测试日志和资料目录保留在对应 run 目录中供核对。

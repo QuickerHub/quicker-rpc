@@ -37,6 +37,9 @@ import { createLegacyChatCommands } from "./commands/legacy-chat.mjs";
 import { createUpdaterCommands } from "./commands/updater.mjs";
 import { createShellCommands } from "./commands/shell.mjs";
 import { createAppNativeIcon } from "./app-icon.mjs";
+import { waitForSmokeApproval } from "./smoke-isolation.mjs";
+
+const smoke = globalThis.__QUICKER_ELECTRON_SMOKE__ ?? null;
 
 const electronRoot = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(electronRoot, "preload.mjs");
@@ -304,9 +307,11 @@ async function initDesktopCommands() {
   });
   embeddedBrowserCommands = createEmbeddedBrowserCommands(embeddedBrowserManager);
   const embeddedBrowserAutomation = createEmbeddedBrowserAutomation(embeddedBrowserManager);
-  embeddedBrowserAutomationServer = await startEmbeddedBrowserAutomationServer(
-    embeddedBrowserAutomation,
-  );
+  if (!smoke) {
+    embeddedBrowserAutomationServer = await startEmbeddedBrowserAutomationServer(
+      embeddedBrowserAutomation,
+    );
+  }
   registerEmbeddedBrowserShutdown(() => {
     embeddedBrowserManager?.teardown();
     void embeddedBrowserAutomationServer?.close().catch(() => {});
@@ -314,7 +319,7 @@ async function initDesktopCommands() {
   });
   webviewProfileCommands = createWebviewProfileCommands({ app });
   legacyChatCommands = createLegacyChatCommands();
-  updaterCommands = createUpdaterCommands({ isDev: isDev() });
+  updaterCommands = createUpdaterCommands({ isDev: isDev() || Boolean(smoke) });
   shellCommands = createShellCommands();
 
   globalShortcutCommands = createGlobalShortcutCommands({
@@ -484,6 +489,7 @@ async function bootProduction() {
     appDir,
     nodeExe,
     qkrpcDir,
+    smoke,
   });
   writeBootLog(`boot ok uiUrl=${uiUrl}`);
   setProductionUiUrl(uiUrl);
@@ -514,13 +520,17 @@ async function main() {
   try {
     writeBootLog(`startup isDev=${isDev()} packaged=${app.isPackaged} argv=${process.argv.join(" ")}`);
     const loadUrl = isDev() ? getUiBaseUrl(true) : await bootProduction();
+    // QUICKER_AGENT_SMOKE_MAIN_V1: never load an unverified existing HTTP listener.
+    if (smoke) await waitForSmokeApproval(smoke);
     writeBootLog(`loadUrl=${loadUrl}`);
     const win = createMainWindow(loadUrl);
     win.webContents.once("did-finish-load", () => {
       launcher?.scheduleLauncherPrewarm(isDev());
     });
-    globalShortcutCommands?.initDefault();
-    spawnClipboardRuntimeBackground();
+    if (!smoke) {
+      globalShortcutCommands?.initDefault();
+      spawnClipboardRuntimeBackground();
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     writeBootLog(`startup failed: ${message}`);

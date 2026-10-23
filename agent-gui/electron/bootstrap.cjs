@@ -54,7 +54,12 @@ bootLog("bootstrap electron API ready");
 
 const mainUrl = pathToFileURL(path.join(__dirname, "main.mjs")).href;
 
-import(mainUrl)
+// QUICKER_AGENT_SMOKE_BOOTSTRAP_V1: isolate Electron paths before loading application modules.
+import(pathToFileURL(path.join(__dirname, "smoke-isolation.mjs")).href)
+  .then(({ initializeSmokeIsolation }) => {
+    globalThis.__QUICKER_ELECTRON_SMOKE__ = initializeSmokeIsolation(electron.app);
+    return import(mainUrl);
+  })
   .then(() => bootLog("main.mjs loaded"))
   .catch((err) => {
     bootLog(`main.mjs load failed: ${err instanceof Error ? err.stack || err.message : String(err)}`);
