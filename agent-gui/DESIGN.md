@@ -9,12 +9,12 @@ QuickerAgent 是面向 Quicker 动作维护与工作区任务的 Agent 工作台
 参考源为 Quicker 仓库的 `QuickerPc/Quicker.Headless/Web/src/features/agent/sdk/AgentShell.tsx`、`features/agent/agent-workspace.css` 和 `src/theme.css`；迁移的是 Agent UI SDK 的布局与视觉约定，功能范围仍由本产品的能力地图定义。
 
 - 顶栏高 36px，展开侧栏宽 240px；正文与输入区共享最大 960px 的内容轨道。
-- 对话正文为 14px，代码为 12px；颜色与表面层级使用主题 token，深浅主题均可读。
+- 对话正文为 14px，代码为 12px；主界面、菜单、浮层与设置共用黑白灰主题 token，选中、焦点与发送按钮使用单色对比。深浅主题均可读，状态提示与代码高亮保留语义色。
 - 新会话将输入区与引导内容居中；窗口较矮时内容可滚动，输入与发送操作保持可达。
 - 已有会话、工具消息、审批、输入与侧面板保留各自行为。界面迁移不改变 Agent/Ask/Launcher 的权限含义。
 - 设置、资源、浏览器与小窗快捷入口继续打开已有功能；工具测试与发布预览遵守现有开发/调试门控。
 
-主工作台样式限定于 `agent-workbench` 作用域。Launcher、独立实验页和动作设计器嵌入继续遵循各自的使用场景。
+主工作台布局限定于 `agent-workbench` 作用域；通用配色在主题根节点定义，让挂在 `body` 下的浮层保持一致。Launcher 的透明窗口与动作设计器的独立主题继续遵循各自的使用场景。
 
 ## 扩展原则
 

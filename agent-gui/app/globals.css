@@ -1107,8 +1107,8 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 }
 
 .composer-prompt-tag--browser-element {
-  border-color: color-mix(in srgb, #3b82f6 35%, var(--border));
-  background: color-mix(in srgb, #3b82f6 10%, var(--surface-elevated, var(--surface)));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-elevated));
 }
 
 .composer-prompt-tag--program-step {
@@ -1128,7 +1128,7 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 }
 
 .composer-prompt-tag__icon--browser {
-  color: color-mix(in srgb, #3b82f6 78%, var(--text));
+  color: var(--text);
 }
 
 .embedded-browser__remote-hint {
@@ -5179,8 +5179,8 @@ html.designer-embed-html body {
 }
 
 .composer-tag-preview__badge--browser {
-  color: #2563eb;
-  background: color-mix(in srgb, #3b82f6 14%, transparent);
+  color: var(--text);
+  background: var(--hover-overlay-strong);
 }
 
 .composer-tag-preview__badge--action {

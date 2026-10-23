@@ -1,21 +1,21 @@
-/* Cursor-aligned tokens — dark fallbacks on :root, then light/dark overrides */
+/* Monochrome application theme; status and syntax colors retain their meaning. */
 
-/* V2 workbench palette. Applied only by .agent-workbench in agent-workbench.css. */
+/* Shared palette for the workbench, controls and body-mounted portals. */
 :root,
 [data-theme="dark"] {
   --workbench-canvas: #141414;
   --workbench-chrome: #181818;
   --workbench-panel: #1e1e1e;
-  --workbench-popup: #252526;
+  --workbench-popup: #252525;
   --workbench-input: #2a2a2a;
   --workbench-composer: #212121;
   --workbench-border: #2b2b2b;
   --workbench-input-border: #333333;
   --workbench-chrome-border: rgba(255, 255, 255, 0.04);
   --workbench-text: #e4e4e4;
-  --workbench-muted: #8b8b8b;
-  --workbench-accent: #82aaff;
-  --workbench-accent-hover: #a8c7ff;
+  --workbench-muted: #969696;
+  --workbench-accent: #e4e4e4;
+  --workbench-accent-hover: #ffffff;
   --workbench-hover: rgba(255, 255, 255, 0.05);
   --workbench-hover-strong: rgba(255, 255, 255, 0.09);
   --workbench-selected: #2c2c2c;
@@ -41,16 +41,16 @@
   --workbench-chrome-border: rgba(0, 0, 0, 0.08);
   --workbench-text: #1a1a1a;
   --workbench-muted: #6e6e6e;
-  --workbench-accent: #2b7abf;
-  --workbench-accent-hover: #246ca9;
+  --workbench-accent: #242424;
+  --workbench-accent-hover: #111111;
   --workbench-hover: rgba(0, 0, 0, 0.06);
   --workbench-hover-strong: rgba(0, 0, 0, 0.09);
   --workbench-selected: #e8e8e8;
   --workbench-code: #e5e5e5;
   --workbench-user: #ffffff;
   --workbench-user-border: #e0e0e0;
-  --workbench-send: #2b7abf;
-  --workbench-send-hover: #246ca9;
+  --workbench-send: #242424;
+  --workbench-send-hover: #111111;
   --workbench-on-send: #ffffff;
   --workbench-popup-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
   --workbench-user-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
@@ -69,16 +69,16 @@
     --workbench-chrome-border: rgba(0, 0, 0, 0.08);
     --workbench-text: #1a1a1a;
     --workbench-muted: #6e6e6e;
-    --workbench-accent: #2b7abf;
-    --workbench-accent-hover: #246ca9;
+    --workbench-accent: #242424;
+    --workbench-accent-hover: #111111;
     --workbench-hover: rgba(0, 0, 0, 0.06);
     --workbench-hover-strong: rgba(0, 0, 0, 0.09);
     --workbench-selected: #e8e8e8;
     --workbench-code: #e5e5e5;
     --workbench-user: #ffffff;
     --workbench-user-border: #e0e0e0;
-    --workbench-send: #2b7abf;
-    --workbench-send-hover: #246ca9;
+    --workbench-send: #242424;
+    --workbench-send-hover: #111111;
     --workbench-on-send: #ffffff;
     --workbench-popup-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
     --workbench-user-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
@@ -88,49 +88,14 @@
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-
-  --bg: #1a1d23;
-  --panel: #23272f;
-  --border: #3a4150;
-  --text: #e8eaed;
-  --text-assistant: #e8eaed;
-  /* Tool card title: between assistant body and tool-meta */
-  --text-tool-name: color-mix(in srgb, var(--text-assistant) 46%, var(--muted) 54%);
-  --muted: #9aa3b2;
-  --accent: #4d9fff;
-  --accent-dim: #3a8ae6;
-  --accent-subtle: rgba(77, 159, 255, 0.14);
-  --accent-border: rgba(77, 159, 255, 0.42);
-  --accent-hover-text: #b8d9ff;
   --ok: #89d185;
   --err: #f48771;
   --warn: #cca700;
-  --md-code-bg: #1e2228;
-  --md-table-bg: rgba(255, 255, 255, 0.04);
-  --md-table-header-bg: rgba(77, 159, 255, 0.1);
-  --md-table-row-border: rgba(255, 255, 255, 0.09);
-  --composer-footer-bg: #1a1d23;
-  --composer-bg: #1a1d23;
-  --composer-input-bg: #252a33;
-  --composer-border: #3a4150;
-  --composer-focus-border: #5c6b82;
-  --composer-focus-shadow: rgba(77, 159, 255, 0.18);
-  --composer-send-bg: #e8eaed;
-  --composer-send-bg-hover: #ffffff;
-  --composer-send-fg: #141820;
   --composer-voice-bg: color-mix(in srgb, var(--text) 26%, var(--composer-input-bg));
   --composer-voice-bg-hover: color-mix(in srgb, var(--text) 32%, var(--composer-input-bg));
   --composer-voice-stop-bg: color-mix(in srgb, var(--text) 92%, var(--composer-input-bg));
   --composer-voice-stop-bg-hover: color-mix(in srgb, var(--text) 86%, var(--composer-input-bg));
   --composer-voice-stop-fg: var(--composer-input-bg);
-  --composer-voice-fg: #141820;
-  --composer-ring-progress: #9aa3b2;
-  --composer-ring-open-bg: rgba(255, 255, 255, 0.08);
-  --composer-popup-meter: #9aa3b2;
-  --user-msg-bg: #252a33;
-  --user-msg-border: #3a4150;
-  --hover-overlay: rgba(255, 255, 255, 0.05);
-  --hover-overlay-strong: rgba(255, 255, 255, 0.09);
   --error-banner-bg: #3d2424;
   --error-banner-text: #f48771;
   --status-ok-bg: rgba(137, 209, 133, 0.14);
@@ -138,7 +103,6 @@
   --status-err-bg: rgba(244, 135, 113, 0.14);
   --status-err-text: #f48771;
   --status-err-border: rgba(244, 135, 113, 0.35);
-  --code-text: #d4d4d4;
   /* FileEditor / diff syntax (VS Code Dark+) */
   --code-token-comment: #6a9955;
   --code-token-string: #ce9178;
@@ -149,7 +113,6 @@
   --code-token-punctuation: color-mix(in srgb, var(--code-text) 72%, transparent);
   --code-diff-insert: #3dd68c;
   --code-diff-remove: #f07178;
-  --code-bg-overlay: rgba(0, 0, 0, 0.22);
   --font-mono:
     ui-monospace,
     "Cascadia Mono",
@@ -158,27 +121,10 @@
     Consolas,
     "Liberation Mono",
     monospace;
-  --user-code-bg: rgba(0, 0, 0, 0.2);
-  --blockquote-bg: rgba(77, 159, 255, 0.1);
-  --tool-card-open-bg: rgba(255, 255, 255, 0.035);
-  --popup-bg: #2a2f38;
-  --popup-shadow: 0 16px 40px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.07);
   --popup-elevated-shadow:
     0 2px 4px rgba(0, 0, 0, 0.28),
     0 14px 36px -8px rgba(0, 0, 0, 0.55),
     var(--popup-shadow);
-  --ring-track: rgba(154, 163, 178, 0.28);
-  --meter-track: rgba(154, 163, 178, 0.18);
-  --btn-on-accent: #ffffff;
-  --scrollbar-thumb: rgba(154, 163, 178, 0.32);
-  --scrollbar-thumb-hover: rgba(154, 163, 178, 0.5);
-  --app-bg:
-    radial-gradient(circle at 18% -8%, rgba(77, 159, 255, 0.14), transparent 28rem),
-    radial-gradient(circle at 92% 6%, rgba(129, 140, 248, 0.09), transparent 26rem),
-    linear-gradient(180deg, #1e222a 0%, #1a1d23 48%, #161920 100%);
-  --chat-bg:
-    linear-gradient(180deg, rgba(42, 47, 58, 0.55) 0%, rgba(26, 29, 35, 0.94) 36%, #1a1d23 100%);
-  --panel-bg: rgba(35, 39, 47, 0.84);
 }
 
 :root {
@@ -187,48 +133,14 @@
 
 [data-theme="light"] {
   color-scheme: light;
-
-  --bg: #f7f8fb;
-  --panel: #ffffff;
-  --border: #dfe4ec;
-  --text: #1f2937;
-  --text-assistant: #1f2937;
-  --text-tool-name: color-mix(in srgb, var(--text-assistant) 46%, var(--muted) 54%);
-  --muted: #667085;
-  --accent: #2563eb;
-  --accent-dim: #1d4ed8;
-  --accent-subtle: rgba(37, 99, 235, 0.1);
-  --accent-border: rgba(37, 99, 235, 0.32);
-  --accent-hover-text: #1d4ed8;
   --ok: #107c10;
   --err: #c42b1c;
   --warn: #ca5010;
-  --md-code-bg: #f1f5f9;
-  --md-table-bg: rgba(15, 23, 42, 0.035);
-  --md-table-header-bg: rgba(37, 99, 235, 0.055);
-  --md-table-row-border: rgba(15, 23, 42, 0.09);
-  --composer-footer-bg: #f7f8fb;
-  --composer-bg: #f7f8fb;
-  --composer-input-bg: #ffffff;
-  --composer-border: #d6dce5;
-  --composer-focus-border: #9aa9bd;
-  --composer-focus-shadow: rgba(37, 99, 235, 0.1);
-  --composer-send-bg: #1f2937;
-  --composer-send-bg-hover: #111827;
-  --composer-send-fg: #ffffff;
   --composer-voice-bg: color-mix(in srgb, var(--text) 14%, var(--composer-input-bg));
   --composer-voice-bg-hover: color-mix(in srgb, var(--text) 20%, var(--composer-input-bg));
   --composer-voice-stop-bg: color-mix(in srgb, var(--text) 94%, var(--composer-input-bg));
   --composer-voice-stop-bg-hover: color-mix(in srgb, var(--text) 88%, var(--composer-input-bg));
   --composer-voice-stop-fg: var(--composer-input-bg);
-  --composer-voice-fg: #1f2937;
-  --composer-ring-progress: #5c5c5c;
-  --composer-ring-open-bg: rgba(0, 0, 0, 0.05);
-  --composer-popup-meter: #6e6e6e;
-  --user-msg-bg: #ffffff;
-  --user-msg-border: #d8dee8;
-  --hover-overlay: rgba(15, 23, 42, 0.045);
-  --hover-overlay-strong: rgba(15, 23, 42, 0.07);
   --error-banner-bg: #fde7e9;
   --error-banner-text: #8a1c1c;
   --status-ok-bg: rgba(16, 124, 16, 0.12);
@@ -236,7 +148,6 @@
   --status-err-bg: rgba(196, 43, 28, 0.1);
   --status-err-text: #8a1c1c;
   --status-err-border: rgba(196, 43, 28, 0.35);
-  --code-text: #24292f;
   /* FileEditor / diff syntax (VS Code Light+) */
   --code-token-comment: #6e7781;
   --code-token-string: #a31515;
@@ -247,74 +158,23 @@
   --code-token-punctuation: #515151;
   --code-diff-insert: #107c10;
   --code-diff-remove: #c42b1c;
-  --code-bg-overlay: rgba(15, 23, 42, 0.045);
-  --user-code-bg: rgba(15, 23, 42, 0.055);
-  --blockquote-bg: rgba(37, 99, 235, 0.06);
-  --tool-card-open-bg: rgba(15, 23, 42, 0.022);
-  --popup-bg: #ffffff;
-  --popup-shadow: 0 16px 36px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.06);
   --popup-elevated-shadow:
-    0 2px 4px rgba(15, 23, 42, 0.08),
-    0 14px 36px -8px rgba(15, 23, 42, 0.16),
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 14px 36px -8px rgba(0, 0, 0, 0.16),
     var(--popup-shadow);
-  --ring-track: rgba(15, 23, 42, 0.12);
-  --meter-track: rgba(15, 23, 42, 0.08);
-  --btn-on-accent: #ffffff;
-  --scrollbar-thumb: rgba(15, 23, 42, 0.22);
-  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.36);
-  --app-bg:
-    radial-gradient(circle at 20% -10%, rgba(96, 165, 250, 0.18), transparent 30rem),
-    radial-gradient(circle at 88% 8%, rgba(99, 102, 241, 0.1), transparent 28rem),
-    linear-gradient(180deg, #fbfcff 0%, #f5f7fb 48%, #eef3f8 100%);
-  --chat-bg:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.64) 0%, rgba(247, 248, 251, 0.88) 36%, #f7f8fb 100%);
-  --panel-bg: rgba(255, 255, 255, 0.82);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;
-
-    --bg: #f7f8fb;
-    --panel: #ffffff;
-    --border: #dfe4ec;
-    --text: #1f2937;
-    --text-assistant: #1f2937;
-    --muted: #667085;
-    --accent: #2563eb;
-    --accent-dim: #1d4ed8;
-    --accent-subtle: rgba(37, 99, 235, 0.1);
-    --accent-border: rgba(37, 99, 235, 0.32);
-    --accent-hover-text: #1d4ed8;
     --ok: #107c10;
     --err: #c42b1c;
     --warn: #ca5010;
-    --md-code-bg: #f1f5f9;
-    --md-table-bg: rgba(15, 23, 42, 0.035);
-    --md-table-header-bg: rgba(37, 99, 235, 0.055);
-    --md-table-row-border: rgba(15, 23, 42, 0.09);
-    --composer-footer-bg: #f7f8fb;
-    --composer-bg: #f7f8fb;
-    --composer-input-bg: #ffffff;
-    --composer-border: #d6dce5;
-    --composer-focus-border: #9aa9bd;
-    --composer-focus-shadow: rgba(37, 99, 235, 0.1);
-    --composer-send-bg: #1f2937;
-    --composer-send-bg-hover: #111827;
-    --composer-send-fg: #ffffff;
     --composer-voice-bg: color-mix(in srgb, var(--text) 14%, var(--composer-input-bg));
     --composer-voice-bg-hover: color-mix(in srgb, var(--text) 20%, var(--composer-input-bg));
     --composer-voice-stop-bg: color-mix(in srgb, var(--text) 94%, var(--composer-input-bg));
     --composer-voice-stop-bg-hover: color-mix(in srgb, var(--text) 88%, var(--composer-input-bg));
     --composer-voice-stop-fg: var(--composer-input-bg);
-    --composer-voice-fg: #1f2937;
-    --composer-ring-progress: #5c5c5c;
-    --composer-ring-open-bg: rgba(0, 0, 0, 0.05);
-    --composer-popup-meter: #6e6e6e;
-    --user-msg-bg: #ffffff;
-    --user-msg-border: #d8dee8;
-    --hover-overlay: rgba(15, 23, 42, 0.045);
-    --hover-overlay-strong: rgba(15, 23, 42, 0.07);
     --error-banner-bg: #fde7e9;
     --error-banner-text: #8a1c1c;
     --status-ok-bg: rgba(16, 124, 16, 0.12);
@@ -322,7 +182,6 @@
     --status-err-bg: rgba(196, 43, 28, 0.1);
     --status-err-text: #8a1c1c;
     --status-err-border: rgba(196, 43, 28, 0.35);
-    --code-text: #24292f;
     --code-token-comment: #6e7781;
     --code-token-string: #a31515;
     --code-token-keyword: #0000ff;
@@ -332,75 +191,24 @@
     --code-token-punctuation: #515151;
     --code-diff-insert: #107c10;
     --code-diff-remove: #c42b1c;
-    --code-bg-overlay: rgba(15, 23, 42, 0.045);
-    --user-code-bg: rgba(15, 23, 42, 0.055);
-    --blockquote-bg: rgba(37, 99, 235, 0.06);
-    --tool-card-open-bg: rgba(15, 23, 42, 0.022);
-    --popup-bg: #ffffff;
-    --popup-shadow: 0 16px 36px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.06);
     --popup-elevated-shadow:
-      0 2px 4px rgba(15, 23, 42, 0.08),
-      0 14px 36px -8px rgba(15, 23, 42, 0.16),
+      0 2px 4px rgba(0, 0, 0, 0.08),
+      0 14px 36px -8px rgba(0, 0, 0, 0.16),
       var(--popup-shadow);
-    --ring-track: rgba(15, 23, 42, 0.12);
-    --meter-track: rgba(15, 23, 42, 0.08);
-    --btn-on-accent: #ffffff;
-    --scrollbar-thumb: rgba(15, 23, 42, 0.22);
-    --scrollbar-thumb-hover: rgba(15, 23, 42, 0.36);
-    --app-bg:
-      radial-gradient(circle at 20% -10%, rgba(96, 165, 250, 0.18), transparent 30rem),
-      radial-gradient(circle at 88% 8%, rgba(99, 102, 241, 0.1), transparent 28rem),
-      linear-gradient(180deg, #fbfcff 0%, #f5f7fb 48%, #eef3f8 100%);
-    --chat-bg:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.64) 0%, rgba(247, 248, 251, 0.88) 36%, #f7f8fb 100%);
-    --panel-bg: rgba(255, 255, 255, 0.82);
   }
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-
-    --bg: #1a1d23;
-    --panel: #23272f;
-    --border: #3a4150;
-    --text: #e8eaed;
-    --text-assistant: #e8eaed;
-    --muted: #9aa3b2;
-    --accent: #4d9fff;
-    --accent-dim: #3a8ae6;
-    --accent-subtle: rgba(77, 159, 255, 0.14);
-    --accent-border: rgba(77, 159, 255, 0.42);
-    --accent-hover-text: #b8d9ff;
     --ok: #89d185;
     --err: #f48771;
     --warn: #cca700;
-    --md-code-bg: #1e2228;
-    --md-table-bg: rgba(255, 255, 255, 0.04);
-    --md-table-header-bg: rgba(77, 159, 255, 0.1);
-    --md-table-row-border: rgba(255, 255, 255, 0.09);
-    --composer-footer-bg: #1a1d23;
-    --composer-bg: #1a1d23;
-    --composer-input-bg: #252a33;
-    --composer-border: #3a4150;
-    --composer-focus-border: #5c6b82;
-    --composer-focus-shadow: rgba(77, 159, 255, 0.18);
-    --composer-send-bg: #e8eaed;
-    --composer-send-bg-hover: #ffffff;
-    --composer-send-fg: #141820;
     --composer-voice-bg: color-mix(in srgb, var(--text) 26%, var(--composer-input-bg));
     --composer-voice-bg-hover: color-mix(in srgb, var(--text) 32%, var(--composer-input-bg));
     --composer-voice-stop-bg: color-mix(in srgb, var(--text) 92%, var(--composer-input-bg));
     --composer-voice-stop-bg-hover: color-mix(in srgb, var(--text) 86%, var(--composer-input-bg));
     --composer-voice-stop-fg: var(--composer-input-bg);
-    --composer-voice-fg: #141820;
-    --composer-ring-progress: #9aa3b2;
-    --composer-ring-open-bg: rgba(255, 255, 255, 0.08);
-    --composer-popup-meter: #9aa3b2;
-    --user-msg-bg: #252a33;
-    --user-msg-border: #3a4150;
-    --hover-overlay: rgba(255, 255, 255, 0.05);
-    --hover-overlay-strong: rgba(255, 255, 255, 0.09);
     --error-banner-bg: #3d2424;
     --error-banner-text: #f48771;
     --status-ok-bg: rgba(137, 209, 133, 0.14);
@@ -408,7 +216,6 @@
     --status-err-bg: rgba(244, 135, 113, 0.14);
     --status-err-text: #f48771;
     --status-err-border: rgba(244, 135, 113, 0.35);
-    --code-text: #d4d4d4;
     --code-token-comment: #6a9955;
     --code-token-string: #ce9178;
     --code-token-keyword: #569cd6;
@@ -418,27 +225,70 @@
     --code-token-punctuation: color-mix(in srgb, var(--code-text) 72%, transparent);
     --code-diff-insert: #3dd68c;
     --code-diff-remove: #f07178;
-    --code-bg-overlay: rgba(0, 0, 0, 0.22);
-    --user-code-bg: rgba(0, 0, 0, 0.2);
-    --blockquote-bg: rgba(77, 159, 255, 0.1);
-    --tool-card-open-bg: rgba(255, 255, 255, 0.035);
-    --popup-bg: #2a2f38;
-    --popup-shadow: 0 16px 40px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.07);
     --popup-elevated-shadow:
       0 2px 4px rgba(0, 0, 0, 0.28),
       0 14px 36px -8px rgba(0, 0, 0, 0.55),
       var(--popup-shadow);
-    --ring-track: rgba(154, 163, 178, 0.28);
-    --meter-track: rgba(154, 163, 178, 0.18);
-    --btn-on-accent: #ffffff;
-    --scrollbar-thumb: rgba(154, 163, 178, 0.32);
-    --scrollbar-thumb-hover: rgba(154, 163, 178, 0.5);
-    --app-bg:
-      radial-gradient(circle at 18% -8%, rgba(77, 159, 255, 0.14), transparent 28rem),
-      radial-gradient(circle at 92% 6%, rgba(129, 140, 248, 0.09), transparent 26rem),
-      linear-gradient(180deg, #1e222a 0%, #1a1d23 48%, #161920 100%);
-    --chat-bg:
-      linear-gradient(180deg, rgba(42, 47, 58, 0.55) 0%, rgba(26, 29, 35, 0.94) 36%, #1a1d23 100%);
-    --panel-bg: rgba(35, 39, 47, 0.84);
   }
+}
+
+/* Resolve shared tokens at the theme root so portals match the workbench. */
+
+:root,
+[data-theme] {
+  --bg: var(--workbench-canvas);
+  --app-bg: var(--workbench-canvas);
+  --chat-bg: var(--workbench-canvas);
+  --panel: var(--workbench-panel);
+  --panel-bg: var(--workbench-chrome);
+  --border: var(--workbench-border);
+  --text: var(--workbench-text);
+  --text-assistant: var(--workbench-text);
+  --text-tool-name: color-mix(in srgb, var(--text-assistant) 46%, var(--muted) 54%);
+  --muted: var(--workbench-muted);
+  --accent: var(--workbench-accent);
+  --accent-dim: var(--workbench-accent-hover);
+  --accent-subtle: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 36%, transparent);
+  --accent-hover-text: var(--workbench-accent-hover);
+  --hover-overlay: var(--workbench-hover);
+  --hover-overlay-strong: var(--workbench-hover-strong);
+  --md-code-bg: var(--workbench-code);
+  --md-table-bg: var(--workbench-hover);
+  --md-table-header-bg: var(--workbench-hover-strong);
+  --md-table-row-border: var(--workbench-border);
+  --composer-footer-bg: var(--workbench-canvas);
+  --composer-bg: var(--workbench-canvas);
+  --composer-input-bg: var(--workbench-composer);
+  --composer-border: var(--workbench-input-border);
+  --composer-focus-border: color-mix(in srgb, var(--text) 35%, var(--composer-border));
+  --composer-focus-shadow: color-mix(in srgb, var(--text) 8%, transparent);
+  --composer-send-bg: var(--workbench-send);
+  --composer-send-bg-hover: var(--workbench-send-hover);
+  --composer-send-fg: var(--workbench-on-send);
+  --composer-voice-fg: var(--workbench-canvas);
+  --composer-ring-progress: var(--workbench-muted);
+  --composer-ring-open-bg: var(--workbench-hover-strong);
+  --composer-popup-meter: var(--workbench-muted);
+  --user-msg-bg: var(--workbench-user);
+  --user-msg-border: var(--workbench-user-border);
+  --code-text: var(--workbench-text);
+  --code-bg-overlay: var(--workbench-hover);
+  --user-code-bg: var(--workbench-hover);
+  --blockquote-bg: var(--workbench-hover);
+  --tool-card-open-bg: var(--workbench-hover);
+  --popup-bg: var(--workbench-popup);
+  --popup-shadow: var(--workbench-popup-shadow);
+  --ring-track: color-mix(in srgb, var(--muted) 28%, transparent);
+  --meter-track: color-mix(in srgb, var(--muted) 18%, transparent);
+  --btn-on-accent: var(--workbench-on-send);
+  --scrollbar-thumb: color-mix(in srgb, var(--muted) 32%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--muted) 50%, transparent);
+  --surface: var(--panel);
+  --surface-elevated: var(--popup-bg);
+  --surface-hover: color-mix(in srgb, var(--text) 6%, var(--panel));
+  --foreground: var(--text);
+  --text-muted: var(--muted);
+  --link: var(--accent);
+  --primary: var(--accent);
 }
