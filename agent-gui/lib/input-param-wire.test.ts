@@ -7,6 +7,7 @@ import {
   parseTypedWireString,
   parseWireParamKey,
 } from "@/lib/input-param-wire";
+import { normalizeProgramWireForDisk } from "@/lib/action-editor/wire/normalizeProgramWireForDisk";
 
 test("parseWireParamKey splits suffix binds", () => {
   assert.deepEqual(parseWireParamKey("expression.file"), {
@@ -99,4 +100,27 @@ test("expandWireInputParams preserves var: subprogram param keys", () => {
     compactWireInputParam("var:value", { varKey: "seed" }),
     { "var:value.var": "seed" },
   );
+});
+
+test("literal typed prefixes survive compact/expand and repeated disk normalization", () => {
+  const literals = ["@var:target", "@file:files/a.txt", "@value:name", "@VALUE:", "@VaR:  target  ", "@FiLe: files\\a.txt", "@value:@var:target"];
+  for (const value of literals) {
+    const compact = compactWireInputParam("subProgram", { value });
+    assert.deepEqual(compact, { subProgram: `@value:${value}` });
+    assert.deepEqual(expandWireInputParams(compact), { subProgram: { value } });
+    const content = JSON.stringify({ steps: [{ stepRunnerKey: "sys:subprogram", inputParams: { subProgram: { value } } }], variables: [] });
+    const once = normalizeProgramWireForDisk(content);
+    const twice = normalizeProgramWireForDisk(once);
+    assert.equal(twice, once);
+    assert.deepEqual(expandWireInputParams(JSON.parse(twice).steps[0].inputParams), { subProgram: { value } });
+  }
+});
+
+test("empty binding prefixes remain literal and dynamic bindings keep their original precedence", () => {
+  for (const value of ["@var:", "@var:  ", "@file:", "@FILE:  ", "$=name", "$$name", "@json:{}", "@v:name"]) {
+    assert.deepEqual(compactWireInputParam("name", { value }), { name: value });
+    assert.deepEqual(expandWireInputParams({ name: value }), { name: { value } });
+  }
+  assert.deepEqual(compactWireInputParam("name", { value: "@value:literal", varKey: " actual " }), { "name.var": "actual" });
+  assert.deepEqual(compactWireInputParam("name", { value: "@var:literal", varKey: "actual", file: " files\\a.txt " }), { "name.file": "files/a.txt" });
 });

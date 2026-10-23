@@ -124,7 +124,9 @@ export function compactWireInputParam(
     return { [`${paramKey}${VAR_KEY_SUFFIX}`]: varKey };
   }
   if (typeof param.value === "string") {
-    return { [paramKey]: param.value };
+    // Escape literals that the reader would otherwise reinterpret as a binding.
+    const value = parseTypedWireString(param.value) ? `@value:${param.value}` : param.value;
+    return { [paramKey]: value };
   }
   return {};
 }
