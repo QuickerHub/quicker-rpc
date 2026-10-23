@@ -249,15 +249,32 @@ function Install-QkrpcFromDirectory {
         New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     }
 
-    # In-place overlay �?never Remove-Item -Recurse the install dir (clrjit.dll stays locked while any qkrpc runs).
+    # Overlay only published files; unchanged runtime DLLs may already be loaded by a restarted MCP.
     try {
-        Copy-Item -Path (Join-Path $sourcePath '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
+        foreach ($sourceFile in Get-ChildItem -LiteralPath $sourcePath -File -Recurse -Force -ErrorAction Stop) {
+            $relativePath = [System.IO.Path]::GetRelativePath($sourcePath, $sourceFile.FullName)
+            $targetPath = Join-Path $InstallDir $relativePath
+            $sourceHash = (Get-FileHash -LiteralPath $sourceFile.FullName -Algorithm SHA256 -ErrorAction Stop).Hash
+            if (Test-Path -LiteralPath $targetPath) {
+                if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+                    throw "A directory occupies a published file path: $targetPath"
+                }
+                $targetHash = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256 -ErrorAction Stop).Hash
+                if ($sourceHash -eq $targetHash) { continue }
+            }
+            $targetParent = Split-Path -Parent $targetPath
+            New-Item -ItemType Directory -Path $targetParent -Force -ErrorAction Stop | Out-Null
+            Copy-Item -LiteralPath $sourceFile.FullName -Destination $targetPath -Force -ErrorAction Stop
+            if ((Get-FileHash -LiteralPath $targetPath -Algorithm SHA256 -ErrorAction Stop).Hash -ne $sourceHash) {
+                throw "Installed file does not match the publish source: $targetPath"
+            }
+        }
     }
     catch {
         Write-Warning "User install overlay failed: $($_.Exception.Message)"
         Write-Host "  CLI is still available at: $sourcePath\qkrpc.exe" -ForegroundColor DarkGray
         Write-Host "  Close Cursor MCP / other qkrpc.exe using $InstallDir, then re-run install or build." -ForegroundColor DarkGray
-        return $InstallDir
+        throw
     }
 
     Remove-StaleQkrpcUserPaths -InstallDir $InstallDir | Out-Null
