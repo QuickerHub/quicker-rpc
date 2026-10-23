@@ -15,7 +15,7 @@
 | 模型、API Key、Skills、Commands、Agents、task 子代理、外部 MCP 工具、mcp.json | [EXT](../product/README.md#p-ext) | `llm-*`、`agent-defs/`、`agent-skills/`、`agent-mcp/`、`task-tool.server.ts` | `test:tools` + 领域单测 |
 | qkrpc MCP server、CLI、serve、Contracts、Transport、Runtime、net472/net10 | [RPC](../product/README.md#p-rpc) | `QuickerRpc/src/` | 对应 .NET tests；改插件后按根 AGENTS 热更新 |
 | V2、net10、能力对齐、stub、capability | [V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | `QuickerRpc.Plugin.V2/Adapters`、`Reflection`、Runtime tests | V2 composition/probe + 活进程验证 |
-| 自动识别 V1/V2、宿主会话、搬入新版动作设计器、通信效率 | [主线计划](../product/README.md#统一-rpc-与动作设计器当前主线) · [统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) · [设计器体验](../../agent-gui/DESIGN.md#统一动作设计器已确认目标待实现) | Contracts/Transport、V1/V2 host adapters、`agent-gui/lib/action-editor/` 与 Designer host bridge | 身份/能力契约、fixture Designer roundtrip、双宿主动作测试；性能优化须有基线 |
+| 自动识别 V1/V2、宿主会话、搬入新版动作设计器、通信效率、并行重构 | [完整实施计划](../product/README.md#refactor-execution-plan) · [统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) · [设计器体验](../../agent-gui/DESIGN.md#统一动作设计器已确认目标迁移中) | Contracts/Transport、V1/V2 host adapters、`agent-gui/lib/action-editor/` 与 Designer host bridge | 身份/能力契约、fixture Designer roundtrip、双宿主动作测试；性能优化须有基线 |
 | Prompt、TurnPlan、工具选择、SDK 框架边界 | [Agent 架构](../agent-architecture.md) | `agent-core/turn-plan.ts`、`agent-harness/`、`tools.ts` | tools/eval/context tests |
 | 独立 Agent 服务、去 Next、Node HTTP、服务组合与停止 | [架构目标](../agent-architecture.md#框架去耦与目标运行边界) | `agent-gui/lib/agent-service/`、`service/main.ts` | `check:agent-offline`、`check:agent-backend`、`test:agent-service` |
 | 动作编写指南、schema、step 模块知识 | [动作编写管线](../authoring/README.md) | `action-authoring-src/`、`authoring-references/` | `npm run docs:check` |
