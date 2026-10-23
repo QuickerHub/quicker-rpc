@@ -21,6 +21,8 @@ public sealed partial class QuickerRpcService
         {
             ProtocolVersion = CurrentProtocolVersion,
             HostSessionId = _hostSessionScope.Id,
+            HostInstanceId = _hostSessionScope.InstanceId,
+            Endpoint = _hostSessionScope.Endpoint,
             Host = new QuickerRpcHostDescriptor
             {
                 Kind = info.Kind switch { QuickerHostKind.V1 => "v1", QuickerHostKind.V2 => "v2", _ => "unknown" },

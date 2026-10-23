@@ -13,6 +13,7 @@
     <AppendAssemblyVersionFileNameSuffix Condition="'$(TargetFramework)' != 'net472'">false</AppendAssemblyVersionFileNameSuffix>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="QuickerRpc.Transport.Test" />
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
