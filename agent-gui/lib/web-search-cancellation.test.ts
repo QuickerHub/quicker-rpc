@@ -2,10 +2,25 @@ import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 import { createWebSearchRunner, type WebSearchProvider } from "./web-search.server";
-import { createWebSearchToolExecutor } from "./web-search-tool.server";
+import { createWebSearchToolExecutor, WEB_SEARCH_TOOL_DEF } from "./web-search-tool.server";
 import { runWithAgentRequestContextAsync } from "./qkrpc-request-context";
 
 const providers: WebSearchProvider[] = ["duckduckgo", "brave", "tavily"];
+
+test("the exported tool forwards SDK cancellation without an ALS turn context", async () => {
+  const controller = new AbortController();
+  const reason = new Error("SDK cancelled before invoking tool");
+  controller.abort(reason);
+  assert.ok(WEB_SEARCH_TOOL_DEF.execute);
+  await assert.rejects(
+    () => WEB_SEARCH_TOOL_DEF.execute!({ query: "" }, {
+      toolCallId: "fixture-search",
+      messages: [],
+      abortSignal: controller.signal,
+    }),
+    (error) => error === reason,
+  );
+});
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void;

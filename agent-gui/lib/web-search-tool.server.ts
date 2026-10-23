@@ -70,5 +70,6 @@ export const WEB_SEARCH_TOOL_DEF = tool({
       .optional()
       .describe("Max results (default 5)"),
   }),
-  execute: async (input: WebSearchToolInput) => executeWebSearchTool(input),
+  execute: async (input: WebSearchToolInput, options) =>
+    executeWebSearchTool(input, { abortSignal: options.abortSignal }),
 });
