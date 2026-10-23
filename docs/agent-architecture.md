@@ -173,6 +173,13 @@ transport。主文档 loading/unbound 不发现宿主、不发 RPC；绑定失�
 文档拥有 `DesignerCatalogPort`，嵌套 surface 共享它；完整目标、cwd 和文档 owner 隔离
 缓存及迟到结果。共用加载按 waiter 计数取消，单个消费者退出不取消其它消费者；端口关闭
 才释放其余所属请求。旧独立入口不携带 context 时保留兼容调用，不能用于主文档回退。
+FA geometry 复用同一 port、lease 与目标核验；Provider presence 与 unresolved port 分开，
+有文档上下文时标题/步骤预取/portal 不进入全局 FA hook、持久缓存或无绑定 resolve。
+主动作 APDE 的外层 Provider 覆盖标题与属性，嵌套 surface 保持同 owner；未提供局部 port
+的 Workspace 继承外层 presence，不制造新的 loading 状态。其它无 Provider 的旧入口
+保留原全局图标兼容行为；全局缓存改为实际使用时才加载，导入模块不会读取用户存储。
+`ensureParamValue` 的纯值转换与参数 UI 分离，catalog/draft helpers 不再为该函数导入整条
+参数编辑器及图标组件；这只关闭该处依赖边界，不表示其它混层已全部清理。
 多宿主选择、完整资源目录、trace run owner 与 Agent/UI 共享实时 revision 仍待接线；
 完整新版 Designer 和 V2 原生存储身份不能由这一层持久来源约束替代。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
