@@ -3,8 +3,8 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, relative, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const electronRoot = join(agentGuiRoot, "electron");
@@ -53,7 +53,8 @@ function checkModuleContracts(file) {
   ];
   for (const pattern of importPatterns) {
     for (const match of src.matchAll(pattern)) {
-      const target = resolve(dirname(file), match[1]);
+      // ESM query/fragment suffixes select module instances, not different files.
+      const target = fileURLToPath(new URL(match[1], pathToFileURL(file)));
       const isStagedSource = allowedModuleRoots.some(
         (root) => target === root || target.startsWith(`${root}${sep}`),
       );

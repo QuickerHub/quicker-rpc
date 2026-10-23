@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { mkdir, readFile, rmdir, symlink, writeFile } from "node:fs/promises";
 import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
@@ -44,6 +44,26 @@ afterEach(() => {
 });
 
 describe("dev-temp-workspace.server", () => {
+  test("managed roots accept native canonical names while retaining the selected lexical alias", () => {
+    const selectedRoot = process.cwd();
+    const canonicalRoot = join(sandboxRoot, "canonical-long-name");
+    const native = mock.method(realpathSync, "native", (path) => {
+      assert.equal(path, selectedRoot);
+      return canonicalRoot;
+    });
+    try {
+      const canonicalManagedRoot = join(canonicalRoot, ".local", "temp-workspaces");
+      assert.equal(resolveDevTempWorkspaceRoot(), canonicalManagedRoot);
+      const canonicalWorkspace = join(canonicalManagedRoot, "ws-canonical");
+      assert.equal(assertDevTempWorkspacePath(canonicalWorkspace), canonicalWorkspace);
+      const lexicalWorkspace = join(selectedRoot, ".local", "temp-workspaces", "ws-lexical");
+      assert.equal(assertDevTempWorkspacePath(lexicalWorkspace), lexicalWorkspace);
+      assert.throws(() => assertDevTempWorkspacePath(join(canonicalRoot, "outside", "ws-other")), /not under/);
+    } finally {
+      native.mock.restore();
+    }
+  });
+
   test("createDevTempWorkspace seeds eval fixture and cleanup removes it", async () => {
     const created = await createDevTempWorkspace({ seed: "eval-workspace" });
     assert.ok(created.path.startsWith(resolveDevTempWorkspaceRoot()));

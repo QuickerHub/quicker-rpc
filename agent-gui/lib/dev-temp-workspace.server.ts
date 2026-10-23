@@ -37,12 +37,12 @@ async function checkedDevTempWorkspaceRoot(): Promise<string> {
 }
 
 export function resolveDevTempWorkspaceRoot(): string {
-  return resolve(agentGuiRoot(), DEV_TEMP_WORKSPACE_REL_DIR);
+  return resolve(realpathSync.native(agentGuiRoot()), DEV_TEMP_WORKSPACE_REL_DIR);
 }
 
 export function assertDevTempWorkspacePath(path: string): string {
   const absolute = resolve(path.trim());
-  const roots = [resolveDevTempWorkspaceRoot(), resolve(realpathSync(agentGuiRoot()), DEV_TEMP_WORKSPACE_REL_DIR)];
+  const roots = [resolve(agentGuiRoot(), DEV_TEMP_WORKSPACE_REL_DIR), resolveDevTempWorkspaceRoot()];
   if (!roots.some((root) => pathKey(absolute).startsWith(pathKey(`${root}${sep}`)))) {
     throw new Error("Path is not under dev temp-workspaces root");
   }
