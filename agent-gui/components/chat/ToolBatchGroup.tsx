@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
+import { useWorkFoldFollow, useWorkFoldOpen } from "@/lib/use-work-fold-interaction";
 import {
   buildToolBatchSummary,
   shouldCollapseToolBatchWhenIdle,
@@ -32,53 +33,14 @@ export function ToolBatchGroup({
     summary,
     hasFollowingAssistantText,
   );
-  const batchNeedsAttention = summary.needsAttention;
-  const [userOpen, setUserOpen] = useState(() => !shouldCollapse);
-  const wasShouldCollapseRef = useRef(shouldCollapse);
+  const { open, setOpen } = useWorkFoldOpen(!shouldCollapse);
 
   const batchRunning = items.some((i) => i.isRunning);
   const batchErr = items.some((i) => i.state === "output-error");
   const batchApproval = items.some((i) => i.state === "approval-requested");
   const workspaceFileBatch = isWorkspaceFileOpenBatch(items);
-  const forcedOpen = batchApproval ? true : null;
   const bodyRef = useRef<HTMLDivElement>(null);
-  const scrollTailKey = useMemo(
-    () =>
-      items
-        .map(
-          (item) =>
-            `${item.index}:${item.state}:${item.isRunning ? 1 : 0}:${item.meta}`,
-        )
-        .join("|"),
-    [items],
-  );
-
-  useLayoutEffect(() => {
-    if (!batchRunning) return;
-    const el = bodyRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-    const frame = requestAnimationFrame(() => {
-      if (bodyRef.current) {
-        bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [batchRunning, scrollTailKey]);
-
-  useEffect(() => {
-    if (forcedOpen) return;
-
-    if (batchRunning || batchNeedsAttention) {
-      setUserOpen((open) => (open ? open : true));
-    }
-
-    if (shouldCollapse && !wasShouldCollapseRef.current) {
-      setUserOpen((open) => (open ? false : open));
-    }
-
-    wasShouldCollapseRef.current = shouldCollapse;
-  }, [forcedOpen, batchRunning, shouldCollapse, batchNeedsAttention]);
+  const followHandlers = useWorkFoldFollow(bodyRef, batchRunning && (batchApproval || open), items);
 
   if (workspaceFileBatch && !batchApproval) {
     return (
@@ -98,9 +60,9 @@ export function ToolBatchGroup({
   return (
     <ToolDisclosure
       className="tool-batch"
-      open={userOpen}
-      onOpenChange={setUserOpen}
-      forcedOpen={forcedOpen}
+      open={open}
+      onOpenChange={setOpen}
+      forcedOpen={batchApproval ? true : null}
       summaryClassName="tool-batch-summary"
       expandedClassName="tool-batch--expanded"
       collapsedClassName="tool-batch--collapsed"
@@ -120,6 +82,7 @@ export function ToolBatchGroup({
     >
       <div
         ref={bodyRef}
+        {...followHandlers}
         className={`tool-batch-body${batchRunning ? " tool-batch-body--active" : ""}`}
       >
         {items.map((item) => (

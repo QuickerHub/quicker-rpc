@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isReasoningUIPart } from "ai";
+import { useWorkFoldFollow, useWorkFoldOpen } from "@/lib/use-work-fold-interaction";
 import type { ReasoningSegmentItem } from "./tool-part-layout";
 import { ToolDisclosure } from "./ToolDisclosure";
 
@@ -100,23 +101,12 @@ function ReasoningBody({
   streaming: boolean;
 }) {
   const bodyRef = useRef<HTMLPreElement>(null);
-
-  useLayoutEffect(() => {
-    if (!streaming) return;
-    const el = bodyRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-    const frame = requestAnimationFrame(() => {
-      if (bodyRef.current) {
-        bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [text, streaming]);
+  const followHandlers = useWorkFoldFollow(bodyRef, streaming, text);
 
   return (
     <pre
       ref={bodyRef}
+      {...followHandlers}
       className={[
         "reasoning-body",
         streaming ? "reasoning-body--streaming" : "",
@@ -129,31 +119,6 @@ function ReasoningBody({
   );
 }
 
-function useReasoningAutoCollapse(streaming: boolean): {
-  userOpen: boolean;
-  setUserOpen: (open: boolean) => void;
-  forcedOpen: boolean | null;
-} {
-  const [userOpen, setUserOpen] = useState(streaming);
-  const wasStreamingRef = useRef(streaming);
-
-  useEffect(() => {
-    const wasStreaming = wasStreamingRef.current;
-    if (streaming === wasStreaming) return;
-    wasStreamingRef.current = streaming;
-    setUserOpen((open) => {
-      if (streaming) return open ? open : true;
-      return open ? false : open;
-    });
-  }, [streaming]);
-
-  return {
-    userOpen,
-    setUserOpen,
-    forcedOpen: streaming ? true : null,
-  };
-}
-
 function ReasoningDisclosure({
   text,
   streaming,
@@ -161,17 +126,15 @@ function ReasoningDisclosure({
   text: string;
   streaming: boolean;
 }) {
-  const { userOpen, setUserOpen, forcedOpen } =
-    useReasoningAutoCollapse(streaming);
+  const { open, setOpen } = useWorkFoldOpen(streaming);
   const { elapsedSec, measured } = useReasoningDuration(streaming);
   const summary = formatReasoningSummary(streaming, elapsedSec, measured);
 
   return (
     <ToolDisclosure
       className="reasoning-card"
-      open={userOpen}
-      onOpenChange={setUserOpen}
-      forcedOpen={forcedOpen}
+      open={open}
+      onOpenChange={setOpen}
       summaryClassName="reasoning-summary"
       expandedClassName="reasoning-card--expanded"
       collapsedClassName="reasoning-card--collapsed"
