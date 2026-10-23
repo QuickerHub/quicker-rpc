@@ -1,8 +1,9 @@
 import type { ActionProgramSnapshot } from "../program/assembleActionProgramSnapshot";
 import { parseLosslessJson, stringifyLosslessJson } from "../shared/losslessJson";
 import { fingerprintProgramDocumentContent, parseProgramDocumentSnapshot, programDocumentFingerprint, serializeProgramDocumentSnapshot } from "./programDocumentWire";
-import { fingerprintProgramDocumentMetadataContent, patchProgramDocumentMetadata, readProgramDocumentMetadata, validateProgramDocumentMetadataForSave, type ProgramDocumentMetadataPatch } from "./programDocumentMetadata";
+import { fingerprintProgramDocumentMetadataContent, patchProgramDocumentMetadata, readProgramDocumentMetadata, validateProgramDocumentMetadataForSave, type ProgramDocumentMetadata, type ProgramDocumentMetadataPatch } from "./programDocumentMetadata";
 import { fingerprintActionProjectBinding, sameActionProjectBinding, type ActionProjectBinding } from "../../action-project-binding";
+import { createProgramDocumentHistory, type ProgramDocumentHistorySnapshot, type ProgramDocumentHistoryState } from "./programDocumentHistory";
 
 /** Identity is supplied by the storage/host adapter; a disk-only document has no invented host. */
 export type ProgramDocumentIdentity = {
@@ -28,6 +29,7 @@ export type ProgramDocumentState = Readonly<{
   identity: Readonly<ProgramDocumentIdentity>;
   lastChangeSource?: ProgramDocumentChangeSource;
   metadata?: ProgramDocumentMetadataState;
+  history: ProgramDocumentHistoryState;
 }>;
 
 export type ProgramDocumentFailureCode = "revision_conflict" | "identity_conflict" | "metadata_conflict" | "invalid_document" | "save_in_progress" | "stale_save" | "save_failed" | "closed";
@@ -37,6 +39,13 @@ export type ProgramDocumentEditOptions = {
   expectedRevision: number;
   expectedIdentity?: ProgramDocumentIdentity;
   source: ProgramDocumentChangeSource;
+};
+export type ProgramDocumentHistoryOptions = ProgramDocumentEditOptions & { expectedIdentity: ProgramDocumentIdentity };
+
+export type ProgramDocumentTransactionDraft = {
+  body: Record<string, unknown>;
+  /** Only the supported editable properties participate; attachment remains a storage operation. */
+  metadata: ProgramDocumentMetadata | null;
 };
 
 export type ProgramDocumentSaveTicket = Readonly<{
@@ -99,6 +108,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
   parseProgramDocumentSnapshot(initial.content);
   let baselineFingerprint = fingerprintContent(initial.content);
   let contentFingerprint = baselineFingerprint;
+  const history = createProgramDocumentHistory();
   let state: ProgramDocumentState = Object.freeze({
     baselineContent: initial.content,
     content: initial.content,
@@ -107,6 +117,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
     dirty: false,
     saving: false,
     identity: immutableIdentity(initial.identity),
+    history: history.getState(),
     ...(initial.metadata ? { metadata: metadataState(initial.metadata) } : {}),
   });
   let pending: ProgramDocumentSaveTicket | undefined;
@@ -119,7 +130,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
   });
   const withDirty = (next: ProgramDocumentState): ProgramDocumentState => {
     const bodyDirty = contentFingerprint !== baselineFingerprint;
-    return Object.freeze({ ...next, bodyDirty, dirty: bodyDirty || next.metadata?.dirty === true });
+    return Object.freeze({ ...next, bodyDirty, dirty: bodyDirty || next.metadata?.dirty === true, history: history.getState() });
   };
   const checkEdit = (options: ProgramDocumentEditOptions): ProgramDocumentFailure | undefined => {
     if (closed) return failure("closed", "Program document session is closed");
@@ -129,12 +140,38 @@ export function createProgramDocumentSession(initial: { content: string; identit
     }
     return undefined;
   };
-  const commit = (nextContent: string, source: ProgramDocumentChangeSource): ProgramDocumentEditResult => {
+  const captureHistory = (): ProgramDocumentHistorySnapshot => ({ content: state.content,
+    ...(state.metadata ? { metadata: readProgramDocumentMetadata(state.metadata.content) } : {}),
+  });
+  const commit = (nextContent: string, source: ProgramDocumentChangeSource, nextMetadataContent = state.metadata?.content,
+    recordHistory = true): ProgramDocumentEditResult => {
     const nextFingerprint = fingerprintContent(nextContent);
-    if (nextFingerprint === contentFingerprint) return { ok: true, changed: false, state };
+    const metadata = nextMetadataContent !== undefined && state.metadata
+      ? metadataState({ path: state.metadata.path, content: nextMetadataContent }, state.metadata.baselineContent) : state.metadata;
+    const sameMetadata = metadata?.content === state.metadata?.content || (metadata && state.metadata
+      && fingerprintProgramDocumentMetadataContent(metadata.content) === fingerprintProgramDocumentMetadataContent(state.metadata.content));
+    if (nextFingerprint === contentFingerprint && sameMetadata) return { ok: true, changed: false, state };
+    const content = nextFingerprint === contentFingerprint ? state.content : nextContent;
+    if (recordHistory) history.record(captureHistory());
     contentFingerprint = nextFingerprint;
-    state = withDirty({ ...state, content: nextContent, revision: state.revision + 1, lastChangeSource: source });
+    state = withDirty({ ...state, content, ...(metadata ? { metadata } : {}), revision: state.revision + 1, lastChangeSource: source });
     return { ok: true, changed: true, state };
+  };
+
+  const restoreHistory = (direction: "undo" | "redo", options: ProgramDocumentHistoryOptions): ProgramDocumentEditResult => {
+    const rejected = checkEdit(options);
+    if (rejected) return rejected;
+    if (!options.expectedIdentity) return failure("identity_conflict", "Document history requires the current complete identity");
+    const metadataFor = (candidate: ProgramDocumentHistorySnapshot): string | undefined => state.metadata && candidate.metadata
+      ? patchProgramDocumentMetadata(state.metadata.content, candidate.metadata) : state.metadata?.content;
+    const target = history[direction](captureHistory(), (candidate) => fingerprintContent(candidate.content) === contentFingerprint
+      && (metadataFor(candidate) === state.metadata?.content || (state.metadata
+        && fingerprintProgramDocumentMetadataContent(metadataFor(candidate)!) === fingerprintProgramDocumentMetadataContent(state.metadata.content))) === true);
+    if (!target) {
+      if (state.history !== history.getState()) state = Object.freeze({ ...state, history: history.getState() });
+      return { ok: true, changed: false, state };
+    }
+    return commit(target.content, options.source, metadataFor(target), false);
   };
 
   const applySnapshot = (snapshot: ActionProgramSnapshot, options: ProgramDocumentEditOptions): ProgramDocumentEditResult => {
@@ -150,6 +187,9 @@ export function createProgramDocumentSession(initial: { content: string; identit
   return {
     /** Cached immutable state is safe for React external-store/state comparisons. */
     getState: (): ProgramDocumentState => state,
+    getHistoryState: (): ProgramDocumentHistoryState => history.getState(),
+    undo: (options: ProgramDocumentHistoryOptions) => restoreHistory("undo", options),
+    redo: (options: ProgramDocumentHistoryOptions) => restoreHistory("redo", options),
     readSnapshot: (): ActionProgramSnapshot => parseProgramDocumentSnapshot(state.content),
     readMetadata: () => state.metadata ? readProgramDocumentMetadata(state.metadata.content) : null,
     /** A late local identity read attaches to the existing draft; it never creates another editor history. */
@@ -177,6 +217,15 @@ export function createProgramDocumentSession(initial: { content: string; identit
           return { ok: true, changed: false, state };
         }
         if (current && (current.dirty || pending?.metadata)) return failure("metadata_conflict", "Action metadata changed externally; resolve the conflict before saving");
+        if (current) {
+          const previousValues = readProgramDocumentMetadata(current.content);
+          const incomingValues = readProgramDocumentMetadata(next.content);
+          const patch: ProgramDocumentMetadataPatch = {};
+          for (const field of ["title", "description", "icon"] as const) {
+            if (previousValues[field] !== incomingValues[field]) patch[field] = incomingValues[field];
+          }
+          history.rebaseMetadata(patch);
+        }
         state = withDirty({ ...state, metadata: next, revision: state.revision + 1 });
         return { ok: true, changed: true, state };
       } catch (error) {
@@ -190,9 +239,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
       if (!state.metadata) return failure("invalid_document", "Action metadata is not attached to this document");
       try {
         const nextContent = patchProgramDocumentMetadata(state.metadata.content, patch);
-        if (fingerprintProgramDocumentMetadataContent(nextContent) === fingerprintProgramDocumentMetadataContent(state.metadata.content)) return { ok: true, changed: false, state };
-        state = withDirty({ ...state, metadata: metadataState({ path: state.metadata.path, content: nextContent }, state.metadata.baselineContent), revision: state.revision + 1, lastChangeSource: options.source });
-        return { ok: true, changed: true, state };
+        return commit(state.content, options.source, nextContent);
       } catch (error) {
         return failure("invalid_document", error instanceof Error ? error.message : String(error));
       }
@@ -208,6 +255,27 @@ export function createProgramDocumentSession(initial: { content: string; identit
       }
     },
     applySnapshot,
+    /** One atomic document operation can edit all surfaces and supported metadata together. */
+    transactDocument: (options: ProgramDocumentEditOptions & { update: (draft: ProgramDocumentTransactionDraft) => void }): ProgramDocumentEditResult => {
+      const rejected = checkEdit(options);
+      if (rejected) return rejected;
+      try {
+        const draft: ProgramDocumentTransactionDraft = { body: parseLosslessJson(state.content) as Record<string, unknown>,
+          metadata: state.metadata ? readProgramDocumentMetadata(state.metadata.content) : null };
+        const updated = options.update(draft) as unknown;
+        if (updated && typeof updated === "object" && "then" in updated) throw new Error("Document transactions must be synchronous");
+        if ((draft.metadata === null) !== (state.metadata === undefined)) throw new Error("A document transaction cannot attach or remove metadata");
+        const nextContent = `${stringifyLosslessJson(draft.body, 2)}\n`;
+        parseProgramDocumentSnapshot(nextContent);
+        const nextMetadataContent = state.metadata && draft.metadata
+          ? patchProgramDocumentMetadata(state.metadata.content, draft.metadata) : undefined;
+        const reentrant = checkEdit(options);
+        if (reentrant) return reentrant;
+        return commit(nextContent, options.source, nextMetadataContent);
+      } catch (error) {
+        return failure("invalid_document", error instanceof Error ? error.message : String(error));
+      }
+    },
     /** Human and Agent transactions share one revision and the same native working document. */
     transact: (options: ProgramDocumentEditOptions & { update: (document: Record<string, unknown>) => void | Record<string, unknown> }): ProgramDocumentEditResult => {
       const rejected = checkEdit(options);
@@ -274,7 +342,8 @@ export function createProgramDocumentSession(initial: { content: string; identit
     close: (): void => {
       closed = true;
       pending = undefined;
-      state = Object.freeze({ ...state, saving: false });
+      history.clear();
+      state = Object.freeze({ ...state, saving: false, history: history.getState() });
     },
   };
 }
