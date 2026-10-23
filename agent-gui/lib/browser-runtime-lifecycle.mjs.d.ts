@@ -22,6 +22,7 @@ export function resolveBrowserPort(): number;
 export function fetchBrowserRuntimeHealth(
   base: string,
   timeoutMs?: number,
+  abortSignal?: AbortSignal,
 ): Promise<BrowserRuntimeHealth>;
 export function checkBrowserRuntimeHealth(base: string, timeoutMs?: number): Promise<boolean>;
 export function isBrowserRuntimeVersionCurrent(health: BrowserRuntimeHealth): boolean;

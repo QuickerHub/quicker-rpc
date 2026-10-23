@@ -94,6 +94,7 @@ publish 只在用户明确要求时执行。
 - Write/StrReplace 在读取写前快照前检查实际目标仍在 cwd 内，拒绝工具管理的 source sidecar/baseline、NTFS alternate streams 和多硬链接文件；普通独立文件继续使用原编辑流程。
 - Shell/终端共用审批和安全策略，UI 终端不能绕过 policy。
 - 后台浏览器不继承用户登录态；用户浏览器通过 Quicker Connector。
+- `browser` 的 SDK/turn 取消已贯通探测、等待与 HTTP 调用，取消不回退、不录制迟到结果；不会关闭共享 session。runtime 内已发出的页面操作仍待 request-owner 合作取消，边界见 [浏览器自动化](../browser-automation.md#取消边界)。
 - 浏览器转动作只生成草稿，写入仍走 `workspace_program`。
 - 临时工作区清理只删除本地目录，保留所有 Quicker 宿主内容；文件里的程序 ID 不作为自动删除依据。管理目录及其祖先重定向到其他路径时拒绝创建与清理。
 

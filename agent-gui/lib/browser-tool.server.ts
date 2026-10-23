@@ -13,6 +13,7 @@ import {
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import type { BrowserToolAudience } from "@/lib/browser-tool-result";
+import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 
 export { BROWSER_TOOL };
 export type {
@@ -52,6 +53,7 @@ const browserTargetSchema = z.enum(["auto", "headless", "embedded"]);
 const waitUntilSchema = z.enum(["load", "domcontentloaded", "networkidle", "commit"]).optional();
 
 export type ExecuteBrowserToolOptions = {
+  abortSignal?: AbortSignal;
   /** agent: text-only tool result for LLM; panel: keep preview images for side panel API */
   audience?: BrowserToolAudience;
   /** Set when native Electron runtime was unavailable and Playwright was used instead. */
@@ -63,7 +65,10 @@ export async function executeBrowserTool(
   input: BrowserToolInput,
   options?: ExecuteBrowserToolOptions,
 ): Promise<Record<string, unknown>> {
-  const result = await executeBrowserAutomation(input, options);
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
+  const result = await executeBrowserAutomation(input, { ...options, abortSignal });
+  abortSignal?.throwIfAborted();
   if (
     options?.audience !== "panel"
     && result.ok
@@ -181,5 +186,6 @@ export const BROWSER_TOOL_DEF = tool({
       .optional()
       .describe("Max matches for action=search (default 8)"),
   }),
-  execute: async (input: BrowserAgentToolInput) => executeBrowserTool(input),
+  execute: async (input: BrowserAgentToolInput, options) =>
+    executeBrowserTool(input, { abortSignal: options.abortSignal }),
 });
