@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    name: Generated knowledge
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Check generated CLI and skill knowledge
+        run: node scripts/generate-authoring-docs.mjs --check
+
+  agent:
+    name: Offline Agent (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: agent-gui/pnpm-lock.yaml
+      - name: Install locked dependencies including native SQLite
+        working-directory: agent-gui
+        run: pnpm install --frozen-lockfile
+      - name: Ensure dependency manifests were not rewritten
+        run: git diff --exit-code -- agent-gui/package.json agent-gui/pnpm-lock.yaml
+      - name: TypeScript and explicit offline Agent checks
+        working-directory: agent-gui
+        run: node scripts/check-agent-offline.mjs
+      - name: Guarded tool, eval, authoring and trace regressions
+        run: node scripts/ci/check-agent-regressions.mjs
+
+  dotnet:
+    name: Host-independent .NET
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Build shared targets and run offline tests
+        shell: pwsh
+        run: ./scripts/ci/Test-OfflineDotNet.ps1
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-dotnet-test-results
+          path: .tmp/ci-results/**/*.trx
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7

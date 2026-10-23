@@ -64,6 +64,8 @@ function run(args) {
 run(["node_modules/typescript/bin/tsc", "--noEmit", "--incremental", "false"]);
 run([
   "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",
+  // Bound cold tsx startup without weakening the existing per-file timeout.
+  "--test-concurrency=4",
   "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
   ...tests,
 ]);

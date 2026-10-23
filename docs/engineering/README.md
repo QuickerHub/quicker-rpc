@@ -33,6 +33,7 @@
 
 | 文档 | 用途 |
 |---|---|
+| [ci.md](ci.md) | PR 离线门禁、可复现安装、宿主引用边界与本地复现 |
 | [agent-gui-eval.md](../agent-gui-eval.md) | 真实 Agent 生产路径评测 |
 | [agent-authoring-benchmark.md](../agent-authoring-benchmark.md) | 动作编写任务集与评分 |
 | `agent-gui/benchmarks/`、`lib/agent-eval/`、`lib/quickerbench/` | 可执行 fixture、runner 与断言 |
