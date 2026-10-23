@@ -79,24 +79,28 @@ function normalizeBase(url) {
   return url.replace(/\/$/, "");
 }
 
-/** @typedef {{ ok: boolean; runtimeVersion?: string; protocolVersion?: string }} BrowserRuntimeHealth */
+/** @typedef {{ ok: boolean; runtimeOwner?: string; runtimeVersion?: string; protocolVersion?: string }} BrowserRuntimeHealth */
 
 /** @param {string} base e.g. http://127.0.0.1:6017 */
 export async function fetchBrowserRuntimeHealth(
   base,
   timeoutMs = 3000,
+  abortSignal,
 ) {
+  abortSignal?.throwIfAborted();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${normalizeBase(base)}/health`, {
       method: "GET",
-      signal: controller.signal,
+      signal: abortSignal ? AbortSignal.any([abortSignal, controller.signal]) : controller.signal,
       cache: "no-store",
       headers: { Accept: "application/json" },
     });
+    abortSignal?.throwIfAborted();
     if (!res.ok) return { ok: false };
     const body = await res.json();
+    abortSignal?.throwIfAborted();
     return {
       ok: body?.ok === true,
       runtimeOwner: typeof body?.runtimeOwner === "string" ? body.runtimeOwner : undefined,
@@ -106,6 +110,7 @@ export async function fetchBrowserRuntimeHealth(
         typeof body?.protocolVersion === "string" ? body.protocolVersion : undefined,
     };
   } catch {
+    abortSignal?.throwIfAborted();
     return { ok: false };
   } finally {
     clearTimeout(timer);

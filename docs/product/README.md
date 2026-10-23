@@ -94,6 +94,7 @@ publish 只在用户明确要求时执行。
 - Write/StrReplace 在读取写前快照前检查实际目标仍在 cwd 内，拒绝工具管理的 source sidecar/baseline、NTFS alternate streams 和多硬链接文件；普通独立文件继续使用原编辑流程。
 - Shell/终端共用审批和安全策略，UI 终端不能绕过 policy。
 - 后台浏览器不继承用户登录态；用户浏览器通过 Quicker Connector。
+- `browser` 的 SDK/turn 取消已贯通探测、等待与 HTTP 调用，取消不回退、不录制迟到结果；不会关闭共享 session。runtime 内已发出的页面操作仍待 request-owner 合作取消，边界见 [浏览器自动化](../browser-automation.md#取消边界)。
 - 浏览器转动作只生成草稿，写入仍走 `workspace_program`。
 - 临时工作区清理只删除本地目录，保留所有 Quicker 宿主内容；文件里的程序 ID 不作为自动删除依据。管理目录及其祖先重定向到其他路径时拒绝创建与清理。
 
@@ -271,8 +272,11 @@ generic 文件工具不能改写此记录。`0.14.8.159` 已安装/热更，V1 �
 主动作设计器的目标读取/展示、保留草稿的晚加载、不可变票据、完整身份 CAS 和 Sync
 精确目录已接线。560 项离线 Agent、102 项 Console、12 项真实浏览器及后续针对回归、
 深浅/窄窗截图检查通过；移位后的静态 React/Node 产物也以实际 HTTP 验证本地 target
-读取、bound/unbound Save、旧客户端/改绑拒绝及零宿主调用。当前切片预增 `0.14.8.160`，
-合并后的安装和真实 GUI/宿主验证独立记录，不把这些 fixture 当成 V2 活进程验收。
+读取、bound/unbound Save、旧客户端/改绑拒绝及零宿主调用。`0.14.8.160` 已在主线安装/
+热更，540 个用户 CLI 文件与发布源校验一致；实际 HTTP target → 错误身份拒绝 → 本地
+Save → 绑定 Sync 已在专用 V1 动作验收。正文与属性分别写回后，以独立 metadata/source
+重读核验步骤、说明和外置资源，最终两侧版本一致且 in_sync，未运行动作。主产品开发态
+frontend check 也已通过；真实 GUI 点击、进程重启、双宿主及 V2 活进程继续独立验收。
 运行/调试/宿主编辑器/悬浮在此入口暂禁用，删除只清理本地项目；后续恢复必须显式绑定。
 多宿主选择、catalog 请求/缓存、原生 V2 存储和 Agent 实时文档协同仍未完成，不能以本地
 CAS 代替整个编辑会话已统一。trace 展示也仍有独立缺口：现有 bridge/页签按 actionId+param 全局

@@ -41,6 +41,7 @@ declare module "@/lib/browser-runtime-lifecycle.mjs" {
 
   export type BrowserRuntimeHealth = {
     ok: boolean;
+    runtimeOwner?: string;
     runtimeVersion?: string;
     protocolVersion?: string;
   };
@@ -53,6 +54,7 @@ declare module "@/lib/browser-runtime-lifecycle.mjs" {
   export function fetchBrowserRuntimeHealth(
     base: string,
     timeoutMs?: number,
+    abortSignal?: AbortSignal,
   ): Promise<BrowserRuntimeHealth>;
   export function checkBrowserRuntimeHealth(base: string, timeoutMs?: number): Promise<boolean>;
   export function isBrowserRuntimeVersionCurrent(health: BrowserRuntimeHealth): boolean;
