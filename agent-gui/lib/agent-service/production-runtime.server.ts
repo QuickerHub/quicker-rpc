@@ -2,6 +2,7 @@ import type { AgentServiceRuntime } from "./application";
 
 type RuntimeResources = {
   runTurn: AgentServiceRuntime["runTurn"];
+  handleRequest?: AgentServiceRuntime["handleRequest"];
   closeDatabase: () => void | Promise<void>;
   stopBrowserRuntimes: () => void | Promise<void>;
   stopTerminalRuntimes: () => void | Promise<void>;
@@ -19,6 +20,7 @@ export function createAgentRuntimeLoader(loadResources: () => Promise<RuntimeRes
     let disposing: Promise<void> | undefined;
     return {
       runTurn: resources.runTurn,
+      handleRequest: resources.handleRequest,
       dispose: () => disposing ??= (async () => {
         const results = await Promise.allSettled([
           Promise.resolve().then(resources.stopBrowserRuntimes),
@@ -35,14 +37,16 @@ export function createAgentRuntimeLoader(loadResources: () => Promise<RuntimeRes
 
 /** Real adapters load on the first chat, never during /health or CLI --help. */
 export const loadProductionAgentRuntime = createAgentRuntimeLoader(async () => {
-  const [runner, database, browser, terminal] = await Promise.all([
+  const [runner, database, browser, terminal, api] = await Promise.all([
     import("../agent-harness/run-turn.server"),
     import("../db/client"),
     import("@/lib/browser-runtime-lifecycle.mjs"),
     import("@/lib/terminal-runtime-lifecycle.mjs"),
+    import("./api-router"),
   ]);
   return {
     runTurn: runner.runAgentChatTurn,
+    handleRequest: api.handleAgentApiRequest,
     closeDatabase: database.closeAgentDatabase,
     stopBrowserRuntimes: browser.stopOwnedBrowserRuntimes,
     stopTerminalRuntimes: terminal.stopOwnedTerminalRuntimes,

@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { reserveSmokeUiPort, startSmokeRpcGuard, writeSmokeHandshake } from "./smoke-isolation.mjs";
 import { AGENT_DATA_DIRECTORY_ENV } from "../lib/agent-data-profile.mjs";
+import { resolveRuntimeEntry } from "./runtime-entry.mjs";
 
 const UI_PORT_PREFERRED = 3000;
 const QKRPC_PORT_DEFAULT = 9477;
@@ -13,6 +14,7 @@ const QKRPC_PORT_DEFAULT = 9477;
 /** @type {{ qkrpc?: ManagedChild, node?: ManagedChild }} */
 const children = {};
 let smokeRpcGuard;
+let backendShutdown;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,31 +80,62 @@ async function httpProbe(host, port, path, mode, maxMs) {
 export function killChildTree(child) {
   if (!child?.pid || child.exitCode != null || child.signalCode != null) return;
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+    const result = spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
       stdio: "ignore",
     });
+    if (result.error || result.status !== 0) throw new Error(`Failed to stop owned backend ${child.pid}`);
     return;
   }
-  try {
-    child.kill("SIGTERM");
-  } catch {
-    // ignore
-  }
+  if (!child.kill("SIGTERM")) throw new Error(`Failed to stop owned backend ${child.pid}`);
 }
 
 export function shutdownBackends() {
-  void smokeRpcGuard?.close();
+  if (backendShutdown) return backendShutdown;
+  let resolveShutdown, rejectShutdown;
+  backendShutdown = new Promise((resolve, reject) => { resolveShutdown = resolve; rejectShutdown = reject; });
+  const guard = smokeRpcGuard;
   smokeRpcGuard = undefined;
-  if (children.qkrpc) {
-    killChildTree(children.qkrpc.child);
-    children.qkrpc = undefined;
-  }
-  if (children.node) {
-    // The smoke launcher owns the native Job handle, including startup failures.
-    // Do not target numeric PIDs after a smoke child may already have exited.
-    if (!children.node.smokeJobOwned) killChildTree(children.node.child);
-    children.node = undefined;
-  }
+  const guardStopped = guard?.close();
+  const node = children.node;
+  const qkrpc = children.qkrpc;
+  const stop = async () => {
+    await guardStopped;
+    if (node) {
+      // The smoke launcher owns the native Job handle, including startup failures.
+      if (!node.smokeJobOwned) await stopAgentChild(node.child);
+      if (children.node === node) children.node = undefined;
+    }
+    if (qkrpc) {
+      await stopAgentChild(qkrpc.child, 0);
+      if (children.qkrpc === qkrpc) children.qkrpc = undefined;
+    }
+  };
+  void stop().then(resolveShutdown, (error) => {
+    backendShutdown = undefined; // Keep retained handles available for a retry.
+    rejectShutdown(error);
+  });
+  return backendShutdown;
+}
+
+/** IPC drains turns and tools; fallback kill still waits for the retained handle's exit. */
+export function stopAgentChild(child, graceMs = 2500) {
+  if (!child?.pid || child.exitCode != null || child.signalCode != null) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    let timer;
+    const clean = () => { clearTimeout(timer); child.off("exit", done); };
+    const done = () => { clean(); resolve(); };
+    const force = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { clean(); reject(new Error(`Owned backend ${child.pid} did not exit`)); }, 1000);
+      try { killChildTree(child); }
+      catch (error) { clean(); reject(error); }
+    };
+    child.once("exit", done);
+    if (child.connected) {
+      timer = setTimeout(force, graceMs);
+      child.send("shutdown", (error) => { if (error) force(); });
+    } else force();
+  });
 }
 
 async function resolveQkrpcPort(host) {
@@ -185,16 +218,18 @@ function spawnQkrpc(qkrpcDir, host, port) {
 }
 
 function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwned = false) {
-  const serverJs = join(appDir, "server.js");
+  const entry = resolveRuntimeEntry(appDir);
+  const serverJs = entry.path;
   if (!existsSync(serverJs)) {
     throw new Error(`server.js not found: ${serverJs}`);
   }
-  const child = spawn(nodeExe, [serverJs], {
+  const child = spawn(nodeExe, entry.kind === "static" ? [serverJs, "--host", host, "--port", String(port)] : [serverJs], {
     cwd: appDir,
-    stdio: "ignore",
+    stdio: entry.kind === "static" ? ["ignore", "ignore", "pipe", "ipc"] : "ignore",
     windowsHide: true,
     env: buildBundledChildEnv(host, port, envExtra),
   });
+  child.stderr?.on("data", (chunk) => console.error(`[agent service] ${chunk.toString().trimEnd()}`));
   children.node = { child, port, smokeJobOwned };
   return child;
 }
@@ -211,6 +246,8 @@ function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwn
  */
 export async function startProductionBackends(runtime) {
   const host = "127.0.0.1";
+  if (children.node || children.qkrpc) throw new Error("Desktop backends already started");
+  backendShutdown = undefined;
   if (runtime.smoke) {
     try {
       smokeRpcGuard = await startSmokeRpcGuard();
@@ -228,6 +265,7 @@ export async function startProductionBackends(runtime) {
       throw error;
     }
   }
+  try {
   const { port: qkrpcPort, shouldSpawn } = await resolveQkrpcPort(host);
   const uiPort = await resolveUiPort(host);
   const qkrpcUrl = `http://${host}:${qkrpcPort}`;
@@ -264,4 +302,8 @@ export async function startProductionBackends(runtime) {
     uiPort,
     qkrpcPort,
   };
+  } catch (error) {
+    await shutdownBackends();
+    throw error;
+  }
 }

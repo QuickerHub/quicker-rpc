@@ -27,7 +27,7 @@ for (const failure of [false, true]) {
     };
     const mocks = [
       mock.method(http, "createServer", serverFactory), mock.method(net, "createServer", serverFactory),
-      mock.method(fs, "existsSync", () => true),
+      mock.method(fs, "existsSync", (path) => !String(path).endsWith("runtime-manifest.json")),
       mock.method(fs, "writeFileSync", (path) => { writes.push(path); }), mock.method(fs, "renameSync", () => {}),
       mock.method(childProcess, "spawn", (executable, args, options) => {
         spawned.push({ executable, args, options });
@@ -48,7 +48,9 @@ for (const failure of [false, true]) {
         assert.equal(result.uiPort, 45001);
         assert.equal(result.qkrpcPort, 45000);
         assert.equal(writes.length, 1);
-        shutdownBackends();
+        const shutdown = shutdownBackends();
+        assert.equal(shutdown, shutdownBackends(), "reentrant quit/update callers share cleanup completion");
+        await shutdown;
       }
       assert.equal(spawned.length, 1);
       assert.equal(spawned[0].executable, "fixture-node");
@@ -78,4 +80,19 @@ test("backend cleanup never targets an exited child's numeric PID", async () => 
     patch.mock.restore();
     syncBuiltinESMExports();
   }
+});
+
+test("IPC shutdown waits for the child's actual exit before completing", async () => {
+  const { stopAgentChild } = await import("./backend-spawn.mjs");
+  const child = Object.assign(new EventEmitter(), { pid: 123456, connected: true, exitCode: null, signalCode: null,
+    send(message, done) { assert.equal(message, "shutdown"); done(); },
+  });
+  let complete = false;
+  const stopping = stopAgentChild(child).then(() => { complete = true; });
+  await Promise.resolve();
+  assert.equal(complete, false);
+  child.exitCode = 0;
+  child.emit("exit", 0);
+  await stopping;
+  assert.equal(complete, true);
 });

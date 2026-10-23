@@ -9,6 +9,7 @@ export type BrowserRuntimeState = {
 
 export type BrowserRuntimeHealth = {
   ok: boolean;
+  runtimeOwner?: string;
   runtimeVersion?: string;
   protocolVersion?: string;
 };

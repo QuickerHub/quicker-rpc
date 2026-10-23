@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import type { ChatMode } from "@/lib/chat-mode";
 import { measureStaticShellBaseline } from "@/lib/agent-harness/static-shell-baseline.server";
 
@@ -13,16 +12,16 @@ type StaticShellBaselineRequest = {
 
 export async function GET() {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   const report = await measureStaticShellBaseline();
-  return NextResponse.json({ report });
+  return Response.json({ report });
 }
 
 export async function POST(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   let body: StaticShellBaselineRequest = {};
@@ -39,5 +38,5 @@ export async function POST(req: Request) {
     authoringSampleUserText: body.authoringSampleUserText,
   });
 
-  return NextResponse.json({ report });
+  return Response.json({ report });
 }

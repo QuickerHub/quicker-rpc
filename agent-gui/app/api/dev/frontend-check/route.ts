@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { runFrontendSmokeCheck } from "@/lib/dev-frontend-smoke.server";
 import {
   clearClientFrontendErrors,
@@ -9,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   const url = new URL(req.url);
@@ -27,5 +26,5 @@ export async function GET(req: Request) {
     paths,
   });
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 503 });
+  return Response.json(result, { status: result.ok ? 200 : 503 });
 }

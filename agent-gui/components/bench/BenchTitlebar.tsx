@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/renderer-navigation";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { DesktopWindowControls } from "@/components/shell/DesktopWindowControls";
 import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";

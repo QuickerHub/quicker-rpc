@@ -1,3 +1,4 @@
+import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
 export const DEFAULT_BROWSER_HOST = "127.0.0.1";
 export const DEFAULT_BROWSER_PORT = 6017;
 
@@ -22,12 +23,12 @@ export function buildBrowserHealthUrl(
   host = resolveBrowserHost(),
   port = resolveBrowserPort(),
 ): string {
-  return `http://${host}:${port}/health`;
+  return `${runtimeHttpOrigin(host, port)}/health`;
 }
 
 export function buildBrowserInvokeUrl(
   host = resolveBrowserHost(),
   port = resolveBrowserPort(),
 ): string {
-  return `http://${host}:${port}/v1/invoke`;
+  return `${runtimeHttpOrigin(host, port)}/v1/invoke`;
 }

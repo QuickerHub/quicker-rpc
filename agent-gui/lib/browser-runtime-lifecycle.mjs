@@ -1,4 +1,6 @@
-import { execSync, spawn } from "node:child_process";
+import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
+import { requestOwnedChildTreeStop } from "./owned-child-stop.mjs";
+import { spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -9,7 +11,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { RUNTIME_VERSION } from "../browser-runtime/config.mjs";
 import { resolveBrowserRuntimeRoot } from "./browser-runtime-root.mjs";
-import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
+import { isProcessAlive } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "browser-runtime.json";
 const DEFAULT_BROWSER_PORT = 6017;
@@ -19,7 +21,7 @@ const ownedBrowserChildren = new Map();
 /** @typedef {{ pid: number; port?: number; ownerPid: number; startedAt: number }} BrowserRuntimeState */
 
 export function browserRuntimeStatePath(agentGuiRoot) {
-  return join(agentGuiRoot, ".runtime", STATE_FILE);
+  return join(process.env.AGENT_GUI_RUNTIME_STATE_DIR?.trim() || join(agentGuiRoot, ".runtime"), STATE_FILE);
 }
 
 /** @returns {BrowserRuntimeState | null} */
@@ -97,6 +99,7 @@ export async function fetchBrowserRuntimeHealth(
     const body = await res.json();
     return {
       ok: body?.ok === true,
+      runtimeOwner: typeof body?.runtimeOwner === "string" ? body.runtimeOwner : undefined,
       runtimeVersion:
         typeof body?.runtimeVersion === "string" ? body.runtimeVersion : undefined,
       protocolVersion:
@@ -112,12 +115,13 @@ export async function fetchBrowserRuntimeHealth(
 /** @param {string} base e.g. http://127.0.0.1:6017 */
 export async function checkBrowserRuntimeHealth(base, timeoutMs = 3000) {
   const health = await fetchBrowserRuntimeHealth(base, timeoutMs);
-  return health.ok === true;
+  return health.ok === true && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
 /** @param {BrowserRuntimeHealth} health */
 export function isBrowserRuntimeVersionCurrent(health) {
-  return health.ok === true && health.runtimeVersion === RUNTIME_VERSION;
+  return health.ok === true && health.runtimeVersion === RUNTIME_VERSION
+    && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
 async function waitForBrowserRuntimeHealth(base, maxMs = 45_000) {
@@ -129,37 +133,9 @@ async function waitForBrowserRuntimeHealth(base, maxMs = 45_000) {
   throw new Error(`browser runtime did not become ready at ${base}/health`);
 }
 
-/** @param {number} port */
+/** Port occupancy is not ownership. Callers must stop their retained child handle. */
 export function killListenerOnPort(port) {
-  if (process.platform === "win32") {
-    try {
-      const out = execSync(
-        `powershell -NoProfile -Command "(Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess)"`,
-        { encoding: "utf8", windowsHide: true },
-      ).trim();
-      for (const line of out.split(/\r?\n/)) {
-        const pid = Number(line.trim());
-        if (Number.isInteger(pid) && pid > 0) {
-          killProcessTree(pid);
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return;
-  }
-
-  try {
-    const out = execSync(`lsof -ti tcp:${port}`, { encoding: "utf8" }).trim();
-    for (const line of out.split(/\r?\n/)) {
-      const pid = Number(line.trim());
-      if (Number.isInteger(pid) && pid > 0) {
-        killProcessTree(pid);
-      }
-    }
-  } catch {
-    // ignore
-  }
+  throw new Error(`Refusing to stop an unowned listener on port ${port}`);
 }
 
 /**
@@ -173,11 +149,8 @@ export function reconcileStaleBrowserRuntime(agentGuiRoot) {
   const serveAlive = isProcessAlive(state.pid);
   const ownerAlive = isProcessAlive(state.ownerPid);
 
-  if (serveAlive && !ownerAlive) {
-    killProcessTree(state.pid);
-    clearBrowserRuntimeState(agentGuiRoot);
-    return true;
-  }
+  // A prior owner's PID may have been recycled. Only retained child handles may stop it.
+  if (serveAlive && !ownerAlive) return false;
 
   if (!serveAlive) {
     clearBrowserRuntimeState(agentGuiRoot);
@@ -255,7 +228,9 @@ function stopOwnedBrowserChild(agentGuiRoot, child) {
   else if (child.pid !== owned.pid) failed(new Error("Owned browser runtime child identity changed"));
   else {
     timer = setTimeout(() => failed(new Error(`Owned browser runtime ${owned.pid} did not exit within 2000ms`)), 2000);
-    if (!killProcessTree(owned.pid)) failed(new Error(`Failed to stop owned browser runtime ${owned.pid}`));
+    void requestOwnedChildTreeStop(child).then((accepted) => {
+      if (!accepted) failed(new Error(`Failed to stop owned browser runtime ${owned.pid}`));
+    }, failed);
   }
   return pending;
 }
@@ -288,21 +263,18 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
 
   const runtimeRoot = resolveBrowserRuntimeRoot(agentGuiRoot ?? process.cwd());
   const port = resolveBrowserPort();
-  const base = `http://${host}:${port}`;
+  const base = runtimeHttpOrigin(host, port);
 
   const health = await fetchBrowserRuntimeHealth(base);
-  if (health.ok && isBrowserRuntimeVersionCurrent(health)) {
+  if (health.ok && isBrowserRuntimeVersionCurrent(health)
+    && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
     console.log(`browser: reusing runtime ${health.runtimeVersion} at ${base}/health`);
     return null;
   }
 
-  if (health.ok && !isBrowserRuntimeVersionCurrent(health)) {
-    console.log(
-      `browser: stale runtime ${health.runtimeVersion ?? "unknown"} (want ${RUNTIME_VERSION}) — restarting`,
-    );
-    killListenerOnPort(port);
-    clearBrowserRuntimeState(runtimeRoot);
-    await new Promise((r) => setTimeout(r, 400));
+  if (health.ok && (!isBrowserRuntimeVersionCurrent(health)
+    || process.env.QUICKER_AGENT_RUNTIME_OWNER && health.runtimeOwner !== process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
+    throw new Error("browser runtime port is owned by another service or an incompatible runtime");
   }
 
   reconcileStaleBrowserRuntime(runtimeRoot);
@@ -321,7 +293,7 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
     [entry, "--host", host, "--port", String(port)],
     {
       cwd: runtimeRoot,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe", "ipc"],
       windowsHide: true,
       env: {
         ...process.env,

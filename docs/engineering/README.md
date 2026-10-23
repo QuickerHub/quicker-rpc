@@ -14,6 +14,7 @@
 
 | 文档 | 用途 |
 |---|---|
+| [static-agent-runtime.md](static-agent-runtime.md) | 静态 React / Node API、资源布局与 Electron 组合验证 |
 | [agent-gui/README.md](../../agent-gui/README.md) | 本地开发、Electron 与发布 |
 | [agent-gui-chat-storage.md](../agent-gui-chat-storage.md) | SQLite 聊天与迁移 |
 | [agent-gui-plugin-storage.md](../agent-gui-plugin-storage.md) | 安装树、用户数据与随包资源 |

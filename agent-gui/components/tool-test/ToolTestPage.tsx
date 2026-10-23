@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/renderer-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generateId } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";

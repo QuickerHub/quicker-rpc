@@ -6,8 +6,8 @@ import { withReleasePreviewRoute } from "@/lib/release-preview.server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
-  return withReleasePreviewRoute(async () => {
+export async function POST(req: Request) {
+  return withReleasePreviewRoute(req, async () => {
     const result = await refreshRemotePublishConfig({ force: true });
     const status = getRemotePublishConfigStatus();
 

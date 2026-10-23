@@ -2,7 +2,7 @@
 
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
-import Link from "next/link";
+import Link from "@/lib/renderer-navigation";
 import { useMemo } from "react";
 import type { QuickerBenchTask } from "@/lib/quickerbench/catalog-types";
 import type { QuickerBenchRunEntry } from "@/lib/tool-test-quickerbench-runs";

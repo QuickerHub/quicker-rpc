@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/renderer-navigation";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
 import { isAgentGuiDebugMode, isCursorSdkDevEnabled } from "@/lib/agent-gui-debug";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";

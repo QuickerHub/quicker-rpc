@@ -1,5 +1,5 @@
 /* Critical launcher styles — transparent by default (Tauri); web uses --web modifier. */
-#app-bootstrap-splash {
+html.launcher-html #app-bootstrap-splash {
   display: none !important;
 }
 

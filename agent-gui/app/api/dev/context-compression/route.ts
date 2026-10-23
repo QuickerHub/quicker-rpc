@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { prepareContextPipeline } from "@/lib/agent-harness/context-pipeline";
 import {
@@ -34,21 +33,21 @@ function isAgentMessage(value: unknown): value is AgentUIMessage {
 
 export async function POST(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   let body: DevContextCompressionRequest;
   try {
     body = (await req.json()) as DevContextCompressionRequest;
   } catch {
-    return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 });
+    return Response.json({ error: "INVALID_JSON" }, { status: 400 });
   }
 
   const messages = Array.isArray(body.messages)
     ? body.messages.filter(isAgentMessage)
     : [];
   if (messages.length === 0) {
-    return NextResponse.json({ error: "MISSING_MESSAGES" }, { status: 400 });
+    return Response.json({ error: "MISSING_MESSAGES" }, { status: 400 });
   }
 
   const selection = resolveLlmSelection(
@@ -62,7 +61,7 @@ export async function POST(req: Request) {
     ({ model, modelId } = await resolveChatModelForSelection(selection));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return Response.json({ error: message }, { status: 500 });
   }
 
   const contextLimit =
@@ -112,7 +111,7 @@ export async function POST(req: Request) {
     Boolean(reusableBefore)
     && prepared.contextCompression?.summary === reusableBefore;
 
-  return NextResponse.json({
+  return Response.json({
     ok: true,
     modelId,
     contextLimit,

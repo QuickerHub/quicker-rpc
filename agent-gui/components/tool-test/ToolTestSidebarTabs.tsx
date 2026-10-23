@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/renderer-navigation";
 import { useEffect, useRef } from "react";
 
 export type ToolTestSidebarTab =

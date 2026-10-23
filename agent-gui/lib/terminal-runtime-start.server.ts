@@ -1,3 +1,4 @@
+import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
 type TerminalRuntimeLifecycle = Pick<typeof import("@/lib/terminal-runtime-lifecycle.mjs"),
   "checkTerminalRuntimeHealth" | "ensureTerminalRuntime" | "resolveTerminalPort">;
 
@@ -32,7 +33,7 @@ export function createStartTerminalRuntimeHandler({
     } = await loadLifecycle();
 
     const port = resolveTerminalPort();
-    const base = `http://${host}:${port}`;
+    const base = runtimeHttpOrigin(host, port);
 
     const child = await ensureTerminalRuntime(cwd(), host);
     if (!(await checkTerminalRuntimeHealth(base))) {
@@ -53,6 +54,7 @@ export function createStartTerminalRuntimeHandler({
       started: Boolean(child),
       base,
       port,
+      ...(env.QUICKER_AGENT_RUNTIME_OWNER ? { runtimeOwner: env.QUICKER_AGENT_RUNTIME_OWNER } : {}),
     });
   };
 }

@@ -43,6 +43,7 @@ function handleRequest(req, res) {
       ok: true,
       protocolVersion: PROTOCOL_VERSION,
       runtimeVersion: RUNTIME_VERSION,
+      runtimeOwner: process.env.QUICKER_AGENT_RUNTIME_OWNER,
       sessionCount: manager.sessionCount,
     });
     return;
@@ -77,7 +78,10 @@ server.on("upgrade", (req, socket, head) => {
   });
 });
 
+let shuttingDown = false;
 async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log("[terminal-runtime] shutting down");
   getTerminalSessionManager().shutdown();
   wss.close();
@@ -105,3 +109,8 @@ server.listen(config.port, config.host, () => {
     );
   });
 });
+
+if (process.send) {
+  process.once("disconnect", () => { void shutdown(); });
+  process.on("message", (message) => { if (message === "shutdown") void shutdown(); });
+}

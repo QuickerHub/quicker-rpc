@@ -1,6 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveRuntimeEntry } from "./runtime-entry.mjs";
 
 const electronRoot = join(dirname(fileURLToPath(import.meta.url)));
 
@@ -33,7 +34,7 @@ export function bundledNodeExe(resourceRoot) {
 /** @param {string} dir */
 export function isCompleteResourceRoot(dir) {
   return (
-    existsSync(join(dir, "app", "server.js")) &&
+    existsSync(resolveRuntimeEntry(join(dir, "app")).path) &&
     existsSync(bundledNodeExe(dir))
   );
 }
@@ -52,7 +53,7 @@ export function resolveResourceRoot(app) {
       }
     }
     throw new Error(
-      `runtime bundle incomplete (need app/server.js and bundled node under ${base} or ${join(base, "resources")})`,
+      `runtime bundle incomplete (need an Agent app entry and bundled node under ${base} or ${join(base, "resources")})`,
     );
   }
 

@@ -11,7 +11,7 @@ type ListModelsBody = {
 };
 
 export async function POST(req: Request) {
-  return withReleasePreviewRoute(async () => {
+  return withReleasePreviewRoute(req, async () => {
     let body: ListModelsBody;
     try {
       body = (await req.json()) as ListModelsBody;

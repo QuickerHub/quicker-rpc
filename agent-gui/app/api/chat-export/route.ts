@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   buildChatThreadExportFilename,
   serializeChatThreadExport,
@@ -18,7 +17,7 @@ export async function POST(req: Request) {
       Date.parse(payload.exportedAt),
     );
     const result = writeChatThreadExportFile(filename, content);
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       path: result.path,
       filename,
@@ -26,6 +25,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    return Response.json({ ok: false, error: message }, { status: 400 });
   }
 }

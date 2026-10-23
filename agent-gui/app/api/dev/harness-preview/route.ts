@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { runHarnessScenarioPreviewById } from "@/lib/agent-harness/harness-preview";
 import { HARNESS_SCENARIOS } from "@/lib/tool-test-harness-scenarios";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
@@ -13,10 +12,10 @@ type HarnessPreviewRequest = {
 
 export async function GET() {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
-  return NextResponse.json({
+  return Response.json({
     scenarios: HARNESS_SCENARIOS.map((scenario) => ({
       id: scenario.id,
       label: scenario.label,
@@ -28,14 +27,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   let body: HarnessPreviewRequest;
   try {
     body = (await req.json()) as HarnessPreviewRequest;
   } catch {
-    return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 });
+    return Response.json({ error: "INVALID_JSON" }, { status: 400 });
   }
 
   const scenarioId = body.scenarioId?.trim() ?? "";
@@ -48,10 +47,10 @@ export async function POST(req: Request) {
   );
 
   if (!result) {
-    return NextResponse.json({ error: "UNKNOWN_SCENARIO" }, { status: 400 });
+    return Response.json({ error: "UNKNOWN_SCENARIO" }, { status: 400 });
   }
 
-  return NextResponse.json({
+  return Response.json({
     scenarioId,
     result,
   });

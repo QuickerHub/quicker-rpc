@@ -43,6 +43,16 @@ function fixture(t) {
     kill(Number(match[1]));
     return "";
   });
+  t.mock.method(childProcess, "spawn", (_command, args) => {
+    assert.equal(_command, "taskkill");
+    const request = new EventEmitter();
+    request.kill = () => true;
+    queueMicrotask(() => {
+      try { kill(Number(args[1])); request.emit("exit", 0); }
+      catch { request.emit("exit", 1); }
+    });
+    return request;
+  });
   t.mock.method(process, "kill", (pid, signal) => {
     assert.equal(signal, "SIGTERM");
     return kill(Math.abs(pid));
@@ -52,6 +62,7 @@ function fixture(t) {
   t.after(async () => {
     for (const owned of children.values()) exit(owned);
     await Promise.all(adapters.map((adapter) => adapter.stopOwned()));
+    await new Promise((done) => setImmediate(done));
     t.mock.restoreAll();
     syncBuiltinESMExports();
     const suffix = relative(resolve(base), resolve(root));
@@ -145,6 +156,7 @@ for (const a of adapters) {
     const rejected = assert.rejects(a.stopOwned(), (error) => {
       assert.ok(error instanceof AggregateError); assert.match(error.errors[0].message, /did not exit/); return true;
     });
+    await Promise.resolve(); await Promise.resolve();
     t.mock.timers.tick(2000); await rejected;
     assert.deepEqual(a.read(root), state); assert.equal(owned.listenerCount("exit"), 1);
     behavior.autoExit = true; await a.stopOwned();
@@ -156,6 +168,7 @@ for (const a of adapters) {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const owned = child(911013); a.track(root, owned); behavior.autoExit = false;
     const rejected = assert.rejects(a.stopOwned(), AggregateError);
+    await Promise.resolve(); await Promise.resolve();
     t.mock.timers.tick(2000); await rejected; assert.ok(a.read(root));
     exit(owned); assert.equal(a.read(root), null); await a.stopOwned(); assert.deepEqual(killed, [owned.pid]);
   });
@@ -163,7 +176,7 @@ for (const a of adapters) {
   test(`${a.name}: legacy void stop reports failure without losing the service owner`, async (t) => {
     const { root, child, behavior, errors } = fixture(t);
     const owned = child(911014); a.track(root, owned); behavior.deny = true;
-    assert.equal(a.stop(root, owned), undefined); await Promise.resolve();
+    assert.equal(a.stop(root, owned), undefined); await new Promise((done) => setImmediate(done));
     assert.equal(errors.length, 1); assert.ok(a.read(root)); assert.equal(owned.listenerCount("exit"), 1);
     behavior.deny = false; await a.stopOwned(); assert.equal(a.read(root), null);
   });
