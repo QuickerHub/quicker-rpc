@@ -241,6 +241,12 @@ payload、live snapshot 或 overrides。文档级按钮/快捷键和 portal 归�
 flush 编辑草稿，应用时重新读取 revision，并核验打开时的完整身份和原属性；失配保留
 弹窗草稿。portal 复用文档 keyboard owner，隐藏时保留状态，关闭恢复当前页签焦点。
 属性确认及字面重命名共用原 Session 时间线；完整图标选择器仍须继续迁移。
+创建与删除也只操作这份 raw 文档：`createProgramDocumentSubProgram` 接调用方 ID 并
+追加根定义；`prepareProgramDocumentSubProgramDelete` 给出原 Session 所属预览，提交
+必须仍是同一完整身份、revision 和目标指纹。删除会重新扫描原生存储调用及文本窗口
+`$sp$` 引用，拒绝仍被使用的定义；动态表达式保持不求值的边界，不冒充完整静态分析。
+foreign 缓存仅参与保守引用检查，不能作为可编辑目标。每次成功提交只占一个原历史项，
+迟到保存只推进原票据基线。纯层已验证，创建/删除的界面确认与页签接线仍待迁移。
 原生未知字段与外置文件引用在 projection overlay 及实际 `writeWorkspaceFile` 的磁盘
 规范化链中保留；后续 host adapter 仍须加入存储版本/CAS，这不等于已实现宿主事务。
 
