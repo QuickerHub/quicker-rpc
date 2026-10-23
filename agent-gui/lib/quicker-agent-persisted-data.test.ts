@@ -9,12 +9,12 @@ import { acquireAgentDatabaseWriterLease, AgentDatabaseWriterBusyError } from ".
 import { resolveQuickerAgentAppDataDirectory, resolveQuickerAgentInstallDirectory } from "./quicker-agent-paths";
 import { resetPersistedDataMigrationForTests, resolveQuickerAgentPersistedDataDirectory } from "./quicker-agent-persisted-data";
 
-function fixture(t: TestContext) {
+function fixture(t: TestContext, options: { colocatedRoots?: boolean } = {}) {
   const base = resolve("..", "..", "..", ".tmp");
   mkdirSync(base, { recursive: true });
   const root = mkdtempSync(join(base, "agent-persisted-"));
   const values = {
-    APPDATA: join(root, "roaming"), LOCALAPPDATA: join(root, "install-local"),
+    APPDATA: join(root, options.colocatedRoots ? "install-local" : "roaming"), LOCALAPPDATA: join(root, "install-local"),
     HOME: join(root, "home"), USERPROFILE: join(root, "home"), XDG_DATA_HOME: join(root, "xdg"),
     AGENT_GUI_ROOT: join(root, "install-app"), QUICKER_AGENT_DATA_DIR: "", OneDrive: "",
   };
@@ -70,14 +70,28 @@ test("settings migration merges missing files without replacing existing profile
   assert.ok(existsSync(join(appData, "llm-usage", "users", "u1.json")));
 });
 
-test("colocated install agent definitions migrate while its databases remain for the leased importer", (t) => {
-  const { appData, install, write } = fixture(t);
-  write(join(install, "local", "chats.db"));
-  write(join(install, "agent-defs", "example-agent", "manifest.json"), "{}");
-  resolveQuickerAgentPersistedDataDirectory();
-  assert.equal(existsSync(join(appData, "local", "chats.db")), false);
-  assert.ok(existsSync(join(appData, "agent-defs", "example-agent", "manifest.json")));
-});
+for (const colocatedRoots of [false, true]) {
+  const layout = colocatedRoots ? "shared app-data root" : "platform default roots";
+  test(`colocated agent definitions migrate while databases remain for the leased importer (${layout})`, (t) => {
+    const { appData, install, legacy, write } = fixture(t, { colocatedRoots });
+    if (colocatedRoots) assert.equal(install, appData);
+    const databasePath = join(install, "local", "chats.db");
+    const databaseFixture = "legacy database bytes";
+    write(databasePath, databaseFixture);
+    // Keep a distinct source even on platforms where install and app-data share a root.
+    const definitionSource = install === appData ? legacy : install;
+    const definitionPath = join("agent-defs", "example-agent", "manifest.json");
+    const definitionFixture = '{"fixture":"legacy-agent"}';
+    write(join(definitionSource, definitionPath), definitionFixture);
+    resolveQuickerAgentPersistedDataDirectory();
+    if (install !== appData) {
+      assert.equal(existsSync(join(appData, "local", "chats.db")), false);
+    }
+    // On a shared root this is also the target DB; migration must preserve its bytes.
+    assert.equal(readFileSync(databasePath, "utf8"), databaseFixture);
+    assert.equal(readFileSync(join(appData, definitionPath), "utf8"), definitionFixture);
+  });
+}
 
 test("default client acquires its lease before settings migration or legacy database import", (t) => {
   const { appData, legacy, install, write } = fixture(t);
