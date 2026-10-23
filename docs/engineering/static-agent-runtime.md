@@ -77,6 +77,10 @@ Windows fallback 不阻塞观察 exit 的 event loop。清理失败保留 owner 
 Electron 重复退出/升级调用等待同一个 shutdown Promise，先排空 Node，再清理所属 qkrpc；
 复用的外部 qkrpc 不属于这个 shell。
 
+Electron 的 Windows fallback 同样使用异步、有界的 `taskkill`，实际 child exit 后才完成；
+helper 成功不冒充进程已退出。超时保留 backend handle 供重试，晚到的 IPC 错误不能再次
+终止已退出的进程。对应离线 fixture 覆盖 event loop 可推进、超时、真实 exit 和晚回调。
+
 ## 验证与切换边界
 
 ```powershell
@@ -94,6 +98,8 @@ pwsh -File scripts/Test-QuickerAgentElectronSmoke.ps1 -Action full -DistDir ../.
 模型与 qkrpc、独立 Edge context；验证生产 runner 的 SSE、历史、设置、workspace、Designer、
 docs/skills、真实 browser/terminal 子进程启动与 IPC 断连回收，以及页面、设置、深浅/窄窗
 和开发态 frontend check。fixture 的出站请求受限，不接真实模型或 Quicker。
+集成 fixture 还通过已搬移产物的真实 HTTP `save-program-document` 入口验证正文及属性落盘、
+Int64/高精度字段保真、过期 baseline 返回 409 且不覆盖文件；普通保存不调用宿主。
 审批/续跑和停止另由 `test:agent-service` 使用 fake model + 原 SDK loop 验证。
 真实浏览器与原生模块测试是显式入口，不悄悄加入无浏览器的 CI。
 

@@ -123,7 +123,7 @@ export function compactWireInputParam(
   if (varKey) {
     return { [`${paramKey}${VAR_KEY_SUFFIX}`]: varKey };
   }
-  if (typeof param.value === "string" && param.value.length > 0) {
+  if (typeof param.value === "string") {
     return { [paramKey]: param.value };
   }
   return {};

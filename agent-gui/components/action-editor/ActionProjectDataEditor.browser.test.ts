@@ -17,14 +17,29 @@ const pathFor = id => '.quicker/actions/'+(id==='a'?'11111111-1111-4111-8111-111
 const step = (id, note) => ({stepId:id,stepRunnerKey:'sys:fixture_note',note,inputParams:{'script.file':'files/script.cs'},fixtureStep:{keep:true}});
 const body = id => ({steps:[step('s-'+id, id+' initial')],variables:[{id:'v-'+id,key:'var_'+id,varType:'Text','default.file':'files/default.txt',fixtureVariable:{keep:true}}]});
 const makeDocument = id => JSON.stringify({...body(id),subPrograms:[{id:'child',name:'Child',kind:1,...body('child'),subPrograms:[{id:'nested',name:'Nested',kind:1,...body('nested'),subPrograms:[]}]}],fixtureRoot:{keep:true}},null,2)+'\\n';
+const makeInfo = id => '{"kind":"action","id":"'+pathFor(id).split('/').at(-2)+'","title":"Fixture action","description":"original description","icon":"iconify:mdi:code-tags","editVersion":9223372036854775807,"fixtureFuture":9007199254740993}';
 const runner = StepRunnerItem.fromPartial({key:'sys:fixture_note',name:'Fixture module',icon:'iconify:mdi:code-tags',inputParamDefs:[],outputParamDefs:[]});
+const capability = StepRunnerItem.fromPartial({key:'sys:fixture_capability',name:'Fixture capability',category:'Text',secondaryCategories:['System'],inputParamDefs:[{key:'mode',name:'Mode',isControlField:true,varType:9,variableMode:1,allowInput:true,selectionItems:[{value:'copy',name:'Copy fixture'}]},{key:'text',name:'Text',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]});
 const state = window.fixture = {calls:[],saved:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument};
+state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.json$/,'info.json'),makeInfo(id)]));
+state.documentCalls=[];state.documentPending=[];state.documentMode='success';
+state.syncCalls=[];state.syncPending=[];state.syncMode='success';
+state.commitDocument=(request,outcome)=>{if(request.metadata&&(outcome.ok||outcome.persistedParts?.metadata))state.infoFiles[request.path.replace(/data.json$/,'info.json')]=request.metadata.content;return outcome;};
 window.fetch = async (input, init) => {
  const url = new URL(typeof input==='string'?input:input.url,'http://fixture.invalid');
  state.requests.push(url.pathname);
  let value;
- if(url.pathname==='/api/step-runner/list') value={ok:true,items:[runner]};
+ if(url.pathname==='/api/workspace/action-sync') {
+   const request=JSON.parse(init?.body||'{}');state.syncCalls.push(request);
+   if(request.op==='status')value={ok:true,status:{state:'in_sync',message:'fixture in sync',localEditVersion:1,remoteEditVersion:1}};
+   else if(request.op==='push' && state.syncMode==='defer')value=await new Promise(resolve=>state.syncPending.push({request,resolve}));
+   else if(request.op==='push')value={ok:true,message:'fixture synced',editVersion:2};
+   else {state.unexpected.push('sync:'+request.op);throw new Error('Unexpected sync operation');}
+ }
+ else if(url.pathname==='/api/step-runner/list') value={ok:true,items:[runner,capability]};
  else if(url.pathname==='/api/step-runner/get' && url.searchParams.get('key')==='sys:fixture_note') value={ok:true,item:runner};
+ else if(url.pathname==='/api/step-runner/get' && url.searchParams.get('key')==='sys:fixture_capability') value={ok:true,item:capability};
+ else if(url.pathname==='/api/step-runner/toolbox-search') value={ok:true,json:JSON.stringify({items:[{kind:'runner',id:'r:sys:fixture_capability:copy',label:'Copy fixture',parentLabel:'Fixture capability',payload:{stepRunnerKey:'sys:fixture_capability',name:'Fixture capability',controlFieldValue:'copy',inputPresets:{mode:'copy',text:'preset text'}}}],totalCount:1,hasMore:false})};
  else if(url.pathname==='/api/step-runner/summaries') {const request=JSON.parse(init?.body||'{}');value={ok:true,items:(request.steps||[]).map(row=>({stepId:row.stepId,summary:'Fixture summary'}))};}
  else if(url.pathname==='/api/subprogram/list') value={ok:true,items:[]};
  else {state.unexpected.push(url.pathname+url.search);throw new Error('Unexpected fixture request: '+url.pathname+url.search);}
@@ -32,6 +47,7 @@ window.fetch = async (input, init) => {
 };
 function Fixture(){
  const [document,setDocument]=useState({path:pathFor('a'),content:makeDocument('a')});
+ const [documentSaveEnabled,setDocumentSaveEnabled]=useState(false);
  const documentRef=useRef(document);documentRef.current=document;
  const onSave=useCallback(async content=>{
    const call={path:document.path,content};state.calls.push(call);
@@ -39,6 +55,13 @@ function Fixture(){
    if(state.mode==='defer') return new Promise(resolve=>state.pending.push({call,resolve}));
    return {ok:true};
  },[document.path]);
+ const onSaveDocument=useCallback(async request=>{
+   state.documentCalls.push(request);
+   if(state.documentMode==='defer')return new Promise(resolve=>state.documentPending.push({request,resolve:outcome=>resolve(state.commitDocument(request,outcome))}));
+   if(state.documentMode==='partial')return state.commitDocument(request,{ok:false,error:'fixture metadata write failed',persistedParts:{body:true}});
+   if(state.documentMode==='conflict')return {ok:false,code:'metadata_conflict',error:'fixture external metadata conflict'};
+   return state.commitDocument(request,{ok:true});
+ },[]);
  const onSaved=useCallback(()=>state.saved.push(document.path),[document.path]);
  useEffect(()=>{
    state.current=()=>documentRef.current;
@@ -46,8 +69,10 @@ function Fixture(){
    state.replaceContent=content=>setDocument(current=>({...current,content}));
    state.echoPending=index=>{const pending=state.pending[index];setDocument(current=>current.path===pending.call.path?{...current,content:pending.call.content}:current)};
    state.resolvePending=(index,outcome)=>state.pending[index].resolve(outcome);
+   state.enableDocumentSave=()=>setDocumentSaveEnabled(true);
+   state.resolveDocumentPending=(index,outcome)=>state.documentPending[index].resolve(outcome);
  },[]);
- return <div className="fixture-shell" data-fixture-path={document.path}><ActionProjectDataEditor path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaved={onSaved}/></div>;
+ return <div className="fixture-shell" data-fixture-path={document.path}><ActionProjectDataEditor path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaveDocument={documentSaveEnabled?onSaveDocument:undefined} onSaved={onSaved}/></div>;
 }
 createRoot(document.getElementById('root')).render(<StrictMode><Fixture/></StrictMode>);
 `;
@@ -55,7 +80,7 @@ createRoot(document.getElementById('root')).render(<StrictMode><Fixture/></Stric
 const fileBoundary = `
 export async function fetchWorkspaceFile(_cwd,path){
  const f=window.fixture;
- if(path.endsWith('/info.json'))return{ok:true,path,content:JSON.stringify({kind:'action',id:path.split('/').at(-2),title:'Fixture action'}),truncated:false};
+ if(path.endsWith('/info.json'))return{ok:true,path,content:f.infoFiles[path],truncated:false};
  if(path.endsWith('/files/script.cs'))return{ok:true,path,content:'// fixture only',truncated:false};
  if(path.endsWith('/files/default.txt'))return{ok:true,path,content:'fixture default',truncated:false};
  if(path===f.pathFor('a')||path===f.pathFor('b'))return{ok:true,path,content:path===f.current().path?f.current().content:f.makeDocument(path===f.pathFor('a')?'a':'b'),truncated:false};
@@ -85,7 +110,7 @@ before(async () => {
     define: { "process.env.NODE_ENV": '"development"' },
     tsconfig: path.join(process.cwd(), "tsconfig.json"),
     plugins: [{ name: "offline-editor-boundaries", setup(builder) {
-      builder.onResolve({ filter: /(^@\/components\/(chat\/(FileEditorCard|ActionIcon|FaIconProvider)|workspace\/(ActionProjectSyncBar|ActionProjectToolbar|ProgramProjectDeleteControl))$|shared\/IconControl$|^@\/lib\/(workspace-file-tool|workspace-explorer-api|chat-composer-bridge)$)/ }, (args) => ({ path: args.path, namespace: "fixture-boundary" }));
+      builder.onResolve({ filter: /(^@\/components\/(chat\/(FileEditorCard|ActionIcon|FaIconProvider)|workspace\/(ActionProjectToolbar|ProgramProjectDeleteControl))$|shared\/IconControl$|^@\/lib\/(workspace-file-tool|workspace-explorer-api|chat-composer-bridge)$)/ }, (args) => ({ path: args.path, namespace: "fixture-boundary" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture-boundary" }, (args) => {
         if (args.path.endsWith("workspace-explorer-api")) return { contents: fileBoundary, loader: "js" };
         if (args.path.endsWith("workspace-file-tool")) return { contents: "export const basenamePath=value=>value.replace(/\\\\/g,'/').split('/').pop()||'';export const guessFileLanguage=()=> 'text';", loader: "js" };
@@ -310,6 +335,183 @@ test("external content preserves a dirty draft and blocks overwrite; an old path
     assert.equal(result.body.steps[0].stepId, "s-b");
     assert.equal(result.body.steps[0].note, "b local latest");
     assert.deepEqual(result.saved, [result.path]);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("module catalog inserts a capability through the real popup, undo and controller save into the active surface", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    const toolbox = page.getByRole("region", { name: "模块工具箱" });
+    await toolbox.getByRole("tab", { name: "Text", exact: true }).waitFor();
+    await toolbox.getByPlaceholder("搜索模块…").fill("copy");
+    await toolbox.locator(".toolbox-sub-item").filter({ hasText: "Copy fixture" }).dblclick();
+    const popup = page.locator(".step-editor-popup");
+    await popup.waitFor();
+    assert.equal(await page.locator(".program-editor-surface:visible .step-row").count(), 1, "opening params is not a document mutation");
+    await popup.getByRole("button", { name: "确定", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 2);
+    await waitSaveEnabled(page);
+    await saveButton(page).click();
+    await waitClean(page);
+    let saved = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    const inserted = saved.steps.find((step: any) => step.stepRunnerKey === "sys:fixture_capability");
+    assert.equal(inserted.inputParams.mode, "copy");
+    assert.equal(inserted.inputParams.text, "preset text");
+    await page.locator(".program-editor-surface:visible .step-row").first().focus();
+    await page.keyboard.press("Control+z");
+    await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 1);
+    await page.keyboard.press("Control+y");
+    await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 2);
+    await page.getByLabel("打开嵌入子程序", { exact: true }).click();
+    await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Child / Nested", exact: true }).click();
+    await toolbox.locator(".toolbox-sub-item").filter({ hasText: "Copy fixture" }).dblclick();
+    await popup.waitFor();
+    await popup.getByRole("button", { name: "确定", exact: true }).click();
+    await waitSaveEnabled(page);
+    await saveButton(page).click();
+    await waitClean(page);
+    saved = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    assert.equal(saved.steps.length, 2, "nested insert must not mutate the main body");
+    assert.equal(saved.subPrograms[0].subPrograms[0].steps.length, 2);
+    assert.equal(saved.subPrograms[0].subPrograms[0].steps.at(-1).inputParams.text, "preset text");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("appearance and body share save tickets, preserve native metadata and retain drafts through partial and late saves", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => (window as any).fixture.enableDocumentSave());
+    const properties = page.getByRole("tab", { name: "属性", exact: true });
+    await properties.click();
+    const appearance = page.getByRole("region", { name: "动作属性" });
+    await appearance.getByLabel("标题", { exact: true }).fill("Appearance A");
+    await appearance.getByLabel("说明", { exact: true }).fill("First line\nSecond line");
+    await appearance.getByLabel("图标", { exact: true }).fill("iconify:mdi:check");
+    assert.equal(await page.locator(".program-editor-catalog").isVisible(), false);
+    if (screenshotDirectory) {
+      await page.screenshot({ path: path.join(screenshotDirectory, "05-properties-light.png"), fullPage: true });
+      await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+      await page.setViewportSize({ width: 480, height: 760 });
+      await page.screenshot({ path: path.join(screenshotDirectory, "06-properties-dark-480px.png"), fullPage: true });
+      await page.setViewportSize({ width: 1280, height: 900 });
+    }
+    await page.getByRole("tab", { name: "主程序", exact: true }).click();
+    await editNote(page, "body A");
+    await saveButton(page).click();
+    await waitClean(page);
+    let calls = await page.evaluate(() => (window as any).fixture.documentCalls);
+    assert.equal(calls.length, 1);
+    assert.equal(JSON.parse(calls[0].content).steps[0].note, "body A");
+    assert.equal(JSON.parse(calls[0].metadata.content).title, "Appearance A");
+    assert.match(calls[0].metadata.content, /"editVersion":9223372036854775807/);
+    assert.match(calls[0].metadata.content, /"fixtureFuture":9007199254740993/);
+    assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 0, "one document save must not also invoke the legacy body writer");
+
+    await editNote(page, "body B");
+    await properties.click();
+    await appearance.getByLabel("标题", { exact: true }).fill("Appearance B");
+    await page.evaluate(() => { (window as any).fixture.documentMode = "partial"; });
+    await saveButton(page).click();
+    await page.getByText("fixture metadata write failed", { exact: true }).waitFor();
+    await waitSaveEnabled(page);
+    assert.equal(await appearance.getByLabel("标题", { exact: true }).inputValue(), "Appearance B");
+    await page.evaluate(() => { (window as any).fixture.documentMode = "success"; });
+    await saveButton(page).click();
+    await waitClean(page);
+    calls = await page.evaluate(() => (window as any).fixture.documentCalls);
+    assert.equal(calls[2].expectedContent, calls[1].content, "retry uses only the body part known to have reached disk");
+    assert.equal(calls[2].metadata.expectedContent, calls[0].metadata.content, "failed metadata keeps its earlier baseline");
+
+    await appearance.getByLabel("标题", { exact: true }).fill("Pending C");
+    await page.evaluate(() => { (window as any).fixture.documentMode = "defer"; });
+    await saveButton(page).click();
+    await page.waitForFunction(() => (window as any).fixture.documentPending.length === 1);
+    await appearance.getByLabel("标题", { exact: true }).fill("Newer D");
+    await page.evaluate(() => (window as any).fixture.resolveDocumentPending(0, { ok: true }));
+    await waitSaveEnabled(page);
+    assert.equal(await appearance.getByLabel("标题", { exact: true }).inputValue(), "Newer D");
+    assert.deepEqual(await page.getByRole("alert").allTextContents(), []);
+    await page.evaluate(() => { (window as any).fixture.documentMode = "success"; });
+    await appearance.getByLabel("标题", { exact: true }).press("Control+s");
+    await waitClean(page);
+    calls = await page.evaluate(() => (window as any).fixture.documentCalls);
+    assert.equal(JSON.parse(calls.at(-1).metadata.content).title, "Newer D");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("metadata callbacks remain bound to their document and server conflicts preserve the draft and block overwrite", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => (window as any).fixture.enableDocumentSave());
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    const appearance = page.getByRole("region", { name: "动作属性" });
+    await appearance.getByLabel("标题", { exact: true }).fill("old document A");
+    await page.evaluate(() => { (window as any).fixture.documentMode = "defer"; });
+    await saveButton(page).click();
+    await page.waitForFunction(() => (window as any).fixture.documentPending.length === 1);
+    await page.evaluate(() => (window as any).fixture.setDocument("b"));
+    await page.waitForSelector('[data-step-id="s-b"]');
+    await waitClean(page);
+    await page.evaluate(() => (window as any).fixture.resolveDocumentPending(0, { ok: true }));
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    assert.equal(await appearance.getByLabel("标题", { exact: true }).inputValue(), "Fixture action");
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.saved), []);
+    await appearance.getByLabel("标题", { exact: true }).fill("new document B");
+    await page.evaluate(() => { (window as any).fixture.documentMode = "success"; });
+    await saveButton(page).click();
+    await waitClean(page);
+    const call = await page.evaluate(() => (window as any).fixture.documentCalls.at(-1));
+    assert.match(call.path, /22222222/);
+    assert.match(call.metadata.content, /22222222/);
+
+    await appearance.getByLabel("标题", { exact: true }).fill("preserved conflict draft");
+    await page.evaluate(() => { (window as any).fixture.documentMode = "conflict"; });
+    await saveButton(page).click();
+    await page.getByRole("alert").filter({ hasText: "动作属性已在外部变更" }).waitFor();
+    assert.equal(await appearance.getByLabel("标题", { exact: true }).inputValue(), "preserved conflict draft");
+    assert.equal(await saveButton(page).isDisabled(), true);
+    await page.getByRole("tab", { name: "主程序", exact: true }).click();
+    await editNote(page, "body after metadata conflict");
+    assert.equal(await saveButton(page).isDisabled(), true, "body edits cannot clear an independent metadata conflict");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("explicit host sync keeps the current document inert until completion and cannot lock a different document", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => (window as any).fixture.enableDocumentSave());
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    const title = page.getByRole("region", { name: "动作属性" }).getByLabel("标题", { exact: true });
+    await title.fill("local metadata before sync");
+    await saveButton(page).click();
+    await waitClean(page);
+    assert.equal(await page.evaluate(() => (window as any).fixture.syncCalls.some((call: any) => call.op === "push")), false, "ordinary Save never writes to the host");
+    await page.evaluate(() => { (window as any).fixture.syncMode = "defer"; });
+    await page.getByRole("button", { name: "同步", exact: true }).click();
+    await page.waitForFunction(() => (window as any).fixture.syncPending.length === 1);
+    await page.waitForFunction(() => document.querySelector(".action-project-data-editor-visual")?.hasAttribute("inert"));
+    assert.equal(await title.isDisabled(), true);
+    assert.equal(await saveButton(page).isDisabled(), true);
+    await page.evaluate(() => (window as any).fixture.syncPending[0].resolve({ ok: true, message: "fixture synced", editVersion: 2 }));
+    await page.waitForFunction(() => !document.querySelector(".action-project-data-editor-visual")?.hasAttribute("inert"));
+    assert.equal(await title.isDisabled(), false);
+    await title.fill("second local metadata");
+    await saveButton(page).click();
+    await waitClean(page);
+    await page.getByRole("button", { name: "同步", exact: true }).click();
+    await page.waitForFunction(() => (window as any).fixture.syncPending.length === 2);
+    await page.evaluate(() => (window as any).fixture.setDocument("b"));
+    await page.waitForSelector('[data-step-id="s-b"]');
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    assert.equal(await title.isDisabled(), false);
+    await page.evaluate(() => (window as any).fixture.syncPending[1].resolve({ ok: true, message: "fixture old document synced", editVersion: 3 }));
+    await title.fill("unlocked document B");
+    await waitSaveEnabled(page);
+    assert.equal(await title.inputValue(), "unlocked document B");
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });

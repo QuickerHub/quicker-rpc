@@ -17,6 +17,10 @@ export type QuickInsertCandidate =
       labelHtml?: string;
       description: string;
       descriptionHtml?: string;
+      parentLabel?: string;
+      parentLabelHtml?: string;
+      parentDescription?: string;
+      parentDescriptionHtml?: string;
       searchHaystack: string;
       payload: ToolboxDragPayload;
     }

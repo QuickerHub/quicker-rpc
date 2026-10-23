@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
@@ -52,6 +52,13 @@ test("relocated static renderer + production Node API preserve chat, settings, h
   const workspace = join(root, "workspace");
   mkdirSync(workspace, { recursive: true });
   writeFileSync(join(workspace, "hello.txt"), "workspace fixture");
+  const actionPath = ".quicker/actions/11111111-1111-4111-8111-111111111111";
+  const actionDirectory = join(workspace, actionPath);
+  mkdirSync(actionDirectory, { recursive: true });
+  const originalBody = '{"steps":[{"stepId":"fixture","stepRunnerKey":"sys:fixture","note":"before","futureDecimal":0.123456789012345678901}],"variables":[],"subPrograms":[],"futureInt":9007199254740993}';
+  const originalInfo = '{"kind":"action","id":"11111111-1111-4111-8111-111111111111","title":"Original title","description":"","icon":"","editVersion":9223372036854775807,"futureInt":9007199254740993}';
+  writeFileSync(join(actionDirectory, "data.json"), originalBody);
+  writeFileSync(join(actionDirectory, "info.json"), originalInfo);
   const guard = join(root, "network-guard.mjs");
   writeFileSync(guard, `const fetchOriginal=globalThis.fetch; globalThis.fetch=(input,options)=>{ const url=new URL(typeof input==='string'||input instanceof URL?input:input.url); if(url.hostname!=='127.0.0.1'||![${address.port},Number(process.env.PORT),Number(process.env.QUICKER_BROWSER_PORT),Number(process.env.QUICKER_TERMINAL_PORT)].includes(Number(url.port))) throw new Error('Unexpected outbound request: '+url.origin); return fetchOriginal(input,options); };`);
   const env: NodeJS.ProcessEnv = {};
@@ -106,6 +113,25 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     assert.ok(definitions.skills.some((item: { name: string }) => item.name === "quicker-authoring"));
     assert.equal((await json("/api/docs/program-source")).success, true);
     assert.equal((await json(`/api/workspace?op=read&path=hello.txt&cwd=${encodeURIComponent(workspace)}`)).content, "workspace fixture");
+    const documentRequest = { op: "save-program-document", cwd: workspace, path: `${actionPath}/data.json`,
+      expectedContent: originalBody, content: originalBody.replace('"note":"before"', '"note":"after"'),
+      metadata: { expectedContent: originalInfo, content: originalInfo.replace('"Original title"', '"Saved title"') } };
+    const requestsBeforeSave = requests.length;
+    assert.equal((await json("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(documentRequest) })).ok, true);
+    const savedBody = readFileSync(join(actionDirectory, "data.json"), "utf8");
+    const savedInfo = readFileSync(join(actionDirectory, "info.json"), "utf8");
+    assert.equal(JSON.parse(savedBody).steps[0].note, "after");
+    assert.match(savedBody, /0\.123456789012345678901/);
+    assert.match(savedBody, /9007199254740993/);
+    assert.equal(JSON.parse(savedInfo).title, "Saved title");
+    assert.match(savedInfo, /9223372036854775807/);
+    assert.match(savedInfo, /9007199254740993/);
+    assert.equal(requests.length, requestsBeforeSave, "local Designer Save never calls the host");
+    const staleSave = await fetch(origin + "/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(documentRequest) });
+    assert.equal(staleSave.status, 409);
+    assert.equal((await staleSave.json()).code, "body_conflict");
+    assert.equal(readFileSync(join(actionDirectory, "data.json"), "utf8"), savedBody);
+    assert.equal(readFileSync(join(actionDirectory, "info.json"), "utf8"), savedInfo);
     assert.equal((await json("/api/designer/context")).designers[0].title, "Fixture Designer");
     assert.equal((await fetch(origin + "/api/designer/context", { method: "PUT" })).status, 405);
     for (const path of ["/api/browser/runtime", "/api/terminal/runtime"]) {

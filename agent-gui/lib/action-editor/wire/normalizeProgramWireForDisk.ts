@@ -1,14 +1,16 @@
 import { compactWireInputParam, expandWireInputParams, parseWireParamKey } from "@/lib/input-param-wire";
 import { compactVariableDefaultWireRecord } from "@/lib/variable-default-value-wire";
+import { isLosslessJsonNumber, parseLosslessJson, stringifyLosslessJson } from "../shared/losslessJson";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value) && !isLosslessJsonNumber(value);
 }
 
 function normalizeInputParams(raw: Record<string, unknown>): Record<string, unknown> {
   // Future object binding fields cannot be represented by the compact scalar codec.
-  const opaque = new Set(Object.entries(raw).filter(([, value]) => isRecord(value)
-    && Object.keys(value).some((key) => !["value", "Value", "varKey", "VarKey", "file", "File"].includes(key)))
+  const opaque = new Set(Object.entries(raw).filter(([, value]) => Array.isArray(value) || isLosslessJsonNumber(value) || (isRecord(value)
+    && (Object.values(value).some(isLosslessJsonNumber)
+      || Object.keys(value).some((key) => !["value", "Value", "varKey", "VarKey", "file", "File"].includes(key)))))
     .map(([key]) => parseWireParamKey(key).baseKey));
   const result = Object.fromEntries(Object.entries(raw).filter(([key]) => opaque.has(parseWireParamKey(key).baseKey)));
   for (const [key, value] of Object.entries(expandWireInputParams(raw))) {
@@ -33,7 +35,7 @@ function normalizeProgram(raw: Record<string, unknown>): Record<string, unknown>
     if (!isRecord(variable)) return variable;
     const opaqueDefault = ["defaultValue", "DefaultValue", "default_value", "default"].some((key) => {
       const value = variable[key];
-      return isRecord(value) && Object.keys(value).some((field) => field !== "file");
+      return Array.isArray(value) || isLosslessJsonNumber(value) || (isRecord(value) && (Object.values(value).some(isLosslessJsonNumber) || Object.keys(value).some((field) => field !== "file")));
     });
     return opaqueDefault ? { ...variable } : compactVariableDefaultWireRecord(variable);
   });
@@ -45,8 +47,8 @@ function normalizeProgram(raw: Record<string, unknown>): Record<string, unknown>
 /** Normalize known legacy bindings without projecting the full document through generated UI types. */
 export function normalizeProgramWireForDisk(content: string): string {
   try {
-    const raw: unknown = JSON.parse(content);
-    return isRecord(raw) ? `${JSON.stringify(normalizeProgram(raw), null, 2)}\n` : content;
+    const raw: unknown = parseLosslessJson(content);
+    return isRecord(raw) ? `${stringifyLosslessJson(normalizeProgram(raw), 2)}\n` : content;
   } catch {
     return content;
   }

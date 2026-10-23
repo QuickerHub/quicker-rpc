@@ -37,6 +37,7 @@ type ActionProjectSyncBarProps = {
   hasLocalChanges?: boolean;
   className?: string;
   onSynced?: () => void;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 function stateClassName(state: ActionProjectSyncState | null): string {
@@ -91,6 +92,7 @@ export function ActionProjectSyncBar({
   hasLocalChanges = false,
   className,
   onSynced,
+  onBusyChange,
 }: ActionProjectSyncBarProps) {
   const [busy, setBusy] = useState(false);
   const [syncUi, setSyncUi] = useState(() => initialSyncUi(cwd, actionId));
@@ -98,6 +100,14 @@ export function ActionProjectSyncBar({
   const { statusText, statusErr, syncState } = syncUi;
   const mountedRef = useRef(true);
   const statusRequestRef = useRef(0);
+  const busyCallbackRef = useRef(onBusyChange);
+  busyCallbackRef.current = onBusyChange;
+
+  useEffect(() => {
+    busyCallbackRef.current?.(busy);
+  }, [busy]);
+
+  useEffect(() => () => busyCallbackRef.current?.(false), []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -210,6 +220,8 @@ export function ActionProjectSyncBar({
         | { ok: false; error: string; versionConflict?: boolean };
       try {
         result = await fn();
+      } catch (error) {
+        result = { ok: false, error: error instanceof Error ? error.message : String(error) };
       } finally {
         if (op === "pull") {
           endActionProjectImport(actionId);

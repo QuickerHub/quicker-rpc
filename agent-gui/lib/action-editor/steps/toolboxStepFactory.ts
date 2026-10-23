@@ -6,6 +6,7 @@ export type ToolboxDragPayload = {
   name?: string;
   icon?: string;
   controlFieldValue?: string;
+  inputPresets?: Record<string, string>;
   /** When stepRunnerKey is sys:subprogram, pre-filled subProgram input (same as quick-insert). */
   subProgramIdentifier?: string;
 };
@@ -24,13 +25,24 @@ export function buildStepFromRunner(
   createStepId: () => string
 ): ActionStep {
   const inputParams: { [key: string]: ActionStepParam } = {};
+  const parentItem = runnerItems.find((it) => (it.key ?? "").trim() === payload.stepRunnerKey.trim());
+  // Only materialize defaults explicitly supplied by a newer UI schema, never inferred runtime defaults.
+  for (const def of parentItem?.inputParamDefs ?? []) {
+    const creationDefault = (def as typeof def & { newStepDefaultValue?: string }).newStepDefaultValue;
+    if (def.key.trim() && typeof creationDefault === "string") {
+      inputParams[def.key] = { varKey: "", value: creationDefault };
+    }
+  }
   const preset = payload.controlFieldValue?.trim();
   if (preset) {
-    const parentItem = runnerItems.find((it) => (it.key ?? "").trim() === payload.stepRunnerKey.trim());
     const paramKey = resolveControlFieldParamKey(parentItem);
     if (paramKey) {
       inputParams[paramKey] = { varKey: "", value: preset };
     }
+  }
+  for (const [key, value] of Object.entries(payload.inputPresets ?? {})) {
+    // Whitespace and empty literals are meaningful values; payload keys are the UI schema keys.
+    if (key.trim() && typeof value === "string") inputParams[key] = { varKey: "", value };
   }
   const spIdent = payload.subProgramIdentifier?.trim();
   if (payload.stepRunnerKey.trim() === "sys:subprogram" && spIdent) {

@@ -137,8 +137,10 @@ React renderer：Agent 工作台 + Quicker Designer 组件/文档 controller
 取消、断连和其它错误继续传播。两版本仍共用固定管道，尚无完整实例发现和写入绑定。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
-持久化。V2 尚未实现 `IQuickerRpcActionProgramSourceHost`；这与 V2 Designer UI port 为
-null 是两个不同缺口。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
+持久化。V2 已有 `IQuickerRpcActionProgramSourceHost` 的原生 catalog/draft adapter，复用
+共享 codec，保留未知字段、snapshot hash 与条件持久化；宿主原生 API 或 UI dispatcher
+不具备时 capability 关闭。真实目标绑定/专用动作验收仍待完成，这与 V2 Designer UI port
+为 null 是两个不同边界。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
 
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，

@@ -73,8 +73,8 @@ test("backend cleanup never targets an exited child's numeric PID", async () => 
   syncBuiltinESMExports();
   try {
     const { killChildTree } = await import("./backend-spawn.mjs?smoke-fixture=exited");
-    killChildTree({ pid: 602, exitCode: 0, signalCode: null, kill() { killed.push("exit"); } });
-    killChildTree({ pid: 602, exitCode: null, signalCode: "SIGTERM", kill() { killed.push("signal"); } });
+    await killChildTree({ pid: 602, exitCode: 0, signalCode: null, kill() { killed.push("exit"); } });
+    await killChildTree({ pid: 602, exitCode: null, signalCode: "SIGTERM", kill() { killed.push("signal"); } });
     assert.deepEqual(killed, []);
   } finally {
     patch.mock.restore();
@@ -95,4 +95,114 @@ test("IPC shutdown waits for the child's actual exit before completing", async (
   child.emit("exit", 0);
   await stopping;
   assert.equal(complete, true);
+});
+
+test("a stalled force-stop stays asynchronous and times out without claiming backend exit", async () => {
+  let commandStops = 0;
+  let backendStops = 0;
+  const commands = [];
+  const patches = [
+    mock.method(childProcess, "spawnSync", () => { throw new Error("Synchronous process termination is forbidden"); }),
+    mock.method(childProcess, "spawn", (_exe, args) => {
+      assert.deepEqual(args, ["/PID", "789012", "/T", "/F"]);
+      const command = Object.assign(new EventEmitter(), { pid: 345678, exitCode: null, signalCode: null,
+        kill() { commandStops++; this.signalCode = "SIGTERM"; queueMicrotask(() => this.emit("exit", null, "SIGTERM")); return true; },
+      });
+      commands.push(command);
+      return command;
+    }),
+  ];
+  syncBuiltinESMExports();
+  try {
+    const { stopAgentChild } = await import("./backend-spawn.mjs?stop-fixture=stalled");
+    const child = Object.assign(new EventEmitter(), { pid: 789012, connected: false, exitCode: null, signalCode: null,
+      kill() { backendStops++; return true; },
+    });
+    let eventLoopAdvanced = false;
+    const progress = new Promise((done) => setImmediate(() => { eventLoopAdvanced = true; done(); }));
+    const stopped = assert.rejects(stopAgentChild(child, 0, { forceTimeoutMs: 30 }), /did not exit|timed out/);
+    await progress;
+    assert.equal(eventLoopAdvanced, true);
+    await stopped;
+    assert.equal(child.exitCode, null);
+    assert.equal(child.signalCode, null);
+    assert.equal(child.listenerCount("exit"), 0);
+    if (process.platform === "win32") { assert.equal(commands.length, 1); assert.equal(commandStops, 1); }
+    else assert.equal(backendStops, 1);
+    // The same retained backend can be retried after a failed stop.
+    const retry = stopAgentChild(child, 0, { forceTimeoutMs: 30 });
+    child.exitCode = 0;
+    child.emit("exit", 0);
+    await retry;
+  } finally { for (const patch of patches) patch.mock.restore(); syncBuiltinESMExports(); }
+});
+
+test("late IPC failures cannot force-stop an exited backend and a synchronous send failure is bounded", async () => {
+  const commands = [];
+  const patch = mock.method(childProcess, "spawn", (_exe, args) => {
+    commands.push(args);
+    return Object.assign(new EventEmitter(), { pid: 234567, exitCode: null, signalCode: null,
+      kill() { this.signalCode = "SIGTERM"; queueMicrotask(() => this.emit("exit", null, "SIGTERM")); return true; },
+    });
+  });
+  syncBuiltinESMExports();
+  try {
+    const { stopAgentChild } = await import("./backend-spawn.mjs?stop-fixture=ipc");
+    let callback;
+    const child = Object.assign(new EventEmitter(), { pid: 789012, connected: true, exitCode: null, signalCode: null,
+      send(_message, done) { callback = done; }, kill() { throw new Error("Exited backend must not be killed"); },
+    });
+    const stopped = stopAgentChild(child, 10, { forceTimeoutMs: 30 });
+    child.exitCode = 0;
+    child.emit("exit", 0);
+    await stopped;
+    callback(new Error("Late IPC channel error"));
+    await new Promise((done) => setTimeout(done, 15));
+    assert.deepEqual(commands, []);
+    const disconnected = Object.assign(new EventEmitter(), { pid: 789012, connected: true, exitCode: null, signalCode: null,
+      send() { throw new Error("IPC channel closed during send"); }, kill() { return true; },
+    });
+    await assert.rejects(stopAgentChild(disconnected, 5000, { forceTimeoutMs: 30 }), /did not exit|timed out/);
+    assert.equal(disconnected.listenerCount("exit"), 0);
+  } finally { patch.mock.restore(); syncBuiltinESMExports(); }
+});
+
+test("a successful force command still waits for the actual backend exit", async () => {
+  const patch = mock.method(childProcess, "spawn", () => {
+    const command = Object.assign(new EventEmitter(), { pid: 456789, exitCode: null, signalCode: null });
+    queueMicrotask(() => { command.exitCode = 0; command.emit("exit", 0); });
+    return command;
+  });
+  syncBuiltinESMExports();
+  try {
+    const { stopAgentChild } = await import("./backend-spawn.mjs?stop-fixture=force-success");
+    const child = Object.assign(new EventEmitter(), { pid: 789012, connected: false, exitCode: null, signalCode: null, kill() { return true; } });
+    let complete = false;
+    const stopped = stopAgentChild(child, 0, { forceTimeoutMs: 100 }).then(() => { complete = true; });
+    await new Promise((done) => setImmediate(done));
+    assert.equal(complete, false);
+    child.exitCode = 0;
+    child.emit("exit", 0);
+    await stopped;
+    assert.equal(complete, true);
+  } finally { patch.mock.restore(); syncBuiltinESMExports(); }
+});
+
+test("Windows taskkill cancellation errors remain bounded and preserve the original timeout", { skip: process.platform !== "win32" }, async () => {
+  let command;
+  const patch = mock.method(childProcess, "spawn", () => {
+    command = Object.assign(new EventEmitter(), { pid: 456789, exitCode: null, signalCode: null,
+      kill() { this.emit("error", new Error("fixture helper kill failed")); return false; },
+    });
+    return command;
+  });
+  syncBuiltinESMExports();
+  try {
+    const { killChildTree } = await import("./backend-spawn.mjs?stop-fixture=helper-cancel-error");
+    await assert.rejects(killChildTree({ pid: 789012, exitCode: null, signalCode: null }, { timeoutMs: 20 }), /timed out/);
+    command.emit("error", new Error("late helper termination error"));
+    command.emit("close", null);
+    assert.equal(command.listenerCount("error"), 0);
+    assert.equal(command.listenerCount("exit"), 0);
+  } finally { patch.mock.restore(); syncBuiltinESMExports(); }
 });

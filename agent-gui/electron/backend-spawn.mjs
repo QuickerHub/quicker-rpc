@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createConnection, createServer } from "node:net";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -77,13 +77,49 @@ async function httpProbe(host, port, path, mode, maxMs) {
   return false;
 }
 
-export function killChildTree(child) {
+export async function killChildTree(child, { timeoutMs = 1000, abortSignal } = {}) {
   if (!child?.pid || child.exitCode != null || child.signalCode != null) return;
+  abortSignal?.throwIfAborted();
   if (process.platform === "win32") {
-    const result = spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-      stdio: "ignore",
+    await new Promise((resolve, reject) => {
+      let command;
+      let timer;
+      let finished = false;
+      const finish = (error) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        abortSignal?.removeEventListener("abort", onAbort);
+        if (error) {
+          // Cancel only this helper. The backend handle stays registered until its actual exit.
+          if (command?.pid && command.exitCode == null && command.signalCode == null) {
+            try { command.kill(); } catch { /* The original stop failure remains authoritative. */ }
+          }
+          reject(error);
+        } else resolve();
+      };
+      const onAbort = () => finish(abortSignal.reason ?? new Error("Backend stop was cancelled"));
+      const onError = (error) => finish(new Error(`Failed to stop owned backend ${child.pid}: ${error.message}`));
+      const onExit = (code) => {
+        command.off("error", onError);
+        finish(code === 0 || child.exitCode != null || child.signalCode != null
+          ? undefined : new Error(`Failed to stop owned backend ${child.pid}`));
+      };
+      const onClose = () => {
+        command.off("error", onError);
+        command.off("exit", onExit);
+      };
+      try {
+        command = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+        // Keep the error listener through helper cancellation, which may itself emit an error.
+        command.on("error", onError);
+        command.once("exit", onExit);
+        command.once("close", onClose);
+        timer = setTimeout(() => finish(new Error(`Stopping owned backend ${child.pid} timed out`)), timeoutMs);
+        abortSignal?.addEventListener("abort", onAbort, { once: true });
+        if (abortSignal?.aborted) onAbort();
+      } catch (error) { finish(error); }
     });
-    if (result.error || result.status !== 0) throw new Error(`Failed to stop owned backend ${child.pid}`);
     return;
   }
   if (!child.kill("SIGTERM")) throw new Error(`Failed to stop owned backend ${child.pid}`);
@@ -118,22 +154,38 @@ export function shutdownBackends() {
 }
 
 /** IPC drains turns and tools; fallback kill still waits for the retained handle's exit. */
-export function stopAgentChild(child, graceMs = 2500) {
+export function stopAgentChild(child, graceMs = 2500, { forceTimeoutMs = 1000 } = {}) {
   if (!child?.pid || child.exitCode != null || child.signalCode != null) return Promise.resolve();
   return new Promise((resolve, reject) => {
     let timer;
-    const clean = () => { clearTimeout(timer); child.off("exit", done); };
-    const done = () => { clean(); resolve(); };
-    const force = () => {
+    let settled = false;
+    let forcing = false;
+    const forceController = new AbortController();
+    const complete = (error) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      timer = setTimeout(() => { clean(); reject(new Error(`Owned backend ${child.pid} did not exit`)); }, 1000);
-      try { killChildTree(child); }
-      catch (error) { clean(); reject(error); }
+      child.off("exit", done);
+      forceController.abort();
+      if (error) reject(error); else resolve();
+    };
+    const done = () => complete();
+    const force = () => {
+      if (settled || forcing) return;
+      if (child.exitCode != null || child.signalCode != null) { done(); return; }
+      forcing = true;
+      clearTimeout(timer);
+      timer = setTimeout(() => complete(new Error(`Owned backend ${child.pid} did not exit`)), forceTimeoutMs);
+      void killChildTree(child, { timeoutMs: forceTimeoutMs, abortSignal: forceController.signal }).catch((error) => {
+        if (child.exitCode != null || child.signalCode != null) done();
+        else complete(error);
+      });
     };
     child.once("exit", done);
     if (child.connected) {
       timer = setTimeout(force, graceMs);
-      child.send("shutdown", (error) => { if (error) force(); });
+      try { child.send("shutdown", (error) => { if (error) force(); }); }
+      catch { force(); }
     } else force();
   });
 }

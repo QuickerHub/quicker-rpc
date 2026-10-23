@@ -8,6 +8,41 @@ namespace QuickerRpc.Console.Test;
 [TestClass]
 public sealed class ProgramSourceCodecTests
 {
+    [TestMethod]
+    public void Native_numeric_lexemes_survive_full_yaml_roundtrip_and_an_unrelated_note_edit()
+    {
+        const string numbers = "[0.123456789012345678901,9223372036854775807,-9223372036854775808,1.2300e+123,1e999,1e-999,-0]";
+        var native = LosslessProgramJson.ParseObject("{\"futureReadonly\":" + numbers + ",\"Steps\":[{\"StepId\":\"s\",\"StepRunnerKey\":\"future:runner\",\"Note\":\"before\",\"futureNested\":{\"numbers\":" + numbers + "}}],\"Variables\":[],\"SubPrograms\":[{\"Id\":\"sub\",\"Name\":\"Sub\",\"Steps\":[],\"Variables\":[],\"future\":" + numbers + "}]}");
+        var caw = V1ProgramSourceCodec.FromNative(native);
+        ProgramSourceCodec.RequireLosslessRoundtrip(caw);
+        var yaml = ProgramSourceCodec.Encode(caw);
+        StringAssert.Contains(yaml, "0.123456789012345678901");
+        StringAssert.Contains(yaml, "1e999");
+        var edited = ProgramSourceCodec.Decode(yaml);
+        edited["steps"]![0]!["note"] = "after";
+        var saved = V1ProgramSourceCodec.ToNative(edited, native, caw);
+        Assert.AreEqual(numbers, saved["futureReadonly"]!.ToString(Newtonsoft.Json.Formatting.None));
+        Assert.AreEqual(numbers, saved["Steps"]![0]!["futureNested"]!["numbers"]!.ToString(Newtonsoft.Json.Formatting.None));
+        Assert.AreEqual(numbers, saved["SubPrograms"]![0]!["future"]!.ToString(Newtonsoft.Json.Formatting.None));
+        Assert.AreEqual("after", saved["Steps"]![0]!.Value<string>("Note"));
+    }
+
+    [TestMethod]
+    public void Ordinary_numbers_remain_typed_and_unvalidated_raw_json_cannot_be_emitted_as_yaml()
+    {
+        var parsed = LosslessProgramJson.ParseObject("{\"integer\":2,\"fraction\":0.1,\"precise\":0.123456789012345678901,\"text\":\"1e999\"}");
+        Assert.AreEqual(JTokenType.Integer, parsed["integer"]!.Type);
+        Assert.AreEqual(JTokenType.Float, parsed["fraction"]!.Type);
+        Assert.AreEqual(JTokenType.Raw, parsed["precise"]!.Type);
+        Assert.AreEqual(JTokenType.String, parsed["text"]!.Type);
+        var decimalWire = new JObject { ["steps"] = new JArray(), ["variables"] = new JArray(), ["futureDecimal"] = new JValue(0.123456789012345678901m) };
+        StringAssert.Contains(ProgramSourceCodec.Encode(decimalWire), "0.123456789012345678901");
+        var caw = new JObject { ["steps"] = new JArray(), ["variables"] = new JArray(), ["future"] = new JRaw("{\"injected\":true}") };
+        Assert.ThrowsException<Newtonsoft.Json.JsonReaderException>(() => ProgramSourceCodec.Encode(caw));
+        Assert.ThrowsException<Newtonsoft.Json.JsonReaderException>(() => LosslessProgramJson.ParseObject("{\"a\":1,\"a\":2}"));
+        Assert.ThrowsException<Newtonsoft.Json.JsonReaderException>(() => LosslessProgramJson.ParseObject("{\"a\":1} {\"a\":2}"));
+    }
+
     private const string Native = """
         {
           "PayloadType":"xAction", "LimitSingleInstance":true, "SummaryExpression":"$$",

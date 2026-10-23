@@ -14,6 +14,7 @@ import {
   getWorkspaceGitStatus,
 } from "@/lib/workspace-git.server";
 import { listWorkspaceFiles } from "@/lib/workspace-fs";
+import { saveProgramDocument } from "@/lib/program-document-save.server";
 
 export const dynamic = "force-dynamic";
 
@@ -119,11 +120,21 @@ export async function POST(req: Request) {
     path?: string;
     content?: string;
     projectPath?: string;
+    expectedContent?: unknown;
+    metadata?: unknown;
   };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return Response.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
+  }
+
+  if (body?.op === "save-program-document") {
+    if (body.cwd !== undefined && typeof body.cwd !== "string") return Response.json({ ok: false, code: "invalid_request", error: "cwd must be a string." }, { status: 400 });
+    try {
+      const result = await runWithQkrpcCwdAsync(body.cwd?.trim() || undefined, () => saveProgramDocument(body));
+      return Response.json(result, { status: result.ok ? 200 : result.code === "body_conflict" || result.code === "metadata_conflict" ? 409 : 400 });
+    } catch (error) { return workspaceApiError(error, "save-program-document"); }
   }
 
   const cwd = body.cwd?.trim() || undefined;

@@ -33,6 +33,7 @@ import type { XProgramEditorHandle } from "./xProgramEditorHandle";
 import { useXProgramEditorHistory } from "./useXProgramEditorHistory";
 import { useActiveXProgramBridgeOptional } from "./activeXProgramBridge";
 import { ownsProgramKeyboardTarget } from "../shared/programKeyboardOwner";
+import type { RegisterToolboxInsert } from "../toolbox/toolboxInsertionRegistry";
 
 export type XProgramEditorProps = {
   initialPresent: XProgramPresent;
@@ -52,6 +53,7 @@ export type XProgramEditorProps = {
   /** data.json path (or equivalent) — remounts StepListEditor on workspace tab switch. */
   programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
+  registerToolboxInsert?: RegisterToolboxInsert;
 };
 
 function XProgramEditorInner({
@@ -67,6 +69,7 @@ function XProgramEditorInner({
   embeddedSubProgramsWireJson,
   programDocumentKey,
   onPinStepToChat,
+  registerToolboxInsert,
 }: XProgramEditorProps): JSX.Element {
   const { showToast } = useToast();
   const keyboardOwnerId = useId();
@@ -233,6 +236,7 @@ function XProgramEditorInner({
             workspaceContext={workspaceContext}
             stepParamFileContents={stepParamFileContents}
             onPinStepToChat={onPinStepToChat}
+            registerToolboxInsert={registerToolboxInsert}
           />
         </div>
 

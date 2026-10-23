@@ -29,6 +29,7 @@
     <Using Include="System.IO" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\NativeActionProgramSourceBody.cs" Link="Shared\NativeActionProgramSourceBody.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionLibrarySearchService.cs" Link="Shared\ActionLibrarySearchService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\CodeSyntaxCheckService.cs" Link="Shared\CodeSyntaxCheckService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionEvalBinding.cs" Link="Shared\ExpressionEvalBinding.cs" />

@@ -146,6 +146,11 @@ public sealed class QuickerRpcApplyXActionResult
 {
     public bool Success { get; set; }
 
+    /// <summary>True once storage committed, including when post-commit refresh or readback failed. Never retry automatically.</summary>
+    public bool? Persisted { get; set; }
+
+    public QuickerRpcActionStorageIdentity? StorageIdentity { get; set; }
+
     public string? ErrorMessage { get; set; }
 
     public string? ErrorCode { get; set; }

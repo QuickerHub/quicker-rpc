@@ -11,8 +11,8 @@ function normalizeParam(param: ActionStepParam | undefined): { varKey: string; v
   };
 }
 
-function getDefaultInputValue(runnerItem: StepRunnerItem | undefined, key: string): string {
-  return runnerItem?.inputParamDefs?.find((def) => def.key === key)?.defaultValue ?? "";
+function getDefaultInputValue(runnerItem: StepRunnerItem | undefined, key: string): string | undefined {
+  return runnerItem?.inputParamDefs?.find((def) => def.key === key)?.defaultValue;
 }
 
 function compactInputParams(
