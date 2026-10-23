@@ -14,7 +14,7 @@ import {
   getWorkspaceGitStatus,
 } from "@/lib/workspace-git.server";
 import { listWorkspaceFiles } from "@/lib/workspace-fs";
-import { saveProgramDocument } from "@/lib/program-document-save.server";
+import { readProgramDocumentTarget, saveProgramDocument } from "@/lib/program-document-save.server";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,11 @@ export async function GET(req: Request) {
 
   try {
     return await runWithQkrpcCwdAsync(cwd, async () => {
+      if (op === "program-document-target") {
+        if (!path) return Response.json({ ok: false, code: "invalid_path", error: "path is required" }, { status: 400 });
+        const result = await readProgramDocumentTarget(path);
+        return Response.json(result, { status: result.ok ? 200 : 400 });
+      }
       if (op === "tree") {
         const depth =
           url.searchParams.get("depth")?.trim() === "roots" ? "roots" : "full";
@@ -133,7 +138,7 @@ export async function POST(req: Request) {
     if (body.cwd !== undefined && typeof body.cwd !== "string") return Response.json({ ok: false, code: "invalid_request", error: "cwd must be a string." }, { status: 400 });
     try {
       const result = await runWithQkrpcCwdAsync(body.cwd?.trim() || undefined, () => saveProgramDocument(body));
-      return Response.json(result, { status: result.ok ? 200 : result.code === "body_conflict" || result.code === "metadata_conflict" ? 409 : 400 });
+      return Response.json(result, { status: result.ok ? 200 : result.code === "body_conflict" || result.code === "metadata_conflict" || result.code === "identity_conflict" ? 409 : 400 });
     } catch (error) { return workspaceApiError(error, "save-program-document"); }
   }
 

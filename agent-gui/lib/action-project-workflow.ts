@@ -14,6 +14,7 @@ import {
   formatQkrpcResultForAgent,
   runQkrpcForTool,
   type QkrpcRunResult,
+  type QkrpcRunOptions,
 } from "@/lib/qkrpc";
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
 import { formatLocalToolResult } from "@/lib/tool-result";
@@ -32,7 +33,8 @@ import { getRequestAbortSignal } from "@/lib/qkrpc-request-context";
 import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
 import { ActionProjectBindingError, actionProjectBindingFailure, findActionProjectBinding, pinActionProjectBinding, readActionProjectBinding, requireActionProjectBinding,
   validateActionProjectPaths, withActionProjectBootstrap } from "./action-project-host-binding.server";
-import { currentQkrpcTarget } from "./qkrpc-host-binding";
+import { bindingFailure, currentQkrpcTarget } from "./qkrpc-host-binding";
+import type { ActionProjectSyncTarget } from "./action-project-sync-target";
 
 export type {
   WorkspaceProjectSummary,
@@ -268,6 +270,13 @@ export function readStructuredQkrpcFailureMessage(
   return fallback;
 }
 
+export function readStructuredQkrpcErrorCode(payload: Record<string, unknown> | null | undefined): string | undefined {
+  for (const value of [payload?.errorCode, payload?.error]) {
+    if (typeof value === "string" && /^[A-Z][A-Z0-9_]+$/.test(value)) return value;
+  }
+  return undefined;
+}
+
 function getWorkingDirectory(): string | undefined {
   return resolveWorkspaceRoot().trim() || undefined;
 }
@@ -481,10 +490,10 @@ export async function getActionProjectDataSummary(
 /** Internal: export action from Quicker into .quicker/actions/{dir}/ (action id = folder name when GUID). */
 export async function syncActionToWorkspace(
   actionId: string,
-  options?: { projectDirectory?: string },
+  options?: { projectDirectory?: string; target?: ActionProjectSyncTarget },
 ): Promise<WorkspaceSyncResult> {
   try {
-    const existing = await findActionProjectBinding(actionId);
+    const existing = options?.target ? await requireActionProjectBinding(actionId, options.target) : await findActionProjectBinding(actionId);
     const directory = options?.projectDirectory?.trim() || existing?.directory || actionProjectDirFromName(actionId);
     const { withProgramDocumentWriteOwner } = await import("./program-document-save.server");
     return await withProgramDocumentWriteOwner(join(directory, "data.json"), async () => {
@@ -493,13 +502,13 @@ export async function syncActionToWorkspace(
         const resolved = resolveWorkspacePath(directory);
         if (!resolved.ok || resolved.relative.replace(/\\/g, "/").toLowerCase() !== existing.directory.toLowerCase())
           throw new ActionProjectBindingError("HOST_BINDING_MISMATCH", "Explicit directory differs from the existing bound action project.");
-        pinActionProjectBinding((await readActionProjectBinding(directory, actionId)).hostBinding);
+        await requireActionProjectBinding(actionId, options?.target ?? { projectDirectory: directory, projectBinding: existing.record });
       } else if (existsSync(absolute) && (await readdir(absolute)).length) {
         // An explicit target can identify a different action or an old unbound project.
         // Check it locally before the first RPC, rather than relying on extract's final guard.
         pinActionProjectBinding((await readActionProjectBinding(directory, actionId)).hostBinding);
       }
-      return syncActionToWorkspaceUnderOwner(actionId, { projectDirectory: directory });
+      return syncActionToWorkspaceUnderOwner(actionId, { projectDirectory: directory, target: options?.target ?? (existing ? { projectDirectory: directory, projectBinding: existing.record } : undefined) });
     });
   } catch (error) {
     getRequestAbortSignal()?.throwIfAborted();
@@ -509,7 +518,7 @@ export async function syncActionToWorkspace(
 
 async function syncActionToWorkspaceUnderOwner(
   actionId: string,
-  options?: { projectDirectory?: string },
+  options?: { projectDirectory?: string; target?: ActionProjectSyncTarget },
 ): Promise<WorkspaceSyncResult> {
   const cwd = getWorkingDirectory();
   if (!cwd) {
@@ -545,12 +554,14 @@ async function syncActionToWorkspaceUnderOwner(
     "--dir",
     resolvedProject.absolute,
   ];
-  const extractResult = await runQkrpcForTool(extractArgs);
+  const extractResult = await runQkrpcForTool(extractArgs, options?.target ? { expectedProjectBinding: options.target.projectBinding } : undefined);
   if (!extractResult.ok) {
     return {
       ok: false,
       reason: "extract_failed",
       error: extractResult.stderr || "action extract failed",
+      code: readStructuredQkrpcErrorCode(parseQkrpcPayload(extractResult)),
+      retryable: false,
     };
   }
 
@@ -747,7 +758,8 @@ export async function syncProjectEditVersionOnDisk(projectDir: string, editVersi
 export async function saveActionFromWorkspace(options: {
   id: string;
   force?: boolean;
-}, dependencies: { run?: (args: string[]) => Promise<QkrpcRunResult> } = {}): Promise<Record<string, unknown>> {
+  target?: ActionProjectSyncTarget;
+}, dependencies: { run?: (args: string[], options?: QkrpcRunOptions) => Promise<QkrpcRunResult> } = {}): Promise<Record<string, unknown>> {
   const actionId = options.id.trim();
   if (!isUuid(actionId)) {
     const message = "id must be a GUID.";
@@ -770,7 +782,12 @@ export async function saveActionFromWorkspace(options: {
   }
 
   let projectDirRel: string;
-  try { projectDirRel = (await requireActionProjectBinding(actionId)).directory; }
+  let boundTarget: ActionProjectSyncTarget;
+  try {
+    const verified = await requireActionProjectBinding(actionId, options.target);
+    projectDirRel = verified.directory;
+    boundTarget = { projectDirectory: verified.directory, projectBinding: verified.record };
+  }
   catch (error) {
     getRequestAbortSignal()?.throwIfAborted();
     const message = error instanceof Error ? error.message : String(error);
@@ -791,13 +808,20 @@ export async function saveActionFromWorkspace(options: {
     );
   }
   const projectDirAbs = projectResolved.absolute;
-  const run = dependencies.run ?? runQkrpcForTool;
+  const run = async (args: string[]) => {
+    try { await requireActionProjectBinding(actionId, boundTarget); }
+    catch (error) {
+      getRequestAbortSignal()?.throwIfAborted();
+      return bindingFailure(error instanceof ActionProjectBindingError ? error.code : "PROJECT_IDENTITY_CONFLICT", error instanceof Error ? error.message : String(error));
+    }
+    return (dependencies.run ?? runQkrpcForTool)(args, { expectedProjectBinding: boundTarget.projectBinding, projectDirectory: projectDirAbs });
+  };
   const { withProgramDocumentWriteOwner } = await import("@/lib/program-document-save.server");
   // Read local metadata, compile/apply, update remote presentation and stamp one version under one owner.
   // A local two-file save cannot change the target snapshot halfway through this host transaction.
   return withProgramDocumentWriteOwner(join(projectDirRel, "data.json"), async () => {
 
-  try { pinActionProjectBinding((await readActionProjectBinding(projectDirRel, actionId)).hostBinding); }
+  try { await requireActionProjectBinding(actionId, boundTarget); }
   catch (error) {
     getRequestAbortSignal()?.throwIfAborted();
     const message = error instanceof Error ? error.message : String(error);
@@ -834,10 +858,13 @@ export async function saveActionFromWorkspace(options: {
         projectDirectory: projectDirRel,
         projectDirectoryAbsolute: projectDirAbs,
         errorMessage: message,
+        errorCode: readStructuredQkrpcErrorCode(validatePayload),
+        retryable: false,
         validation: validatePayload ?? validateResult.parsed,
       },
       false,
       message,
+      { retryable: false },
     );
   }
 
@@ -854,6 +881,7 @@ export async function saveActionFromWorkspace(options: {
     run,
     signal: getRequestAbortSignal(),
     stampVersion: async (version) => {
+      await requireActionProjectBinding(actionId, boundTarget);
       if (!await stampProjectEditVersionUnderOwner(projectDirRel, version)) throw new Error("info.json editVersion could not be updated safely");
     },
   });
@@ -870,7 +898,7 @@ export async function saveActionFromWorkspace(options: {
         errorMessage: sync.error,
         persistedParts: sync.persistedParts,
         versionConflict: nativePayload?.versionConflict === true,
-        errorCode: nativePayload?.errorCode,
+        errorCode: readStructuredQkrpcErrorCode(nativePayload),
         apply: sync.bodyResult ? parseQkrpcPayload(sync.bodyResult) ?? sync.bodyResult.parsed : undefined,
         metadata: sync.metadataResult ? parseQkrpcPayload(sync.metadataResult) ?? sync.metadataResult.parsed : undefined,
       },
@@ -888,6 +916,8 @@ export async function saveActionFromWorkspace(options: {
       editVersion: finalVersion,
       metadataSynced: true,
       metadataUpdated: sync.metadataResult !== undefined,
+      projectDirectory: boundTarget.projectDirectory,
+      projectBinding: boundTarget.projectBinding,
       ...(sync.metadataResult ? { metadata: parseQkrpcPayload(sync.metadataResult) } : {}),
     } } },
     prefixGuard.warnings,

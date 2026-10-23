@@ -35,6 +35,7 @@ import {
   markQkrpcConnectivityBlockedThisTurn,
 } from "@/lib/qkrpc-connectivity-gate";
 import { executeSingleQkrpcToolCall } from "@/lib/qkrpc-tool-call";
+import type { ActionProjectBinding } from "./action-project-binding";
 
 const require = createRequire(import.meta.url);
 const {
@@ -55,6 +56,8 @@ export type QkrpcRunOptions = {
   json?: boolean;
   abortSignal?: AbortSignal;
   hostBinding?: QkrpcHostBinding;
+  expectedProjectBinding?: ActionProjectBinding | null;
+  projectDirectory?: string;
 };
 
 const MAX_STDOUT_CHARS = 120_000;
@@ -251,7 +254,7 @@ function shouldRetryHttpStepRunnerMissingIcons(op: string, parsed: unknown): boo
 
 async function tryHttpInvoke(
   args: string[],
-  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal" | "hostBinding">,
+  options?: Pick<QkrpcRunOptions, "timeoutMs" | "abortSignal" | "hostBinding" | "expectedProjectBinding" | "projectDirectory">,
   transport?: { serveOnly: boolean },
 ): Promise<QkrpcRunResult | "skip"> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
@@ -262,7 +265,11 @@ async function tryHttpInvoke(
     return serveOnly ? serveTransportError(formatOpNotOnServeMessage(args)) : "skip";
   }
 
-  const httpResult = await invokeQkrpcHttp(invoke, {
+  const httpResult = await invokeQkrpcHttp(options && (Object.hasOwn(options, "expectedProjectBinding") || options.projectDirectory)
+    ? { ...invoke, args: { ...invoke.args,
+      ...(Object.hasOwn(options, "expectedProjectBinding") ? { expectedProjectBinding: options.expectedProjectBinding } : {}),
+      ...(options.projectDirectory ? { dir: options.projectDirectory } : {}),
+    } } : invoke, {
     timeoutMs: options?.timeoutMs,
     abortSignal,
     hostBinding: options?.hostBinding,
@@ -326,9 +333,15 @@ async function spawnQkrpcCli(
 
   return new Promise((resolve, reject) => {
     abortSignal?.throwIfAborted();
+    const childEnv = { ...process.env };
+    // A persistent parent/serve environment never supplies another document's CAS expectation.
+    delete childEnv.QKRPC_EXPECTED_PROJECT_BINDING;
+    delete childEnv.QKRPC_EXPECTED_PROJECT_DIRECTORY;
+    if (options && Object.hasOwn(options, "expectedProjectBinding")) childEnv.QKRPC_EXPECTED_PROJECT_BINDING = JSON.stringify(options.expectedProjectBinding);
+    if (options?.projectDirectory) childEnv.QKRPC_EXPECTED_PROJECT_DIRECTORY = options.projectDirectory;
     const child = spawn(bin, finalArgs, {
       cwd,
-      env: { ...process.env, ...((options?.hostBinding ?? currentQkrpcTarget()?.binding)
+      env: { ...childEnv, ...((options?.hostBinding ?? currentQkrpcTarget()?.binding)
         ? { QKRPC_HOST_BINDING: JSON.stringify(options?.hostBinding ?? currentQkrpcTarget()?.binding),
             QKRPC_HOST_SESSION: (options?.hostBinding ?? currentQkrpcTarget()?.binding)!.hostSessionId } : {}) },
       stdio: useStdin ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],

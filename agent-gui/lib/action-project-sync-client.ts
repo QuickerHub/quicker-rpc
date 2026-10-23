@@ -5,6 +5,12 @@ import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from
 import { parseQkrpcJson } from "./qkrpc-json";
 import { isInvalidActionProjectEditVersion } from "./action-project-edit-version";
 import { formatSyncStatusMessage } from "./action-project-sync-types";
+import { parseActionProjectBinding } from "./action-project-binding";
+import { sameActionProjectSyncTarget, type ActionProjectSyncTarget } from "./action-project-sync-target";
+
+type SyncOptions = { target?: ActionProjectSyncTarget; isCurrent?: () => boolean };
+type SyncFailure = { ok: false; error: string; code?: string; retryable?: false; versionConflict?: boolean; persistedParts?: { body?: boolean; metadata?: boolean } };
+const staleResponse = (): SyncFailure => ({ ok: false, code: "stale_response", error: "Document target is no longer active." });
 
 export type ActionSyncOp = "status" | "pull" | "push";
 
@@ -16,15 +22,16 @@ async function postActionSync(
     projectDirectory?: string;
     force?: boolean;
   },
+  options?: SyncOptions,
 ): Promise<
   | { ok: true; data: unknown }
-  | { ok: false; error: string; versionConflict?: boolean }
+  | SyncFailure
 > {
   try {
     const res = await fetch("/api/workspace/action-sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cwd, ...body }),
+      body: JSON.stringify({ cwd, ...body, ...(options?.target ? { projectDirectory: options.target.projectDirectory, expectedProjectBinding: options.target.projectBinding } : {}) }),
       cache: "no-store",
     });
     const data = parseQkrpcJson(await res.text()) as {
@@ -36,13 +43,30 @@ async function postActionSync(
       editVersion?: ActionProjectEditVersion;
       phase?: string;
       versionConflict?: boolean;
+      code?: string;
+      retryable?: false;
+      projectBinding?: unknown;
+      projectDirectory?: string;
+      persistedParts?: { body?: boolean; metadata?: boolean };
     };
+    if (options?.isCurrent && !options.isCurrent()) return staleResponse();
     if (!res.ok || !data.ok) {
       return {
         ok: false,
         error: data.error ?? `HTTP ${res.status}`,
         versionConflict: data.versionConflict === true,
+        code: data.code,
+        retryable: data.retryable,
+        persistedParts: data.persistedParts,
       };
+    }
+    if (options?.target) {
+      try {
+        const actual = { projectDirectory: data.projectDirectory ?? "", projectBinding: parseActionProjectBinding(data.projectBinding, body.actionId) };
+        if (!sameActionProjectSyncTarget(options.target, actual)) throw new Error("Another project target");
+      } catch {
+        return { ok: false, code: "identity_conflict", error: "Sync response belongs to another project target.", retryable: false };
+      }
     }
     return { ok: true, data };
   } catch (error) {
@@ -57,11 +81,13 @@ async function postActionSync(
 export async function fetchActionProjectSyncStatus(
   cwd: string,
   actionId: string,
+  options?: SyncOptions,
 ): Promise<
   | { ok: true; status: ActionProjectSyncStatus }
-  | { ok: false; error: string }
+  | SyncFailure
 > {
-  const result = await postActionSync(cwd, { op: "status", actionId });
+  const result = await postActionSync(cwd, { op: "status", actionId }, options);
+  if (options?.isCurrent && !options.isCurrent()) return staleResponse();
   if (!result.ok) return result;
   const data = result.data as { status?: ActionProjectSyncStatus };
   if (!data.status) {
@@ -78,16 +104,17 @@ export async function fetchActionProjectSyncStatus(
 export async function pullActionProjectFromQuicker(
   cwd: string,
   actionId: string,
-  options?: { projectDirectory?: string },
+  options?: SyncOptions & { projectDirectory?: string },
 ): Promise<
   | { ok: true; message: string; summary?: WorkspaceProjectSummary; editVersion?: ActionProjectEditVersion }
-  | { ok: false; error: string }
+  | SyncFailure
 > {
   const result = await postActionSync(cwd, {
     op: "pull",
     actionId,
     projectDirectory: options?.projectDirectory,
-  });
+  }, options);
+  if (options?.isCurrent && !options.isCurrent()) return staleResponse();
   if (!result.ok) return result;
   const data = result.data as {
     message?: string;
@@ -95,7 +122,7 @@ export async function pullActionProjectFromQuicker(
   };
   const editVersion = normalizeActionProjectEditVersion(data.summary?.editVersion);
   if (editVersion != null) {
-    markActionProjectSyncedAfterPush(cwd, actionId, editVersion);
+    markActionProjectSyncedAfterPush(cwd, actionId, editVersion, options?.target);
   }
   return {
     ok: true,
@@ -108,22 +135,19 @@ export async function pullActionProjectFromQuicker(
 export async function pushActionProjectToQuickerApi(
   cwd: string,
   actionId: string,
-  options?: { force?: boolean },
+  options?: SyncOptions & { force?: boolean },
 ): Promise<
   | { ok: true; message: string; editVersion?: ActionProjectEditVersion }
-  | { ok: false; error: string; versionConflict?: boolean }
+  | SyncFailure
 > {
   const result = await postActionSync(cwd, {
     op: "push",
     actionId,
     force: options?.force,
-  });
+  }, options);
+  if (options?.isCurrent && !options.isCurrent()) return staleResponse();
   if (!result.ok) {
-    return {
-      ok: false,
-      error: result.error,
-      versionConflict: result.versionConflict,
-    };
+    return result;
   }
   const data = result.data as {
     message?: string;
@@ -131,7 +155,7 @@ export async function pushActionProjectToQuickerApi(
   };
   const editVersion = normalizeActionProjectEditVersion(data.editVersion);
   if (editVersion != null) {
-    markActionProjectSyncedAfterPush(cwd, actionId, editVersion);
+    markActionProjectSyncedAfterPush(cwd, actionId, editVersion, options?.target);
   }
   return {
     ok: true,

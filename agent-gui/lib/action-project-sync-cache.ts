@@ -1,4 +1,5 @@
 import type { ActionProjectSyncState } from "@/lib/action-project-sync-types";
+import { actionProjectSyncTargetKey, type ActionProjectSyncTarget } from "./action-project-sync-target";
 
 export type CachedActionProjectSyncStatus = {
   state: ActionProjectSyncState | null;
@@ -13,23 +14,26 @@ const cache = new Map<string, CachedActionProjectSyncStatus>();
 export function actionProjectSyncCacheKey(
   cwd: string,
   actionId: string,
+  target?: ActionProjectSyncTarget,
 ): string {
-  return `${cwd.trim()}:${actionId.trim().toLowerCase()}`;
+  return JSON.stringify([cwd.trim(), actionId.trim().toLowerCase(), actionProjectSyncTargetKey(target)]);
 }
 
 export function readActionProjectSyncCache(
   cwd: string,
   actionId: string,
+  target?: ActionProjectSyncTarget,
 ): CachedActionProjectSyncStatus | undefined {
-  return cache.get(actionProjectSyncCacheKey(cwd, actionId));
+  return cache.get(actionProjectSyncCacheKey(cwd, actionId, target));
 }
 
 export function writeActionProjectSyncCache(
   cwd: string,
   actionId: string,
   entry: Omit<CachedActionProjectSyncStatus, "fetchedAt">,
+  target?: ActionProjectSyncTarget,
 ): void {
-  const key = actionProjectSyncCacheKey(cwd, actionId);
+  const key = actionProjectSyncCacheKey(cwd, actionId, target);
   if (cache.has(key)) cache.delete(key);
   cache.set(key, { ...entry, fetchedAt: Date.now() });
   while (cache.size > CACHE_MAX) {
@@ -42,6 +46,7 @@ export function writeActionProjectSyncCache(
 export function invalidateActionProjectSyncCache(
   cwd: string,
   actionId: string,
+  target?: ActionProjectSyncTarget,
 ): void {
-  cache.delete(actionProjectSyncCacheKey(cwd, actionId));
+  cache.delete(actionProjectSyncCacheKey(cwd, actionId, target));
 }

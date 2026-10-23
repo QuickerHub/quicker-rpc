@@ -11,6 +11,7 @@ type ActionProjectToolbarProps = {
   className?: string;
   /** Inline param input beside run buttons (ActionLinkCard-style). */
   layout?: "stacked" | "inline";
+  disabledReason?: string;
 };
 
 const TOOLBAR_MESSAGE_ID = "action-project-toolbar";
@@ -19,6 +20,7 @@ export function ActionProjectToolbar({
   actionId,
   className,
   layout = "stacked",
+  disabledReason,
 }: ActionProjectToolbarProps) {
   const [param, setParam] = useState("");
   const [runBusy, setRunBusy] = useState(false);
@@ -28,7 +30,7 @@ export function ActionProjectToolbar({
       label: string,
       fn: () => Promise<{ ok: boolean; error?: string; message?: string }>,
     ) => {
-      if (runBusy) return;
+      if (runBusy || disabledReason) return;
       setRunBusy(true);
       const result = await fn();
       setRunBusy(false);
@@ -48,7 +50,7 @@ export function ActionProjectToolbar({
         });
       }
     },
-    [runBusy],
+    [runBusy, disabledReason],
   );
 
   const editAction = useCallback(async () => {
@@ -66,7 +68,7 @@ export function ActionProjectToolbar({
   const runAction = useCallback(
     async (trace: boolean) => {
       if (trace) {
-        if (runBusy) return;
+        if (runBusy || disabledReason) return;
         setRunBusy(true);
         const result = await startActionTrace({
           actionId,
@@ -99,7 +101,7 @@ export function ActionProjectToolbar({
         }),
       );
     },
-    [actionId, param, runBusy, runCommand],
+    [actionId, param, runBusy, runCommand, disabledReason],
   );
 
   const paramInput = layout === "inline" ? (
@@ -109,9 +111,9 @@ export function ActionProjectToolbar({
         className="action-link-card-param-input"
         value={param}
         placeholder="参数"
-        title="传给 Quicker 的运行/调试参数（--param）"
+        title={disabledReason || "传给 Quicker 的运行/调试参数（--param）"}
         aria-label="运行参数"
-        disabled={runBusy}
+        disabled={runBusy || Boolean(disabledReason)}
         onChange={(e) => setParam(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -129,7 +131,7 @@ export function ActionProjectToolbar({
         className="project-info-toolbar-param-input"
         value={param}
         placeholder="可选"
-        disabled={runBusy}
+        disabled={runBusy || Boolean(disabledReason)}
         onChange={(e) => setParam(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -146,7 +148,8 @@ export function ActionProjectToolbar({
       <button
         type="button"
         className="project-info-toolbar-btn project-info-toolbar-btn--primary"
-        disabled={runBusy}
+        disabled={runBusy || Boolean(disabledReason)}
+        title={disabledReason}
         onClick={() => void runAction(false)}
       >
         运行
@@ -154,9 +157,9 @@ export function ActionProjectToolbar({
       <button
         type="button"
         className="project-info-toolbar-btn project-info-toolbar-btn--debug"
-        disabled={runBusy}
+        disabled={runBusy || Boolean(disabledReason)}
         onClick={() => void runAction(true)}
-        title="调试：在右侧侧栏查看步骤输出"
+        title={disabledReason || "调试：在右侧侧栏查看步骤输出"}
       >
         调试
       </button>
@@ -169,16 +172,17 @@ export function ActionProjectToolbar({
       <button
         type="button"
         className="project-info-toolbar-btn"
-        disabled={runBusy}
+        disabled={runBusy || Boolean(disabledReason)}
         onClick={() => void editAction()}
-        title="在 Quicker 中打开动作编辑器"
+        title={disabledReason || "在 Quicker 中打开动作编辑器"}
       >
         编辑
       </button>
       <button
         type="button"
         className="project-info-toolbar-btn"
-        disabled={runBusy}
+        disabled={runBusy || Boolean(disabledReason)}
+        title={disabledReason}
         onClick={() => void floatAction()}
       >
         悬浮
@@ -196,6 +200,7 @@ export function ActionProjectToolbar({
         .filter(Boolean)
         .join(" ")}
       aria-label="动作项目操作"
+      title={disabledReason}
     >
       {layout === "inline" ? (
         <>
@@ -211,6 +216,7 @@ export function ActionProjectToolbar({
           {paramInput}
         </>
       )}
+      {disabledReason ? <span className="project-info-toolbar-disabled-reason">{disabledReason}</span> : null}
     </footer>
   );
 }
