@@ -147,6 +147,16 @@ V1 安装/热更、专用 source 动作连续保存、冲突及 checkpoint 部�
 契约、解析和文档指纹；包含 ALS 的 `qkrpc-host-binding.ts` 仅保留服务端绑定职责和兼容导出。
 Transport 沿用 instance/session/endpoint 比较；文档比较完整 binding。浏览器打包检查拒绝
 Node/ALS/server-only 依赖。这些契约尚不代表 UI 已展示目标或本地保存已接身份 CAS。
+
+旧 JSON 动作项目现在用 `.qkrpc/project-binding.json` 持久保存经过核验的完整宿主绑定与
+动作 ID。CLI extract/export、MCP 和 Agent create 在文件写完后才提交此记录；apply、
+serve 与 Agent Sync 在调用前交叉核验目录、info 和 sidecar，并固定该项目的宿主，不能
+重新发现另一个实例。多个同 ID 项目不取首个；旧未绑定项目仍可本地编辑，但不自动补造
+来源并向宿主同步。generic Write/StrReplace 也不能改写独立导出目录内的该记录。
+C# 与 Node 通过同一 create-new 项目 lease 排除并发导出；绑定写入失败保留已落盘部分，
+宿主 create 成功即记为已创建，本地 bootstrap 失败不能触发再次创建。
+这一层持久来源约束不替代前端文档目标展示、完整记录 CAS 或 Agent/UI 共享实时 revision；
+它们继续属于 A1/A3 的接线范围。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
 持久化。V2 已有 `IQuickerRpcActionProgramSourceHost` 的原生 catalog/draft adapter，复用
