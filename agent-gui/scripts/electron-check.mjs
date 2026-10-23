@@ -9,6 +9,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const electronRoot = join(agentGuiRoot, "electron");
 const allowedModuleRoots = [electronRoot, join(agentGuiRoot, "browser-runtime")];
+// stageShellProfileModule copies this one shared policy, not the whole lib tree.
+const allowedSharedModules = new Set([join(agentGuiRoot, "lib", "agent-data-profile.mjs")]);
 
 function collectMjsFiles(dir) {
   /** @type {string[]} */
@@ -55,7 +57,7 @@ function checkModuleContracts(file) {
     for (const match of src.matchAll(pattern)) {
       // ESM query/fragment suffixes select module instances, not different files.
       const target = fileURLToPath(new URL(match[1], pathToFileURL(file)));
-      const isStagedSource = allowedModuleRoots.some(
+      const isStagedSource = allowedSharedModules.has(target) || allowedModuleRoots.some(
         (root) => target === root || target.startsWith(`${root}${sep}`),
       );
       if (!isStagedSource) {

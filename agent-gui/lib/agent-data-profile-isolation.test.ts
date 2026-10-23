@@ -4,16 +4,17 @@ import { syncBuiltinESMExports } from "node:module";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { AGENT_DATA_DIRECTORY_ENV } from "./agent-data-profile.mjs";
-import { resolveQuickerAgentAppDataDirectory, resolveQuickerAgentInstallDirectory, resolveVoiceAsrPluginDirectory, resolveLegacyVoiceAsrPluginDirectory, resolveReleaseDefaultWorkingDirectory, resolveTauriWebviewUserDataRoot } from "./quicker-agent-paths";
+import { resolveQuickerAgentAppDataDirectory, resolveQuickerAgentInstallDirectory, resolveReleaseDefaultWorkingDirectory, resolveTauriWebviewUserDataRoot } from "./quicker-agent-paths";
+import { resolveUserAgentDefsRoot } from "./agent-defs/paths";
 import { resetPersistedDataMigrationForTests, resolveLegacyPersistedJsonPaths, resolveQuickerAgentPersistedDataDirectory } from "./quicker-agent-persisted-data";
 import { runLegacyAgentDatabaseFileMigration } from "./db/legacy-agent-db-migration";
 import { collectLegacyLevelDbDirectories } from "./legacy-chat-leveldb-scan.server";
 import { resolveLlmSecretsPath } from "./llm-local-secrets";
 import { resolveLlmConfigPath } from "./llm-config";
-import { quickerAgentAppDataDir, voicePluginRoot } from "../electron/quicker-agent-paths.mjs";
+import { quickerAgentAppDataDir } from "../electron/quicker-agent-paths.mjs";
 import { loadConfig } from "../browser-runtime/config.mjs";
 
-test("an explicit profile never probes or copies ambient DB/settings/plugin markers", (t) => {
+test("an explicit profile never probes or copies ambient DB/settings/agent-definition markers", (t) => {
   const base = resolve("..", "..", "..", ".tmp");
   fs.mkdirSync(base, { recursive: true });
   const root = fs.mkdtempSync(join(base, "agent-profile-isolation-"));
@@ -29,9 +30,9 @@ test("an explicit profile never probes or copies ambient DB/settings/plugin mark
     fs.writeFileSync(join(legacy, "llm-secrets.json"), '{"marker":"ambient-only"}');
     fs.writeFileSync(join(legacy, "chats.db"), "ambient-only-db");
   }
-  const voice = join(local, "QuickerAgent", "plugins", "voice-asr");
-  fs.mkdirSync(voice, { recursive: true });
-  fs.writeFileSync(join(voice, "manifest.json"), '{"marker":"ambient-only"}');
+  const agentDefs = join(roaming, "QuickerAgent", "agent-defs");
+  fs.mkdirSync(agentDefs, { recursive: true });
+  fs.writeFileSync(join(agentDefs, "marker.json"), '{"marker":"ambient-only"}');
   t.after(() => {
     for (const [name, value] of previous) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
     resetPersistedDataMigrationForTests();
@@ -60,9 +61,7 @@ test("an explicit profile never probes or copies ambient DB/settings/plugin mark
     assert.equal(quickerAgentAppDataDir(), profile);
     assert.equal(resolveLlmSecretsPath(), join(profile, "llm-secrets.json"));
     assert.deepEqual(resolveLegacyPersistedJsonPaths("llm-secrets.json"), [join(profile, "llm-secrets.json")]);
-    assert.equal(resolveVoiceAsrPluginDirectory(), join(profile, "plugins", "voice-asr"));
-    assert.equal(resolveLegacyVoiceAsrPluginDirectory(), join(profile, "plugins", "voice-asr"));
-    assert.equal(voicePluginRoot(), join(profile, "plugins", "voice-asr"));
+    assert.equal(resolveUserAgentDefsRoot(), join(profile, "agent-defs"));
     assert.equal(resolveReleaseDefaultWorkingDirectory(), join(profile, "workspace"));
     assert.equal(resolveTauriWebviewUserDataRoot(), join(profile, "webview"));
     assert.equal(loadConfig([]).userDataDir, join(profile, "browser-profile"));
@@ -77,6 +76,7 @@ test("an explicit profile never probes or copies ambient DB/settings/plugin mark
     syncBuiltinESMExports();
   }
   assert.equal(fs.readFileSync(join(legacyRoots[0], "llm-secrets.json"), "utf8"), '{"marker":"ambient-only"}');
+  assert.equal(fs.readFileSync(join(agentDefs, "marker.json"), "utf8"), '{"marker":"ambient-only"}');
   fs.writeFileSync(join(profile, "keep.txt"), "existing profile content");
   resolveQuickerAgentPersistedDataDirectory();
   assert.equal(fs.readFileSync(join(profile, "keep.txt"), "utf8"), "existing profile content", "selecting a profile never clears its files");
