@@ -8,6 +8,7 @@ being folded into the HTTP route or reimplemented as a second agent framework.
 
 ```text
 app/api/chat/route.ts
+  -> agent-service/chat-handler.ts   shared standard HTTP/preview/error adapter
   -> run-turn.server.ts              concrete server bindings
      -> turn-runner.ts               request orchestration and cancellation owner
      -> turn-request.server.ts       normalize UI/request input
@@ -16,6 +17,11 @@ app/api/chat/route.ts
         -> stream-loop.ts            ToolLoopAgent + reactive compact retry
         -> AI SDK                    model/tool loop and UI message stream
 ```
+
+The experimental `service/main.ts` Node entry uses the same HTTP handler and
+runner. It adds loopback HTTP/backpressure/stop ownership, not another Agent loop.
+The current desktop UI still runs through Next. Service composition and migration
+gates are documented in the canonical architecture document above.
 
 ## Ownership rules
 

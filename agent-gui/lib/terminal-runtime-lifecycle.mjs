@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { RUNTIME_VERSION } from "../terminal-runtime/config.mjs";
 import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "terminal-runtime.json";
 const DEFAULT_TERMINAL_PORT = 6022;
+/** @type {Map<import('node:child_process').ChildProcess, { root: string; pid: number; ownerPid: number; onExit: () => void; stopping?: Promise<void> }>} */
+const ownedTerminalChildren = new Map();
 
 /** @typedef {{ pid: number; port?: number; ownerPid: number; startedAt: number }} TerminalRuntimeState */
 
@@ -158,21 +160,71 @@ export function reconcileStaleTerminalRuntime(agentGuiRoot) {
  */
 export function trackTerminalRuntimeChild(agentGuiRoot, child, meta = {}) {
   const pid = child.pid;
-  if (!pid) return;
+  if (!pid || child.exitCode != null || child.signalCode != null || ownedTerminalChildren.has(child)) return;
+  const root = resolve(agentGuiRoot);
+  const ownerPid = process.pid;
+  const owned = { root, pid, ownerPid, onExit: () => {
+    finishOwnedTerminalChild(child, owned);
+  } };
+  ownedTerminalChildren.set(child, owned);
+  child.once("exit", owned.onExit);
 
-  writeTerminalRuntimeState(agentGuiRoot, {
+  writeTerminalRuntimeState(root, {
     pid,
-    ownerPid: process.pid,
+    ownerPid,
     startedAt: Date.now(),
     port: meta.port,
   });
 
-  child.on("exit", () => {
-    const current = readTerminalRuntimeState(agentGuiRoot);
-    if (current?.pid === pid) {
-      clearTerminalRuntimeState(agentGuiRoot);
-    }
-  });
+}
+
+function clearOwnedTerminalState(owned) {
+  const current = readTerminalRuntimeState(owned.root);
+  if (current?.pid === owned.pid && current.ownerPid === owned.ownerPid) {
+    clearTerminalRuntimeState(owned.root);
+  }
+}
+
+function finishOwnedTerminalChild(child, owned) {
+  if (ownedTerminalChildren.get(child) !== owned) return;
+  ownedTerminalChildren.delete(child);
+  child.removeListener("exit", owned.onExit);
+  clearOwnedTerminalState(owned);
+}
+
+function stopOwnedTerminalChild(agentGuiRoot, child) {
+  const owned = child && ownedTerminalChildren.get(child);
+  if (!owned || owned.root !== resolve(agentGuiRoot)) return Promise.resolve();
+  if (owned.stopping) return owned.stopping;
+  let resolveStop, rejectStop;
+  const pending = new Promise((done, fail) => { resolveStop = done; rejectStop = fail; });
+  owned.stopping = pending;
+  const reset = () => { if (owned.stopping === pending) owned.stopping = undefined; };
+  void pending.then(reset, reset);
+  let timer;
+  let settled = false;
+  const cleanupWait = () => { clearTimeout(timer); child.removeListener("exit", exited); };
+  const exited = () => {
+    if (settled) return;
+    settled = true;
+    cleanupWait();
+    finishOwnedTerminalChild(child, owned);
+    resolveStop();
+  };
+  const failed = (error) => {
+    if (settled) return;
+    settled = true;
+    cleanupWait();
+    rejectStop(error);
+  };
+  child.once("exit", exited);
+  if (child.exitCode != null || child.signalCode != null) exited();
+  else if (child.pid !== owned.pid) failed(new Error("Owned terminal runtime child identity changed"));
+  else {
+    timer = setTimeout(() => failed(new Error(`Owned terminal runtime ${owned.pid} did not exit within 2000ms`)), 2000);
+    if (!killProcessTree(owned.pid)) failed(new Error(`Failed to stop owned terminal runtime ${owned.pid}`));
+  }
+  return pending;
 }
 
 /**
@@ -180,10 +232,14 @@ export function trackTerminalRuntimeChild(agentGuiRoot, child, meta = {}) {
  * @param {import('node:child_process').ChildProcess | null | undefined} child
  */
 export function stopTrackedTerminalRuntime(agentGuiRoot, child) {
-  if (child?.pid && !child.killed) {
-    killProcessTree(child.pid);
-  }
-  clearTerminalRuntimeState(agentGuiRoot);
+  void stopOwnedTerminalChild(agentGuiRoot, child).catch((error) => console.error("[terminal runtime stop]", error));
+}
+
+/** Stop only children spawned and retained by this process; reused runtimes are not owned. */
+export async function stopOwnedTerminalRuntimes() {
+  const results = await Promise.allSettled([...ownedTerminalChildren].map(([child, owned]) => stopOwnedTerminalChild(owned.root, child)));
+  const errors = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+  if (errors.length) throw new AggregateError(errors, "Owned terminal runtime shutdown failed");
 }
 
 /**
@@ -276,7 +332,7 @@ export async function ensureTerminalRuntime(agentGuiRoot, host) {
     console.warn(
       `terminal: ${err instanceof Error ? err.message : String(err)} — embedded terminal may be unavailable`,
     );
-    stopTrackedTerminalRuntime(runtimeRoot, child);
+    await stopOwnedTerminalChild(runtimeRoot, child);
     return null;
   }
 }

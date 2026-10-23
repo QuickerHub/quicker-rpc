@@ -66,24 +66,26 @@ export function isProcessAlive(pid) {
   }
 }
 
-/** @param {number} pid */
+/** @param {number} pid @returns {boolean} Whether the OS accepted the stop request. */
 export function killProcessTree(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return;
+  if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     if (process.platform === "win32") {
       execSync(`taskkill /PID ${pid} /T /F`, {
         stdio: "ignore",
         windowsHide: true,
       });
+      return true;
     } else {
       try {
-        process.kill(-pid, "SIGTERM");
+        return process.kill(-pid, "SIGTERM") !== false;
       } catch {
-        process.kill(pid, "SIGTERM");
+        return process.kill(pid, "SIGTERM") !== false;
       }
     }
   } catch {
-    // already exited or access denied
+    // Legacy callers remain best effort; owned-child shutdown checks this result.
+    return false;
   }
 }
 

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,6 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Audited, synthetic tests only. Live agent-eval and Electron smoke are separate opt-ins.
 const tests = [
   "scripts/agent-offline-network-guard.test.mjs",
+  "scripts/check-agent-backend-dependencies.test.mjs",
   "electron/smoke-isolation.test.mjs",
   "electron/backend-smoke.test.mjs",
   "lib/agent-tool-mode-guard.test.ts",
@@ -17,6 +19,13 @@ const tests = [
   "lib/agent-harness/tool-execution-context.test.ts",
   "lib/agent-harness/turn-lifecycle.test.ts",
   "lib/agent-harness/turn-runner.test.ts",
+  "lib/agent-service/chat-handler.test.ts",
+  "lib/agent-service/application.test.ts",
+  "lib/agent-service/production-runtime.test.ts",
+  "lib/agent-service/node-http.test.ts",
+  "service/cli.test.ts",
+  "lib/runtime-start-handlers.test.ts",
+  "lib/runtime-owned-children.test.mjs",
   "lib/program-turn-context.test.ts",
   "lib/qkrpc-connectivity-gate.test.ts",
   "lib/step-runner-search-guard.test.ts",
@@ -67,6 +76,9 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+for (const path of tests) {
+  if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing offline test: ${path}`);
+}
 run(["node_modules/typescript/bin/tsc", "--noEmit", "--incremental", "false"]);
 run([
   "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",

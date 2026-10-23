@@ -18,7 +18,8 @@ UI / HTTP adapters
 
 | 层 | 当前入口 | 只负责 |
 |----|----------|--------|
-| HTTP | `app/api/chat/route.ts` | 请求解码、release preview、调用应用层 |
+| HTTP | `lib/agent-service/chat-handler.ts`、`app/api/chat/route.ts` | 标准请求解码、显式 Cookie/preview 与错误适配；Next 只绑定真实 runner |
+| Node service | `lib/agent-service/`、`service/main.ts` | 独立 loopback HTTP、背压与断连、懒 runtime 组合和进程资源释放；当前实验性仅覆盖 chat |
 | Application | `lib/agent-harness/turn-runner.ts` | 通过注入的端口串联 turn 阶段，持有一次请求的取消与资源 owner |
 | Server bindings | `lib/agent-harness/run-turn.server.ts` | 将配置、scope、工具和 usage 等真实服务绑定到应用层 |
 | Request | `lib/agent-harness/turn-request.server.ts` | 模式、slash、消息修复、LLM selection 标准化 |
@@ -71,6 +72,25 @@ Next/Agent、qkrpc、browser 与 terminal 已有各自进程，重构要统一 o
 
 CI 独立推进上述检查，先保护现有可运行版本。R4 已开始的状态丢失修复收口后，R5 面板扩展与
 更广 UI 拆分先等待服务边界，避免围绕旧宿主继续扩大改动。
+
+独立 Node 入口现已提供 `dev:agent-service`：`/health` 不导入模型配置、不打开 DB；首个
+`POST /api/chat` 才加载原 `runAgentChatTurn`。标准 AI SDK client transport 可完成工具执行、
+审批回传与续跑，不新增 Agent loop、会话协议或数据库格式。当前 UI/Electron 仍使用 Next，
+该入口只供受控开发验证；其他 API、显式数据根/单 writer 切换、静态 renderer 与打包资源
+布局尚未迁移，不能与现有壳共享真实用户资料并作为完成验收。
+
+服务停止先终止接收、取消各自请求并等待 response reader/producer 结束，再释放 runtime。
+超过有界 grace 明确返回超时，仍保留 DB，待 `whenSettled()` 后延迟释放，不能一边关闭存储
+一边让晚回调重新打开。runtime 清理只处理本进程实际登记并保有句柄的 browser/terminal
+子进程；kill 失败或未确认退出时保留 owner/state 并报告失败，不能通过磁盘 PID 猜归属。
+旧 stale listener/端口处理仍是现存待整改路径，本切片不宣称其已完成。
+
+`check:agent-backend` 以内存编译检查本地依赖图，拒绝 Next 和残留本地 alias；npm 包保持
+external。它不执行配置或模型，也不是发布打包器。开发服务使用进程级
+`--conditions=react-server` 加载 `server-only` 的空入口；静态检查仅在自身后端编译中移除
+该标记，Next 的客户端导入保护继续保留。真实 loopback/SDK 兼容回归由 `test:agent-service`
+单独执行，模型与工具使用 fake；CLI probe 在隔离 profile、禁止出站网络下检查 lazy health
+和真实生产绑定的未配置模型失败路径，SQLite 只写本次生成的 fixture。
 
 外部依据：[AI SDK 后端支持](https://ai-sdk.dev/docs/getting-started#backend-framework-examples)
 包含 Node HTTP 与其他服务端框架；[Electron 进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)

@@ -66,6 +66,25 @@ pwsh ./dev.ps1 -Electron
 
 这些入口负责展示，工具执行、权限和持久化沿用现有 harness。分层与 DSH 参考边界见 [Agent 架构](../docs/agent-architecture.md#工作台组合边界)。仅改 UI 时使用开发服务器与 HMR，按 [AGENTS.md](AGENTS.md) 完成前端检查。
 
+## 独立 Agent 服务（实验性）
+
+`service/main.ts` 提供脱离 Next 的 Node 开发入口；现有桌面壳和日常开发继续使用上面的
+`dev.ps1`。目前只实现 `GET /health` 与 `POST /api/chat`，复用原 runner、AI SDK loop
+和 HTTP/SSE 消息格式。健康检查不加载配置/DB；聊天时才初始化真实适配器。
+
+```powershell
+cd agent-gui
+pnpm dev:agent-service --help
+pnpm check:agent-backend      # 只检查依赖图，不执行产物
+pnpm check:agent-offline      # 类型检查 + 显式 fake/fixture 清单
+pnpm test:agent-service       # 自有 loopback + fake SDK 工具/审批 + 隔离 CLI/SQLite fixture
+```
+
+服务默认绑定 `127.0.0.1:0`，在 stdout 输出实际 origin；仅支持 loopback。
+该源码入口尚未并入 Electron 包，也没有完成所有 API、数据根/单 writer 和资源布局迁移。
+只供受控开发验证，不与现有壳共享真实用户资料作迁移验收。架构、停止顺序和未完成门槛见
+[框架去耦与目标运行边界](../docs/agent-architecture.md#框架去耦与目标运行边界)。
+
 ## 发布（Electron）
 
 ```powershell

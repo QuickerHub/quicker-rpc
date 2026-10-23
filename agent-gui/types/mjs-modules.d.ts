@@ -99,6 +99,7 @@ declare module "@/lib/browser-runtime-lifecycle.mjs" {
     agentGuiRoot: string,
     child: import("node:child_process").ChildProcess,
   ): void;
+  export function stopOwnedBrowserRuntimes(): Promise<void>;
   export function ensureBrowserRuntime(
     agentGuiRoot: string,
     host: string,
@@ -144,6 +145,7 @@ declare module "@/lib/terminal-runtime-lifecycle.mjs" {
     agentGuiRoot: string,
     child: import("node:child_process").ChildProcess,
   ): void;
+  export function stopOwnedTerminalRuntimes(): Promise<void>;
   export function ensureTerminalRuntime(
     agentGuiRoot: string,
     host: string,

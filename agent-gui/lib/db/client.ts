@@ -81,14 +81,19 @@ export function getAgentSqlite(): Database.Database {
   return sqliteInstance;
 }
 
-/** @internal test helper */
-export function resetChatDatabaseClientForTests(): void {
+/** Close this process's lazy database handle without opening a new connection. */
+export function closeAgentDatabase(): void {
   if (sqliteInstance) {
     sqliteInstance.close();
     sqliteInstance = null;
   }
   drizzleInstance = null;
   migrationsApplied = false;
+}
+
+/** @internal test helper */
+export function resetChatDatabaseClientForTests(): void {
+  closeAgentDatabase();
 }
 
 /** @internal Explicit test/fixture initialization; production uses getChatDatabase. */

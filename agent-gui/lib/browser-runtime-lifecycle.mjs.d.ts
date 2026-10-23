@@ -32,6 +32,7 @@ export function trackBrowserRuntimeChild(
   meta?: Record<string, unknown>,
 ): void;
 export function stopTrackedBrowserRuntime(agentGuiRoot: string, child: ChildProcess): void;
+export function stopOwnedBrowserRuntimes(): Promise<void>;
 export function ensureBrowserRuntime(
   agentGuiRoot: string,
   host: string,

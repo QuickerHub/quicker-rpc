@@ -6,13 +6,15 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { RUNTIME_VERSION } from "../browser-runtime/config.mjs";
 import { resolveBrowserRuntimeRoot } from "./browser-runtime-root.mjs";
 import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "browser-runtime.json";
 const DEFAULT_BROWSER_PORT = 6017;
+/** @type {Map<import('node:child_process').ChildProcess, { root: string; pid: number; ownerPid: number; onExit: () => void; stopping?: Promise<void> }>} */
+const ownedBrowserChildren = new Map();
 
 /** @typedef {{ pid: number; port?: number; ownerPid: number; startedAt: number }} BrowserRuntimeState */
 
@@ -191,21 +193,71 @@ export function reconcileStaleBrowserRuntime(agentGuiRoot) {
  */
 export function trackBrowserRuntimeChild(agentGuiRoot, child, meta = {}) {
   const pid = child.pid;
-  if (!pid) return;
+  if (!pid || child.exitCode != null || child.signalCode != null || ownedBrowserChildren.has(child)) return;
+  const root = resolve(agentGuiRoot);
+  const ownerPid = process.pid;
+  const owned = { root, pid, ownerPid, onExit: () => {
+    finishOwnedBrowserChild(child, owned);
+  } };
+  ownedBrowserChildren.set(child, owned);
+  child.once("exit", owned.onExit);
 
-  writeBrowserRuntimeState(agentGuiRoot, {
+  writeBrowserRuntimeState(root, {
     pid,
-    ownerPid: process.pid,
+    ownerPid,
     startedAt: Date.now(),
     port: meta.port,
   });
 
-  child.on("exit", () => {
-    const current = readBrowserRuntimeState(agentGuiRoot);
-    if (current?.pid === pid) {
-      clearBrowserRuntimeState(agentGuiRoot);
-    }
-  });
+}
+
+function clearOwnedBrowserState(owned) {
+  const current = readBrowserRuntimeState(owned.root);
+  if (current?.pid === owned.pid && current.ownerPid === owned.ownerPid) {
+    clearBrowserRuntimeState(owned.root);
+  }
+}
+
+function finishOwnedBrowserChild(child, owned) {
+  if (ownedBrowserChildren.get(child) !== owned) return;
+  ownedBrowserChildren.delete(child);
+  child.removeListener("exit", owned.onExit);
+  clearOwnedBrowserState(owned);
+}
+
+function stopOwnedBrowserChild(agentGuiRoot, child) {
+  const owned = child && ownedBrowserChildren.get(child);
+  if (!owned || owned.root !== resolve(agentGuiRoot)) return Promise.resolve();
+  if (owned.stopping) return owned.stopping;
+  let resolveStop, rejectStop;
+  const pending = new Promise((done, fail) => { resolveStop = done; rejectStop = fail; });
+  owned.stopping = pending;
+  const reset = () => { if (owned.stopping === pending) owned.stopping = undefined; };
+  void pending.then(reset, reset);
+  let timer;
+  let settled = false;
+  const cleanupWait = () => { clearTimeout(timer); child.removeListener("exit", exited); };
+  const exited = () => {
+    if (settled) return;
+    settled = true;
+    cleanupWait();
+    finishOwnedBrowserChild(child, owned);
+    resolveStop();
+  };
+  const failed = (error) => {
+    if (settled) return;
+    settled = true;
+    cleanupWait();
+    rejectStop(error);
+  };
+  child.once("exit", exited);
+  if (child.exitCode != null || child.signalCode != null) exited();
+  else if (child.pid !== owned.pid) failed(new Error("Owned browser runtime child identity changed"));
+  else {
+    timer = setTimeout(() => failed(new Error(`Owned browser runtime ${owned.pid} did not exit within 2000ms`)), 2000);
+    if (!killProcessTree(owned.pid)) failed(new Error(`Failed to stop owned browser runtime ${owned.pid}`));
+  }
+  return pending;
 }
 
 /**
@@ -213,10 +265,14 @@ export function trackBrowserRuntimeChild(agentGuiRoot, child, meta = {}) {
  * @param {import('node:child_process').ChildProcess | null | undefined} child
  */
 export function stopTrackedBrowserRuntime(agentGuiRoot, child) {
-  if (child?.pid && !child.killed) {
-    killProcessTree(child.pid);
-  }
-  clearBrowserRuntimeState(agentGuiRoot);
+  void stopOwnedBrowserChild(agentGuiRoot, child).catch((error) => console.error("[browser runtime stop]", error));
+}
+
+/** Stop only children spawned and retained by this process; reused runtimes are not owned. */
+export async function stopOwnedBrowserRuntimes() {
+  const results = await Promise.allSettled([...ownedBrowserChildren].map(([child, owned]) => stopOwnedBrowserChild(owned.root, child)));
+  const errors = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+  if (errors.length) throw new AggregateError(errors, "Owned browser runtime shutdown failed");
 }
 
 /**
@@ -312,7 +368,7 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
     console.warn(
       `browser: ${err instanceof Error ? err.message : String(err)} — browser tool may be unavailable`,
     );
-    stopTrackedBrowserRuntime(runtimeRoot, child);
+    await stopOwnedBrowserChild(runtimeRoot, child);
     return null;
   }
 }
