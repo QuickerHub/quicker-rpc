@@ -119,7 +119,8 @@ public static class InputParamWireCoercer
                 var text = valueToken.Value<string>() ?? string.Empty;
                 if (text.Length > 0)
                 {
-                    compact[prop.Name] = text;
+                    // Escape only literals that this same reader would reinterpret as a binding.
+                    compact[prop.Name] = TryParseTypedString(text, out _) ? "@value:" + text : text;
                 }
             }
         }
