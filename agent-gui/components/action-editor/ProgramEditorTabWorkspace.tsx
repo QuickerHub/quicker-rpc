@@ -62,13 +62,12 @@ export function ProgramEditorTabWorkspace(props: ProgramEditorTabWorkspaceProps)
   const [activeTabId, setActiveTabId] = useState("main");
   const payload = props.controller.getSnapshot();
   const subProgramTabs = collectInternalTabs(payload.subPrograms).map((tab) => ({ id: tab.surface, row: tab.row }));
-  return (
-    <DesignerCatalogProvider port={props.catalogPort}>
+  const workspace = (
     <ActiveXProgramBridgeProvider activeTabId={activeTabId} subProgramTabs={subProgramTabs}>
       <ProgramEditorTabWorkspaceBody {...props} activeTabId={activeTabId} onSelectTab={setActiveTabId} />
     </ActiveXProgramBridgeProvider>
-    </DesignerCatalogProvider>
   );
+  return props.catalogPort ? <DesignerCatalogProvider port={props.catalogPort}>{workspace}</DesignerCatalogProvider> : workspace;
 }
 
 function ProgramEditorTabWorkspaceBody({

@@ -823,8 +823,8 @@ export function ActionProjectDataEditor({
     </p>;
   }
 
-  return (
-    <DesignerCatalogProvider port={catalogPort}><div className="action-project-data-editor" ref={editorRootRef}>
+  const editor = (
+    <div className="action-project-data-editor" ref={editorRootRef}>
       <div className="action-project-data-editor-header">
         <ActionProjectMetaSummary
           icon={metaIcon}
@@ -1033,6 +1033,7 @@ export function ActionProjectDataEditor({
           )}
         </div>
       ) : null}
-    </div></DesignerCatalogProvider>
+    </div>
   );
+  return mainAction ? <DesignerCatalogProvider port={catalogPort}>{editor}</DesignerCatalogProvider> : editor;
 }

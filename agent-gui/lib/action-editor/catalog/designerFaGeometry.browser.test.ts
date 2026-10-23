@@ -91,3 +91,66 @@ test("document FA previews and portals isolate hosts, deny global reads and igno
     await page.evaluate(() => (window as any).fixture.dispose());
   } finally { await browser.close(); }
 });
+
+const workspaceFixture = `
+import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { DesignerCatalogProvider } from '@/lib/action-editor/catalog/DesignerCatalogProvider';
+import { createDesignerCatalogPort } from '@/lib/action-editor/catalog/designerCatalogPort';
+import { ProgramEditorTabWorkspace } from '@/components/action-editor/ProgramEditorTabWorkspace';
+import { ActionProjectMetaSummary } from '@/components/workspace/ActionProjectMetaSummary';
+import { createProgramDocumentSession } from '@/lib/action-editor/document/programDocumentSession';
+import { createProgramDocumentEditorController } from '@/lib/action-editor/program/programDocumentEditorController';
+const spec='fa:Light_Legacy';
+const state=window.fixture={globalCalls:0,globalReads:window.__faImportReads??0,scopedCalls:[]};
+Object.defineProperty(window,'localStorage',{configurable:true,get(){state.globalReads++;return {getItem:()=>null,setItem:()=>{},removeItem:()=>{}};}});
+window.fetch=async(url,init)=>{
+ if(String(url)!=='/api/fa/resolve')throw new Error('Unexpected fixture request '+url);
+ const body=JSON.parse(init.body);let path='M1 2L3 4';
+ if(body.catalogContext){state.scopedCalls.push(body);path='M7 8L9 10';}else state.globalCalls++;
+ return Response.json({ok:true,items:body.specs.map(spec=>({spec,enumName:'Light_Legacy',path,width:37,height:19})),errors:[]});
+};
+const record={schemaVersion:1,kind:'action',actionId:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',hostBinding:{hostInstanceId:'a',hostSessionId:'a'.repeat(32),endpoint:'QuickerRpc_User_'+ 'C'.repeat(24)+'_'+'a'.repeat(32),protocolVersion:1,schemaVersion:1,hostKind:'v1',capabilities:{}}};
+const scope={cwd:'C:/fixture',projectDirectory:'.quicker/actions/a',expectedProjectBinding:record};
+const bound=createDesignerCatalogPort(scope),unbound=createDesignerCatalogPort({...scope,expectedProjectBinding:null});
+const controllers=new Map();
+function controller(name){if(!controllers.has(name))controllers.set(name,createProgramDocumentEditorController(createProgramDocumentSession({content:'{"steps":[],"variables":[],"subPrograms":[]}',identity:{documentKey:name,projectBinding:null}}),{isCurrent:()=>true}));return controllers.get(name);}
+// Same APDE composition boundary; the production Workspace must inherit when it has no port.
+function Editor({name,mainAction,port}){const content=<section data-editor={name}><ActionProjectMetaSummary title={name} icon={spec}/><ProgramEditorTabWorkspace documentKey={name} controller={controller(name)} catalogPort={port}/></section>;return mainAction?<DesignerCatalogProvider port={port}>{content}</DesignerCatalogProvider>:content;}
+function App(){const[legacy,setLegacy]=useState(false);state.legacy=()=>setLegacy(true);return <><Editor name="loading" mainAction/><Editor name="bound" mainAction port={bound}/><Editor name="unbound" mainAction port={unbound}/>{legacy&&<><Editor name="legacy-global" mainAction={false}/><section data-editor="standalone"><ProgramEditorTabWorkspace documentKey="standalone" controller={controller('standalone')}/></section></>}</>;}
+const root=createRoot(document.getElementById('root'));state.dispose=()=>{root.unmount();bound.dispose();unbound.dispose();};root.render(<App/>);
+`;
+
+test("legacy APDE composition and standalone Workspace retain global FA while a loading main action inherits its scope", { timeout: 30_000 }, async () => {
+  const require = createRequire(path.join(process.cwd(), "package.json"));
+  const compiled = await build({ stdin: { contents: workspaceFixture, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false,
+    platform: "browser", format: "iife", jsx: "automatic", loader: { ".css": "empty" }, tsconfig: path.join(process.cwd(), "tsconfig.json"),
+    define: { "process.env.NODE_ENV": '"development"' }, plugins: [{ name: "workspace-boundary-fixture", setup(builder) {
+      builder.onResolve({ filter: /^@iconify\/icons-mdi\// }, (args) => ({ path: require.resolve(args.path) }));
+      builder.onResolve({ filter: /(^@\/lib\/action-editor\/program\/XProgramEditor$|\/toolbox\/TreeActionToolbox$)/ }, (args) => ({ path: args.path, namespace: "workspace-leaf" }));
+      builder.onLoad({ filter: /.*/, namespace: "workspace-leaf" }, (args) => ({ loader: "jsx", resolveDir: process.cwd(),
+        contents: args.path.endsWith("XProgramEditor") ? `import React from 'react'; import {IconControl} from '@/lib/action-editor/shared/IconControl'; export default function X(){return <div data-workspace-icon><IconControl spec="fa:Light_Legacy"/></div>;}`
+          : "export default function Toolbox(){return null;}" }));
+    } }] });
+  const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
+  try {
+    const page = await browser.newPage(); const errors: string[] = []; page.setDefaultTimeout(5_000);
+    page.on("pageerror", (error) => errors.push(error.message)); await page.route("**/*", (route) => route.abort());
+    await page.setContent('<div id="root"></div>');
+    await page.evaluate(() => {
+      (window as any).__faImportReads = 0;
+      Object.defineProperty(window, "localStorage", { configurable: true, get() { (window as any).__faImportReads++; throw new Error("import read global persistence"); } });
+    });
+    await page.addScriptTag({ content: compiled.outputFiles[0].text });
+    await page.locator('[data-editor="bound"] [data-workspace-icon] path[d="M7 8L9 10"]').waitFor();
+    assert.deepEqual(await page.evaluate(() => [(window as any).fixture.globalCalls, (window as any).fixture.globalReads]), [0, 0]);
+    for (const name of ["loading", "unbound"]) assert.equal(await page.locator(`[data-editor="${name}"] [data-workspace-icon] path`).count(), 0);
+    await page.evaluate(() => (window as any).fixture.legacy());
+    for (const name of ["legacy-global", "standalone"]) await page.locator(`[data-editor="${name}"] [data-workspace-icon] path[d="M1 2L3 4"]`).waitFor();
+    await page.locator('[data-editor="legacy-global"] .project-info-icon path[d="M1 2L3 4"]').waitFor();
+    assert.equal(await page.evaluate(() => (window as any).fixture.globalCalls), 1, "legacy header and both workspaces retain the shared global batch");
+    assert.equal(await page.evaluate(() => (window as any).fixture.scopedCalls.length), 1);
+    for (const name of ["loading", "unbound"]) assert.equal(await page.locator(`[data-editor="${name}"] [data-workspace-icon] path`).count(), 0);
+    assert.deepEqual(errors, []); await page.evaluate(() => (window as any).fixture.dispose());
+  } finally { await browser.close(); }
+});
