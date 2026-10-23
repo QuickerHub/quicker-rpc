@@ -58,9 +58,18 @@ Agent 侧只有 **两个** 浏览器相关工具；第三种（Electron 内嵌�
 会中止本次 HTTP 请求与等待，迟到响应不作为成功、不生成录制，也不回退到另一浏览器。
 共享 runtime 的启动和其它调用继续由各自 owner 管理，取消单次工具不会关闭共享 session。
 
-这覆盖调用与连接取消，尚不保证 runtime 撤销已经收到的 click/evaluate。后续需为 runtime
-队列增加 request owner 和合作取消检查；已发生的网页副作用无法回滚，也不能通过关闭用户
-浏览器或共享 context 冒充取消完成。
+两个 runtime 的 HTTP 请求各持有独立 operation owner；连接异常断开会取消该 owner，正常
+请求正文完成不视为取消。同一 session 的 invoke 串行执行，排队期间取消不会分发原生操作。
+运行中取消会立即结束本次调用等待；每次原生等待结束后检查 owner，取消后不继续导航等待的
+回退、evaluate、快照、预览或操作结果写入，也不保存该操作尚未执行的登录态写入。
+
+已经发出的 Playwright click/evaluate、Electron executeJavaScript/loadURL 没有等价的安全撤销
+接口，因此队列保留该 session 的 running 尾直到原生 promise 结束，防止下一项与迟到操作
+重叠；原生操作一直不结束时，同 session 后续调用仍需等待，其他 session 不受影响。导航
+超时也只取消本次 owner，不通过关闭共享页面解除队列。仅本次创建且尚未发布的 context
+可由本次取消清理。已发生的网页副作用、实际页面事件及手动浏览不能回滚，不关闭用户浏览器
+或共享 context 冒充取消完成。本边界由 fake transport/page/WebContents 回归验证，未以此
+声称真实页面原生取消或端到端宿主验收已经完成。
 
 ## 相关 Skill
 
