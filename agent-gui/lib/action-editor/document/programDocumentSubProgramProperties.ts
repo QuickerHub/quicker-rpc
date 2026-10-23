@@ -1,90 +1,18 @@
 import { compactWireInputParam, expandWireInputParams, parseWireParamKey } from "../../input-param-wire";
-import { isLosslessJsonNumber, losslessJsonNumberText } from "../shared/losslessJson";
+import { collectRawSubPrograms as collectSubPrograms, isInternalSubProgramRecord as isInternal, isSubProgramRecord as isRecord,
+  quoteSubProgramConstant, readStepInputsForRunner, staticSubProgramIdentifier as staticIdentifier,
+  subProgramRows as rows, subProgramText as text, type SubProgramRecord as RecordValue } from "./programDocumentSubProgramModel";
 import type { ProgramDocumentEditOptions, ProgramDocumentEditResult, ProgramDocumentSession } from "./programDocumentSession";
 
 export type SubProgramPropertiesPatch = { name: string; description: string; icon: string };
-type RecordValue = Record<string, unknown>;
-type SubProgramEntry = { row: RecordValue; owned: boolean };
-
-function isRecord(value: unknown): value is RecordValue {
-  return value !== null && typeof value === "object" && !Array.isArray(value) && !isLosslessJsonNumber(value);
-}
-
-function rows(value: unknown): RecordValue[] {
-  return Array.isArray(value) ? value.filter(isRecord) : [];
-}
-
-function text(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function isInternal(row: RecordValue): boolean {
-  const kind = isLosslessJsonNumber(row.kind) ? Number(losslessJsonNumberText(row.kind)) : row.kind;
-  return kind === undefined || kind === 0 || kind === 1;
-}
-
-function collectSubPrograms(program: RecordValue, owned = true): SubProgramEntry[] {
-  return rows(program.subPrograms).flatMap((row) => {
-    const entry = { row, owned: owned && isInternal(row) };
-    // Link/template descendants are cached foreign bodies, not local editing surfaces.
-    return [entry, ...collectSubPrograms(row, entry.owned)];
-  });
-}
-
-/** Encode a regular C# string literal, never executable text supplied by a name. */
-function quoteConstant(value: string): string {
-  let result = '"';
-  for (let index = 0; index < value.length; index++) {
-    const character = value[index]!;
-    if (character === '"' || character === "\\") result += `\\${character}`;
-    else if (character.charCodeAt(0) < 32 || character === "\u0085" || character === "\u2028" || character === "\u2029") {
-      result += `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`;
-    } else result += character;
-  }
-  return `${result}"`;
-}
-
-/** Only our complete, canonical constant form is static; other expressions remain opaque. */
-function readConstantExpression(value: string): string | undefined {
-  if (!value.startsWith('$="') || !value.endsWith('"')) return undefined;
-  const literal = value.slice(2);
-  let result = "";
-  for (let index = 1; index < literal.length - 1; index++) {
-    const character = literal[index]!;
-    if (character === '"' || character.charCodeAt(0) < 32 || character === "\u0085" || character === "\u2028" || character === "\u2029") return undefined;
-    if (character !== "\\") { result += character; continue; }
-    const escape = literal[++index];
-    if (escape === '"' || escape === "\\") result += escape;
-    else if (escape === "u" && /^[0-9a-f]{4}$/.test(literal.slice(index + 1, index + 5))) {
-      result += String.fromCharCode(Number.parseInt(literal.slice(index + 1, index + 5), 16));
-      index += 4;
-    } else return undefined;
-  }
-  return quoteConstant(result) === literal ? result : undefined;
-}
-
-function staticIdentifier(value: string): string | undefined {
-  const candidate = value.trim();
-  if (candidate.startsWith("$$") || candidate.startsWith("%%") || candidate.startsWith("@@")) return undefined;
-  return candidate.startsWith("$=") ? readConstantExpression(candidate)?.trim() : candidate;
-}
-
 function nativeLiteral(name: string): string {
   // The native runner evaluates these prefixes. A constant expression preserves the literal name.
-  return name.startsWith("$=") || name.startsWith("$$") ? `$=${quoteConstant(name)}` : name;
+  return name.startsWith("$=") || name.startsWith("$$") ? `$=${quoteSubProgramConstant(name)}` : name;
 }
 
 function renameStepTarget(step: RecordValue, oldName: string, newName: string): void {
-  // AgentStepWireAliases accepts these disk/native names. Keep their original namespace.
-  const present = (keys: string[]) => keys.filter((key) => step[key] !== null && step[key] !== undefined
-    && !(typeof step[key] === "string" && !step[key].trim()));
-  const runners = present(["stepRunnerKey", "StepRunnerKey", "key", "Key"]);
-  if (!runners.some((key) => step[key] === "sys:subprogram")) return;
-  if (runners.length !== 1) throw new Error("Subprogram call has ambiguous runner aliases");
-  const maps = present(["inputParams", "InputParams", "inputs", "Inputs"]);
-  if (maps.length > 1) throw new Error("Subprogram call has ambiguous input aliases");
-  const input = step[maps[0] ?? "inputParams"];
-  if (!isRecord(input)) return;
+  const input = readStepInputsForRunner(step, "sys:subprogram");
+  if (!input) return;
   const expanded = expandWireInputParams(input);
   const key = expanded.subProgram !== undefined ? "subProgram" : "SubProgram";
   const pin = expanded[key];
