@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { isVoiceInputToggleShortcut } from "@/lib/voice-input/voice-input-shortcuts";
+import { subscribeComposerVoiceShortcut } from "@/lib/voice-input/composer-voice-shortcut";
 import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
 import { runVoiceToggleAction } from "@/lib/voice-input/voice-toggle-action";
 import type {
@@ -32,16 +32,10 @@ export function useComposerVoiceToggleShortcut({
   onUnavailable,
 }: UseComposerVoiceToggleShortcutOptions): void {
   useEffect(() => {
-    if (!enabled) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!isVoiceInputToggleShortcut(event)) return;
-      if (document.visibilityState === "hidden") return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      runVoiceToggleAction({
+    return subscribeComposerVoiceShortcut(window, {
+      enabled,
+      isDocumentHidden: () => document.visibilityState === "hidden",
+      onToggle: () => runVoiceToggleAction({
         phase,
         canUse,
         pluginStatus,
@@ -49,11 +43,8 @@ export function useComposerVoiceToggleShortcut({
         onStop,
         onStarting,
         onUnavailable,
-      });
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+      }),
+    });
   }, [
     enabled,
     phase,

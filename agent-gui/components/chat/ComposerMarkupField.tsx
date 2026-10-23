@@ -71,6 +71,7 @@ import { useActionDesignerEmbed } from "@/lib/designer-embed-context";
 import { useDesignerContext } from "@/lib/use-designer-context";
 import { useDesignerAwareMentionSearch } from "@/lib/use-designer-aware-mention-search";
 import { useComposerTagPreview } from "@/lib/use-composer-tag-preview";
+import { isComposerCompositionKey } from "@/lib/composer-keyboard";
 import { ComposerMentionMenu } from "./ComposerMentionMenu";
 import { ComposerSlashMenu } from "./ComposerSlashMenu";
 import { ComposerTagPreviewPopover } from "./ComposerTagPreviewPopover";
@@ -149,6 +150,7 @@ export const ComposerMarkupField = forwardRef<
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const compositionActiveRef = useRef(false);
   const tagPreview = useComposerTagPreview(rootRef);
   const onUserEditRef = useRef(onUserEdit);
   onUserEditRef.current = onUserEdit;
@@ -621,6 +623,7 @@ export const ComposerMarkupField = forwardRef<
   };
 
   const handleBlur = () => {
+    compositionActiveRef.current = false;
     const root = rootRef.current;
     tagPreview.hidePreview(true);
     window.setTimeout(() => {
@@ -696,6 +699,7 @@ export const ComposerMarkupField = forwardRef<
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
+    if (isComposerCompositionKey(event.nativeEvent, compositionActiveRef.current)) return;
 
     const root = rootRef.current;
     if (!root) return;
@@ -830,7 +834,11 @@ export const ComposerMarkupField = forwardRef<
         onMouseOver={tagPreview.handleMouseOver}
         onMouseOut={tagPreview.handleMouseOut}
         onCompositionStart={() => {
+          compositionActiveRef.current = true;
           if (!disabled) notifyUserEdit();
+        }}
+        onCompositionEnd={() => {
+          compositionActiveRef.current = false;
         }}
       />
       <ComposerTagPreviewPopover

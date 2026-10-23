@@ -91,7 +91,7 @@ export type RestoreThreadSidePanelViewArgs = {
 /** Restore browser/trace side view after switching threads; explorer stays shared. */
 export function restoreThreadScopedSidePanelView(
   args: RestoreThreadSidePanelViewArgs,
-): void {
+): string {
   const saved = getThreadScopedSideView(args.threadId).activeView;
   const traceTabIds = new Set(args.getTraceTabIds());
 
@@ -100,22 +100,24 @@ export function restoreThreadScopedSidePanelView(
     && args.isBrowserOpen(args.threadId)
   ) {
     args.focusSidePanelView(SIDE_PANEL_VIEW_BROWSER);
-    return;
+    return SIDE_PANEL_VIEW_BROWSER;
   }
 
   if (saved && isSidePanelTraceView(saved)) {
     if (traceTabIds.has(saved)) {
       args.focusSidePanelView(saved);
-      return;
+      return saved;
     }
     const lastTrace = args.getTraceTabIds().at(-1);
     if (lastTrace) {
       args.focusSidePanelView(lastTrace);
-      return;
+      return lastTrace;
     }
   }
 
   if (isThreadScopedSideView(args.currentSideView)) {
     args.setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
+    return SIDE_PANEL_VIEW_EXPLORER;
   }
+  return args.currentSideView;
 }

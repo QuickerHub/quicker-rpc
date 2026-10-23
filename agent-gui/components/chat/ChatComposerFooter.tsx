@@ -26,6 +26,7 @@ import type { ChatMode } from "@/lib/chat-mode";
 import { CHAT_MODE_AGENT, CHAT_MODE_ASK } from "@/lib/chat-mode";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
+import { isComposerVoiceOwnerActive } from "@/lib/voice-input/composer-voice-shortcut";
 import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import {
@@ -172,8 +173,13 @@ const ChatComposerFooterInner = forwardRef<
     [onOpenSettings],
   );
 
+  const voiceOwnerActive = isComposerVoiceOwnerActive({
+    visible,
+    ephemeral,
+    editAnchorMessageId,
+  });
   const voiceInput = useVoiceInput({
-    enabled: visible && !ephemeral,
+    enabled: voiceOwnerActive,
     onStreamBegin: () => {
       composerRef.current?.beginVoiceStream();
     },
@@ -192,6 +198,10 @@ const ChatComposerFooterInner = forwardRef<
   });
 
   useEffect(() => {
+    if (!voiceOwnerActive) voiceInput.interruptVoiceInput();
+  }, [voiceOwnerActive, voiceInput.interruptVoiceInput]);
+
+  useEffect(() => {
     if (!voiceInterruptRef) return;
     voiceInterruptRef.current = voiceInput.interruptVoiceInput;
   }, [voiceInput.interruptVoiceInput, voiceInterruptRef]);
@@ -201,7 +211,7 @@ const ChatComposerFooterInner = forwardRef<
   }, []);
 
   useComposerVoiceToggleShortcut({
-    enabled: !editAnchorMessageId,
+    enabled: voiceOwnerActive,
     phase: voiceInput.phase,
     canUse: voiceInput.canUse,
     pluginStatus: voiceInput.pluginStatus,
