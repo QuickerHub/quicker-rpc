@@ -1,0 +1,19 @@
+.sub-program-properties-backdrop { box-sizing: border-box; padding: 12px; }
+.sub-program-properties-popup { width: min(480px, 100%); max-height: min(90dvh, 650px); }
+.sub-program-properties-body fieldset { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.sub-program-properties-body label { display: grid; gap: 6px; min-width: 0; color: var(--ad-fg-primary); font-size: 13px; }
+.sub-program-properties-field { display: grid; gap: 6px; min-width: 0; }
+.sub-program-properties-body input, .sub-program-properties-body textarea {
+  box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--ad-border-input); border-radius: 4px;
+  background: var(--ad-bg-input); color: var(--ad-fg-input); font: inherit;
+}
+.sub-program-properties-body textarea { resize: vertical; min-height: 70px; max-height: 30dvh; }
+.sub-program-properties-body input:focus-visible, .sub-program-properties-body textarea:focus-visible { outline: 1px solid var(--ad-border-focus); outline-offset: 1px; }
+.sub-program-properties-identity { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
+.sub-program-properties-icon { display: grid; place-items: center; min-height: 48px; border: 1px solid var(--ad-border-panel); border-radius: 4px; }
+.sub-program-properties-error { margin: 0; font-size: 12px; color: var(--ad-fg-danger-soft); }
+.sub-program-properties-discard { z-index: 10001; box-sizing: border-box; padding: 12px; }
+.sub-program-properties-discard > .step-editor-popup { width: min(420px, 100%); }
+.program-editor-tab-context-menu { position: fixed; z-index: 1200; width: 160px; padding: 4px; border: 1px solid var(--ad-border-strong); border-radius: 5px; background: var(--ad-bg-menu); color: var(--ad-fg-primary); box-shadow: var(--ad-shadow-popup); }
+.program-editor-tab-context-menu button { display: block; width: 100%; padding: 7px 9px; border: 0; border-radius: 3px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.program-editor-tab-context-menu button:hover, .program-editor-tab-context-menu button:focus-visible { background: var(--ad-bg-menu-hover); outline: 1px solid var(--ad-border-focus); }

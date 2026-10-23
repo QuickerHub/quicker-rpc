@@ -1,4 +1,5 @@
-import type { ProgramDocumentEditResult, ProgramDocumentSession } from "../document/programDocumentSession";
+import type { ProgramDocumentEditResult, ProgramDocumentIdentity, ProgramDocumentSession } from "../document/programDocumentSession";
+import { applyProgramDocumentSubProgramProperties, type SubProgramPropertiesPatch } from "../document/programDocumentSubProgramProperties";
 import type { ActionSubProgram } from "../types/common";
 import type { ActionProgramSnapshot } from "./assembleActionProgramSnapshot";
 import { cloneXProgramPresent, type XProgramPresent } from "./xProgramHistory";
@@ -32,7 +33,21 @@ export function createProgramDocumentEditorController(
     expectedIdentity: session.getState().identity, source: "ui" as const });
   return {
     getSnapshot: () => session.readSnapshot(),
+    getIdentity: () => session.getState().identity,
     getHistoryState: () => session.getHistoryState(),
+    applySubProgramProperties(id: string, patch: SubProgramPropertiesPatch, expected: { identity: ProgramDocumentIdentity; properties: SubProgramPropertiesPatch }): ProgramDocumentEditResult {
+      const reject = (error: string): ProgramDocumentEditResult => ({ ok: false, code: "identity_conflict", error, state: session.getState() });
+      if (!options.isCurrent()) return reject("文档已经切换，请在当前文档重新打开属性");
+      let row: ActionSubProgram;
+      try { row = findSurface(session.readSnapshot(), `sub-${id}`) as ActionSubProgram; }
+      catch { return reject("子程序已经不存在，请保留草稿并重新核对当前文档"); }
+      if (row.name !== expected.properties.name || row.description !== expected.properties.description || row.icon !== expected.properties.icon) {
+        return reject("子程序属性已经改变，请保留草稿并重新核对当前属性");
+      }
+      const result = applyProgramDocumentSubProgramProperties(session, id, patch, { ...editOptions(), expectedIdentity: expected.identity });
+      options.onChange(result);
+      return result;
+    },
     getSurface(surface: string): XProgramEditorControl {
       let control = controls.get(surface);
       if (!control) {

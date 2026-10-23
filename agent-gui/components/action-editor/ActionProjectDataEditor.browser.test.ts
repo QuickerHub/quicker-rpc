@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { after, before, beforeEach, test } from "node:test";
+import { after, afterEach, before, beforeEach, test } from "node:test";
 import { build } from "esbuild";
 import { chromium, type Browser, type Page } from "playwright";
 
@@ -63,10 +63,12 @@ window.fetch = async (input, init) => {
    value=window.fixtureOptions?.catalogDeferA&&id==='a'?await new Promise(resolve=>state.catalogPending.push({id,resolve:()=>resolve(result)})):result;
  }
  else if(url.pathname==='/api/step-runner/get' && catalogRequest.key==='sys:fixture_capability') value={ok:true,item:capability};
+ else if(url.pathname==='/api/step-runner/get' && catalogRequest.key==='sys:subprogram') value={ok:true,item:StepRunnerItem.fromPartial({key:'sys:subprogram',name:'调用子程序',inputParamDefs:[{key:'subProgram',name:'子程序',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]})};
+ else if(url.pathname==='/api/step-runner/get' && ['future:branch','sys:future:branch'].includes(catalogRequest.key)) value={ok:true,item:StepRunnerItem.fromPartial({key:catalogRequest.key,name:'Future branch fixture',inputParamDefs:[],outputParamDefs:[]})};
  else if(url.pathname==='/api/step-runner/toolbox-search') value={ok:true,json:JSON.stringify({items:[{kind:'runner',id:'r:sys:fixture_capability:copy',label:'Copy fixture',parentLabel:'Fixture capability',payload:{stepRunnerKey:'sys:fixture_capability',name:'Fixture capability',controlFieldValue:'copy',inputPresets:{mode:'copy',text:'preset text'}}}],totalCount:1,hasMore:false})};
  else if(url.pathname==='/api/step-runner/summaries') {const request=JSON.parse(init?.body||'{}');value={ok:true,items:(request.steps||[]).map(row=>({stepId:row.stepId,summary:'Fixture summary'}))};}
  else if(url.pathname==='/api/subprogram/list') value={ok:true,items:[]};
- else {state.unexpected.push(url.pathname+url.search);throw new Error('Unexpected fixture request: '+url.pathname+url.search);}
+ else {state.unexpected.push(url.pathname+url.search+(url.pathname==='/api/step-runner/get'?':'+catalogRequest.key:''));throw new Error('Unexpected fixture request: '+url.pathname+url.search);}
  if(syncRequest?.expectedProjectBinding&&value.ok)value={...value,projectBinding:syncRequest.expectedProjectBinding,projectDirectory:syncRequest.projectDirectory};
  return new Response(JSON.stringify(value),{status:200,headers:{'Content-Type':'application/json'}});
 };
@@ -131,7 +133,8 @@ export async function deleteActionProjectApi(_cwd,path){const f=window.fixture;f
 let browser: Browser;
 let javascript = "";
 let stylesheet = "";
-let closingBrowser = false;
+const closingBrowsers = new WeakSet<Browser>();
+let caseOwnsBrowser = false;
 let activeTest = "setup";
 let pageSequence = 0;
 const browserDiagnostics = process.env.QKRPC_ACTION_EDITOR_BROWSER_DIAGNOSTICS === "1";
@@ -190,12 +193,25 @@ before(async () => {
   });
   javascript = compiled.outputFiles.find((file) => file.path.endsWith(".js"))!.text;
   stylesheet = compiled.outputFiles.find((file) => file.path.endsWith(".css"))?.text ?? "";
-  browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
-  browser.on("disconnected", () => diagnose(closingBrowser ? "expected-browser-disconnect" : "unexpected-browser-disconnect"));
 });
 
-beforeEach((context) => { activeTest = context.name; });
-after(async () => { closingBrowser = true; await browser?.close(); });
+beforeEach(async (context) => {
+  activeTest = context.name;
+  caseOwnsBrowser = false;
+  // Each case owns a fresh native process/profile; browser-wide state cannot leak across cases.
+  const owned = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
+  browser = owned;
+  caseOwnsBrowser = true;
+  owned.on("disconnected", () => {
+    if (browserDiagnostics) console.error(JSON.stringify({ fixture: "action-project-data-editor", event: closingBrowsers.has(owned) ? "expected-browser-disconnect" : "unexpected-browser-disconnect", test: context.name, connected: owned.isConnected(), at: new Date().toISOString() }));
+  });
+});
+afterEach(async () => {
+  if (!caseOwnsBrowser) return;
+  try { assert.equal(browser.isConnected(), true, "Owned browser exited before fixture cleanup"); }
+  finally { closingBrowsers.add(browser); await browser.close(); caseOwnsBrowser = false; }
+});
+after(async () => { if (caseOwnsBrowser) { closingBrowsers.add(browser); await browser.close(); } });
 
 async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean }): Promise<{ page: Page; errors: string[] }> {
   pageSequence += 1;
@@ -219,6 +235,128 @@ async function openFixture(options?: { targetMode?: string; invalidVersion?: boo
 
 const currentNote = (page: Page) => page.locator(".program-editor-surface:visible .step-form-note-input");
 const saveButton = (page: Page) => page.locator(".action-project-data-editor-save");
+
+async function loadPropertiesDocument(page: Page): Promise<void> {
+  const call = (stepId: string) => ({ stepId, stepRunnerKey: "sys:subprogram", note: "properties fixture", inputParams: { subProgram: "Child", "script.file": "files/script.cs" }, futureStep: "__fixture_int64__" });
+  const programBody = { steps: [call("s-a"), { stepId: "branch", stepRunnerKey: "future:branch", ifSteps: [call("branch-call")], elseSteps: [] }], variables: [],
+      subPrograms: [{ id: "child", name: "Child", kind: 1, description: "original child description", icon: "iconify:mdi:plus", steps: [call("child-call")], variables: [], futureSub: "__fixture_int64__", subPrograms: [{ id: "nested", name: "Nested", kind: 1, steps: [call("nested-call")], variables: [] }] },
+        { id: "other", name: "Other", kind: 1, steps: [], variables: [] },
+        { id: "linked", name: "Linked", kind: 2, steps: [call("linked-call")], subPrograms: [{ id: "cached", name: "Foreign cached child", kind: 1, steps: [], variables: [] }] }], futureRoot: "__fixture_int64__" };
+  await page.evaluate((content) => {
+    const f = (window as any).fixture;
+    f.enableDocumentSave();
+    f.setDocument("a", content);
+  }, JSON.stringify(programBody).replaceAll('"__fixture_int64__"', "9223372036854775807"));
+  await page.waitForFunction(() => document.querySelector('[data-step-id="s-a"]')?.textContent?.includes("properties fixture"));
+  await page.locator('[aria-label="打开嵌入子程序"]').click();
+  assert.equal(await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Foreign cached child", exact: true }).count(), 0);
+  await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Child", exact: true }).click();
+  await page.getByRole("tab", { name: "Child", exact: true }).waitFor();
+}
+
+const propertiesDialog = (page: Page) => page.getByRole("dialog", { name: "子程序属性", exact: true });
+
+async function openProperties(page: Page, name: string): Promise<void> {
+  await page.getByRole("tab", { name, exact: true }).dblclick();
+  await propertiesDialog(page).getByLabel("名称", { exact: true }).waitFor();
+}
+
+test("subprogram properties reject duplicate drafts then rename every owned literal in one document undo", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await loadPropertiesDocument(page);
+    await openProperties(page, "Child");
+    const dialog = propertiesDialog(page);
+    await dialog.getByLabel("名称", { exact: true }).fill("Other");
+    await dialog.getByLabel("说明", { exact: true }).fill("kept draft description");
+    await dialog.getByLabel("图标", { exact: true }).fill("iconify:mdi:undo");
+    await dialog.getByRole("button", { name: "确定", exact: true }).click();
+    assert.match(await dialog.getByRole("alert").innerText(), /同名/);
+    assert.equal(await dialog.getByLabel("名称", { exact: true }).inputValue(), "Other");
+    assert.equal(await dialog.getByLabel("说明", { exact: true }).inputValue(), "kept draft description");
+    assert.equal(await saveButton(page).isDisabled(), true);
+    await dialog.getByLabel("名称", { exact: true }).fill("Renamed");
+    await dialog.getByLabel("名称", { exact: true }).press("Enter");
+    await dialog.waitFor({ state: "detached" });
+    await page.getByRole("tab", { name: "Renamed", exact: true }).waitFor();
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => (window as any).fixture.documentCalls.at(-1).content);
+    const body = JSON.parse(saved);
+    assert.equal(body.subPrograms[0].name, "Renamed");
+    assert.equal(body.subPrograms[0].description, "kept draft description");
+    assert.equal(body.subPrograms[0].icon, "iconify:mdi:undo");
+    for (const call of [body.steps[0], body.steps[1].ifSteps[0], body.subPrograms[0].steps[0], body.subPrograms[0].subPrograms[0].steps[0]]) assert.equal(call.inputParams.subProgram, "Renamed");
+    assert.equal(body.subPrograms[2].steps[0].inputParams.subProgram, "Child");
+    assert.ok(saved.includes("9223372036854775807"));
+    await page.getByRole("toolbar", { name: "文档历史" }).getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    await page.getByRole("tab", { name: "Child", exact: true }).waitFor();
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const restored = JSON.parse(await page.evaluate(() => (window as any).fixture.documentCalls.at(-1).content));
+    assert.equal(restored.subPrograms[0].description, "original child description");
+    for (const call of [restored.steps[0], restored.steps[1].ifSteps[0], restored.subPrograms[0].steps[0], restored.subPrograms[0].subPrograms[0].steps[0]]) assert.equal(call.inputParams.subProgram, "Child");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("subprogram properties survive a late save and cannot leak a departed document draft", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await loadPropertiesDocument(page); await openProperties(page, "Child");
+    await propertiesDialog(page).getByLabel("名称", { exact: true }).fill("First");
+    await propertiesDialog(page).getByRole("button", { name: "确定", exact: true }).click();
+    await page.evaluate(() => { (window as any).fixture.documentMode = "defer"; });
+    await waitSaveEnabled(page); await saveButton(page).click();
+    await page.waitForFunction(() => (window as any).fixture.documentPending.length === 1);
+    await openProperties(page, "First");
+    await propertiesDialog(page).getByLabel("名称", { exact: true }).fill("Second");
+    await propertiesDialog(page).getByLabel("说明", { exact: true }).fill("newer than saved ticket");
+    await propertiesDialog(page).getByRole("button", { name: "确定", exact: true }).click();
+    await page.evaluate(() => { (window as any).fixture.resolveDocumentPending(0, { ok: true }); });
+    await page.getByRole("tab", { name: "Second", exact: true }).waitFor(); await waitSaveEnabled(page);
+    await page.evaluate(() => { (window as any).fixture.documentMode = "success"; });
+    await saveButton(page).click(); await waitClean(page);
+    assert.equal(JSON.parse(await page.evaluate(() => (window as any).fixture.documentCalls.at(-1).content)).subPrograms[0].name, "Second");
+    await openProperties(page, "Second");
+    await propertiesDialog(page).getByLabel("名称", { exact: true }).fill("Never document B");
+    await page.evaluate(() => { (window as any).fixture.setDocument("b"); });
+    await page.locator('[data-step-id="s-b"]').waitFor();
+    assert.equal(await propertiesDialog(page).count(), 0);
+    assert.equal(await page.getByRole("tab", { name: "Second", exact: true }).count(), 0);
+    assert.equal(await saveButton(page).isDisabled(), true);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("subprogram tab context keyboard, native draft undo, discard and narrow themes keep their owner", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await loadPropertiesDocument(page);
+    const tab = page.getByRole("tab", { name: "Child", exact: true });
+    await tab.focus(); await tab.press("Shift+F10");
+    await page.getByRole("menuitem", { name: "属性…", exact: true }).press("Enter");
+    const dialog = propertiesDialog(page); const name = dialog.getByLabel("名称", { exact: true });
+    await name.waitFor(); await name.press("End"); await name.pressSequentially(" keyboard"); await name.press("Control+Z");
+    assert.equal(await name.inputValue(), "Child");
+    await name.fill("Unsaved child");
+    await dialog.getByLabel("说明", { exact: true }).fill("draft survives cancel");
+    await page.setViewportSize({ width: 420, height: 820 });
+    for (const theme of ["light", "dark"] as const) {
+      await capture(page, `subprogram-properties-${theme}.png`, theme);
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      const bounds = await dialog.evaluate((element) => ({ left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right, top: element.getBoundingClientRect().top, bottom: element.getBoundingClientRect().bottom, width: element.clientWidth, content: element.scrollWidth }));
+      assert.ok(bounds.left >= 0 && bounds.right <= 420 && bounds.top >= 0 && bounds.bottom <= 820 && bounds.content <= bounds.width, JSON.stringify(bounds));
+    }
+    await name.press("Escape"); const confirmation = page.getByRole("alertdialog", { name: "是否保存更改？" }); await confirmation.waitFor();
+    await confirmation.getByRole("button", { name: "取消", exact: true }).press("Escape");
+    assert.equal(await name.inputValue(), "Unsaved child");
+    assert.equal(await dialog.getByLabel("说明", { exact: true }).inputValue(), "draft survives cancel");
+    await name.press("Escape"); await page.getByRole("alertdialog").getByRole("button", { name: "不保存", exact: true }).click();
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(await tab.evaluate((element) => element === document.activeElement), true);
+    assert.equal(await saveButton(page).isDisabled(), true);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
 
 async function editNote(page: Page, note: string): Promise<void> {
   await currentNote(page).fill(note);
