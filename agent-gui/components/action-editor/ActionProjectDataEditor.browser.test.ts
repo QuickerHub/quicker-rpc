@@ -165,7 +165,21 @@ before(async () => {
         if (args.path.endsWith("action-command-client")) return { contents: "export function isQuickerActionMissingError(){return false}export function invokeActionCommand(){window.fixture.unexpected.push('unbound toolbar command');throw new Error('Toolbar must be gated')}", loader: "js" };
         if (args.path.endsWith("action-trace-client")) return { contents: "export function startActionTrace(){window.fixture.unexpected.push('unbound toolbar trace');throw new Error('Toolbar must be gated')}", loader: "js" };
         if (args.path.endsWith("workspace-explorer")) return { contents: "export const workspaceExplorerActionsRef={current:{notifyProjectRemoved(){}}};", loader: "js" };
-        if (args.path.endsWith("IconControl")) return { contents: "export function IconControl(){return null}", loader: "js" };
+        if (args.path.endsWith("IconControl")) return { contents: `
+          import React from 'react';
+          import { IconifyIconSlot } from '@/lib/action-editor/shared/IconifyIconSlot';
+          import { parseIconifyIconId } from '@/lib/action-editor/shared/parseIconifySpec';
+          import { parseQuickerAssetIcon } from '@/lib/action-editor/shared/parseQuickerAssetIcon';
+          import { resolveResIconToIconifyId } from '@/lib/action-editor/shared/resIconCatalog';
+          import { faVectorSpecToBundledIconifyId } from '@/lib/action-editor/shared/faVectorToIconifyFallback';
+          // Use the production bundled SVG renderer/assets, isolating only host/raster resolution.
+          export function IconControl(props) {
+            const spec = props.spec?.trim() || '';
+            const asset = parseQuickerAssetIcon(spec);
+            const iconId = parseIconifyIconId(spec) || (asset && resolveResIconToIconifyId(asset.path))
+              || (/^fa:/i.test(spec) ? faVectorSpecToBundledIconifyId(spec) : null);
+            return iconId ? <IconifyIconSlot {...props} iconId={iconId}/> : props.fallback ?? null;
+          }`, loader: "jsx", resolveDir: process.cwd() };
         if (args.path.endsWith("ActionIcon")) return { contents: "export function ActionIcon(){return null}", loader: "js" };
         if (args.path.endsWith("FaIconProvider")) return { contents: "export function FaIconProvider(p){return p.children}", loader: "js" };
         if (args.path.endsWith("FileEditorCard")) return { contents: "import React from 'react';export function FileEditorCard(p){return <pre data-source-content data-source-path={p.path}>{p.content}</pre>}", loader: "jsx", resolveDir: process.cwd() };
@@ -230,7 +244,7 @@ async function capture(page: Page, filename: string, theme: "light" | "dark"): P
   if (!screenshotDirectory) return;
   await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
   await page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-  await page.screenshot({ path: path.join(screenshotDirectory, filename), fullPage: true });
+  await page.screenshot({ path: path.join(screenshotDirectory, filename), fullPage: false });
 }
 
 test("a delayed local identity read retains edits and saves the exact displayed full target", { timeout: 45_000 }, async () => {
@@ -823,6 +837,8 @@ test("one document history orders main, variable, nested and property edits with
     await page.getByRole("textbox", { name: "标题", exact: true }).fill("Unified title");
     const undo = page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("撤销 (Ctrl+Z)", { exact: true });
     const redo = page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("重做 (Ctrl+Y / Ctrl+Shift+Z)", { exact: true });
+    assert.equal(await undo.locator("svg path").count(), 1, "undo uses its actual bundled SVG");
+    assert.equal(await redo.locator("svg path").count(), 1, "redo uses its actual bundled SVG");
     await undo.click();
     assert.equal(await page.getByRole("textbox", { name: "标题", exact: true }).inputValue(), "Fixture action");
     await undo.click();
@@ -862,6 +878,25 @@ test("one document history orders main, variable, nested and property edits with
     assert.equal(JSON.parse(saved.metadata.content).title, "Unified title");
     assert.match(saved.metadata.content, /9223372036854775807/);
     assert.match(saved.metadata.content, /9007199254740993/);
+    await page.getByRole("tab", { name: "属性", exact: true }).click();
+    await capture(page, "06-properties-dark-480px.png", "dark");
+    const toolbarAncestors = await page.evaluate(() => {
+      const toolbar = document.querySelector('[aria-label="文档历史"]')!.getBoundingClientRect();
+      const toolbarNode = document.querySelector('[aria-label="文档历史"]') as HTMLElement;
+      const ancestors: { className: string; scrollTop: number; top: number; bottom: number }[] = [];
+      let parent = document.querySelector(".program-editor-tab-workspace") as HTMLElement | null;
+      while (parent) {
+        const rect = parent.getBoundingClientRect();
+        ancestors.push({ className: parent.className, scrollTop: parent.scrollTop, top: rect.top, bottom: rect.bottom });
+        parent = parent.parentElement;
+      }
+      const strip = document.querySelector(".program-editor-tab-strip")!.getBoundingClientRect();
+      return { toolbar: { top: toolbar.top, bottom: toolbar.bottom, height: toolbar.height, display: getComputedStyle(toolbarNode).display,
+        painted: document.elementFromPoint(toolbar.left + 10, toolbar.top + 10)?.outerHTML.slice(0, 180) }, strip: { top: strip.top, bottom: strip.bottom }, ancestors };
+    });
+    if (browserDiagnostics) console.error(JSON.stringify({ phase: "metadata-toolbar-bounds", ...toolbarAncestors }));
+    assert.equal(toolbarAncestors.toolbar.height > 0 && toolbarAncestors.ancestors.every((rect) => toolbarAncestors.toolbar.top >= rect.top && toolbarAncestors.toolbar.bottom <= rect.bottom), true,
+      `metadata also retains the document toolbar inside every clipping ancestor: ${JSON.stringify(toolbarAncestors)}`);
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });
