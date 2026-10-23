@@ -1,16 +1,7 @@
 import type { QkrpcInvoke } from "@/lib/qkrpc-argv";
 import { getRequestTurnExecutionState } from "@/lib/qkrpc-request-context";
-
-export type QkrpcHostBinding = Readonly<{
-  hostInstanceId: string;
-  hostSessionId: string;
-  endpoint: string;
-  protocolVersion: number;
-  schemaVersion: number;
-  hostKind: "v1" | "v2";
-  quickerVersion: string;
-  capabilities: Readonly<Record<string, boolean>>;
-}>;
+import { readHostBinding, sameHostBinding, type QkrpcHostBinding } from "./qkrpc-host-binding-contract";
+export { readHostBinding, sameHostBinding, type QkrpcHostBinding } from "./qkrpc-host-binding-contract";
 
 export type QkrpcBoundTarget = Readonly<{ gateway: string; binding: QkrpcHostBinding }>;
 
@@ -33,22 +24,6 @@ export function isOfflineSourceInvoke(invoke: QkrpcInvoke): boolean {
 export function isQkrpcReadOnlyInvoke(invoke: QkrpcInvoke): boolean {
   return isOfflineSourceInvoke(invoke) || READ_OPS.has(invoke.op)
     || invoke.op.startsWith("step-runner.") || invoke.op.startsWith("guide.");
-}
-
-export function sameHostBinding(a: QkrpcHostBinding, b: QkrpcHostBinding): boolean {
-  return a.hostInstanceId === b.hostInstanceId && a.hostSessionId === b.hostSessionId && a.endpoint === b.endpoint;
-}
-
-export function readHostBinding(value: unknown): QkrpcHostBinding | undefined {
-  if (!value || typeof value !== "object") return;
-  const b = value as Record<string, unknown>;
-  if (typeof b.hostInstanceId !== "string" || !b.hostInstanceId || typeof b.hostSessionId !== "string"
-    || !/^[a-f0-9]{32}$/i.test(b.hostSessionId) || typeof b.endpoint !== "string"
-    || !/^QuickerRpc_User_[A-F0-9]{24}_[a-f0-9]{32}$/i.test(b.endpoint)
-    || !b.endpoint.endsWith(`_${b.hostSessionId}`) || b.protocolVersion !== 1 || b.schemaVersion !== 1
-    || (b.hostKind !== "v1" && b.hostKind !== "v2") || !b.capabilities || typeof b.capabilities !== "object"
-    || Array.isArray(b.capabilities) || Object.values(b.capabilities).some((v) => typeof v !== "boolean")) return;
-  return Object.freeze({ ...b, capabilities: Object.freeze({ ...b.capabilities }) }) as QkrpcHostBinding;
 }
 
 export function currentQkrpcTarget(): QkrpcBoundTarget | undefined {
