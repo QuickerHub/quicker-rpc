@@ -1,4 +1,4 @@
-import { useDesignerCatalogPort } from "../catalog/DesignerCatalogProvider";
+import { useDesignerCatalogContext, useDesignerCatalogPort } from "../catalog/DesignerCatalogProvider";
 import {
   Fragment,
   useCallback,
@@ -296,6 +296,7 @@ export default function StepListEditor({
   registerDraftFlusher,
 }: StepListEditorProps): JSX.Element {
   const catalogPort = useDesignerCatalogPort();
+  const catalogContext = useDesignerCatalogContext();
   const activeRef = useRef(active);
   activeRef.current = active;
   const insertGeneration = useRef(0);
@@ -501,6 +502,7 @@ export default function StepListEditor({
   }, [stepSchemaRequestsKey, backendBaseUrl, steps, catalogPort]);
 
   useEffect(() => {
+    if (catalogContext) return;
     const specs = new Set<string>();
     for (const item of runnerItems) {
       const icon = item.icon?.trim();
@@ -513,9 +515,10 @@ export default function StepListEditor({
     if (specs.size > 0) {
       ensureFaIconsResolved(specs);
     }
-  }, [runnerItems, runnerLookup]);
+  }, [runnerItems, runnerLookup, catalogContext]);
 
   useEffect(() => {
+    if (catalogContext) return;
     const specs: string[] = [];
     for (const label of Object.values(globalSubProgramLabelsById)) {
       const icon = label.icon?.trim();
@@ -528,7 +531,7 @@ export default function StepListEditor({
     if (specs.length > 0) {
       ensureFaIconsResolved(specs);
     }
-  }, [globalSubProgramLabelsById, sharedSubProgramLabelsById]);
+  }, [globalSubProgramLabelsById, sharedSubProgramLabelsById, catalogContext]);
 
   useLayoutEffect(() => {
     editorTargetIdRef.current = editorTargetId;

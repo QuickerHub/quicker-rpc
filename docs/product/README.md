@@ -247,7 +247,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；动作/子程序完整目录、分页和操作仍待迁移，不能以受限搜索冒充完整目录 |
-| `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。其它字段须补原生 catalog/presentation 契约后开放，仍属于完整迁移范围 |
+| `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。完整图标选择器及其它字段须补原生 catalog/presentation 契约后开放，仍属于完整迁移范围 |
 | 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | V1 source 与磁盘保真已有基础；metadata 原始字段、V2 codec 和 UI source 接入继续验收 |
 | 运行/诊断 bridge | 已确认范围内的 run/trace、失败定位、取消与结果展示 | 复用现有 RPC/Agent 服务；新版设计器调用侧与宿主能力逐项接线 |
 
@@ -287,6 +287,15 @@ loading/unbound 在浏览器和服务端均不查询宿主；失配、断连、�
 分发大小写。客户端、服务端及交叉边界已独立审查；相关真实 Edge 交互分组通过，
 吸收当前主线后的 583 项离线检查、类型与 71 路由检查通过；后续安装/活进程验收单独
 记录，未把此切片标为完整资源目录迁移。
+FA resolve 也已接相同文档 port：APDE 标题、嵌套预览、步骤旧预取和 portal 按 Provider
+存在与否区分文档及旧入口，loading/unbound 不读全局持久缓存或默认宿主，绑定失败不回退。
+同 spec 的几何与迟到结果按 owner 隔离，服务端沿用项目 lease 和 RPC 前后目标核验。
+其它旧入口保留全局缓存兼容，导入模块不再主动读取持久存储。当前复用已有 FA RPC，
+未新增 C#；完整搜索分页/风格、账号上传库和 V2 Designer FA 仍缺实际端口，不能以
+绑定预览代替完整图标选择器。
+吸收当前主线后的 649 项离线检查与两项完整真实 DOM 通过；实际步骤列表、标题和 portal
+覆盖多 owner、迟到结果、加载/未绑定以及旧入口兼容，独立复审通过。纯 catalog 的依赖图
+已确认不含 TSX；主产品 frontend check 及真实绑定 HTTP 仍在合并后单独核验。
 trace 展示也仍有独立缺口：现有 bridge/页签按 actionId+param 全局
 复用，需由执行侧与 UI 共享每次运行 owner，再处理终结、清理与历史重放；仅把 key 换成
 未保证全局唯一的 SDK toolCallId 不能证明跨会话隔离。此项继续归 R2/R4 验收。
@@ -305,7 +314,7 @@ catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录
 就绪检查同时验证 socket owner 与服务协议，启动失败只回收自己创建的 child。Inno
 安装器已移除全局 taskkill 并关闭自动结束/重启应用；目标文件仍占用时不能静默代停，
 自动停止该安装副本的 Setup 能力继续待适配。fake、生成文件锁及本次自建休眠进程矩阵
-通过独立审查；Inno 仅编译验证，实际产品升级继续单独记录。
+通过独立审查；Inno 仅编译验证，Setup 的实际升级继续单独验收。
 
 下一项设计器基础已在纯 session 加入 80 条完整文档历史：主/嵌套正文、未知字段和已支持
 的标题/说明/图标共用事务，undo/redo 比较完整身份及 revision，保存/部分确认不倒退宿主
@@ -330,8 +339,12 @@ Agent live 文档协同继续迁移，当前证据仍不替代真实 V2 或完�
 `@value:` 前缀，反复保存不会把文本变成绑定或持续增加转义层；真正的变量/文件绑定、
 对象、数组和未知数值保留原语义。V1 YAML `lit` 原文直接保留，不套用兼容 JSON 的转义。
 两侧 codec 已独立交叉审查，真实 compressor/parser、磁盘 normalization 与 YAML/native
-roundtrip 回归通过；生成的 CLI/Agent 知识也已同步。162 的实际安装/宿主验收仍须在
-明确进程归属的安装切片后串行完成，不能以离线 codec 测试替代。
+roundtrip 回归通过；生成的 CLI/Agent 知识也已同步。`0.14.8.162` 已以新的受限进程实现
+完成整次热更（exit 0），540 个安装文件与发布源逐一一致，无手工修补；CLI/serve/真实
+V1 插件均独立确认版本与新会话。专用验收动作完成 YAML `lit` 保存、真实压缩 wire 重读
+和恢复：前缀保留，原变量绑定及外置文件不变，始终禁用且未运行。fresh bundle 的生成
+stepId 因已知空默认字段规范化而重算，已对照代码和原生基线解释，不宣称原生字节完全还原。
+这次实际 PS 更新不替代 Setup、V2 或完整双宿主设计器验收。
 
 **每个 PR 的验收与合并要求**：
 

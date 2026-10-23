@@ -7,6 +7,9 @@ import { ensureFaIconsResolved, flushFaIconCache, getFaIconFromCache } from "@/l
 import { useFaIconGeometry } from "@/lib/use-fa-icon-geometry";
 import { getBundledIconifyIcon } from "./actionDesignerIconify";
 import { IconifyIconSlot } from "./IconifyIconSlot";
+import { useDesignerCatalogContext } from "../catalog/DesignerCatalogProvider";
+import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
+import { readDesignerFaGeometry, resolveDesignerFaIcons } from "../catalog/designerFaGeometry";
 
 /** Fixed-size frame for icon slots (empty, loading, fallback text, or SVG). */
 export function iconSlotFrameStyle(size: number): CSSProperties {
@@ -107,7 +110,7 @@ function renderFallbackNode(
 /**
  * Renders Quicker fa:… icons via /api/fa/resolve (shared fa-icon-cache with chat ActionIcon).
  */
-export const FaVectorSvg = memo(function FaVectorSvg({
+function LegacyFaVectorSvg({
   spec,
   size = 14,
   className,
@@ -166,4 +169,35 @@ export const FaVectorSvg = memo(function FaVectorSvg({
   }
 
   return renderFallbackNode(fallback, size, className, title);
+}
+
+function ScopedFaVectorSvg({ spec, size = 14, className, title, fallback, iconifyFallbackId = null,
+  port }: FaVectorSvgProps & { port?: DesignerCatalogPort }): JSX.Element {
+  const key = spec.trim();
+  const [result, setResult] = useState<{ port: DesignerCatalogPort; key: string; failed: boolean } | null>(null);
+  const geometry = port?.remoteEnabled ? readDesignerFaGeometry(port, key) : undefined;
+  useEffect(() => {
+    if (!port?.remoteEnabled || !key.toLowerCase().startsWith("fa:")) return;
+    const controller = new AbortController();
+    void resolveDesignerFaIcons(port, [key], controller.signal).then((items) => {
+      if (!controller.signal.aborted) setResult({ port, key, failed: items.length === 0 });
+    }, () => {
+      if (!controller.signal.aborted) setResult({ port, key, failed: true });
+    });
+    return () => controller.abort();
+  }, [port, key]);
+
+  if (geometry?.path) return <FaGeometrySvg geometry={geometry} size={size} className={className} title={title} />;
+  // A loading/unbound document never consults global geometry, persistence or another host.
+  if (!port?.remoteEnabled || result?.port !== port || result.key !== key || !result.failed)
+    return <IconEmptyPlaceholder size={size} className={className} title={title} />;
+  if (iconifyFallbackId && getBundledIconifyIcon(iconifyFallbackId)) return <IconifyIconSlot
+    iconId={iconifyFallbackId} size={size} className={className} title={title} fallback={fallback ?? null} />;
+  return renderFallbackNode(fallback, size, className, title);
+}
+
+/** A document provider owns FA geometry, including portals; independent workbench icons retain their legacy cache. */
+export const FaVectorSvg = memo(function FaVectorSvg(props: FaVectorSvgProps): JSX.Element {
+  const context = useDesignerCatalogContext();
+  return context ? <ScopedFaVectorSvg {...props} port={context.port} /> : <LegacyFaVectorSvg {...props} />;
 });

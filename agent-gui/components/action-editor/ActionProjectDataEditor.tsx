@@ -1,6 +1,6 @@
 "use client";
 
-import { useDocumentDesignerCatalogPort } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
+import { DesignerCatalogProvider, useDocumentDesignerCatalogPort } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
 import type { DesignerCatalogPort } from "@/lib/action-editor/catalog/designerCatalogPort";
 import type { DesignerCatalogScope } from "@/lib/action-editor/catalog/designerCatalogContext";
 
@@ -823,7 +823,7 @@ export function ActionProjectDataEditor({
     </p>;
   }
 
-  return (
+  const editor = (
     <div className="action-project-data-editor" ref={editorRootRef}>
       <div className="action-project-data-editor-header">
         <ActionProjectMetaSummary
@@ -1035,4 +1035,5 @@ export function ActionProjectDataEditor({
       ) : null}
     </div>
   );
+  return mainAction ? <DesignerCatalogProvider port={catalogPort}>{editor}</DesignerCatalogProvider> : editor;
 }

@@ -1,5 +1,6 @@
 import { runQkrpc } from "@/lib/qkrpc";
 import type { FaIconGeometry } from "@/lib/fa-icon";
+import { postDesignerCatalogRequest, requireDesignerCatalogResult } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 
 export const dynamic = "force-dynamic";
 
@@ -38,51 +39,48 @@ function mapItems(data: unknown): FaIconGeometry[] {
 }
 
 export async function POST(req: Request) {
-  let specs: string[] = [];
-  try {
-    const body = (await req.json()) as { specs?: unknown };
+  return postDesignerCatalogRequest(req, async (body, request) => {
+    let specs: string[] = [];
     if (Array.isArray(body.specs)) {
       specs = body.specs
         .filter((s): s is string => typeof s === "string")
         .map((s) => s.trim())
         .filter(Boolean);
     }
-  } catch {
-    return Response.json({ ok: false, items: [], errors: ["Invalid JSON body"] }, {
-      status: 400,
-    });
-  }
 
-  if (specs.length === 0) {
-    return Response.json({ ok: true, items: [], errors: [] } satisfies ResolveResponse);
-  }
-
-  const result = await runQkrpc(
-    ["fa", "resolve", "--specs", JSON.stringify(specs)],
-    { timeoutMs: 30_000 },
-  );
-
-  if (!result.ok) {
-    return Response.json(
-      {
-        ok: false,
-        items: [],
-        errors: [result.stderr || "qkrpc fa resolve failed"],
-      } satisfies ResolveResponse,
-      { status: 503 },
-    );
-  }
-
-  const data = result.parsed;
-  const root =
-    typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
-  const items = mapItems(root);
-  const errors: string[] = [];
-  if (Array.isArray(root.errors)) {
-    for (const e of root.errors) {
-      if (typeof e === "string") errors.push(e);
+    if (specs.length === 0) {
+      return Response.json({ ok: true, items: [], errors: [] } satisfies ResolveResponse);
     }
-  }
 
-  return Response.json({ ok: true, items, errors } satisfies ResolveResponse);
+    const result = await runQkrpc(
+      ["fa", "resolve", "--specs", JSON.stringify(specs)],
+      { timeoutMs: 30_000, ...request.rpcOptions },
+    );
+    requireDesignerCatalogResult(result, request);
+
+    if (!result.ok) {
+      return Response.json(
+        {
+          ok: false,
+          items: [],
+          errors: [result.stderr || "qkrpc fa resolve failed"],
+        } satisfies ResolveResponse,
+        { status: 503 },
+      );
+    }
+
+    const data = result.parsed;
+    const root =
+      typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
+    const items = mapItems(root);
+    const payload = root.payload && typeof root.payload === "object" ? root.payload as Record<string, unknown> : root;
+    const errors: string[] = [];
+    if (Array.isArray(payload.errors)) {
+      for (const e of payload.errors) {
+        if (typeof e === "string") errors.push(e);
+      }
+    }
+
+    return Response.json({ ok: true, items, errors } satisfies ResolveResponse);
+  });
 }

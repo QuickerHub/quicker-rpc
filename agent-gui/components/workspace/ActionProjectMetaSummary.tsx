@@ -4,6 +4,8 @@ import type { JSX } from "react";
 import { ActionIcon } from "@/components/chat/ActionIcon";
 import { FaIconProvider } from "@/components/chat/FaIconProvider";
 import { resolveActionProjectIconSpec } from "@/lib/action-project-icon";
+import { useDesignerCatalogContext } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
+import { IconControl } from "@/lib/action-editor/shared/IconControl";
 
 export type ActionProjectMetaSummaryProps = {
   icon?: string;
@@ -22,6 +24,7 @@ export function ActionProjectMetaSummary({
   const displayIconSpec = resolveActionProjectIconSpec(icon);
   const titleTrim = title.trim();
   const descriptionTrim = (description ?? "").trim();
+  const catalog = useDesignerCatalogContext();
 
   return (
     <header
@@ -29,11 +32,13 @@ export function ActionProjectMetaSummary({
         .filter(Boolean)
         .join(" ")}
     >
-      <FaIconProvider specs={[displayIconSpec]}>
+      {catalog ? <div className="project-info-icon-wrap project-info-icon-wrap--static" role="img" aria-label={titleTrim || "动作图标"}>
+        <IconControl spec={displayIconSpec} size={36} className="project-info-icon" title={titleTrim || undefined} />
+      </div> : <FaIconProvider specs={[displayIconSpec]}>
         <div className="project-info-icon-wrap project-info-icon-wrap--static">
           <ActionIcon spec={displayIconSpec} className="project-info-icon" title={titleTrim || undefined} />
         </div>
-      </FaIconProvider>
+      </FaIconProvider>}
       <div className="project-info-heading">
         <h2 className="project-info-title">{titleTrim || "（无标题）"}</h2>
         {descriptionTrim ? (
