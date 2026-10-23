@@ -183,6 +183,71 @@ public sealed class ActionSourceWorkspaceTests
 
     private JsonElement Args(bool dryRun) => JsonSerializer.SerializeToElement(new { dir = _directory, dryRun });
 
+    [TestMethod]
+    public async Task V2DraftSidecar_BindsFilesDryRunConsecutiveSavesAndNativeIdentity()
+    {
+        var native = Native();
+        native["Variables"]![0]!["DefaultValue"] = Script;
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", native,
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        var baselinePath = Path.Combine(_directory, ActionSourceWorkspace.BaselineFile);
+        var baseline = File.ReadAllText(baselinePath);
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(null, Args(true), default)).Ok);
+        Assert.AreEqual(baseline, File.ReadAllText(baselinePath));
+        var prepared = ActionSourceWorkspace.Prepare(_directory);
+        Assert.AreEqual("draft-1", prepared.StorageIdentity!.DraftId);
+        Assert.IsTrue(JToken.DeepEquals(native, prepared.Body));
+        var files = Directory.GetFiles(Path.Combine(_directory, "files"));
+        Assert.AreEqual(2, files.Length); // script and variable default, both materialized offline.
+        File.WriteAllText(files.Single(p => File.ReadAllText(p) == Script && Path.GetFileName(p) == "source-2.txt"), "changed script\n");
+        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
+        var versions = new List<long>();
+        ((SourceRpcProxy)(object)rpc).Handler = (_, args) =>
+        {
+            var storage = (QuickerRpcActionStorageIdentity)args![4]!;
+            Assert.AreEqual("draft", storage.Kind);
+            Assert.AreEqual("draft-1", storage.DraftId);
+            Assert.AreEqual((long)args[2]!, storage.Version);
+            versions.Add(storage.Version);
+            return Task.FromResult(new QuickerRpcApplyXActionResult
+            { Success = true, Persisted = true, EditVersion = storage.Version + 1,
+                StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = storage.Version + 1 } });
+        };
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), default)).Ok);
+        Assert.IsTrue((await ActionSourceServeOps.SaveAsync(rpc, Args(false), default)).Ok);
+        CollectionAssert.AreEqual(new long[] { 3, 4 }, versions);
+        Assert.AreEqual(5L, ActionSourceWorkspace.Prepare(_directory).StorageIdentity!.Version);
+    }
+
+    [TestMethod]
+    public async Task V2PartialCommit_PreservesCheckpointAndReportsPersistence()
+    {
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        var rpc = DispatchProxy.Create<IQuickerRpcService, SourceRpcProxy>();
+        ((SourceRpcProxy)(object)rpc).Handler = (_, _) => Task.FromResult(new QuickerRpcApplyXActionResult
+        { Persisted = true, ErrorCode = "SOURCE_POST_COMMIT_FAILED", ErrorMessage = "fixture", EditVersion = 4,
+            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 4 } });
+        var response = await ActionSourceServeOps.SaveAsync(rpc, Args(false), default);
+        Assert.IsFalse(response.Ok);
+        Assert.AreEqual("SOURCE_POST_COMMIT_FAILED", response.Error);
+        var data = JsonSerializer.SerializeToElement(response.Data);
+        Assert.IsTrue(data.GetProperty("Persisted").GetBoolean());
+        Assert.AreEqual(3L, ActionSourceWorkspace.Prepare(_directory).EditVersion);
+    }
+
+    [TestMethod]
+    public void V2StorageIdentityTampering_IsRejectedOffline()
+    {
+        ActionSourceWorkspace.Open(_directory, ActionId, 3, "draft fixture", "draft", Native(),
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 3 });
+        var path = Path.Combine(_directory, ActionSourceWorkspace.IdentityFile);
+        var identity = JObject.Parse(File.ReadAllText(path));
+        identity["storageIdentity"]!["draftId"] = "another-draft";
+        File.WriteAllText(path, identity.ToString());
+        Assert.ThrowsException<InvalidOperationException>(() => ActionSourceWorkspace.Prepare(_directory));
+    }
+
     private static JObject Native() => new()
     {
         ["Id"] = ActionId,

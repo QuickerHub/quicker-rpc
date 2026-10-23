@@ -135,6 +135,18 @@ public sealed class ActionProgramSourceRpcTests
     }
 
     [TestMethod]
+    public async Task SourceOperations_reject_unavailable_native_storage_before_dispatch()
+    {
+        var host = new SourceHost();
+        host.Source.IsProgramSourceAvailable = false;
+        var scheduler = new Scheduler();
+        var service = CreateService(host, scheduler);
+        Assert.AreEqual("UNSUPPORTED_HOST", (await service.GetActionProgramSourceAsync("action-1")).ErrorCode);
+        Assert.AreEqual("UNSUPPORTED_HOST", (await service.ApplyActionProgramSourceAsync("action-1", NativeBody, 123)).ErrorCode);
+        Assert.AreEqual(0, scheduler.UiCalls);
+    }
+
+    [TestMethod]
     public async Task Cancelled_source_operations_never_reach_host()
     {
         var host = new SourceHost();
@@ -154,8 +166,9 @@ public sealed class ActionProgramSourceRpcTests
         return new QuickerRpcService(host, scheduler, new Feedback(), new ActionProgramRpcHandler(deps), new SubProgramRpcHandler(deps));
     }
 
-    private sealed class SourcePort : ProgramPort, IQuickerRpcActionProgramSourceHost
+    private sealed class SourcePort : ProgramPort, IQuickerRpcActionProgramSourceHost, IQuickerRpcActionProgramSourceAvailability
     {
+        public bool IsProgramSourceAvailable { get; set; } = true;
         public QuickerRpcGetActionProgramSourceResult ReadResult { get; set; } = new() { Success = true };
         public QuickerRpcApplyXActionResult WriteResult { get; set; } = new() { Success = true };
         public int Reads { get; private set; }

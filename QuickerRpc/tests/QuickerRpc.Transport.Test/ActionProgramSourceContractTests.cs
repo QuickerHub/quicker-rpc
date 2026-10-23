@@ -24,6 +24,7 @@ public sealed class ActionProgramSourceContractTests
             Success = true,
             ActionId = "action-1",
             EditVersion = 9007199254740993L,
+            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 9007199254740993L, ContentHash = "native-hash" },
             BodyJson = NativeBody,
             ReadSource = "catalog",
             Title = "中文动作",
@@ -40,6 +41,9 @@ public sealed class ActionProgramSourceContractTests
         Assert.AreEqual("action-1", implementation.ActionId);
         Assert.IsTrue(result.Success);
         Assert.AreEqual(9007199254740993L, result.EditVersion);
+        Assert.AreEqual("draft-1", result.StorageIdentity!.DraftId);
+        Assert.AreEqual("native-hash", result.StorageIdentity.ContentHash);
+        Assert.AreEqual(9007199254740993L, result.StorageIdentity.Version);
         Assert.AreEqual(NativeBody, result.BodyJson);
         Assert.AreEqual("catalog", result.ReadSource);
         Assert.AreEqual("中文动作", result.Title);
@@ -67,11 +71,14 @@ public sealed class ActionProgramSourceContractTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
         var conflict = await session.Proxy.ApplyActionProgramSourceAsync(
-            "action-1", NativeBody, 9007199254740993L, cancellationToken: timeout.Token);
+            "action-1", NativeBody, 9007199254740993L,
+            storageIdentity: new() { Kind = "draft", DraftId = "draft-1", Version = 9007199254740993L, ContentHash = "native-hash" }, cancellationToken: timeout.Token);
 
         Assert.AreEqual(NativeBody, implementation.BodyJson);
         Assert.AreEqual(9007199254740993L, implementation.ExpectedEditVersion);
         Assert.IsFalse(implementation.Force);
+        Assert.AreEqual("draft-1", implementation.StorageIdentity!.DraftId);
+        Assert.AreEqual("native-hash", implementation.StorageIdentity.ContentHash);
         Assert.IsFalse(conflict.Success);
         Assert.AreEqual("VERSION_CONFLICT", conflict.ErrorCode);
         Assert.AreEqual(true, conflict.VersionConflict);
@@ -84,6 +91,13 @@ public sealed class ActionProgramSourceContractTests
         Assert.IsNull(implementation.ExpectedEditVersion);
         Assert.AreEqual("DESIGNER_OPEN", designer.ErrorCode);
         Assert.IsFalse(designer.Success);
+        implementation.WriteResult = new QuickerRpcApplyXActionResult
+        { Persisted = true, ErrorCode = "SOURCE_POST_COMMIT_FAILED", EditVersion = 9007199254740995L,
+            StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = 9007199254740995L } };
+        var partial = await session.Proxy.ApplyActionProgramSourceAsync("action-1", NativeBody, cancellationToken: timeout.Token);
+        Assert.AreEqual(true, partial.Persisted);
+        Assert.AreEqual("SOURCE_POST_COMMIT_FAILED", partial.ErrorCode);
+        Assert.AreEqual(9007199254740995L, partial.StorageIdentity!.Version);
     }
 
     public class SourceTarget : DispatchProxy
@@ -94,6 +108,7 @@ public sealed class ActionProgramSourceContractTests
         public string? BodyJson { get; private set; }
         public long? ExpectedEditVersion { get; private set; }
         public bool Force { get; private set; }
+        public QuickerRpcActionStorageIdentity? StorageIdentity { get; private set; }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
@@ -106,6 +121,7 @@ public sealed class ActionProgramSourceContractTests
                     BodyJson = (string?)args[1];
                     ExpectedEditVersion = (long?)args[2];
                     Force = (bool)args[3]!;
+                    StorageIdentity = (QuickerRpcActionStorageIdentity?)args[4];
                     return Task.FromResult(WriteResult);
                 default:
                     throw new NotSupportedException(targetMethod.Name);

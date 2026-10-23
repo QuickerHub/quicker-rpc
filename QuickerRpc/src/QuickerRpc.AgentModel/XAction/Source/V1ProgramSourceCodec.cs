@@ -45,7 +45,7 @@ public static class V1ProgramSourceCodec
         if (native is null) throw new ArgumentNullException(nameof(native));
         // Newtonsoft's default reader turns ISO strings into Date tokens. Source is JSON-shaped:
         // normalize them to strings before YAML so unchanged metadata can reuse the original token.
-        using var reader = new JsonTextReader(new StringReader(native.ToString(Formatting.None))) { DateParseHandling = DateParseHandling.None };
+        using var reader = new JsonTextReader(new StringReader(native.ToString(Formatting.None))) { DateParseHandling = DateParseHandling.None, MaxDepth = 256 };
         var caw = CawCanonicalizer.Canonicalize(FromProgram(JObject.Load(reader), "root"));
         RequireUnique(AllSteps(caw), "stepId", "stepId", "step ID", allowEmpty: true);
         return caw;

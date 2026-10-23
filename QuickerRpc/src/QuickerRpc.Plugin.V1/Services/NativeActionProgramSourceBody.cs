@@ -12,8 +12,8 @@ internal static class NativeActionProgramSourceBody
     public static JObject Parse(string json)
     {
         // Program parameters are strings even when they look like ISO timestamps.
-        using var reader = new JsonTextReader(new StringReader(json)) { DateParseHandling = DateParseHandling.None };
-        var body = JObject.Load(reader);
+        using var reader = new JsonTextReader(new StringReader(json)) { DateParseHandling = DateParseHandling.None, MaxDepth = 256 };
+        var body = JObject.Load(reader, new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
         while (reader.Read())
         {
             if (reader.TokenType != JsonToken.Comment)

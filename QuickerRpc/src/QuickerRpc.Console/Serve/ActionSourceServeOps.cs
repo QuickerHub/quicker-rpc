@@ -20,10 +20,10 @@ internal static class ActionSourceServeOps
             var result = await rpc.GetActionProgramSourceAsync(id, token).ConfigureAwait(false);
             if (!result.Success || string.IsNullOrWhiteSpace(result.BodyJson) || !result.EditVersion.HasValue)
                 return Fail(result.ErrorCode ?? "SOURCE_READ_FAILED", result.ErrorMessage ?? "Native action source is unavailable.");
-            using var reader = new JsonTextReader(new StringReader(result.BodyJson)) { DateParseHandling = DateParseHandling.None };
+            using var reader = new JsonTextReader(new StringReader(result.BodyJson)) { DateParseHandling = DateParseHandling.None, MaxDepth = 256 };
             var output = ActionSourceWorkspace.Open(dir, result.ActionId ?? id, result.EditVersion.Value, result.Title, result.ReadSource,
                 JObject.Load(reader), ServeJsonArgs.GetInt(args, "minLines") ?? 4,
-                ServeJsonArgs.GetBool(args, "noAutoFiles"), result.Warnings);
+                ServeJsonArgs.GetBool(args, "noAutoFiles"), result.Warnings, result.StorageIdentity);
             return new ServeInvokeResponse { Ok = true, Data = output };
         }
         catch (ProgramSourceException ex) { return Fail(ex.Code, ex.Message); }
@@ -47,7 +47,7 @@ internal static class ActionSourceServeOps
                     stepCount = ActionSourceWorkspace.ProgramArray(prepared.Body, "Steps").Count,
                     variableCount = ActionSourceWorkspace.ProgramArray(prepared.Body, "Variables").Count,
                 }};
-            if (rpc is null) throw new InvalidOperationException("A live V1 host is required to save.");
+            if (rpc is null) throw new InvalidOperationException("A live host is required to save.");
             // Submit only the editable body; metadata may have been refreshed by the host on the previous save.
             var body = new JObject
             {
@@ -56,14 +56,17 @@ internal static class ActionSourceServeOps
                 ["SubPrograms"] = ActionSourceWorkspace.ProgramArray(prepared.Body, "SubPrograms").DeepClone(),
             };
             var result = await rpc.ApplyActionProgramSourceAsync(prepared.ActionId,
-                body.ToString(Formatting.None), prepared.EditVersion, false, cancellationToken: token).ConfigureAwait(false);
+                body.ToString(Formatting.None), prepared.EditVersion, false, prepared.StorageIdentity, token).ConfigureAwait(false);
             if (!result.Success)
                 return new ServeInvokeResponse { Ok = false, Error = result.ErrorCode ?? "SOURCE_SAVE_FAILED",
-                    Message = result.ErrorMessage, Data = new { result.VersionConflict } };
+                    Message = result.ErrorMessage, Data = new { result.VersionConflict, result.Persisted, result.ActionId,
+                        result.EditVersion, result.StorageIdentity, result.Warnings } };
             try
             {
                 if (!result.EditVersion.HasValue) throw new InvalidOperationException("Host omitted the saved edit version.");
-                ActionSourceWorkspace.Checkpoint(prepared, result.EditVersion.Value);
+                if (prepared.StorageIdentity is not null && result.StorageIdentity is null)
+                    throw new InvalidOperationException("Host omitted the saved native storage identity.");
+                ActionSourceWorkspace.Checkpoint(prepared, result.EditVersion.Value, result.StorageIdentity);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
             {

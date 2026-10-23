@@ -1,5 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
@@ -22,7 +24,8 @@ public sealed partial class QuickerRpcService
             });
         }
 
-        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost)
+        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost
+            || sourceHost is IQuickerRpcActionProgramSourceAvailability { IsProgramSourceAvailable: false })
         {
             return Task.FromResult(new QuickerRpcGetActionProgramSourceResult
             {
@@ -51,7 +54,8 @@ public sealed partial class QuickerRpcService
             return SourceWriteFailure(actionId, "MISSING_ACTION_ID", "actionId is required.");
         }
 
-        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost)
+        if (_host.ActionPrograms is not IQuickerRpcActionProgramSourceHost sourceHost
+            || sourceHost is IQuickerRpcActionProgramSourceAvailability { IsProgramSourceAvailable: false })
         {
             return SourceWriteFailure(actionId, "UNSUPPORTED_HOST",
                 "The current host does not provide native action source editing. Use its supported editing interface.");
@@ -64,7 +68,8 @@ public sealed partial class QuickerRpcService
 
         try
         {
-            var body = JObject.Parse(bodyJson);
+            using var reader = new JsonTextReader(new StringReader(bodyJson)) { DateParseHandling = DateParseHandling.None, MaxDepth = 256 };
+            var body = JObject.Load(reader, new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
             if ((body["steps"] ?? body["Steps"]) is not JArray
                 || (body["variables"] ?? body["Variables"]) is not JArray
                 || ((body["subPrograms"] ?? body["SubPrograms"]) is JToken subPrograms && subPrograms is not JArray))

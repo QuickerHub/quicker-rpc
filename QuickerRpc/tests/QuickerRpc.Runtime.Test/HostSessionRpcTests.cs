@@ -50,6 +50,10 @@ public sealed class HostSessionRpcTests
         host.Info.Kind = QuickerHostKind.V1;
         host.ActionPrograms = DispatchProxy.Create<IQuickerRpcActionProgramHost, NeverInvokePort>();
         Assert.IsFalse((await Service(host).GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.ActionSourceWrite]);
+        host.ActionPrograms = DispatchProxy.Create<IAvailableSourceProgram, SourceAvailabilityPort>();
+        Assert.IsFalse((await Service(host).GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.ActionSourceRead]);
+        ((SourceAvailabilityPort)(object)host.ActionPrograms).Available = true;
+        Assert.IsTrue((await Service(host).GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.ActionSourceWrite]);
     }
 
     [TestMethod]
@@ -93,6 +97,13 @@ public sealed class HostSessionRpcTests
     }
 
     public interface ISourceProgram : IQuickerRpcActionProgramHost, IQuickerRpcActionProgramSourceHost { }
+    public interface IAvailableSourceProgram : ISourceProgram, IQuickerRpcActionProgramSourceAvailability { }
+    public class SourceAvailabilityPort : DispatchProxy
+    {
+        public bool Available { get; set; }
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod!.Name == "get_IsProgramSourceAvailable"
+            ? Available : throw new AssertFailedException("Unexpected source method.");
+    }
     public class NeverInvokePort : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => throw new AssertFailedException("Handshake invoked host method " + targetMethod?.Name);

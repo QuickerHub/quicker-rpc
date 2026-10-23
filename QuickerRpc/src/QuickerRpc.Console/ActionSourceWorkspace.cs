@@ -4,6 +4,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.XAction.Source;
+using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console;
 
@@ -16,13 +17,16 @@ internal static class ActionSourceWorkspace
     internal const string BundleSchema = "quicker.source-bundle.v1";
     private static readonly UTF8Encoding Utf8 = new(false, true);
 
-    internal sealed record Prepared(string Directory, string ActionId, long EditVersion, JObject Body, JObject Caw);
+    internal sealed record Prepared(string Directory, string ActionId, long EditVersion, JObject Body, JObject Caw,
+        QuickerRpcActionStorageIdentity? StorageIdentity = null);
 
     internal static object Open(
         string directory, string actionId, long editVersion, string? title, string? readSource,
-        JObject nativeBody, int minLines = 4, bool noAutoFiles = false, IEnumerable<string>? warnings = null)
+        JObject nativeBody, int minLines = 4, bool noAutoFiles = false, IEnumerable<string>? warnings = null,
+        QuickerRpcActionStorageIdentity? storageIdentity = null)
     {
         var dir = ResolveDirectory(directory);
+        ValidateStorageIdentity(storageIdentity, editVersion);
         RequireLocalPath(dir);
         if (Directory.Exists(dir) && Directory.EnumerateFileSystemEntries(dir).Any())
             throw new InvalidOperationException("Open requires an empty directory. Choose a new directory to preserve local edits.");
@@ -56,8 +60,9 @@ internal static class ActionSourceWorkspace
             ["title"] = title, ["editVersion"] = editVersion.ToString(CultureInfo.InvariantCulture),
             ["readSource"] = readSource ?? "catalog", ["exportedUtc"] = DateTime.UtcNow.ToString("O"),
         };
+        if (storageIdentity is not null) identity["storageIdentity"] = StorageJson(storageIdentity);
         WriteJson(Path.Combine(dir, IdentityFile), identity);
-        WriteBaseline(dir, actionId, editVersion, nativeBody, baselineCaw);
+        WriteBaseline(dir, actionId, editVersion, nativeBody, baselineCaw, storageIdentity);
         return new
         {
             ok = true, actionId, editVersion, title, readSource = readSource ?? "catalog",
@@ -73,7 +78,7 @@ internal static class ActionSourceWorkspace
         var dir = ResolveDirectory(directory);
         var identity = ReadJson(dir, IdentityFile);
         if (identity.Value<string>("schema") != BundleSchema || identity.Value<string>("kind") != "action")
-            throw new InvalidOperationException("Not a qkrpc V1 action source bundle.");
+            throw new InvalidOperationException("Not a qkrpc action source bundle.");
         var actionId = identity.Value<string>("actionId");
         if (!Guid.TryParse(actionId, out _)) throw new InvalidOperationException("Bundle actionId must be a GUID.");
         var checkpoint = ReadJson(dir, BaselineFile);
@@ -85,6 +90,10 @@ internal static class ActionSourceWorkspace
             throw new InvalidOperationException("The native checkpoint is missing or modified. Reopen the action into a new directory.");
         if (checkpoint["caw"] is not JObject baselineCaw || checkpoint.Value<string>("cawHash") != Hash(baselineCaw))
             throw new InvalidOperationException("The source identity map is missing or modified. Reopen the action into a new directory.");
+        if (!JToken.DeepEquals(identity["storageIdentity"] ?? JValue.CreateNull(), checkpoint["storageIdentity"] ?? JValue.CreateNull()))
+            throw new InvalidOperationException("Source storage identity/checkpoint mismatch. Reopen the action.");
+        var storage = identity["storageIdentity"]?.ToObject<QuickerRpcActionStorageIdentity>();
+        ValidateStorageIdentity(storage, version);
         var caw = ProgramSourceCodec.Decode(ReadText(dir, SourceFile));
         ProgramSourceCodec.RequireLosslessRoundtrip(caw);
         Materialize(caw, dir);
@@ -94,25 +103,47 @@ internal static class ActionSourceWorkspace
         var updatedEnvelope = ReadOnlyEnvelope(native);
         if (!JToken.DeepEquals(originalEnvelope, updatedEnvelope))
             throw new InvalidOperationException("This workflow edits steps, variables and embedded subprograms only. Root identity and metadata are read-only.");
-        return new Prepared(dir, actionId!, version, native, caw);
+        return new Prepared(dir, actionId!, version, native, caw, storage);
     }
 
-    internal static void Checkpoint(Prepared prepared, long editVersion)
+    internal static void Checkpoint(Prepared prepared, long editVersion, QuickerRpcActionStorageIdentity? storageIdentity = null)
     {
+        if (prepared.StorageIdentity is { } old)
+        {
+            storageIdentity ??= new() { Kind = old.Kind, DraftId = old.DraftId, Version = editVersion };
+            if (old.Kind != storageIdentity.Kind || old.DraftId != storageIdentity.DraftId)
+                throw new InvalidOperationException("Saved storage identity changed. Reopen the action.");
+        }
+        ValidateStorageIdentity(storageIdentity, editVersion);
         var identity = ReadJson(prepared.Directory, IdentityFile);
         identity["editVersion"] = editVersion.ToString(CultureInfo.InvariantCulture);
-        WriteBaseline(prepared.Directory, prepared.ActionId, editVersion, prepared.Body, prepared.Caw);
+        if (storageIdentity is not null) identity["storageIdentity"] = StorageJson(storageIdentity);
+        WriteBaseline(prepared.Directory, prepared.ActionId, editVersion, prepared.Body, prepared.Caw, storageIdentity);
         WriteJson(Path.Combine(prepared.Directory, IdentityFile), identity);
     }
 
-    private static void WriteBaseline(string dir, string id, long version, JObject body, JObject caw) =>
+    private static void WriteBaseline(string dir, string id, long version, JObject body, JObject caw,
+        QuickerRpcActionStorageIdentity? storageIdentity = null) =>
         WriteJson(Path.Combine(dir, BaselineFile.Replace('/', Path.DirectorySeparatorChar)), new JObject
         {
             ["schema"] = "qkrpc.native-baseline.v1", ["actionId"] = id,
             ["editVersion"] = version.ToString(CultureInfo.InvariantCulture),
             ["bodyHash"] = Hash(body), ["body"] = body.DeepClone(),
             ["cawHash"] = Hash(caw), ["caw"] = caw.DeepClone(),
+            ["storageIdentity"] = storageIdentity is null ? null : StorageJson(storageIdentity),
         });
+
+    private static JObject StorageJson(QuickerRpcActionStorageIdentity identity) => new()
+    { ["kind"] = identity.Kind, ["draftId"] = identity.DraftId, ["version"] = identity.Version.ToString(CultureInfo.InvariantCulture),
+        ["contentHash"] = identity.ContentHash };
+
+    private static void ValidateStorageIdentity(QuickerRpcActionStorageIdentity? identity, long version)
+    {
+        if (identity is not null && (identity.Version != version || identity.Kind is not ("catalog" or "draft")
+            || (identity.Kind == "catalog" && !string.IsNullOrEmpty(identity.DraftId))
+            || (identity.Kind == "draft" && string.IsNullOrWhiteSpace(identity.DraftId))))
+            throw new InvalidOperationException("Native storage identity is invalid or does not match the edit version.");
+    }
 
     private static string Hash(JObject body) => Convert.ToHexString(SHA256.HashData(Utf8.GetBytes(body.ToString(Formatting.None))));
 
@@ -127,7 +158,7 @@ internal static class ActionSourceWorkspace
     {
         // Object property order is immaterial; values and array order must survive unchanged.
         if (!JToken.DeepEquals(expected, actual))
-            throw new InvalidOperationException("Native V1 → YAML → native roundtrip changed the action. Export was blocked to preserve its data.");
+            throw new InvalidOperationException("Native → YAML → native roundtrip changed the action. Export was blocked to preserve its data.");
     }
 
     private static void Externalize(JObject program, int minLines, IDictionary<string, string> resources)
@@ -190,7 +221,7 @@ internal static class ActionSourceWorkspace
 
     private static JObject ReadJson(string dir, string relative)
     {
-        using var reader = new JsonTextReader(new StringReader(ReadText(dir, relative))) { DateParseHandling = DateParseHandling.None };
+        using var reader = new JsonTextReader(new StringReader(ReadText(dir, relative))) { DateParseHandling = DateParseHandling.None, MaxDepth = 512 };
         return JObject.Load(reader);
     }
 
