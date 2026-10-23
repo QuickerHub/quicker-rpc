@@ -56,7 +56,7 @@ internal static class ActionSourceServeOps
                 ["SubPrograms"] = ActionSourceWorkspace.ProgramArray(prepared.Body, "SubPrograms").DeepClone(),
             };
             var result = await rpc.ApplyActionProgramSourceAsync(prepared.ActionId,
-                body.ToString(Formatting.None), prepared.EditVersion, false, token).ConfigureAwait(false);
+                body.ToString(Formatting.None), prepared.EditVersion, false, cancellationToken: token).ConfigureAwait(false);
             if (!result.Success)
                 return new ServeInvokeResponse { Ok = false, Error = result.ErrorCode ?? "SOURCE_SAVE_FAILED",
                     Message = result.ErrorMessage, Data = new { result.VersionConflict } };

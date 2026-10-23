@@ -173,7 +173,7 @@ public sealed class ActionProgramSourceRpcTests
             return Task.FromResult(ReadResult);
         }
 
-        public Task<QuickerRpcApplyXActionResult> ApplyProgramSourceAsync(string actionId, string bodyJson, long? expectedEditVersion, bool force, CancellationToken cancellationToken = default)
+        public Task<QuickerRpcApplyXActionResult> ApplyProgramSourceAsync(string actionId, string bodyJson, long? expectedEditVersion, bool force, QuickerRpcActionStorageIdentity? storageIdentity = null, CancellationToken cancellationToken = default)
         {
             Writes++;
             LastId = actionId;

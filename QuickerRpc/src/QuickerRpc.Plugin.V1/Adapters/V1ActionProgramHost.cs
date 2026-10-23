@@ -28,9 +28,13 @@ internal sealed class V1ActionProgramHost : IQuickerRpcActionProgramHost, IQuick
         string bodyJson,
         long? expectedEditVersion,
         bool force,
+        QuickerRpcActionStorageIdentity? storageIdentity = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (storageIdentity is not null && (storageIdentity.Kind != "catalog" || !string.IsNullOrEmpty(storageIdentity.DraftId)
+            || storageIdentity.Version != expectedEditVersion))
+            return Task.FromResult(new QuickerRpcApplyXActionResult { ErrorCode = "STORAGE_IDENTITY_MISMATCH", ErrorMessage = "Reopen the catalog action source." });
         return Task.FromResult(ActionProgramSourceService.Apply(actionId, bodyJson, expectedEditVersion, force));
     }
 

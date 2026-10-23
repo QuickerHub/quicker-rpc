@@ -4,7 +4,7 @@ using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Host;
 
-/// <summary>Optional V1 port for reversible native program source reads and writes.</summary>
+/// <summary>Optional port for reversible native program source reads and writes.</summary>
 public interface IQuickerRpcActionProgramSourceHost
 {
     Task<QuickerRpcGetActionProgramSourceResult> GetProgramSourceAsync(
@@ -16,5 +16,12 @@ public interface IQuickerRpcActionProgramSourceHost
         string bodyJson,
         long? expectedEditVersion,
         bool force,
+        QuickerRpcActionStorageIdentity? storageIdentity = null,
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>Optional probe for adapters whose native storage APIs may be absent in older hosts.</summary>
+public interface IQuickerRpcActionProgramSourceAvailability
+{
+    bool IsProgramSourceAvailable { get; }
 }

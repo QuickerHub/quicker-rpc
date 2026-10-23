@@ -42,6 +42,7 @@ public sealed partial class QuickerRpcService
         string bodyJson,
         long? expectedEditVersion = null,
         bool force = false,
+        QuickerRpcActionStorageIdentity? storageIdentity = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -78,7 +79,7 @@ public sealed partial class QuickerRpcService
         }
 
         return InvokeOnDispatcherAsync(
-            () => sourceHost.ApplyProgramSourceAsync(actionId.Trim(), bodyJson, expectedEditVersion, force, cancellationToken),
+            () => sourceHost.ApplyProgramSourceAsync(actionId.Trim(), bodyJson, expectedEditVersion, force, storageIdentity, cancellationToken),
             cancellationToken);
     }
 
