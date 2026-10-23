@@ -57,7 +57,10 @@ Windows job 另编译生成的休眠 `qkrpc.exe`，只向枚举器提供本次�
 多 owner 与 legacy 组合另用 `designerFaGeometry.browser.test.ts`，不进入无浏览器二进制的 CI。
 
 Runtime 测试显式设置 `IncludeV2HostTests=false`，移除 Plugin.V2 引用以及
-composition、catalog 和三类宿主 probe 共五个测试文件。这不是 V2 插件编译验证。
+composition、catalog、宿主 probe、实际编译 source 与 Designer 原语测试文件。
+`DesignerUnsupportedTests` 保留在该门禁，验证可选端口缺失与预取消。独立的 V2
+原语测试加载实际编译插件和明确宿主目录中的 DTO，须在本机显式运行；CI 不把它
+伪装成无宿主测试。这不是 V2 插件编译验证。
 V1/V2 插件、Plugin.Test 仍需合法的 Quicker 宿主引用；真实 QuickerRpc.Test 还会创建
 和修改宿主动作，均不进入本流水线。也不执行热更新、安装/发布、桌面 smoke、用户数据库
 迁移或真实模型评测。已有手动 live eval 与 release/deploy 工作流保持独立，不属于此离线门禁。

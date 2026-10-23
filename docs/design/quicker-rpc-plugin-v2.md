@@ -42,12 +42,12 @@ QuickerRpc.Plugin.V2
 
 | 端口/能力 | 当前 V2 | 对齐要求 |
 |---|---|---|
-| Session | 已有 adapter 与 wire host-session/capability 握手；旧插件身份保持未知 | 实例发现、专属 endpoint、选择和写入绑定仍待完成 |
+| Session | 已有 adapter、专属 endpoint、发现/选择与 wire host-session/capability；旧插件身份保持未知 | V1 活进程已验收，双宿主及 V2 实际选择/重启继续验收 |
 | ActionPrograms | 已实现 native source adapter、catalog/draft 身份、原始 JSON 条件持久化与共享 YAML codec；按实际存储 API 和 UI dispatcher 探测 capability | 真项目编译、真实 DTO + fake 仓储 roundtrip/冲突/取消/部分保存已覆盖；目标绑定合入后的专用活进程动作、重启与打包验收仍待完成 |
 | SubPrograms | 已有读写/同步路径 | create/update/delete/publish 逐项验证 |
 | ActionRuns/trace | 已有 V2 run/trace service | 普通运行、trace、失败位置与取消一致 |
 | ActionCatalog/Search | 已有查询/搜索；部分布局操作 stub | action/profile/layout 操作逐项清零或决策不支持 |
-| Settings/ActionDocs/StepRunners/Launcher | 已有 adapter | 与对应 V1 命令做 parity smoke |
+| Settings/ActionDocs/StepRunners/Launcher | 已有 adapter；StepRunners 的 UI 详情使用完整 UI serializer，Agent 详情维持压缩结构；非空摘要已接原生只读 leaf | 真实 DTO/dispatcher fixture 通过，V2 活进程读取仍待验收；其余与对应 V1 命令做 parity smoke |
 | ActionSharing | 仍有 stub | publish/update/preflight 完成或明确宿主边界 |
 | Expressions | 已接共享表达式服务 | 按实际 V1/V2 行为验证，不再按未实现处理 |
 | ChromeControl | `false`/`null` | 实现后再开启 capability |
@@ -57,17 +57,35 @@ QuickerRpc.Plugin.V2
 ## 自动识别与设计器接入优先项
 
 1. `IQuickerRpcHost.Info` 与实际逐操作 capability 已暴露为 wire 握手；bootstrap session
-   内稳定，V1 活进程已验证。继续建立实例发现与 session 绑定；当前两插件共用固定 pipe，
-   不能据此完成多实例选择与写入路由。
+   内稳定，独立 endpoint、实例发现/选择与持久写入绑定已实现，V1 活进程已验证。
+   两个 fake 宿主可独立路由；真实双宿主选择、V2 与重启仍须实际验收。
 2. Designer 初期复用 Quicker 的结构化编辑会话、`ActionStorageIdentity`、预期编辑版本与
    host persistence 语义；适配 V1/V2，而不是将 V1 压缩 Agent JSON 当作完整设计器文档。
 3. V2 source 仅在具备原生条件存储 API 和 UI dispatcher 的宿主开放；`TrySaveAction` 必须明确确认编辑器未打开，状态
    不可读时返回 `DESIGNER_STATE_UNAVAILABLE`，打开时返回 `DESIGNER_OPEN`，force 不绕过。
    旧 body/presentation 写入已传播结构化错误码；反射实际源码的离线 fixture 覆盖无持久化副作用。
-4. Runtime 所有可选端口先检查支持性；当前部分 `_host.Designer!` 路径需要改为结构化
-   unsupported，不能让 null port 变成空引用异常。
+4. Runtime 的十个可选 Designer 入口已使用现有 DTO 返回明确 unsupported；预取消请求
+   不读取端口、不调度其它宿主。Designer port 仍为 null、DesignerUi=false；只读摘要与
+   UI schema 读取的实现不代表编辑器打开、完整 catalog 或 FA 已支持。
 5. 分别在 V1/V2 专用测试动作上验收读取、编辑、校验、保存、重读、冲突和重启；写入不对
    另一个实例自动重试。其余 capability 逐项继续下表流程，不冒充全量 parity。
+
+## V2 Designer 只读基础
+
+`GetUiDetailAsync` 使用 `StepRunnerUiSchemaJson`，保留图标、control field、变量模式和
+参数 UI 信息；Agent `GetDetailAsync` 保持现有压缩格式。两条路径共用 catalog mapper，
+不把压缩 Agent schema 充作完整 Designer schema。
+
+摘要只调用精确的静态 `QuickerDesignerStepSummariesBatch.Compute(string)`，通过
+现有 `Application.Current.Dispatcher` 调度；不初始化 Headless bridge/router 或账号服务，
+不制造 dispatcher。请求把嵌入子程序映射为原生 `subProgramsJson`，原生缺失、异常或
+返回无效结构时明确失败。排队前、执行前后和返回时检查取消；已开始的原生读取不能
+宣称被中止，迟到结果不交付，fault 被观察。公开构造入口与 DI/manual 组合保持兼容。
+
+实际编译 Plugin.V2 与 Runtime 三目标通过；15 项定向测试及不引用 V2 的 6 项相关测试
+通过，包含真实 native response DTO 与所属 dispatcher fixture。另行运行的 31 项
+composition 测试有 6 项环境/原生依赖失败，未做干净基线对照，不宣称该整类绿色。
+这些证据均不启动 Quicker、不访问账号数据库，V2 活进程与完整 Designer 能力仍待验收。
 
 ## V2 native source 边界
 
