@@ -243,7 +243,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | 来源区域 | 必须覆盖的交互与数据 | 当前事实 / 下一步 |
 |---|---|---|
 | `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；原生 V2 storage、选择宿主和 Agent 实时会话仍待接线 |
-| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；主/嵌套正文、变量和三项属性已共用 Session present/history，surface 不再有独立 timeline；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序创建/删除/属性继续迁移 |
+| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；主/嵌套正文、变量和三项属性已共用 Session present/history，surface 不再有独立 timeline；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序属性与内部字面引用重命名已接线；创建/删除继续迁移 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；动作/子程序完整目录、分页和操作仍待迁移，不能以受限搜索冒充完整目录 |
@@ -295,7 +295,9 @@ FA resolve 也已接相同文档 port：APDE 标题、嵌套预览、步骤旧�
 绑定预览代替完整图标选择器。
 吸收当前主线后的 649 项离线检查与两项完整真实 DOM 通过；实际步骤列表、标题和 portal
 覆盖多 owner、迟到结果、加载/未绑定以及旧入口兼容，独立复审通过。纯 catalog 的依赖图
-已确认不含 TSX；主产品 frontend check 及真实绑定 HTTP 仍在合并后单独核验。
+已确认不含 TSX。PR23 合入主线后，主产品 frontend check 通过；实际 162 V1 插件以
+完整绑定解析 `fa:Light_Flask` 得到真实向量，缺失绑定与完整目标失配均返回 409，专用
+动作版本未变，零宿主写入且未运行动作；该 HTTP 证据不代替真实 GUI 点击或 V2 验收。
 trace 展示也仍有独立缺口：现有 bridge/页签按 actionId+param 全局
 复用，需由执行侧与 UI 共享每次运行 owner，再处理终结、清理与历史重放；仅把 key 换成
 未保证全局唯一的 SDK toolCallId 不能证明跨会话隔离。此项继续归 R2/R4 验收。
@@ -328,9 +330,15 @@ catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录
 完整目标与 revision 校验、稳定 ID、重复/歧义拒绝、内部递归和分支引用共用一次历史；
 外部缓存、动态绑定及任意表达式不改写，未知字段和数值保留。原生 `$=` / `$$` 前缀名称
 使用固定 C# 字符串常量表达式作为调用值，下一次改名只解析该完整规范形式，不执行名称。
-已接受的长短字段别名保留原命名，冲突整次拒绝。相关纯回归及独立审查通过；此时属性
-弹窗尚未接生产 UI。完整资源目录和 Agent live 文档协同继续迁移，当前证据仍不替代真实
-V2 或完整双宿主设计器验收。
+已接受的长短字段别名保留原命名，冲突整次拒绝。属性弹窗已接生产页签的双击/上下文
+菜单，打开和应用前 flush，身份或原属性变化时保留草稿并拒绝覆盖；隐藏、取消确认、
+焦点和普通文字 undo 有明确归属。吸收 PR23 后，650 项离线检查及单次完整 20 项真实
+DOM 通过；移位的静态 renderer/Node API、frontend check 和所属进程清理也通过。
+相关纯层及独立审查通过，窄窗深浅截图已检查。fixture 每项使用自己的 Edge/profile，
+并检查预期退出；原生文字撤销用一次原生插入验证单次 undo，不依赖操作系统对逐键
+输入的分组。旧长批次
+的 native 提前退出保留失败证据，未重试或吞掉错误。完整图标选择器、资源目录和
+Agent live 文档协同继续迁移，当前证据仍不替代真实 V2 或完整双宿主设计器验收。
 
 兼容 JSON 的 TS/C# compact writer 现在按现有 reader 规则转义字面 `@var:`、`@file:`、
 `@value:` 前缀，反复保存不会把文本变成绑定或持续增加转义层；真正的变量/文件绑定、

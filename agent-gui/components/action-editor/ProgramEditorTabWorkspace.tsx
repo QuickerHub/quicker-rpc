@@ -4,6 +4,9 @@ import { DesignerCatalogProvider } from "@/lib/action-editor/catalog/DesignerCat
 import type { DesignerCatalogPort } from "@/lib/action-editor/catalog/designerCatalogPort";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type JSX, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import type { ProgramDocumentIdentity } from "@/lib/action-editor/document/programDocumentSession";
+import { SubProgramPropertiesPopup } from "./SubProgramPropertiesPopup";
 import XProgramEditor from "@/lib/action-editor/program/XProgramEditor";
 import {
   ActiveXProgramBridgeProvider,
@@ -50,9 +53,9 @@ type ProgramTab = { surface: string; row: ActionSubProgram; label: string };
 
 function collectInternalTabs(rows: readonly ActionSubProgram[], parent = ""): ProgramTab[] {
   return rows.flatMap((row) => {
+    if (row.kind !== ActionSubProgramKind.Internal && row.kind !== ActionSubProgramKind.Unspecified) return [];
     const label = parent ? `${parent} / ${row.name || row.id}` : row.name || row.id;
     const children = collectInternalTabs(row.subPrograms, label);
-    if (row.kind !== ActionSubProgramKind.Internal && row.kind !== ActionSubProgramKind.Unspecified) return children;
     return [{ surface: `sub-${row.id}`, row, label }, ...children];
   });
 }
@@ -79,6 +82,9 @@ function ProgramEditorTabWorkspaceBody({
   const insertionRegistry = useRef(createToolboxInsertionRegistry());
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [visitedTabs, setVisitedTabs] = useState<string[]>([]);
+  const [propertiesTarget, setPropertiesTarget] = useState<{ row: ActionSubProgram; identity: ProgramDocumentIdentity } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ surface: string; left: number; top: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const payload = controller.getSnapshot();
   const workspaceRootRef = useRef<HTMLDivElement>(null);
   const keyboardOwnerId = useId();
@@ -92,10 +98,10 @@ function ProgramEditorTabWorkspaceBody({
     }
   }, [available, bridge.getEditorForSurface]);
   const runHistory = useCallback((direction: "undo" | "redo") => {
-    if (!active || historyDisabled) return;
+    if (!active || historyDisabled || propertiesTarget) return;
     flushPendingEdits();
     controller[direction]();
-  }, [active, historyDisabled, controller, flushPendingEdits]);
+  }, [active, historyDisabled, controller, flushPendingEdits, propertiesTarget]);
   useEffect(() => {
     const handle: ProgramEditorWorkspaceHandle = { getSnapshot: controller.getSnapshot, flushPendingEdits };
     onHandleChange?.(handle);
@@ -103,7 +109,7 @@ function ProgramEditorTabWorkspaceBody({
   }, [controller, onHandleChange, flushPendingEdits]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!active || historyDisabled || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
+      if (!active || historyDisabled || propertiesTarget || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
       if (!ownsProgramKeyboardTarget(workspaceRootRef.current, keyboardOwnerId, event.target, document.activeElement)) return;
       const isolated = event.target instanceof Element && event.target.closest(`.${X_PROGRAM_HISTORY_ISOLATE_CLASS}`) != null;
       if (!isolated && (isKeyboardInputSurface(event.target) || isKeyboardInputFocus())) return;
@@ -115,15 +121,15 @@ function ProgramEditorTabWorkspaceBody({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [active, historyDisabled, keyboardOwnerId, runHistory]);
+  }, [active, historyDisabled, keyboardOwnerId, runHistory, propertiesTarget]);
   const history = controller.getHistoryState();
   const insertionHandlers = useMemo(() => new Map(["main", ...available.map((tab) => tab.surface)]
     .map((surface) => [surface, (handler: Parameters<typeof insertionRegistry.current.register>[1]) => insertionRegistry.current.register(surface, handler)])),
   [available]);
   const requestToolboxInsert = useCallback((payload: Parameters<typeof insertionRegistry.current.request>[1]) => {
-    if (!active || activeTabId === "metadata") return Promise.resolve();
+    if (!active || propertiesTarget || activeTabId === "metadata") return Promise.resolve();
     return insertionRegistry.current.request(activeTabId, payload);
-  }, [active, activeTabId]);
+  }, [active, activeTabId, propertiesTarget]);
   const subPrograms = useMemo(
     () => mergeSubProgramsForStepEditor(payload.subPrograms, globalSubPrograms),
     [payload.subPrograms, globalSubPrograms],
@@ -139,6 +145,36 @@ function ProgramEditorTabWorkspaceBody({
     setOpenTabs((current) => current.filter((id) => id !== surface));
     if (activeTabId === surface) onSelectTab("main");
   };
+  const openProperties = (surface: string) => {
+    if (!active || historyDisabled) return;
+    flushPendingEdits();
+    const tab = collectInternalTabs(controller.getSnapshot().subPrograms).find((candidate) => candidate.surface === surface);
+    if (!tab) return;
+    onSelectTab(surface);
+    setContextMenu(null);
+    setPropertiesTarget({ row: tab.row, identity: controller.getIdentity() });
+  };
+  const closeProperties = () => {
+    const element = workspaceRootRef.current;
+    setPropertiesTarget(null);
+    queueMicrotask(() => {
+      if (active && element?.isConnected) element.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')?.focus();
+    });
+  };
+  const openContextMenu = (surface: string, left: number, top: number) => {
+    if (!active || historyDisabled) return;
+    onSelectTab(surface);
+    setContextMenu({ surface, left: Math.max(8, Math.min(left, window.innerWidth - 168)), top: Math.max(8, Math.min(top, window.innerHeight - 48)) });
+  };
+  useEffect(() => {
+    if (!contextMenu || !active) return;
+    contextMenuRef.current?.querySelector("button")?.focus();
+    const dismiss = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !contextMenuRef.current?.contains(event.target)) setContextMenu(null);
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, [contextMenu, active]);
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
       if (event.target instanceof Node && !menuRef.current?.contains(event.target) && menuRef.current) menuRef.current.open = false;
@@ -172,10 +208,10 @@ function ProgramEditorTabWorkspaceBody({
   return (
     <div ref={workspaceRootRef} className="program-editor-tab-workspace" data-program-workspace={documentKey} data-program-keyboard-owner={keyboardOwnerId}>
       <div className="x-program-editor-toolbar" role="toolbar" aria-label="文档历史">
-        <button type="button" className="variable-toolbar-btn" title="撤销 (Ctrl+Z)" disabled={!active || historyDisabled || !history.canUndo} onClick={() => runHistory("undo")}>
+        <button type="button" className="variable-toolbar-btn" title="撤销 (Ctrl+Z)" disabled={!active || historyDisabled || Boolean(propertiesTarget) || !history.canUndo} onClick={() => runHistory("undo")}>
           <IconControl spec={AD_ICONIFY_SPEC.undo} size={12} />
         </button>
-        <button type="button" className="variable-toolbar-btn" title="重做 (Ctrl+Y / Ctrl+Shift+Z)" disabled={!active || historyDisabled || !history.canRedo} onClick={() => runHistory("redo")}>
+        <button type="button" className="variable-toolbar-btn" title="重做 (Ctrl+Y / Ctrl+Shift+Z)" disabled={!active || historyDisabled || Boolean(propertiesTarget) || !history.canRedo} onClick={() => runHistory("redo")}>
           <IconControl spec={AD_ICONIFY_SPEC.redo} size={12} />
         </button>
         <span className="x-program-editor-toolbar-hint">主程序、子程序与属性共用撤销/重做历史</span>
@@ -190,10 +226,17 @@ function ProgramEditorTabWorkspaceBody({
         {openTabs.map((surface) => {
           const tab = tabsById.get(surface);
           if (!tab) return null;
-          return <span className="program-editor-tab" key={surface}>
+          return <span className="program-editor-tab" key={surface} onContextMenu={(event) => {
+            event.preventDefault(); openContextMenu(surface, event.clientX, event.clientY);
+          }}>
             <button type="button" role="tab" aria-selected={activeTabId === surface}
               aria-controls={`${mainPanelId}-${encodeURIComponent(surface)}`}
-              title={tab.label} onClick={() => onSelectTab(surface)}>{tab.row.name || tab.row.id}</button>
+              title={tab.row.description || `${tab.label}（双击编辑属性）`} aria-haspopup="menu"
+              aria-expanded={contextMenu?.surface === surface} onClick={() => onSelectTab(surface)}
+              onDoubleClick={() => openProperties(surface)} onKeyDown={(event) => {
+                if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+                event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); openContextMenu(surface, bounds.left, bounds.bottom);
+              }}>{tab.row.name || tab.row.id}</button>
             <button type="button" className="program-editor-tab-close" aria-label={`关闭${tab.row.name || tab.row.id}标签`}
               onClick={() => closeTab(surface)}>×</button>
           </span>;
@@ -218,7 +261,7 @@ function ProgramEditorTabWorkspaceBody({
       <div className="program-editor-catalog-layout">
       <aside className="program-editor-catalog" hidden={metadataVisible}>
         <div className="program-editor-catalog-heading">模块</div>
-        <TreeActionToolbox active={active && activeTabId !== "metadata"} onInsertAtEnd={requestToolboxInsert} />
+        <TreeActionToolbox active={active && !propertiesTarget && activeTabId !== "metadata"} onInsertAtEnd={requestToolboxInsert} />
       </aside>
       <div className="program-editor-documents">
       {metadataVisited && metadataPanel != null ? <div id={`${mainPanelId}-metadata`} role="tabpanel" aria-label="属性"
@@ -227,7 +270,7 @@ function ProgramEditorTabWorkspaceBody({
         hidden={!mainVisible} className="program-editor-surface">
         <XProgramEditor initialPresent={payload} baselineFingerprint={fingerprintXProgramPresent(payload)}
           control={controller.getSurface("main")} keyboardOwnerId={keyboardOwnerId}
-          editorTabId="main" active={mainVisible} programDocumentKey={documentKey} programSurface={mainSurface}
+          editorTabId="main" active={mainVisible && !propertiesTarget} programDocumentKey={documentKey} programSurface={mainSurface}
           workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
           onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get("main")} />
       </div>
@@ -239,13 +282,26 @@ function ProgramEditorTabWorkspaceBody({
           hidden={!visible} className="program-editor-surface">
           <XProgramEditor initialPresent={tab.row} baselineFingerprint={fingerprintXProgramPresent(tab.row)}
             control={controller.getSurface(surface)} keyboardOwnerId={keyboardOwnerId}
-            editorTabId={surface} active={visible} programDocumentKey={`${documentKey}#${surface}`} programSurface="subProgram"
+            editorTabId={surface} active={visible && !propertiesTarget} programDocumentKey={`${documentKey}#${surface}`} programSurface="subProgram"
             workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
             registerToolboxInsert={insertionHandlers.get(surface)} />
         </div>;
       })}
       </div>
       </div>
+      {contextMenu && active ? createPortal(<div ref={contextMenuRef} className="program-editor-tab-context-menu" role="menu" aria-label="子程序标签菜单"
+        data-program-keyboard-owner={keyboardOwnerId} style={{ left: contextMenu.left, top: contextMenu.top }} onKeyDown={(event) => {
+          if (event.key === "Escape") { event.preventDefault(); setContextMenu(null); workspaceRootRef.current?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')?.focus(); }
+        }}><button type="button" role="menuitem" onClick={() => openProperties(contextMenu.surface)}>属性…</button></div>, document.body) : null}
+      {propertiesTarget ? <SubProgramPropertiesPopup active={active} disabled={historyDisabled} keyboardOwnerId={keyboardOwnerId}
+        value={{ name: propertiesTarget.row.name, description: propertiesTarget.row.description, icon: propertiesTarget.row.icon }}
+        reservedNames={available.filter((tab) => tab.row.id !== propertiesTarget.row.id).map((tab) => tab.row.name)}
+        onClose={closeProperties} onApply={(patch) => {
+          if (!active || historyDisabled) return { ok: false, error: "当前文档暂不可编辑" };
+          flushPendingEdits();
+          return controller.applySubProgramProperties(propertiesTarget.row.id, patch, { identity: propertiesTarget.identity,
+            properties: { name: propertiesTarget.row.name, description: propertiesTarget.row.description, icon: propertiesTarget.row.icon } });
+        }} /> : null}
     </div>
   );
 }

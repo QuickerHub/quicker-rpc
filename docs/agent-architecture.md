@@ -231,8 +231,10 @@ payload、live snapshot 或 overrides。文档级按钮/快捷键和 portal 归�
 不由 typed projection 重建正文；动态绑定、未知表达式和外部 link/template 缓存保持原文。
 名称需遵循来源设计器的 trim/重名/保留前缀规则，歧义 ID 或 wire aliases 拒绝整个事务。
 表达式前缀名称只编码成固定字符串常量，连续改名仅解码自身规范形式，不求值用户表达式。
-这是属性弹窗的纯层入口；弹窗与完整图标选择器仍须接入和验收。
-子程序属性及重命名继续在该事务层接入，不得恢复第二条时间线。
+内部子程序属性弹窗已通过 Workspace 双击和上下文菜单接入该入口。打开及应用前同步
+flush 编辑草稿，应用时重新读取 revision，并核验打开时的完整身份和原属性；失配保留
+弹窗草稿。portal 复用文档 keyboard owner，隐藏时保留状态，关闭恢复当前页签焦点。
+属性确认及字面重命名共用原 Session 时间线；完整图标选择器仍须继续迁移。
 原生未知字段与外置文件引用在 projection overlay 及实际 `writeWorkspaceFile` 的磁盘
 规范化链中保留；后续 host adapter 仍须加入存储版本/CAS，这不等于已实现宿主事务。
 

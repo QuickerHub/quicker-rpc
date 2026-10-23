@@ -61,3 +61,23 @@ test("save reads never duplicate history; late acknowledgements retain later edi
   controller.undo(); assert.equal(session.getState().dirty, false);
   controller.undo(); assert.equal(surface.getPresent().steps[0]!.note, "main"); assert.equal(session.getState().dirty, true);
 });
+
+test("subprogram property dialogs use current revision but retain their captured owner and property baseline", () => {
+  const session = createProgramDocumentSession({ content, identity: { documentKey: "properties" } });
+  let current = true;
+  const controller = createProgramDocumentEditorController(session, { isCurrent: () => current, onChange: () => {} });
+  const row = controller.getSnapshot().subPrograms[0]!;
+  const expected = { identity: controller.getIdentity(), properties: { name: row.name, description: row.description, icon: row.icon } };
+  const main = controller.getSurface("main"); const next = main.getPresent(); next.steps[0]!.note = "flushed while opening properties"; main.commit(next);
+  const patch = { name: "Renamed", description: "new", icon: "iconify:mdi:plus" };
+  assert.equal(controller.applySubProgramProperties(row.id, patch, expected).ok, true);
+  assert.equal(controller.getSnapshot().subPrograms[0]!.name, "Renamed");
+  assert.equal(controller.getHistoryState().undoDepth, 2);
+  const before = session.getState();
+  assert.equal(controller.applySubProgramProperties(row.id, { ...patch, name: "stale" }, expected).ok, false);
+  assert.equal(session.getState(), before);
+  const latest = { identity: controller.getIdentity(), properties: patch };
+  current = false;
+  assert.equal(controller.applySubProgramProperties(row.id, { ...patch, name: "departed" }, latest).ok, false);
+  assert.equal(session.getState(), before);
+});
