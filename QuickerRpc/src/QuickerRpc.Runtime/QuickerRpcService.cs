@@ -13,6 +13,7 @@ namespace QuickerRpc.Runtime;
 public sealed partial class QuickerRpcService : IQuickerRpcService
 {
     public const int CurrentProtocolVersion = 1;
+    private const string DesignerUnavailableMessage = "UNSUPPORTED_HOST: The selected host does not provide a Designer port.";
 
     private readonly IQuickerRpcHost _host;
     private readonly QuickerRpcHostSessionScope _hostSessionScope;
@@ -456,8 +457,11 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         string subProgramIdOrName,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        var designer = _host.Designer;
+        if (designer is null) return Task.FromResult(new QuickerRpcActionUpdateResult { Ok = false, Message = DesignerUnavailableMessage });
         return InvokeOffUiThreadAsync(
-            () => _host.Designer!.OpenSubProgramEditorAsync(subProgramIdOrName, cancellationToken)
+            () => designer.OpenSubProgramEditorAsync(subProgramIdOrName, cancellationToken)
                 .ConfigureAwait(false).GetAwaiter().GetResult(),
             cancellationToken);
     }
@@ -756,6 +760,7 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         string actionId,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(actionId))
         {
             return Task.FromResult(new QuickerRpcActionUpdateResult
@@ -765,8 +770,10 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
             });
         }
 
+        var designer = _host.Designer;
+        if (designer is null) return Task.FromResult(new QuickerRpcActionUpdateResult { Ok = false, Message = DesignerUnavailableMessage });
         return InvokeOffUiThreadAsync(
-            () => _host.Designer!.OpenActionEditorAsync(actionId.Trim(), cancellationToken)
+            () => designer.OpenActionEditorAsync(actionId.Trim(), cancellationToken)
                 .ConfigureAwait(false).GetAwaiter().GetResult(),
             cancellationToken);
     }
@@ -1157,9 +1164,10 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
+        var designer = _host.Designer;
+        if (designer is null) return Task.FromResult(new QuickerRpcDesignerSearchPageResult { Success = false, ErrorMessage = DesignerUnavailableMessage });
         return InvokeOnDispatcherAsync(
-            () => _host.Designer!.SearchStepQuickInsertAsync(keyword, skip, subPrograms, cancellationToken),
+            () => designer.SearchStepQuickInsertAsync(keyword, skip, subPrograms, cancellationToken),
             cancellationToken);
     }
 
@@ -1169,9 +1177,10 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
+        var designer = _host.Designer;
+        if (designer is null) return Task.FromResult(new QuickerRpcDesignerSearchPageResult { Success = false, ErrorMessage = DesignerUnavailableMessage });
         return InvokeOnDispatcherAsync(
-            () => _host.Designer!.SearchToolboxModulesAsync(keyword, skip, cancellationToken),
+            () => designer.SearchToolboxModulesAsync(keyword, skip, cancellationToken),
             cancellationToken);
     }
 
@@ -1180,8 +1189,8 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        return _host.Designer!.ReadClipboardFormatAsync(format, cancellationToken);
+        return _host.Designer?.ReadClipboardFormatAsync(format, cancellationToken)
+            ?? Task.FromResult(new QuickerRpcClipboardSpecialFormatReadResult { Success = false, ErrorMessage = DesignerUnavailableMessage });
     }
 
     public Task<QuickerRpcClipboardSpecialFormatWriteResult> WriteClipboardSpecialFormatAsync(
@@ -1190,8 +1199,8 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        return _host.Designer!.WriteClipboardFormatAsync(format, text, cancellationToken);
+        return _host.Designer?.WriteClipboardFormatAsync(format, text, cancellationToken)
+            ?? Task.FromResult(new QuickerRpcClipboardSpecialFormatWriteResult { Success = false, ErrorMessage = DesignerUnavailableMessage });
     }
 
     public Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
@@ -1201,7 +1210,8 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _host.Designer!.SearchFontAwesomeIconsAsync(query, maxResults, expand, cancellationToken);
+        return _host.Designer?.SearchFontAwesomeIconsAsync(query, maxResults, expand, cancellationToken)
+            ?? Task.FromResult(new QuickerRpcSearchFontAwesomeIconsResult { Success = false, ErrorMessage = DesignerUnavailableMessage });
     }
 
     public Task<QuickerRpcResolveFontAwesomeIconsResult> ResolveFontAwesomeIconsAsync(
@@ -1209,7 +1219,8 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _host.Designer!.ResolveFontAwesomeIconsAsync(specs, cancellationToken);
+        return _host.Designer?.ResolveFontAwesomeIconsAsync(specs, cancellationToken)
+            ?? Task.FromResult(new QuickerRpcResolveFontAwesomeIconsResult { Success = false, ErrorMessage = DesignerUnavailableMessage });
     }
 
     public Task<QuickerRpcCodeSyntaxCheckResult> CheckExpressionSyntaxAsync(
@@ -1474,8 +1485,12 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
 
     public Task<QuickerRpcDesignerContextResult> GetActionDesignerContextAsync(
         bool includeXAction = false,
-        CancellationToken cancellationToken = default) =>
-        _host.Designer!.GetDesignerContextAsync(includeXAction, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return _host.Designer?.GetDesignerContextAsync(includeXAction, cancellationToken)
+            ?? Task.FromResult(new QuickerRpcDesignerContextResult { Ok = false, Message = DesignerUnavailableMessage });
+    }
 
     public Task<QuickerRpcTextToolRunResult> RunTextToolAsync(
         string toolId,
@@ -1484,7 +1499,8 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _host.Designer!.RunTextToolAsync(toolId, currentValue, timeoutSeconds, cancellationToken);
+        return _host.Designer?.RunTextToolAsync(toolId, currentValue, timeoutSeconds, cancellationToken)
+            ?? Task.FromResult(new QuickerRpcTextToolRunResult { Ok = false, ErrorCode = "UNSUPPORTED_HOST", Message = DesignerUnavailableMessage });
     }
 
     private Task<T> InvokeOffUiThreadAsync<T>(Func<T> action, CancellationToken cancellationToken) =>

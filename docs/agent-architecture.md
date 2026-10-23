@@ -189,6 +189,12 @@ V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必�
 不具备时 capability 关闭。V2 真实目标绑定/专用动作验收仍待完成，这与 V2 Designer UI port
 为 null 是两个不同边界。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
 
+V2 的 StepRunner UI 详情与 Agent 详情共用 catalog mapper，分别使用完整 UI 与压缩
+Agent serializer。只读摘要调用精确 native leaf，并在现有 Application dispatcher 上
+执行；不为目录读取初始化整个 Headless/Agent/账号栈。取消的迟到结果不交付，缺失
+Designer 的十个 Runtime 入口使用现有结果 DTO 明确失败，不能换宿主或空引用。
+这两项原语不开放 DesignerUi capability，也不代表完整 V2 Designer 已接入。
+
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，
 `features/program/ProgramEditorTabWorkspace.tsx` 与 `XProgramEditor` 负责程序编辑。
