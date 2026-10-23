@@ -31,7 +31,7 @@ Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让�
 - **自描述优先**：`qkrpc help --json`；CLI/MCP/QuickerAgent 改现有 V1 动作：`program-source`（CLI `qkrpc guide get --topic program-source --json`）；创建/兼容 JSON：`authoring-workflow`；子程序：`subprogram-workflow`。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
 - **高频 / agent-gui**：优先 `qkrpc serve`（`http://127.0.0.1:9477`，`GET /health`）；未启动时 agent-gui 回退为 CLI 子进程。
 - **SDK**：.NET 10（CLI）；Plugin 为 net472。`agent-gui` 需 Node 20+、pnpm。启动开发环境：`pwsh ./dev.ps1`（见 [agent-gui/AGENTS.md](agent-gui/AGENTS.md)、[docs/dev-supervisor-design.md](docs/dev-supervisor-design.md)）。
-- **管道**：`QuickerRpc_Server_QRPC2026`（`QuickerRpcPipeNames.ServerPipe`）；插件 host server，CLI client connect。
+- **管道**：每次插件 bootstrap 使用当前用户命名空间内的专属 endpoint；CLI/serve/MCP 绑定发现结果的 instance/session/endpoint。固定 `QuickerRpc_Server_QRPC2026` 仅兼容读取，不用于写入或断线后的自动换宿主。
 
 ## Build & hot-update
 

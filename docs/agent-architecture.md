@@ -245,11 +245,19 @@ snapshot/etag 先复用。先保持当前请求/响应与聊天 SSE，测量 cat
 |---|---|
 | `components/shell/AgentWorkbenchShell.tsx` | `AgentWorkbenchShell` 组合侧栏与主区域；`AgentConversationFrame` 组合 header、messages、approval、composer 与 dock |
 | `components/chat/Chat.tsx` | 持有现有会话与面板状态，向框架传入内容、回调与 DOM refs |
+| `components/chat/useAgentChatSession.ts` | 持有唯一 AI SDK 会话、消息、transport 和历史保存；提供针对实时 SDK 消息数组的条件替换 |
+| `components/chat/useChatMessageEditing.ts` | 持有单会话历史消息编辑锚点/草稿、确认与全局监听归属；输入正文继续由 composer 持有 |
 | `lib/agent-workbench-features.ts` | 声明快捷入口的稳定 id、文案、panel/command/route 目标及可用条件 |
 | `components/chat/ComposerShortcutCards.tsx` | 将功能定义绑定到已有图标、面板 hook、命令和路由 |
 | `app/theme.css`、`app/agent-workbench.css` | 主题根节点统一黑白灰通用 token（包含 body portal）；`.agent-workbench` 限定主工作台布局尺寸 |
 
 框架组件为纯展示组合，不启动 Agent、不持久化会话、不注册模型工具。保留现有分栏 DOM 与 refs，拖动、消息滚动和面板状态继续由原有组件负责。功能定义是界面入口目录；运行时工具目录与策略仍由 `TurnPlan` 和工具层负责。
+
+历史消息分支确认携带 mounted owner、thread、锚点、草稿与消息 revision。确认返回后先检查
+当前 owner，再通过 AI SDK 的同步 functional updater 比较实时 store；React 的节流消息副本
+不能作为最终 CAS。成功后才清理草稿并沿用原有 slice → enqueue/send 路径，失败不截断、
+不发送。隐藏会话保留编辑状态；确认弹窗拥有自己的 pointer/Escape，避免点击确认先退出
+编辑。审批、Launcher、Agent loop 和持久化格式沿用既有实现，其他会话职责继续拆分。
 
 DSH 参考固定为 [DeepSeek Harness `687f282`](https://github.com/deepseek-ai/deepseek-harness/tree/687f282e8625c6b8d11ff58211a90524be2e4317)：
 
