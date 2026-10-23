@@ -1,4 +1,5 @@
 import { invokeError, invokeOk } from "../../browser-runtime/protocol.mjs";
+import { BrowserOperationQueue, createBrowserOperationOwner } from "../../browser-runtime/operation-owner.mjs";
 import {
   buildEvaluatePageCode,
   formatEvaluateOutput,
@@ -26,6 +27,7 @@ import {
 export function createEmbeddedBrowserAutomation(manager) {
   /** @type {Map<string, { refMap: Record<string, { role: string; name: string | null; nth: number; href?: string }> }>} */
   const sessions = new Map();
+  const operations = new BrowserOperationQueue();
 
   function browserIdFromSession(sessionId) {
     const trimmed = String(sessionId ?? "").trim();
@@ -63,15 +65,16 @@ export function createEmbeddedBrowserAutomation(manager) {
    * @param {string} url
    * @param {number} timeoutMs
    */
-  async function loadUrlAndWait(wc, url, timeoutMs) {
+  async function loadUrlAndWait(wc, url, timeoutMs, owner) {
+    owner.checkpoint();
     const current = wc.getURL();
     if (current === url) {
       return;
     }
-    await new Promise((resolve, reject) => {
+    let native;
+    const events = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error(`navigation timeout after ${timeoutMs}ms`));
+        owner.cancel(new Error(`navigation timeout after ${timeoutMs}ms`));
       }, timeoutMs);
       const onFinish = () => {
         cleanup();
@@ -81,32 +84,52 @@ export function createEmbeddedBrowserAutomation(manager) {
         cleanup();
         reject(new Error(`navigation failed: ${errorDescription || errorCode}`));
       };
+      const onAbort = () => { cleanup(); reject(owner.signal.reason); };
       const cleanup = () => {
         clearTimeout(timer);
         wc.removeListener("did-finish-load", onFinish);
         wc.removeListener("did-fail-load", onFail);
+        owner.signal?.removeEventListener("abort", onAbort);
       };
       wc.once("did-finish-load", onFinish);
       wc.once("did-fail-load", onFail);
-      void wc.loadURL(url);
+      owner.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        native = Promise.resolve(wc.loadURL(url));
+        void native.catch((error) => { cleanup(); reject(error); });
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
     });
+    // A timer/event may finish before loadURL; keep this session owned until native work settles.
+    const results = await owner.wait(() => Promise.allSettled([events, native]));
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed) throw failed.reason;
   }
 
   /** @param {import('electron').WebContents} wc */
-  async function waitForSettle(wc, timeoutMs = 2_500) {
-    await new Promise((resolve) => {
-      const timer = setTimeout(resolve, timeoutMs);
-      const done = () => {
+  async function waitForSettle(wc, timeoutMs = 2_500, owner) {
+    await owner.wait(() => new Promise((resolve, reject) => {
+      const cleanup = () => {
         clearTimeout(timer);
+        wc.removeListener("did-stop-loading", done);
+        owner.signal?.removeEventListener("abort", onAbort);
+      };
+      const done = () => {
+        cleanup();
         resolve(undefined);
       };
+      const onAbort = () => { cleanup(); reject(owner.signal.reason); };
+      const timer = setTimeout(done, timeoutMs);
+      owner.signal?.addEventListener("abort", onAbort, { once: true });
       if (!wc.isLoading()) {
         done();
         return;
       }
       wc.once("did-stop-loading", done);
-    });
-    await new Promise((r) => setTimeout(r, 200));
+    }));
+    await owner.pause(200);
   }
 
   /**
@@ -115,18 +138,19 @@ export function createEmbeddedBrowserAutomation(manager) {
    * @param {{ refMap: Record<string, unknown> }} session
    * @param {Record<string, unknown>} args
    */
-  async function gotoIfNeeded(wc, session, args) {
+  async function gotoIfNeeded(wc, session, args, owner) {
     const url = String(args.url ?? "").trim();
     if (!url) return false;
     const timeoutMs = Number(args.timeoutMs ?? 30_000);
-    await loadUrlAndWait(wc, url, timeoutMs);
-    await waitForSettle(wc);
+    await owner.wait(() => loadUrlAndWait(wc, url, timeoutMs, owner));
+    await owner.wait(() => waitForSettle(wc, undefined, owner));
+    owner.checkpoint();
     session.refMap = {};
     return true;
   }
 
   /** @param {import('electron').WebContents} wc */
-  async function readPageMeta(wc) {
+  async function readPageMeta(wc, owner) {
     return {
       url: wc.getURL() || "",
       title: wc.getTitle() || "",
@@ -134,14 +158,15 @@ export function createEmbeddedBrowserAutomation(manager) {
   }
 
   /** @param {import('electron').WebContents} wc */
-  async function buildSnapshot(wc, session) {
-    const meta = await readPageMeta(wc);
-    const nodes = await wc.executeJavaScript(`(${COLLECT_INTERACTIVE_NODES})()`, true);
+  async function buildSnapshot(wc, session, owner) {
+    const meta = await owner.wait(() => readPageMeta(wc, owner));
+    const nodes = await owner.wait(() => wc.executeJavaScript(`(${COLLECT_INTERACTIVE_NODES})()`, true));
     const built = buildInteractiveSnapshot(
       meta.url,
       meta.title,
       Array.isArray(nodes) ? nodes : [],
     );
+    owner.checkpoint();
     session.refMap = built.refMap;
     return {
       ...meta,
@@ -152,15 +177,16 @@ export function createEmbeddedBrowserAutomation(manager) {
   }
 
   /** @param {import('electron').WebContents} wc @param {{ refMap: Record<string, unknown> }} session @param {string} query @param {number} limit */
-  async function searchPage(wc, session, query, limit) {
-    const meta = await readPageMeta(wc);
-    const raw = await wc.executeJavaScript(`(${COLLECT_SEARCH_CANDIDATES})()`, true);
+  async function searchPage(wc, session, query, limit, owner) {
+    const meta = await owner.wait(() => readPageMeta(wc, owner));
+    const raw = await owner.wait(() => wc.executeJavaScript(`(${COLLECT_SEARCH_CANDIDATES})()`, true));
     const result = buildPageSearchResult(
       query,
       raw,
       session.refMap,
       limit,
     );
+    owner.checkpoint();
     session.refMap = result.refMap;
     return {
       ...meta,
@@ -171,11 +197,11 @@ export function createEmbeddedBrowserAutomation(manager) {
   }
 
   /** @param {import('electron').WebContents} wc @param {boolean} includePreview */
-  async function capturePreview(wc, includePreview) {
-    const meta = await readPageMeta(wc);
+  async function capturePreview(wc, includePreview, owner) {
+    const meta = await owner.wait(() => readPageMeta(wc, owner));
     if (!includePreview) return meta;
     try {
-      const image = await wc.capturePage();
+      const image = await owner.wait(() => wc.capturePage());
       const png = image.toPNG();
       return {
         ...meta,
@@ -185,12 +211,18 @@ export function createEmbeddedBrowserAutomation(manager) {
         viewportHeight: image.getSize().height,
       };
     } catch {
+      owner.checkpoint();
       return meta;
     }
   }
 
   /** @param {string} op @param {Record<string, unknown>} args @param {string} sessionId */
-  async function invoke(op, args, sessionId) {
+  async function invoke(op, args, sessionId, options = {}) {
+    const owner = createBrowserOperationOwner(options.abortSignal);
+    return operations.run(browserIdFromSession(sessionId), owner, () => invokeOwned(op, args, sessionId, owner));
+  }
+
+  async function invokeOwned(op, args, sessionId, owner) {
     try {
       const browserId = browserIdFromSession(sessionId);
       const includePreview = args.includePreview !== false;
@@ -213,7 +245,7 @@ export function createEmbeddedBrowserAutomation(manager) {
       if (op === "session.ensure") {
         manager.ensureOffscreen(browserId);
         const wc = getWebContents(sessionId);
-        const meta = await readPageMeta(wc);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
         return invokeOk({ sessionId: browserId, ...meta });
       }
 
@@ -230,11 +262,12 @@ export function createEmbeddedBrowserAutomation(manager) {
         const url = String(args.url ?? "").trim();
         if (!url) return invokeError("url is required");
         const timeoutMs = Number(args.timeoutMs ?? 30_000);
-        await loadUrlAndWait(wc, url, timeoutMs);
-        await waitForSettle(wc);
+        await owner.wait(() => loadUrlAndWait(wc, url, timeoutMs, owner));
+        await owner.wait(() => waitForSettle(wc, undefined, owner));
+        owner.checkpoint();
         session.refMap = {};
-        const snap = await buildSnapshot(wc, session);
-        const data = await capturePreview(wc, includePreview);
+        const snap = await owner.wait(() => buildSnapshot(wc, session, owner));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({
           sessionId: browserId,
           url: snap.url,
@@ -246,8 +279,8 @@ export function createEmbeddedBrowserAutomation(manager) {
       }
 
       if (op === "page.snapshot") {
-        const snap = await buildSnapshot(wc, session);
-        const data = await capturePreview(wc, includePreview);
+        const snap = await owner.wait(() => buildSnapshot(wc, session, owner));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({
           sessionId: browserId,
           url: snap.url,
@@ -261,21 +294,21 @@ export function createEmbeddedBrowserAutomation(manager) {
       if (op === "page.search") {
         const query = String(args.text ?? args.query ?? "").trim();
         if (!query) return invokeError("text is required for search");
-        await gotoIfNeeded(wc, session, args);
+        await owner.wait(() => gotoIfNeeded(wc, session, args, owner));
         const limitRaw = Number(args.limit ?? 8);
         const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 20) : 8;
-        const found = await searchPage(wc, session, query, limit);
+        const found = await owner.wait(() => searchPage(wc, session, query, limit, owner));
         return invokeOk({ sessionId: browserId, ...found });
       }
 
       if (op === "page.content") {
         const selector = String(args.selector ?? "").trim();
-        await gotoIfNeeded(wc, session, args);
-        const fullText = await wc.executeJavaScript(
+        await owner.wait(() => gotoIfNeeded(wc, session, args, owner));
+        const fullText = await owner.wait(() => wc.executeJavaScript(
           `(${EXTRACT_PAGE_CONTENT})(${JSON.stringify({ selector: selector || null })})`,
           true,
-        );
-        const meta = await readPageMeta(wc);
+        ));
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
         const maxChars = 12_000;
         const offsetRaw = Number(args.offset ?? 0);
         const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
@@ -297,13 +330,13 @@ export function createEmbeddedBrowserAutomation(manager) {
       if (op === "page.evaluate") {
         const script = String(args.script ?? "").trim();
         if (!script) return invokeError("script is required");
-        await gotoIfNeeded(wc, session, args);
+        await owner.wait(() => gotoIfNeeded(wc, session, args, owner));
         const built = buildEvaluatePageCode(script);
         if (!built.ok) return invokeError(built.error);
-        const raw = await wc.executeJavaScript(built.code, true);
+        const raw = await owner.wait(() => wc.executeJavaScript(built.code, true));
         const parsed = parseEvaluateResult(raw);
         if (!parsed.ok) return invokeError(`evaluate failed: ${parsed.error}`);
-        const meta = await readPageMeta(wc);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
         const output = formatEvaluateOutput(parsed);
         return invokeOk({
           sessionId: browserId,
@@ -318,16 +351,17 @@ export function createEmbeddedBrowserAutomation(manager) {
         const target = session.refMap[ref];
         if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
         const urlBefore = wc.getURL();
-        await wc.executeJavaScript(
+        await owner.wait(() => wc.executeJavaScript(
           `(${REF_INTERACTION_SCRIPT})(${JSON.stringify({ target, action: "click" })})`,
           true,
-        );
-        await waitForSettle(wc, 2_500);
+        ));
+        await owner.wait(() => waitForSettle(wc, 2_500, owner));
         const urlAfter = wc.getURL();
         const navigated = urlAfter !== urlBefore;
+        owner.checkpoint();
         if (navigated) session.refMap = {};
-        const meta = await readPageMeta(wc);
-        const data = await capturePreview(wc, includePreview);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({
           sessionId: browserId,
           ref,
@@ -345,15 +379,16 @@ export function createEmbeddedBrowserAutomation(manager) {
           return invokeError("x and y must be non-negative");
         }
         const urlBefore = wc.getURL();
-        await wc.executeJavaScript(
+        await owner.wait(() => wc.executeJavaScript(
           `(${CLICK_AT_POINT_SCRIPT})(${JSON.stringify({ x, y })})`,
           true,
-        );
-        await waitForSettle(wc, 2_500);
+        ));
+        await owner.wait(() => waitForSettle(wc, 2_500, owner));
         const navigated = wc.getURL() !== urlBefore;
+        owner.checkpoint();
         session.refMap = {};
-        const meta = await readPageMeta(wc);
-        const data = await capturePreview(wc, includePreview);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({
           sessionId: browserId,
           clicked: true,
@@ -372,11 +407,11 @@ export function createEmbeddedBrowserAutomation(manager) {
         if (!text) return invokeError("text is required");
         const target = session.refMap[ref];
         if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
-        await wc.executeJavaScript(
+        await owner.wait(() => wc.executeJavaScript(
           `(${REF_INTERACTION_SCRIPT})(${JSON.stringify({ target, action: "type", text })})`,
           true,
-        );
-        const data = await capturePreview(wc, includePreview);
+        ));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({ sessionId: browserId, ref, typedLength: text.length, ...data });
       }
 
@@ -386,11 +421,11 @@ export function createEmbeddedBrowserAutomation(manager) {
         if (!ref) return invokeError("ref is required");
         const target = session.refMap[ref];
         if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
-        await wc.executeJavaScript(
+        await owner.wait(() => wc.executeJavaScript(
           `(${REF_INTERACTION_SCRIPT})(${JSON.stringify({ target, action: "fill", value })})`,
           true,
-        );
-        const data = await capturePreview(wc, includePreview);
+        ));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({ sessionId: browserId, ref, filled: true, ...data });
       }
 
@@ -402,18 +437,18 @@ export function createEmbeddedBrowserAutomation(manager) {
         if (ref) {
           const target = session.refMap[ref];
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
-          await wc.executeJavaScript(
+          await owner.wait(() => wc.executeJavaScript(
             `(${REF_INTERACTION_SCRIPT})(${JSON.stringify({ target, action: "press", key })})`,
             true,
-          );
+          ));
         } else {
           wc.sendInputEvent({ type: "keyDown", keyCode: key });
           wc.sendInputEvent({ type: "keyUp", keyCode: key });
         }
-        await waitForSettle(wc, 2_500);
+        await owner.wait(() => waitForSettle(wc, 2_500, owner));
         const navigated = wc.getURL() !== urlBefore;
-        const meta = await readPageMeta(wc);
-        const data = await capturePreview(wc, includePreview);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({
           sessionId: browserId,
           key,
@@ -430,22 +465,22 @@ export function createEmbeddedBrowserAutomation(manager) {
         const ref = String(args.ref ?? "").trim();
         const state = String(args.state ?? "visible");
         if (text) {
-          await wc.executeJavaScript(
+          await owner.wait(() => wc.executeJavaScript(
             `(${WAIT_FOR_TEXT_SCRIPT})(${JSON.stringify({ text, timeoutMs })})`,
             true,
-          );
+          ));
         } else if (ref) {
           const target = session.refMap[ref];
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
           if (state === "hidden" || state === "detached") {
             return invokeError(`state '${state}' is not supported in native embedded browser`);
           }
-          await wc.executeJavaScript(
+          await owner.wait(() => wc.executeJavaScript(
             `(${REF_INTERACTION_SCRIPT})(${JSON.stringify({ target, action: "wait" })})`,
             true,
-          );
+          ));
         } else {
-          await new Promise((r) => setTimeout(r, timeoutMs));
+          await owner.pause(timeoutMs);
         }
         return invokeOk({ sessionId: browserId, waited: true });
       }
@@ -457,23 +492,24 @@ export function createEmbeddedBrowserAutomation(manager) {
         if (ref) {
           const target = session.refMap[ref];
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
-          await wc.executeJavaScript(
+          await owner.wait(() => wc.executeJavaScript(
             `(${REF_INTERACTION_SCRIPT})(${JSON.stringify({ target, action: "scroll" })})`,
             true,
-          );
+          ));
         } else {
-          await wc.executeJavaScript(
+          await owner.wait(() => wc.executeJavaScript(
             `(${SCROLL_PAGE_SCRIPT})(${JSON.stringify({
               deltaX: Number.isFinite(deltaX) ? deltaX : 0,
               deltaY: Number.isFinite(deltaY) ? deltaY : 600,
             })})`,
             true,
-          );
+          ));
         }
-        await new Promise((r) => setTimeout(r, 250));
+        await owner.pause(250);
+        owner.checkpoint();
         session.refMap = {};
-        const meta = await readPageMeta(wc);
-        const data = await capturePreview(wc, includePreview);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({
           sessionId: browserId,
           scrolled: true,
@@ -486,40 +522,43 @@ export function createEmbeddedBrowserAutomation(manager) {
       }
 
       if (op === "page.screenshot") {
-        const meta = await readPageMeta(wc);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
         if (!includePreview) {
           return invokeOk({ sessionId: browserId, ...meta, panelPreview: true });
         }
-        const data = await capturePreview(wc, true);
+        const data = await owner.wait(() => capturePreview(wc, true, owner));
         return invokeOk({ sessionId: browserId, ...data });
       }
 
       if (op === "page.back") {
         manager.goBack(browserId);
-        await waitForSettle(wc);
+        await owner.wait(() => waitForSettle(wc, undefined, owner));
+        owner.checkpoint();
         session.refMap = {};
-        const data = await capturePreview(wc, includePreview);
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({ sessionId: browserId, ...data });
       }
 
       if (op === "page.forward") {
         manager.goForward(browserId);
-        await waitForSettle(wc);
+        await owner.wait(() => waitForSettle(wc, undefined, owner));
+        owner.checkpoint();
         session.refMap = {};
-        const data = await capturePreview(wc, includePreview);
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({ sessionId: browserId, ...data });
       }
 
       if (op === "page.reload") {
         wc.reload();
-        await waitForSettle(wc, 30_000);
+        await owner.wait(() => waitForSettle(wc, 30_000, owner));
+        owner.checkpoint();
         session.refMap = {};
-        const data = await capturePreview(wc, includePreview);
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({ sessionId: browserId, ...data });
       }
 
       if (op === "page.tabs") {
-        const meta = await readPageMeta(wc);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
         return invokeOk({
           sessionId: browserId,
           tabs: [{ index: 0, url: meta.url, title: meta.title, active: true }],
@@ -532,8 +571,8 @@ export function createEmbeddedBrowserAutomation(manager) {
         if (index !== 0) {
           return invokeError("index must be 0 (native embedded browser has a single view per session)");
         }
-        const meta = await readPageMeta(wc);
-        const data = await capturePreview(wc, includePreview);
+        const meta = await owner.wait(() => readPageMeta(wc, owner));
+        const data = await owner.wait(() => capturePreview(wc, includePreview, owner));
         return invokeOk({
           sessionId: browserId,
           index: 0,
@@ -549,6 +588,7 @@ export function createEmbeddedBrowserAutomation(manager) {
 
       return invokeError(`Unknown op: ${op}`, { code: "unknown_op" });
     } catch (err) {
+      owner.checkpoint();
       const message = err instanceof Error ? err.message : String(err);
       return invokeError(message);
     }

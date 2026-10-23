@@ -92,7 +92,12 @@ Electron 组合已有可执行入口。搬移目录后的 fake 模型/工具 API
 子进程；kill 失败或未确认退出时保留 owner/state 并报告失败，不能通过磁盘 PID 猜归属。
 browser/terminal 的 stale listener/磁盘 PID 不再被作为终止授权；静态服务通过独立端口、
 profile 内状态与 runtime owner 拒绝跨 profile 复用，IPC 断连停止所属服务和子进程。
-浏览器工具 turn 取消到实际页面操作的传播仍未完成，不能以进程退出代替该验收。
+浏览器工具 turn 取消现经 HTTP 连接传入 headless/embedded 的独立 operation owner。
+同一 session 的队列保留实际 native promise 的尾，调用等待可提前取消，排队取消不分发；
+原生等待后及共享 page/refMap 提交前再次检查 owner，禁止取消后的快照、预览和后续操作。
+仅未发布的新建 context 属于该请求的清理范围；共享页面和 runtime 不因单次取消关闭。
+已发出的 native 副作用不能撤销，永不 settle 的 native promise 仍会阻塞本 session；
+这与服务进程回收、真实浏览器验收是不同边界，详见 [取消边界](browser-automation.md#取消边界)。
 
 `check:agent-backend` 以内存编译检查本地依赖图，拒绝 Next 和残留本地 alias；npm 包保持
 external。它不执行配置或模型，也不是发布打包器。开发服务使用进程级
@@ -204,6 +209,12 @@ handle 读取所有编辑内容，关闭子程序页签或切源码不会丢弃�
 保存票据。保存只推进对应票据的基线，晚回执不会把其后的草稿标成已保存；外部文件
 变更会保留本地草稿并阻止覆盖。纯 controller 已有 Agent 事务入口，但实际 Agent 工具
 尚未接入打开的 UI session。当前磁盘会话没有伪造宿主身份。
+纯文档 session 现在持有有界的完整正文/可编辑属性历史，`transactDocument` 将递归子程序、
+正文和已支持的三项属性作为一笔同步事务。undo/redo 核验当前完整身份与 revision，产生新
+revision；只恢复正文原文和可编辑属性，不回退宿主版本、来源绑定或未知 metadata 字段。
+保存和部分/迟到确认只推进对应基线，不清除历史；接受的外部属性变化按字段重置其历史值。
+此处仍是纯层接口。现有 surface 按钮与快捷键尚未切到它，后续接线必须移除第二条时间线，
+再开放子程序属性及重命名，不能将两套 undo 并列使用。
 原生未知字段与外置文件引用在 projection overlay 及实际 `writeWorkspaceFile` 的磁盘
 规范化链中保留；后续 host adapter 仍须加入存储版本/CAS，这不等于已实现宿主事务。
 

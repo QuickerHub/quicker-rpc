@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { invokeError, invokeOk } from "./protocol.mjs";
+import { BrowserOperationQueue, createBrowserOperationOwner } from "./operation-owner.mjs";
 import {
   buildEvaluatePageCode,
   formatEvaluateOutput,
@@ -55,8 +56,7 @@ export class SessionManager {
     /** @type {string | null} */
     this._browserError = null;
     this._lock = Promise.resolve();
-    /** @type {Map<string, Promise<void>>} */
-    this._sessionLocks = new Map();
+    this._operations = new BrowserOperationQueue();
   }
 
   get browserReady() {
@@ -75,17 +75,6 @@ export class SessionManager {
   async _withLock(fn) {
     const run = this._lock.then(() => fn());
     this._lock = run.then(() => undefined, () => undefined);
-    return run;
-  }
-
-  /** @template T @param {string} sessionId @param {() => Promise<T>} fn */
-  async _withSessionLock(sessionId, fn) {
-    const prev = this._sessionLocks.get(sessionId) ?? Promise.resolve();
-    const run = prev.then(() => fn());
-    this._sessionLocks.set(
-      sessionId,
-      run.then(() => undefined, () => undefined),
-    );
     return run;
   }
 
@@ -111,7 +100,8 @@ export class SessionManager {
     this._browserReady = false;
   }
 
-  async _ensureBrowser() {
+  async _ensureBrowser(owner) {
+    owner.checkpoint();
     if (this._browser && this._browserReady) return;
     if (this._browserError) throw new Error(this._browserError);
 
@@ -125,9 +115,11 @@ export class SessionManager {
       if (this._config.channel) launchOptions.channel = this._config.channel;
       this._browser = await chromium.launch(launchOptions);
     } catch (err) {
+      owner.checkpoint();
       try {
         this._browser = await chromium.launch({ headless: this._config.headless });
       } catch (fallbackErr) {
+        owner.checkpoint();
         this._browserError =
           `Failed to launch browser: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}. `
           + "Run: pnpm browser:install";
@@ -154,11 +146,12 @@ export class SessionManager {
    * Debounced; safe to call after every mutating page op.
    * @param {{ sessionId: string; context: import('playwright').BrowserContext; stateSaveTimer?: ReturnType<typeof setTimeout> | null }} session
    */
-  _scheduleStorageStateSave(session) {
+  _scheduleStorageStateSave(session, owner) {
+    owner.checkpoint();
     if (session.stateSaveTimer) clearTimeout(session.stateSaveTimer);
     session.stateSaveTimer = setTimeout(() => {
       session.stateSaveTimer = null;
-      void this._saveStorageState(session);
+      if (!owner.signal?.aborted) void this._saveStorageState(session);
     }, STORAGE_STATE_SAVE_DELAY_MS);
   }
 
@@ -203,12 +196,14 @@ export class SessionManager {
   }
 
   /** @param {string} sessionId */
-  async ensureSession(sessionId) {
+  async ensureSession(sessionId, owner = createBrowserOperationOwner()) {
     return this._withLock(async () => {
+      owner.checkpoint();
       const existing = this._sessions.get(sessionId);
       if (existing && !existing.page.isClosed()) return existing;
 
-      await this._ensureBrowser();
+      await this._ensureBrowser(owner);
+      owner.checkpoint();
       if (!this._browser) throw new Error("Browser not available");
 
       /** @type {Parameters<import('playwright').Browser['newContext']>[0]} */
@@ -219,29 +214,41 @@ export class SessionManager {
       }
 
       let context;
+      let published = false;
       try {
-        context = await this._browser.newContext(contextOptions);
-      } catch {
-        // Corrupt storage state file — start a fresh context
-        context = await this._browser.newContext({
-          viewport: { width: 1280, height: 800 },
-        });
+        try {
+          context = await this._browser.newContext(contextOptions);
+        } catch {
+          owner.checkpoint();
+          // Corrupt storage state file — start a fresh context
+          context = await this._browser.newContext({
+            viewport: { width: 1280, height: 800 },
+          });
+        }
+        owner.checkpoint();
+        const page = await context.newPage();
+        owner.checkpoint();
+        const session = { sessionId, context, page, refMap: {}, stateSaveTimer: null };
+        this._trackContextPages(session);
+        this._sessions.set(sessionId, session);
+        published = true;
+        return session;
+      } finally {
+        // This call may dispose only the context it created and never published.
+        if (context && !published) {
+          try { await context.close(); } catch { /* best effort unpublished cleanup */ }
+        }
       }
-      const page = await context.newPage();
-      const session = { sessionId, context, page, refMap: {}, stateSaveTimer: null };
-      this._trackContextPages(session);
-      this._sessions.set(sessionId, session);
-      return session;
     });
   }
 
   /** @param {{ page: import('playwright').Page }} session */
-  async _capturePanelPreview(session) {
+  async _capturePanelPreview(session, owner) {
     const viewport = session.page.viewportSize() ?? { width: 1280, height: 800 };
-    const png = await session.page.screenshot({ type: "png", fullPage: false });
+    const png = await owner.wait(() => session.page.screenshot({ type: "png", fullPage: false }));
     return {
       url: session.page.url(),
-      title: await session.page.title(),
+      title: await owner.wait(() => session.page.title()),
       previewBase64: png.toString("base64"),
       previewMimeType: "image/png",
       viewportWidth: viewport.width,
@@ -250,12 +257,13 @@ export class SessionManager {
   }
 
   /** @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session @param {string} op @param {Record<string, unknown>} payload @param {boolean} [includePreview] */
-  async _okWithPreview(session, op, payload, includePreview = true) {
+  async _okWithPreview(session, op, payload, includePreview = true, owner) {
     const data = { ...payload };
     if (includePreview && PREVIEW_OPS.has(op)) {
       try {
-        Object.assign(data, await this._capturePanelPreview(session));
+        Object.assign(data, await owner.wait(() => this._capturePanelPreview(session, owner)));
       } catch (err) {
+        owner.checkpoint();
         console.warn("[browser-runtime] preview capture failed:", err);
       }
     }
@@ -263,13 +271,15 @@ export class SessionManager {
   }
 
   /** @param {string} sessionId */
-  async closeSession(sessionId) {
+  async closeSession(sessionId, owner = createBrowserOperationOwner()) {
     return this._withLock(async () => {
+      owner.checkpoint();
       const session = this._sessions.get(sessionId);
       if (!session) return;
+      await this._saveStorageState(session);
+      owner.checkpoint();
       this._sessions.delete(sessionId);
       if (session.stateSaveTimer) clearTimeout(session.stateSaveTimer);
-      await this._saveStorageState(session);
       try {
         await session.context.close();
       } catch {
@@ -285,30 +295,34 @@ export class SessionManager {
    * @param {import('playwright').Page} pageBefore
    * @param {string} urlBefore
    */
-  async _settleAfterAction(session, pageBefore, urlBefore) {
+  async _settleAfterAction(session, pageBefore, urlBefore, owner) {
     try {
-      await pageBefore.waitForLoadState("domcontentloaded", { timeout: 2_500 });
+      await owner.wait(() => pageBefore.waitForLoadState("domcontentloaded", { timeout: 2_500 }));
     } catch {
+      owner.checkpoint();
       // no navigation or page already closed — fine
     }
-    await new Promise((r) => setTimeout(r, 250));
+    await owner.pause(250);
 
     const pages = session.context.pages().filter((p) => !p.isClosed());
     const newest = pages[pages.length - 1];
     if (newest && newest !== session.page) {
       try {
-        await newest.waitForLoadState("domcontentloaded", { timeout: 5_000 });
+        await owner.wait(() => newest.waitForLoadState("domcontentloaded", { timeout: 5_000 }));
       } catch {
+        owner.checkpoint();
         // adopt anyway
       }
+      owner.checkpoint();
       session.page = newest;
     }
 
     const openedTab = session.page !== pageBefore;
     const url = session.page.url();
     const navigated = openedTab || url !== urlBefore;
+    owner.checkpoint();
     if (navigated) session.refMap = {};
-    this._scheduleStorageStateSave(session);
+    this._scheduleStorageStateSave(session, owner);
     return { navigated, openedTab, url };
   }
 
@@ -326,21 +340,23 @@ export class SessionManager {
    * @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session
    * @param {Record<string, unknown>} args
    */
-  async _gotoIfNeeded(session, args) {
+  async _gotoIfNeeded(session, args, owner) {
     const url = String(args.url ?? "").trim();
     if (!url) return false;
     const waitUntil = /** @type {'load' | 'domcontentloaded' | 'networkidle' | 'commit'} */ (
       String(args.waitUntil ?? "domcontentloaded")
     );
     const timeoutMs = Number(args.timeoutMs ?? 30_000);
-    await session.page.goto(url, { waitUntil, timeout: timeoutMs });
+    await owner.wait(() => session.page.goto(url, { waitUntil, timeout: timeoutMs }));
     try {
-      await session.page.waitForLoadState("networkidle", { timeout: 4_000 });
+      await owner.wait(() => session.page.waitForLoadState("networkidle", { timeout: 4_000 }));
     } catch {
-      await session.page.waitForTimeout(800);
+      owner.checkpoint();
+      await owner.wait(() => session.page.waitForTimeout(800));
     }
+    owner.checkpoint();
     session.refMap = {};
-    this._scheduleStorageStateSave(session);
+    this._scheduleStorageStateSave(session, owner);
     return true;
   }
 
@@ -348,18 +364,19 @@ export class SessionManager {
    * Compact interactive snapshot for refs; full aria tree is opt-in via snapshot op.
    * @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session
    */
-  async _buildPageSnapshot(session) {
-    const nodes = await collectInteractiveNodes(session.page);
+  async _buildPageSnapshot(session, owner) {
+    const nodes = await owner.wait(() => collectInteractiveNodes(session.page));
     const built = buildInteractiveSnapshot(
       session.page.url(),
-      await session.page.title(),
+      await owner.wait(() => session.page.title()),
       nodes,
     );
+    owner.checkpoint();
     session.refMap = built.refMap;
 
     return {
       url: session.page.url(),
-      title: await session.page.title(),
+      title: await owner.wait(() => session.page.title()),
       snapshot: built.snapshot,
       nodeCount: built.nodeCount,
     };
@@ -370,13 +387,14 @@ export class SessionManager {
    * @param {string} query
    * @param {number} limit
    */
-  async _searchPage(session, query, limit) {
-    const candidates = await collectSearchCandidates(session.page);
+  async _searchPage(session, query, limit, owner) {
+    const candidates = await owner.wait(() => collectSearchCandidates(session.page));
     const result = buildPageSearchResult(query, candidates, session.refMap, limit);
+    owner.checkpoint();
     session.refMap = result.refMap;
     return {
       url: session.page.url(),
-      title: await session.page.title(),
+      title: await owner.wait(() => session.page.title()),
       query: result.query,
       matchCount: result.matchCount,
       matches: result.matches,
@@ -384,7 +402,12 @@ export class SessionManager {
   }
 
   /** @param {string} op @param {Record<string, unknown>} args @param {string} sessionId */
-  async invoke(op, args, sessionId) {
+  async invoke(op, args, sessionId, options = {}) {
+    const owner = createBrowserOperationOwner(options.abortSignal);
+    return this._operations.run(sessionId, owner, () => this._invokeOwned(op, args, sessionId, owner));
+  }
+
+  async _invokeOwned(op, args, sessionId, owner) {
     try {
       if (op === "status") {
         return invokeOk({
@@ -398,16 +421,16 @@ export class SessionManager {
       }
 
       if (op === "session.ensure") {
-        const session = await this.ensureSession(sessionId);
+        const session = await owner.wait(() => this.ensureSession(sessionId, owner));
         return invokeOk({
           sessionId: session.sessionId,
           url: session.page.url(),
-          title: await session.page.title(),
+          title: await owner.wait(() => session.page.title()),
         });
       }
 
       if (op === "session.close") {
-        await this.closeSession(sessionId);
+        await owner.wait(() => this.closeSession(sessionId, owner));
         return invokeOk({ sessionId, closed: true });
       }
 
@@ -434,20 +457,19 @@ export class SessionManager {
       ]);
 
       if (pageOps.has(op)) {
-        return this._withSessionLock(sessionId, async () =>
-          this._invokePageOp(op, args, sessionId),
-        );
+        return this._invokePageOp(op, args, sessionId, owner);
       }
 
       return invokeError(`Unknown op: ${op}`, { code: "unknown_op" });
     } catch (err) {
+      owner.checkpoint();
       console.error(`[browser-runtime] invoke failed op=${op} session=${sessionId}`, err);
       return invokeError(err instanceof Error ? err.message : String(err));
     }
   }
 
   /** @param {string} op @param {Record<string, unknown>} args @param {string} sessionId */
-  async _invokePageOp(op, args, sessionId) {
+  async _invokePageOp(op, args, sessionId, owner) {
     try {
         let sessionResult = this._sessionOrError(sessionId);
         if (sessionResult && "ok" in sessionResult && sessionResult.ok === false) {
@@ -458,7 +480,7 @@ export class SessionManager {
               && (op === "page.evaluate" || op === "page.content" || op === "page.search")
             );
           if (urlBootstrap) {
-            await this.ensureSession(sessionId);
+            await owner.wait(() => this.ensureSession(sessionId, owner));
             sessionResult = this._sessionOrError(sessionId);
             if (sessionResult && "ok" in sessionResult && sessionResult.ok === false) {
               return sessionResult;
@@ -479,15 +501,17 @@ export class SessionManager {
             String(args.waitUntil ?? "domcontentloaded")
           );
           const timeoutMs = Number(args.timeoutMs ?? 30_000);
-          const response = await session.page.goto(url, { waitUntil, timeout: timeoutMs });
+          const response = await owner.wait(() => session.page.goto(url, { waitUntil, timeout: timeoutMs }));
           try {
-            await session.page.waitForLoadState("networkidle", { timeout: 4_000 });
+            await owner.wait(() => session.page.waitForLoadState("networkidle", { timeout: 4_000 }));
           } catch {
-            await session.page.waitForTimeout(800);
+            owner.checkpoint();
+            await owner.wait(() => session.page.waitForTimeout(800));
           }
+          owner.checkpoint();
           session.refMap = {};
-          this._scheduleStorageStateSave(session);
-          const pageSnap = await this._buildPageSnapshot(session);
+          this._scheduleStorageStateSave(session, owner);
+          const pageSnap = await owner.wait(() => this._buildPageSnapshot(session, owner));
           return this._okWithPreview(
             session,
             op,
@@ -496,6 +520,7 @@ export class SessionManager {
               ...pageSnap,
             },
             includePreview,
+            owner,
           );
         }
 
@@ -518,30 +543,30 @@ export class SessionManager {
           /** @type {Awaited<ReturnType<typeof pickElementAtPoint>> | null} */
           let picked = null;
           if (pickCoords) {
-            picked = await pickElementAtPoint(session.page, pickCoords.x, pickCoords.y);
+            picked = await owner.wait(() => pickElementAtPoint(session.page, pickCoords.x, pickCoords.y));
             if (!picked.found) {
               return invokeError("No element at the given coordinates");
             }
           }
 
-          const pageSnap = await this._buildPageSnapshot(session);
+          const pageSnap = await owner.wait(() => this._buildPageSnapshot(session, owner));
           const { snapshot } = pageSnap;
           const refMap = session.refMap;
 
           if (op === "page.snapshot") {
-            return this._okWithPreview(session, op, pageSnap, includePreview);
+            return this._okWithPreview(session, op, pageSnap, includePreview, owner);
           }
 
-          const ref = await findRefAtPoint(
+          const ref = await owner.wait(() => findRefAtPoint(
             session.page,
             refMap,
             pickCoords.x,
             pickCoords.y,
-          );
+          ));
           const refTarget = ref ? refMap[ref] : null;
           return invokeOk({
             url: session.page.url(),
-            title: await session.page.title(),
+            title: await owner.wait(() => session.page.title()),
             pickX: pickCoords.x,
             pickY: pickCoords.y,
             ref,
@@ -559,9 +584,9 @@ export class SessionManager {
         }
 
         if (op === "page.content") {
-          await this._gotoIfNeeded(session, args);
+          await owner.wait(() => this._gotoIfNeeded(session, args, owner));
           const selector = String(args.selector ?? "").trim();
-          const fullText = await session.page.evaluate((sel) => {
+          const fullText = await owner.wait(() => session.page.evaluate((sel) => {
             /** @param {string} raw */
             const clean = (raw) => raw.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
             if (sel) {
@@ -576,7 +601,7 @@ export class SessionManager {
               };
             }
             return { text: clean(document.body?.innerText ?? ""), matchCount: null };
-          }, selector || null);
+          }, selector || null));
 
           const maxChars = 12_000;
           const offsetRaw = Number(args.offset ?? 0);
@@ -587,7 +612,7 @@ export class SessionManager {
           const truncated = offset + text.length < fullText.text.length;
           return invokeOk({
             url: session.page.url(),
-            title: await session.page.title(),
+            title: await owner.wait(() => session.page.title()),
             text,
             charCount: fullText.text.length,
             offset: offset || undefined,
@@ -598,12 +623,12 @@ export class SessionManager {
         }
 
         if (op === "page.search") {
-          await this._gotoIfNeeded(session, args);
+          await owner.wait(() => this._gotoIfNeeded(session, args, owner));
           const query = String(args.text ?? args.query ?? "").trim();
           if (!query) return invokeError("text is required for search");
           const limitRaw = Number(args.limit ?? 8);
           const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 20) : 8;
-          const data = await this._searchPage(session, query, limit);
+          const data = await owner.wait(() => this._searchPage(session, query, limit, owner));
           return invokeOk(data);
         }
 
@@ -615,8 +640,8 @@ export class SessionManager {
           const pageBefore = session.page;
           const urlBefore = pageBefore.url();
           const locator = resolveLocator(session.page, target);
-          await locator.click({ timeout: Number(args.timeoutMs ?? 10_000) });
-          const settle = await this._settleAfterAction(session, pageBefore, urlBefore);
+          await owner.wait(() => locator.click({ timeout: Number(args.timeoutMs ?? 10_000) }));
+          const settle = await owner.wait(() => this._settleAfterAction(session, pageBefore, urlBefore, owner));
           return this._okWithPreview(
             session,
             op,
@@ -624,11 +649,12 @@ export class SessionManager {
               ref,
               clicked: true,
               url: settle.url,
-              title: await session.page.title(),
+              title: await owner.wait(() => session.page.title()),
               ...(settle.navigated ? { navigated: true } : {}),
               ...(settle.openedTab ? { openedTab: true } : {}),
             },
             includePreview,
+            owner,
           );
         }
 
@@ -640,8 +666,9 @@ export class SessionManager {
           }
           const pageBefore = session.page;
           const urlBefore = pageBefore.url();
-          await session.page.mouse.click(x, y);
-          const settle = await this._settleAfterAction(session, pageBefore, urlBefore);
+          await owner.wait(() => session.page.mouse.click(x, y));
+          const settle = await owner.wait(() => this._settleAfterAction(session, pageBefore, urlBefore, owner));
+          owner.checkpoint();
           session.refMap = {};
           return this._okWithPreview(
             session,
@@ -655,6 +682,7 @@ export class SessionManager {
               ...(settle.openedTab ? { openedTab: true } : {}),
             },
             includePreview,
+            owner,
           );
         }
 
@@ -666,12 +694,13 @@ export class SessionManager {
           const target = session.refMap[ref];
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
           const locator = resolveLocator(session.page, target);
-          await locator.type(text, { delay: Number(args.delayMs ?? 0) });
+          await owner.wait(() => locator.type(text, { delay: Number(args.delayMs ?? 0) }));
           return this._okWithPreview(
             session,
             op,
             { ref, typedLength: text.length },
             includePreview,
+            owner,
           );
         }
 
@@ -682,8 +711,8 @@ export class SessionManager {
           const target = session.refMap[ref];
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
           const locator = resolveLocator(session.page, target);
-          await locator.fill(value);
-          return this._okWithPreview(session, op, { ref, filled: true }, includePreview);
+          await owner.wait(() => locator.fill(value));
+          return this._okWithPreview(session, op, { ref, filled: true }, includePreview, owner);
         }
 
         if (op === "page.press") {
@@ -696,11 +725,11 @@ export class SessionManager {
             const target = session.refMap[ref];
             if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
             const locator = resolveLocator(session.page, target);
-            await locator.press(key);
+            await owner.wait(() => locator.press(key));
           } else {
-            await session.page.keyboard.press(key);
+            await owner.wait(() => session.page.keyboard.press(key));
           }
-          const settle = await this._settleAfterAction(session, pageBefore, urlBefore);
+          const settle = await owner.wait(() => this._settleAfterAction(session, pageBefore, urlBefore, owner));
           return this._okWithPreview(
             session,
             op,
@@ -712,6 +741,7 @@ export class SessionManager {
               ...(settle.openedTab ? { openedTab: true } : {}),
             },
             includePreview,
+            owner,
           );
         }
 
@@ -723,14 +753,14 @@ export class SessionManager {
             String(args.state ?? "visible")
           );
           if (text) {
-            await session.page.getByText(text, { exact: false }).first().waitFor({ state, timeout: timeoutMs });
+            await owner.wait(() => session.page.getByText(text, { exact: false }).first().waitFor({ state, timeout: timeoutMs }));
           } else if (ref) {
             const target = session.refMap[ref];
             if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
             const locator = resolveLocator(session.page, target);
-            await locator.waitFor({ state, timeout: timeoutMs });
+            await owner.wait(() => locator.waitFor({ state, timeout: timeoutMs }));
           } else {
-            await new Promise((r) => setTimeout(r, timeoutMs));
+            await owner.pause(timeoutMs);
           }
           return invokeOk({ waited: true });
         }
@@ -743,14 +773,15 @@ export class SessionManager {
             const target = session.refMap[ref];
             if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
             const locator = resolveLocator(session.page, target);
-            await locator.scrollIntoViewIfNeeded({ timeout: Number(args.timeoutMs ?? 10_000) });
+            await owner.wait(() => locator.scrollIntoViewIfNeeded({ timeout: Number(args.timeoutMs ?? 10_000) }));
           } else {
-            await session.page.mouse.wheel(
+            await owner.wait(() => session.page.mouse.wheel(
               Number.isFinite(deltaX) ? deltaX : 0,
               Number.isFinite(deltaY) ? deltaY : 600,
-            );
+            ));
           }
-          await session.page.waitForTimeout(250);
+          await owner.wait(() => session.page.waitForTimeout(250));
+          owner.checkpoint();
           session.refMap = {};
           return this._okWithPreview(
             session,
@@ -761,25 +792,26 @@ export class SessionManager {
               deltaX: Number.isFinite(deltaX) ? deltaX : 0,
               deltaY: Number.isFinite(deltaY) ? deltaY : 600,
               url: session.page.url(),
-              title: await session.page.title(),
+              title: await owner.wait(() => session.page.title()),
             },
             includePreview,
+            owner,
           );
         }
 
         if (op === "page.evaluate") {
-          await this._gotoIfNeeded(session, args);
+          await owner.wait(() => this._gotoIfNeeded(session, args, owner));
           const script = String(args.script ?? "").trim();
           if (!script) return invokeError("script is required");
           const built = buildEvaluatePageCode(script);
           if (!built.ok) return invokeError(built.error);
-          const raw = await session.page.evaluate(built.code);
+          const raw = await owner.wait(() => session.page.evaluate(built.code));
           const parsed = parseEvaluateResult(raw);
           if (!parsed.ok) return invokeError(`evaluate failed: ${parsed.error}`);
           const output = formatEvaluateOutput(parsed);
           return invokeOk({
             url: session.page.url(),
-            title: await session.page.title(),
+            title: await owner.wait(() => session.page.title()),
             ...output,
           });
         }
@@ -788,14 +820,14 @@ export class SessionManager {
           if (!includePreview) {
             return invokeOk({
               url: session.page.url(),
-              title: await session.page.title(),
+              title: await owner.wait(() => session.page.title()),
               panelPreview: true,
             });
           }
           const fullPage = Boolean(args.fullPage);
-          const data = await this._capturePanelPreview(session);
+          const data = await owner.wait(() => this._capturePanelPreview(session, owner));
           if (fullPage) {
-            const png = await session.page.screenshot({ fullPage: true, type: "png" });
+            const png = await owner.wait(() => session.page.screenshot({ fullPage: true, type: "png" }));
             let encoded = png.toString("base64");
             const truncated = encoded.length > 400_000;
             if (truncated) encoded = encoded.slice(0, 400_000);
@@ -807,30 +839,34 @@ export class SessionManager {
         }
 
         if (op === "page.back") {
-          await session.page.goBack();
+          await owner.wait(() => session.page.goBack());
+          owner.checkpoint();
           session.refMap = {};
           return this._okWithPreview(
             session,
             op,
             {
               url: session.page.url(),
-              title: await session.page.title(),
+              title: await owner.wait(() => session.page.title()),
             },
             includePreview,
+            owner,
           );
         }
 
         if (op === "page.forward") {
-          await session.page.goForward();
+          await owner.wait(() => session.page.goForward());
+          owner.checkpoint();
           session.refMap = {};
           return this._okWithPreview(
             session,
             op,
             {
               url: session.page.url(),
-              title: await session.page.title(),
+              title: await owner.wait(() => session.page.title()),
             },
             includePreview,
+            owner,
           );
         }
 
@@ -838,29 +874,31 @@ export class SessionManager {
           const waitUntil = /** @type {'load' | 'domcontentloaded' | 'networkidle' | 'commit'} */ (
             String(args.waitUntil ?? "domcontentloaded")
           );
-          await session.page.reload({ waitUntil });
+          await owner.wait(() => session.page.reload({ waitUntil }));
+          owner.checkpoint();
           session.refMap = {};
           return this._okWithPreview(
             session,
             op,
             {
               url: session.page.url(),
-              title: await session.page.title(),
+              title: await owner.wait(() => session.page.title()),
             },
             includePreview,
+            owner,
           );
         }
 
         if (op === "page.tabs") {
           const pages = session.context.pages();
-          const tabs = await Promise.all(
+          const tabs = await owner.wait(() => Promise.all(
             pages.map(async (page, index) => ({
               index,
               url: page.url(),
-              title: await page.title(),
+              title: await owner.wait(() => page.title()),
               active: page === session.page,
             })),
-          );
+          ));
           return invokeOk({ tabs, count: tabs.length });
         }
 
@@ -874,11 +912,14 @@ export class SessionManager {
           }
           const target = pages[index];
           if (target.isClosed()) return invokeError(`Tab ${index} is already closed`);
+          owner.checkpoint();
           session.page = target;
+          owner.checkpoint();
           session.refMap = {};
           try {
-            await target.bringToFront();
+            await owner.wait(() => target.bringToFront());
           } catch {
+            owner.checkpoint();
             // headless contexts may not support bringToFront — selection still works
           }
           return this._okWithPreview(
@@ -887,15 +928,17 @@ export class SessionManager {
             {
               index,
               url: target.url(),
-              title: await target.title(),
+              title: await owner.wait(() => target.title()),
               tabCount: pages.length,
             },
             includePreview,
+            owner,
           );
         }
 
       return invokeError(`Unknown op: ${op}`, { code: "unknown_op" });
     } catch (err) {
+      owner.checkpoint();
       console.error(`[browser-runtime] invoke failed op=${op} session=${sessionId}`, err);
       return invokeError(err instanceof Error ? err.message : String(err));
     }
