@@ -243,7 +243,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | 来源区域 | 必须覆盖的交互与数据 | 当前事实 / 下一步 |
 |---|---|---|
 | `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；原生 V2 storage、选择宿主和 Agent 实时会话仍待接线 |
-| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；继续补子程序创建/删除/属性和完整文档历史 |
+| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；纯 session 已补完整正文/三项属性事务及历史，surface 按钮/快捷键仍须统一 owner，再补子程序创建/删除/属性 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；动作/子程序完整目录、分页和操作仍待迁移，不能以受限搜索冒充完整目录 |
@@ -290,6 +290,19 @@ loading/unbound 在浏览器和服务端均不查询宿主；失配、断连、�
 trace 展示也仍有独立缺口：现有 bridge/页签按 actionId+param 全局
 复用，需由执行侧与 UI 共享每次运行 owner，再处理终结、清理与历史重放；仅把 key 换成
 未保证全局唯一的 SDK toolCallId 不能证明跨会话隔离。此项继续归 R2/R4 验收。
+
+catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录读取、未绑定及完整
+目标失配拒绝；专用动作版本未变、无宿主写入或运行。主界面 frontend check 通过。首次
+构建的插件重载/CLI publish 成功，用户安装遇到 MCP 占用而明确报失败；随后仅修复六个
+不同文件，540 个用户 CLI 文件与发布源校验一致，CLI/serve/插件均独立确认是 161。
+同版重跑构建会碰到已加载的插件 DLL，不能把这次构建记为整次成功；安装复制计划与进程
+退出确认继续单独修补。自动审批拦截了后续安装脚本重跑，未重复执行该动作。
+
+下一项设计器基础已在纯 session 加入 80 条完整文档历史：主/嵌套正文、未知字段和已支持
+的标题/说明/图标共用事务，undo/redo 比较完整身份及 revision，保存/部分确认不倒退宿主
+版本或清除历史。九项新回归及相关 59 项纯层测试、类型检查与独立代码审查通过。当前
+界面仍用原 surface 时间线，完整文档按钮/快捷键、子程序属性和字面调用同步重命名继续
+接线，未将纯接口记为完整文档 undo 已交付。
 
 **每个 PR 的验收与合并要求**：
 
