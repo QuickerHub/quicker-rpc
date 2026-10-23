@@ -71,6 +71,14 @@ Agent 侧只有 **两个** 浏览器相关工具；第三种（Electron 内嵌�
 或共享 context 冒充取消完成。本边界由 fake transport/page/WebContents 回归验证，未以此
 声称真实页面原生取消或端到端宿主验收已经完成。
 
+本机显式 `pnpm test:browser-runtime-live` 使用新建 profile、自有 Edge 和临时 loopback
+服务验收真实 HTTP 断开及 Playwright 页面。原生 evaluate 在可控 HTTP gate 等待时，运行中
+及排队请求分别取消；后一项保持排队，另一 session 可完成，释放 gate 后取消的排队操作
+没有执行，原 context/ref 仍能点击。该用例同时验证真实快照与坐标拾取，并确认关闭本次
+browser。脚本采集器以 IIFE 执行，不把函数值当作采集结果；相关内存执行回归进入离线 CI。
+真实浏览器用例默认跳过，仅显式命令启用，未加入离线 CI 清单；证据保存在仓库 `.tmp/`。
+这项实际验收覆盖 Playwright，不覆盖 Electron 原生取消、用户浏览器或 Quicker 宿主。
+
 ## 相关 Skill
 
 - `quicker-chromecontrol` — 扩展与用户浏览器

@@ -44,6 +44,10 @@ benchmark 工作区中的 `.quicker` 命令与子代理是版本控制内的测�
 同样替换为 fake，不改动真实安装。当前 live MCP 自动重启竞争仍须单独验收，不能将这些
 离线证据记为实际升级成功。
 
+浏览器脚本采集回归在内存中实际执行仓库脚本，避免 fake `page.evaluate` 无条件返回数组
+掩盖未调用函数的问题。真实 HTTP/Edge 取消验收另用 `pnpm test:browser-runtime-live` 显式
+启动，默认 skip 且不进入离线清单；仅创建自己的浏览器、profile 与 loopback 服务。
+
 Runtime 测试显式设置 `IncludeV2HostTests=false`，移除 Plugin.V2 引用以及
 composition、catalog 和三类宿主 probe 共五个测试文件。这不是 V2 插件编译验证。
 V1/V2 插件、Plugin.Test 仍需合法的 Quicker 宿主引用；真实 QuickerRpc.Test 还会创建
