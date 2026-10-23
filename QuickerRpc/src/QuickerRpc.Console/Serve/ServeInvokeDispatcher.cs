@@ -172,8 +172,9 @@ internal static class ServeInvokeDispatcher
             "subprogram.export" => await SubProgramProjectServeOps.ExportAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.import" => await SubProgramProjectServeOps.ImportAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.search" => await StepRunnerSearchAsync(rpc, args, token).ConfigureAwait(false),
+            "step-runner.list" => await StepRunnerListAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, forAgent: true, token).ConfigureAwait(false),
-            "step-runner.getUi" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
+            "step-runner.getui" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
             "step-runner.summaries" => await StepRunnerSummariesAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.quickinsertsearch" => await StepRunnerQuickInsertSearchAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.toolboxsearch" => await StepRunnerToolboxSearchAsync(rpc, args, token).ConfigureAwait(false),
@@ -2057,6 +2058,15 @@ internal static class ServeInvokeDispatcher
             message = response.Message,
             actionId = response.ActionId,
         });
+    }
+
+    private static async Task<ServeInvokeResponse> StepRunnerListAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var response = await rpc.ListStepRunnersAsync(ServeJsonArgs.GetInt(args, "limit"), token).ConfigureAwait(false);
+        return Ok(new { ok = response.Success, action = "step-runner-list", payload = response });
     }
 
     private static async Task<ServeInvokeResponse> StepRunnerSearchAsync(

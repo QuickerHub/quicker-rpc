@@ -73,6 +73,8 @@ const tests = [
   "lib/action-editor/toolbox/toolboxCatalog.test.ts",
   "lib/action-editor/catalog/designerCatalogContext.test.ts",
   "lib/action-editor/catalog/designerCatalogPort.test.ts",
+  "lib/action-editor/catalog/designerCatalogRequest.server.test.ts",
+  "lib/action-editor/catalog/designerCatalogTransport.test.ts",
   "lib/action-editor/program/assembleActionProgramSnapshot.test.ts",
   "lib/action-editor/wire/normalizeProgramWireForDisk.test.ts",
   "lib/program-document-save-client.test.ts",
