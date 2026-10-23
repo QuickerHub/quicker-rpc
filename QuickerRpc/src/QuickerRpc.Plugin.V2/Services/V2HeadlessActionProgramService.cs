@@ -10,6 +10,14 @@ namespace QuickerRpc.Plugin.V2.Services;
 /// <summary>Headless XAction read/write via V2 reflection accessors (no Quicker compile-time refs).</summary>
 public sealed class V2HeadlessActionProgramService
 {
+    private readonly Func<StepRunnerCatalog> _readCatalog;
+    private readonly Func<bool> _isRunningInQuicker;
+
+    public V2HeadlessActionProgramService() : this(QuickerV2StepRunnerCatalogBuilder.Build, () => QuickerV2Runtime.IsRunningInQuicker) { }
+
+    internal V2HeadlessActionProgramService(Func<StepRunnerCatalog> readCatalog, Func<bool> isRunningInQuicker)
+    { _readCatalog = readCatalog; _isRunningInQuicker = isRunningInQuicker; }
+
     // Defer Quicker DI lookup until first RPC call (avoids UI-thread deadlock during plugin start).
     private QuickerV2ActionAccessor? Actions => QuickerV2ActionAccessor.Current;
 
@@ -321,7 +329,7 @@ public sealed class V2HeadlessActionProgramService
 
     public QuickerRpcSearchStepRunnersResult SearchStepRunners(string? keyword, int? maxResults)
     {
-        if (!QuickerV2Runtime.IsRunningInQuicker)
+        if (!_isRunningInQuicker())
         {
             return new QuickerRpcSearchStepRunnersResult
             {
@@ -330,13 +338,13 @@ public sealed class V2HeadlessActionProgramService
             };
         }
 
-        var mapped = StepRunnerCatalogMapper.Search(QuickerV2StepRunnerCatalogBuilder.Build(), keyword ?? string.Empty, maxResults);
+        var mapped = StepRunnerCatalogMapper.Search(_readCatalog(), keyword ?? string.Empty, maxResults);
         return MapSearchResult(mapped);
     }
 
     public QuickerRpcSearchStepRunnersResult ListStepRunners(int? maxResults)
     {
-        if (!QuickerV2Runtime.IsRunningInQuicker)
+        if (!_isRunningInQuicker())
         {
             return new QuickerRpcSearchStepRunnersResult
             {
@@ -345,13 +353,19 @@ public sealed class V2HeadlessActionProgramService
             };
         }
 
-        var mapped = StepRunnerCatalogMapper.ListCatalog(QuickerV2StepRunnerCatalogBuilder.Build(), maxResults);
+        var mapped = StepRunnerCatalogMapper.ListCatalog(_readCatalog(), maxResults);
         return MapSearchResult(mapped);
     }
 
-    public QuickerRpcStepRunnerDetailResult GetStepRunnerDetail(string? stepRunnerKey, string? controlFieldValue = null)
+    public QuickerRpcStepRunnerDetailResult GetStepRunnerDetail(string? stepRunnerKey, string? controlFieldValue = null) =>
+        GetStepRunnerDetailCore(stepRunnerKey, controlFieldValue, forAgent: true);
+
+    public QuickerRpcStepRunnerDetailResult GetStepRunnerUiDetail(string? stepRunnerKey, string? controlFieldValue = null) =>
+        GetStepRunnerDetailCore(stepRunnerKey, controlFieldValue, forAgent: false);
+
+    private QuickerRpcStepRunnerDetailResult GetStepRunnerDetailCore(string? stepRunnerKey, string? controlFieldValue, bool forAgent)
     {
-        if (!QuickerV2Runtime.IsRunningInQuicker)
+        if (!_isRunningInQuicker())
         {
             return new QuickerRpcStepRunnerDetailResult
             {
@@ -361,14 +375,16 @@ public sealed class V2HeadlessActionProgramService
         }
 
         var mapped = StepRunnerCatalogMapper.GetDetail(
-            QuickerV2StepRunnerCatalogBuilder.Build(),
+            _readCatalog(),
             stepRunnerKey ?? string.Empty,
             controlFieldValue);
         return new QuickerRpcStepRunnerDetailResult
         {
             Success = mapped.Success,
             ErrorMessage = mapped.ErrorMessage,
-            SchemaJson = mapped.Schema is null ? null : StepRunnerAgentSchemaJson.Serialize(mapped.Schema),
+            SchemaJson = mapped.Schema is null ? null : forAgent
+                ? StepRunnerAgentSchemaJson.Serialize(mapped.Schema)
+                : StepRunnerUiSchemaJson.Serialize(mapped.Schema),
         };
     }
 

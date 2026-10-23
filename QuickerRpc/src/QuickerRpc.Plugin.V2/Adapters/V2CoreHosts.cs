@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
 using QuickerRpc.Plugin.V2.Reflection;
@@ -294,8 +295,12 @@ internal sealed class V2SubProgramHost : IQuickerRpcSubProgramHost
 internal sealed class V2StepRunnerHost : IQuickerRpcStepRunnerHost
 {
     private readonly V2HeadlessActionProgramService _programs;
+    private readonly IV2DesignerSummaryNativePort _summaries;
 
-    public V2StepRunnerHost(V2HeadlessActionProgramService programs) => _programs = programs;
+    public V2StepRunnerHost(V2HeadlessActionProgramService programs) : this(programs, new V2DesignerSummaryNativePort()) { }
+
+    internal V2StepRunnerHost(V2HeadlessActionProgramService programs, IV2DesignerSummaryNativePort summaries)
+    { _programs = programs; _summaries = summaries; }
 
     public Task<QuickerRpcSearchStepRunnersResult> SearchAsync(
         string keyword,
@@ -326,10 +331,15 @@ internal sealed class V2StepRunnerHost : IQuickerRpcStepRunnerHost
     public Task<QuickerRpcStepRunnerDetailResult> GetUiDetailAsync(
         string stepRunnerKey,
         string? controlFieldValue = null,
-        CancellationToken cancellationToken = default) =>
-        GetDetailAsync(stepRunnerKey, controlFieldValue, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var detail = _programs.GetStepRunnerUiDetail(stepRunnerKey, controlFieldValue);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(detail);
+    }
 
-    public Task<QuickerRpcActionStepSummariesResult> SummarizeStepsAsync(
+    public async Task<QuickerRpcActionStepSummariesResult> SummarizeStepsAsync(
         IList<QuickerRpcActionStepSummaryInput> steps,
         string? embeddedSubProgramsJson = null,
         CancellationToken cancellationToken = default)
@@ -337,17 +347,48 @@ internal sealed class V2StepRunnerHost : IQuickerRpcStepRunnerHost
         cancellationToken.ThrowIfCancellationRequested();
         if (steps.Count == 0)
         {
-            return Task.FromResult(new QuickerRpcActionStepSummariesResult
+            return new QuickerRpcActionStepSummariesResult
             {
                 Success = true,
                 Items = [],
-            });
+            };
         }
 
-        return Task.FromResult(new QuickerRpcActionStepSummariesResult
+        try
         {
-            Success = false,
-            ErrorMessage = "Step summaries are not implemented for V2 reflection host yet.",
-        });
+            var available = _summaries.IsAvailable;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!available) return Unsupported();
+            var request = new JObject
+            {
+                ["steps"] = new JArray(steps.Select(step => new JObject
+                {
+                    ["stepId"] = step.StepId, ["stepRunnerKey"] = step.StepRunnerKey, ["stepJson"] = step.StepJson,
+                })),
+                ["subProgramsJson"] = embeddedSubProgramsJson,
+            };
+            var json = await _summaries.ReadSummariesJsonAsync(request.ToString(Newtonsoft.Json.Formatting.None), cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var native = JObject.Parse(json);
+            if (native["items"] is not JArray rows) throw new InvalidDataException("Native step summaries returned an invalid items collection.");
+            var result = new QuickerRpcActionStepSummariesResult { Success = true };
+            foreach (var row in rows)
+            {
+                if (row is not JObject item || item["stepId"]?.Type != JTokenType.String || item["summary"]?.Type != JTokenType.String)
+                    throw new InvalidDataException("Native step summary rows must contain string stepId and summary fields.");
+                result.Items.Add(new QuickerRpcActionStepSummaryItem { StepId = item.Value<string>("stepId")!, Summary = item.Value<string>("summary")! });
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            return result;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Unsupported(error.Message);
+        }
+
+        static QuickerRpcActionStepSummariesResult Unsupported(string? detail = null) => new()
+        { Success = false, ErrorMessage = "V2 Designer step summaries are unavailable." + (string.IsNullOrWhiteSpace(detail) ? "" : " " + detail) };
     }
 }
