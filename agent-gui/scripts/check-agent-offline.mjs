@@ -66,6 +66,7 @@ const tests = [
   "lib/action-editor/programWire.test.ts",
   "lib/action-editor/document/programDocumentWire.test.ts",
   "lib/action-editor/document/programDocumentSession.test.ts",
+  "lib/action-editor/document/programDocumentHistory.test.ts",
   "lib/action-editor/document/programDocumentMetadata.test.ts",
   "lib/action-editor/document/programDocumentMetadataSession.test.ts",
   "lib/action-editor/document/programDocumentLossless.test.ts",
