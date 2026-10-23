@@ -218,6 +218,13 @@ revision；只恢复正文原文和可编辑属性，不回退宿主版本、来
 payload、live snapshot 或 overrides。文档级按钮/快捷键和 portal 归属复用同一 owner；
 普通输入保持原生 undo，步骤/变量的延迟草稿在文档 undo/save 前同步 flush。保存只读取
 该 session，source 切换和晚确认不重建历史。独立 X 入口继续使用原本的本地历史。
+
+`applyProgramDocumentSubProgramProperties` 在同一 `session.transact` 内修改内部子程序
+属性及所有可证实的内部字面调用，沿用完整身份/revision 与历史。它操作保真 raw 文档，
+不由 typed projection 重建正文；动态绑定、未知表达式和外部 link/template 缓存保持原文。
+名称需遵循来源设计器的 trim/重名/保留前缀规则，歧义 ID 或 wire aliases 拒绝整个事务。
+表达式前缀名称只编码成固定字符串常量，连续改名仅解码自身规范形式，不求值用户表达式。
+这是属性弹窗的纯层入口；弹窗与完整图标选择器仍须接入和验收。
 子程序属性及重命名继续在该事务层接入，不得恢复第二条时间线。
 原生未知字段与外置文件引用在 projection overlay 及实际 `writeWorkspaceFile` 的磁盘
 规范化链中保留；后续 host adapter 仍须加入存储版本/CAS，这不等于已实现宿主事务。
