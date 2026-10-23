@@ -9,7 +9,6 @@ import { ReasoningPart } from "./ReasoningPart";
 import { segmentMessageParts } from "./tool-part-layout";
 import { ToolBatchGroup } from "./ToolBatchGroup";
 import { ActivityBatchGroup } from "./ActivityBatchGroup";
-import { ToolPart } from "./ToolPart";
 import { readToolCallId } from "@/lib/workspace-tool-auto-open";
 
 type MessagePartsProps = {
@@ -40,10 +39,9 @@ function MessagePartsInner({
         if (segment.kind === "reasoning") {
           const lead = segment.items[0];
           if (!lead) return null;
-          const keyIndexes = segment.items.map((item) => item.index).join("-");
           return (
             <ReasoningPart
-              key={`reasoning-${message.id}-${keyIndexes}`}
+              key={`reasoning-${message.id}-${lead.index}`}
               items={segment.items}
             />
           );
@@ -72,11 +70,11 @@ function MessagePartsInner({
           const { part, index } = segment.item;
           const toolCallId = readToolCallId(part);
           return (
-            <ToolPart
+            <ToolBatchGroup
               key={toolCallId ?? `tool-${message.id}-${index}`}
               messageId={message.id}
-              partIndex={index}
-              part={part}
+              items={[segment.item]}
+              hasFollowingAssistantText={hasFollowingAssistantText}
             />
           );
         }
@@ -101,7 +99,7 @@ function MessagePartsInner({
         const batchLead = segment.items[0]!;
         const batchKey =
           readToolCallId(batchLead.part)
-          ?? `batch-${message.id}-${batchLead.index}`;
+          ?? `tool-${message.id}-${batchLead.index}`;
         return (
           <ToolBatchGroup
             key={batchKey}

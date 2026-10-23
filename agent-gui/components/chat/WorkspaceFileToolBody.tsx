@@ -307,6 +307,7 @@ function WorkspaceFileEditorRowInner({
   running = false,
   inBatch = false,
   errorText,
+  sharedPopup,
 }: {
   toolName: string;
   displayName: string;
@@ -316,8 +317,10 @@ function WorkspaceFileEditorRowInner({
   running?: boolean;
   inBatch?: boolean;
   errorText?: string;
+  sharedPopup?: ToolResultPopupControl;
 }) {
-  const popup = useToolResultPopup();
+  const localPopup = useToolResultPopup();
+  const popup = sharedPopup ?? localPopup;
   const canShowDetails = toolCanShowDetails(input, output, errorText, running);
   const failed = output && !output.ok;
   const foldableDiff =
@@ -391,7 +394,7 @@ function WorkspaceFileEditorRowInner({
       />
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
-    {preview && popup.open ? (
+    {!sharedPopup && preview && popup.open ? (
       <FileEditorPreviewPopup
         open
         onClose={popup.closePopup}
@@ -407,7 +410,7 @@ function WorkspaceFileEditorRowInner({
         input={input}
         output={output}
       />
-    ) : popup.open ? (
+    ) : !sharedPopup && popup.open ? (
       <ToolResultPopup
         open
         onClose={popup.closePopup}

@@ -38,12 +38,26 @@ export function ToolBatchGroup({
   const batchRunning = items.some((i) => i.isRunning);
   const batchErr = items.some((i) => i.state === "output-error");
   const batchApproval = items.some((i) => i.state === "approval-requested");
-  const workspaceFileBatch = isWorkspaceFileOpenBatch(items);
+  const isBatch = items.length > 1;
+  const workspaceFileBatch = isBatch && isWorkspaceFileOpenBatch(items) && !batchApproval;
+  // Aggregate file rows have their own existing entry point. Retain only call
+  // owners that were actually presented before aggregation, not hidden previews
+  // for every file in an initially collapsed historical batch.
+  const presentedCalls = useRef(new Set<string>());
+  const callKey = (item: ToolUiPartAnalysis) =>
+    readToolCallId(item.part) ?? `tool-${messageId}-${item.index}`;
+  if (!workspaceFileBatch) {
+    for (const item of items) presentedCalls.current.add(callKey(item));
+  }
+  const presentedItems = workspaceFileBatch
+    ? items.filter((item) => presentedCalls.current.has(callKey(item)))
+    : items;
   const bodyRef = useRef<HTMLDivElement>(null);
-  const followHandlers = useWorkFoldFollow(bodyRef, batchRunning && (batchApproval || open), items);
+  const followHandlers = useWorkFoldFollow(bodyRef, isBatch && !workspaceFileBatch && batchRunning && (batchApproval || open), items);
 
-  if (workspaceFileBatch && !batchApproval) {
-    return (
+  return (
+    <>
+      {workspaceFileBatch ? (
       <WorkspaceFileBatchRow
         items={items.map((item) => ({
           name: item.name,
@@ -54,15 +68,15 @@ export function ToolBatchGroup({
           part: item.part,
         }))}
       />
-    );
-  }
-
-  return (
+      ) : null}
+    <div hidden={workspaceFileBatch}>
     <ToolDisclosure
-      className="tool-batch"
+      className={isBatch ? "tool-batch" : undefined}
       open={open}
       onOpenChange={setOpen}
-      forcedOpen={batchApproval ? true : null}
+      forcedOpen={!isBatch || batchApproval ? true : null}
+      summaryHidden={!isBatch}
+      keepMounted
       summaryClassName="tool-batch-summary"
       expandedClassName="tool-batch--expanded"
       collapsedClassName="tool-batch--collapsed"
@@ -83,18 +97,20 @@ export function ToolBatchGroup({
       <div
         ref={bodyRef}
         {...followHandlers}
-        className={`tool-batch-body${batchRunning ? " tool-batch-body--active" : ""}`}
+        className={isBatch ? `tool-batch-body${batchRunning ? " tool-batch-body--active" : ""}` : undefined}
       >
-        {items.map((item) => (
+        {presentedItems.map((item) => (
           <ToolPart
-            key={readToolCallId(item.part) ?? `tool-${messageId}-${item.index}`}
+            key={callKey(item)}
             messageId={messageId}
             partIndex={item.index}
             part={item.part}
-            inBatch
+            inBatch={isBatch}
           />
         ))}
       </div>
     </ToolDisclosure>
+    </div>
+    </>
   );
 }

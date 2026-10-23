@@ -6,6 +6,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Audited, synthetic tests only. Live agent-eval and Electron smoke are separate opt-ins.
 const tests = [
   "scripts/agent-offline-network-guard.test.mjs",
+  "electron/smoke-isolation.test.mjs",
+  "electron/backend-smoke.test.mjs",
   "lib/agent-tool-mode-guard.test.ts",
   "lib/agent-core/turn-plan.test.ts",
   "lib/tool-bundles.test.ts",
@@ -32,6 +34,10 @@ const tests = [
   "lib/task-tool-capabilities.test.ts",
   "lib/composer-keyboard.test.ts",
   "lib/work-fold-interaction.test.ts",
+  "components/chat/tool-part-layout.test.ts",
+  "lib/tool-popup-view.test.ts",
+  "lib/use-throttled-stream-value.test.ts",
+  "lib/release-preview-context.test.ts",
   "lib/workspace-general-file-tool.test.ts",
   "lib/voice-input/composer-voice-shortcut.test.ts",
   "lib/thread-side-panel-sync.test.ts",

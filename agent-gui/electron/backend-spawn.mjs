@@ -2,14 +2,16 @@ import { spawn, spawnSync } from "node:child_process";
 import { createConnection, createServer } from "node:net";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { reserveSmokeUiPort, startSmokeRpcGuard, writeSmokeHandshake } from "./smoke-isolation.mjs";
 
 const UI_PORT_PREFERRED = 3000;
 const QKRPC_PORT_DEFAULT = 9477;
 
-/** @typedef {{ child: import('node:child_process').ChildProcess, port: number }} ManagedChild */
+/** @typedef {{ child: import('node:child_process').ChildProcess, port: number, smokeJobOwned?: boolean }} ManagedChild */
 
 /** @type {{ qkrpc?: ManagedChild, node?: ManagedChild }} */
 const children = {};
+let smokeRpcGuard;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,7 +75,7 @@ async function httpProbe(host, port, path, mode, maxMs) {
 }
 
 export function killChildTree(child) {
-  if (!child?.pid) return;
+  if (!child?.pid || child.exitCode != null || child.signalCode != null) return;
   if (process.platform === "win32") {
     spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
       stdio: "ignore",
@@ -88,12 +90,16 @@ export function killChildTree(child) {
 }
 
 export function shutdownBackends() {
+  void smokeRpcGuard?.close();
+  smokeRpcGuard = undefined;
   if (children.qkrpc) {
     killChildTree(children.qkrpc.child);
     children.qkrpc = undefined;
   }
   if (children.node) {
-    killChildTree(children.node.child);
+    // The smoke launcher owns the native Job handle, including startup failures.
+    // Do not target numeric PIDs after a smoke child may already have exited.
+    if (!children.node.smokeJobOwned) killChildTree(children.node.child);
     children.node = undefined;
   }
 }
@@ -176,7 +182,7 @@ function spawnQkrpc(qkrpcDir, host, port) {
   return child;
 }
 
-function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}) {
+function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwned = false) {
   const serverJs = join(appDir, "server.js");
   if (!existsSync(serverJs)) {
     throw new Error(`server.js not found: ${serverJs}`);
@@ -187,7 +193,7 @@ function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}) {
     windowsHide: true,
     env: buildBundledChildEnv(host, port, envExtra),
   });
-  children.node = { child, port };
+  children.node = { child, port, smokeJobOwned };
   return child;
 }
 
@@ -203,6 +209,23 @@ function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}) {
  */
 export async function startProductionBackends(runtime) {
   const host = "127.0.0.1";
+  if (runtime.smoke) {
+    try {
+      smokeRpcGuard = await startSmokeRpcGuard();
+      const uiPort = await reserveSmokeUiPort();
+      const child = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, {
+        QKRPC_HTTP_URL: `http://${host}:${smokeRpcGuard.port}`, QKRPC_TRANSPORT: "http",
+        HOME: process.env.HOME, AGENT_GUI_ROOT: process.env.AGENT_GUI_ROOT,
+        AGENT_GUI_DEFAULT_CWD: process.env.AGENT_GUI_DEFAULT_CWD,
+      }, true);
+      await waitForChildSpawn(child, "isolated smoke node");
+      writeSmokeHandshake(runtime.smoke, { uiPort, uiPid: child.pid, rpcPort: smokeRpcGuard.port, rpcPid: process.pid });
+      return { uiUrl: `http://${host}:${uiPort}`, host, uiPort, qkrpcPort: smokeRpcGuard.port };
+    } catch (error) {
+      shutdownBackends();
+      throw error;
+    }
+  }
   const { port: qkrpcPort, shouldSpawn } = await resolveQkrpcPort(host);
   const uiPort = await resolveUiPort(host);
   const qkrpcUrl = `http://${host}:${qkrpcPort}`;

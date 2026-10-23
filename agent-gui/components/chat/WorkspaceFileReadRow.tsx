@@ -15,6 +15,7 @@ import {
   ToolResultPopup,
   toolCanShowDetails,
   useToolResultPopup,
+  type ToolResultPopupControl,
 } from "./ToolResultPopup";
 
 type WorkspaceFileReadRowProps = {
@@ -27,6 +28,7 @@ type WorkspaceFileReadRowProps = {
   running?: boolean;
   inBatch?: boolean;
   errorText?: string;
+  sharedPopup?: ToolResultPopupControl;
 };
 
 /** Chat read-data snapshot: tool output only, no explorer context subscription. */
@@ -40,8 +42,10 @@ function WorkspaceFileReadRowInner({
   running = false,
   inBatch = false,
   errorText,
+  sharedPopup,
 }: WorkspaceFileReadRowProps) {
-  const popup = useToolResultPopup();
+  const localPopup = useToolResultPopup();
+  const popup = sharedPopup ?? localPopup;
   const canShowDetails = toolCanShowDetails(input, output, errorText, running);
   const failed = output && !output.ok;
 
@@ -113,7 +117,7 @@ function WorkspaceFileReadRowInner({
       ) : null}
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
-    {popup.open ? (
+    {!sharedPopup && popup.open ? (
       <ToolResultPopup
         open
         onClose={popup.closePopup}

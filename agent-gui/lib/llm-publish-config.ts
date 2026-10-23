@@ -18,7 +18,7 @@ import {
   LLM_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
-import { isReleasePreviewActive } from "@/lib/release-preview.server";
+import { isReleasePreviewActive } from "@/lib/release-preview-context";
 
 let publishCache: LlmEndpointGroupsConfig | undefined;
 

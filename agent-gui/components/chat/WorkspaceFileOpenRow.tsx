@@ -24,6 +24,7 @@ import {
   ToolResultPopup,
   toolCanShowDetails,
   useToolResultPopup,
+  type ToolResultPopupControl,
 } from "./ToolResultPopup";
 
 
@@ -47,6 +48,8 @@ type WorkspaceFileOpenRowProps = {
   inBatch?: boolean;
 
   errorText?: string;
+
+  sharedPopup?: ToolResultPopupControl;
 
 };
 
@@ -72,8 +75,11 @@ export function WorkspaceFileOpenRow({
 
   errorText,
 
+  sharedPopup,
+
 }: WorkspaceFileOpenRowProps) {
-  const popup = useToolResultPopup();
+  const localPopup = useToolResultPopup();
+  const popup = sharedPopup ?? localPopup;
   const canShowDetails = toolCanShowDetails(input, output, errorText, isRunning);
   const { openFileFromTool, revealPath, setPanelOpen } = useWorkspaceExplorerActions();
 
@@ -148,7 +154,7 @@ export function WorkspaceFileOpenRow({
         </div>
         {errorText ? <pre className="tool-error">{errorText}</pre> : null}
       </div>
-      {popup.open ? (
+      {!sharedPopup && popup.open ? (
         <ToolResultPopup
           open
           onClose={popup.closePopup}

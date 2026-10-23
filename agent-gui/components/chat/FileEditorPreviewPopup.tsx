@@ -54,6 +54,38 @@ function formatPopupSubtitle(
   return pathLabel;
 }
 
+/** Shared file body; dialog identity belongs to the tool call, not its preview phase. */
+export function FileEditorPopupContent({
+  path, content, diff, stat, truncated, totalChars, previousSnapshotTruncated,
+}: Pick<FileEditorPreviewPopupProps, "path" | "content" | "diff" | "stat" | "truncated" | "totalChars" | "previousSnapshotTruncated">) {
+  return (
+    <>
+      <FileEditorCard
+        path={path}
+        content={content}
+        stat={stat}
+        diff={diff}
+        diffMode="full"
+        variant="full"
+        showHeader={false}
+        showContent
+        fillAvailable
+        lineNumbers
+      />
+      {truncated ? (
+        <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
+          内容已截断{totalChars !== undefined ? ` · 文件共 ${totalChars} 字符` : ""}
+        </p>
+      ) : null}
+      {previousSnapshotTruncated ? (
+        <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
+          写入前快照已截断，diff 可能不完整
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export function FileEditorPreviewPopup({
   open,
   onClose,
@@ -181,31 +213,15 @@ export function FileEditorPreviewPopup({
               output={output}
             />
           ) : (
-            <>
-              <FileEditorCard
+              <FileEditorPopupContent
                 path={path}
                 content={content}
                 stat={stat}
                 diff={diff}
-                diffMode="full"
-                variant="full"
-                showHeader={false}
-                showContent
-                fillAvailable
-                lineNumbers
+                truncated={truncated}
+                totalChars={totalChars}
+                previousSnapshotTruncated={previousSnapshotTruncated}
               />
-              {truncated ? (
-                <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
-                  内容已截断
-                  {totalChars !== undefined ? ` · 文件共 ${totalChars} 字符` : ""}
-                </p>
-              ) : null}
-              {previousSnapshotTruncated ? (
-                <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
-                  写入前快照已截断，diff 可能不完整
-                </p>
-              ) : null}
-            </>
           )}
         </div>
       </div>

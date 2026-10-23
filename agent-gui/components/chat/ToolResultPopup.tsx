@@ -39,6 +39,8 @@ export function useToolResultPopup() {
   return { open, openPopup, closePopup, setOpen };
 }
 
+export type ToolResultPopupControl = ReturnType<typeof useToolResultPopup>;
+
 export function ToolDetailsIconButton({
   onClick,
   disabled = false,
@@ -74,6 +76,10 @@ type ToolResultPopupProps = {
   errorText?: string;
   followTail?: boolean;
   headerExtra?: ReactNode;
+  /** Specialized visual content keeps the same dialog/tab owner as it arrives. */
+  visualContent?: ReactNode;
+  panelClassName?: string;
+  bodyClassName?: string;
 };
 
 export function ToolResultPopupTabs({
@@ -136,9 +142,12 @@ export function ToolResultPopup({
   errorText,
   followTail = false,
   headerExtra,
+  visualContent,
+  panelClassName,
+  bodyClassName,
 }: ToolResultPopupProps) {
   const panelId = useId();
-  const hasVisual = toolPopupHasVisualView(toolName, input, output);
+  const hasVisual = visualContent !== undefined || toolPopupHasVisualView(toolName, input, output);
   const hasModelView =
     input !== undefined || output !== undefined || Boolean(errorText?.trim());
   const [tab, setTab] = useState<ToolPopupViewMode>("visual");
@@ -189,7 +198,7 @@ export function ToolResultPopup({
       />
       <div
         id={panelId}
-        className="tool-result-popup-panel"
+        className={`tool-result-popup-panel${panelClassName ? ` ${panelClassName}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -222,19 +231,19 @@ export function ToolResultPopup({
           </div>
         </div>
         <div
-          className="tool-result-popup-body"
+          className={`tool-result-popup-body${bodyClassName ? ` ${bodyClassName}` : ""}`}
           role="tabpanel"
           id={toolPopupPanelId(bodyView)}
           aria-labelledby={toolPopupTabId(bodyView)}
         >
-          <ToolPopupBody
+          {bodyView === "visual" && visualContent !== undefined ? visualContent : <ToolPopupBody
             view={bodyView}
             toolName={toolName}
             input={input}
             output={output}
             errorText={errorText}
             followTail={followTail}
-          />
+          />}
         </div>
       </div>
     </div>

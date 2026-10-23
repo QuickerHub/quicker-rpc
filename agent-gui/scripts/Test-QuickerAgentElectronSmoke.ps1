@@ -23,6 +23,7 @@ $AgentGuiRoot = Split-Path -Parent $ScriptDir
 $RepoRoot = Split-Path -Parent $AgentGuiRoot
 
 . (Join-Path $RepoRoot 'publish\qkrpc-publish-lib.ps1')
+. (Join-Path $ScriptDir 'lib/ElectronSmoke.ps1')
 
 if (-not $DistDir) {
     $DistDir = Join-Path $AgentGuiRoot 'electron\dist'
@@ -71,133 +72,40 @@ function Test-ElectronArtifacts {
     }
 }
 
-function Stop-QuickerAgentElectron {
-    Get-Process -Name 'QuickerAgent','quicker-agent' -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Host "Stopping QuickerAgent pid $($_.Id) (tree)" -ForegroundColor DarkYellow
-        & taskkill.exe /PID $_.Id /T /F 2>$null | Out-Null
-    }
-    Stop-ElectronOrphanBackends
-    Start-Sleep -Seconds 1
-}
-
-function Stop-ElectronOrphanBackends {
-    # Force-killing QuickerAgent.exe skips before-quit; bundled node/qkrpc may linger on :3000+.
-    $patterns = @(
-        'electron[\\/]dist[\\/]win-unpacked[\\/]resources[\\/]app[\\/]server\.js',
-        'electron[\\/]resources[\\/]app[\\/]server\.js'
-    )
-    $regex = ($patterns -join '|')
-
-    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -in @('node.exe', 'qkrpc.exe') -and $_.CommandLine -match $regex } |
-        ForEach-Object {
-            Write-Host "Stopping orphan $($_.Name) pid $($_.ProcessId)" -ForegroundColor DarkYellow
-            & taskkill.exe /PID $_.ProcessId /T /F 2>$null | Out-Null
-        }
-}
-
-function Test-UiHttpReady {
-    param(
-        [int]$Port,
-        [string[]]$Paths = @('/', '/api/ping')
-    )
-
-    foreach ($path in $Paths) {
-        try {
-            $res = Invoke-WebRequest -Uri "http://127.0.0.1:$port$path" -TimeoutSec 2 -UseBasicParsing
-            if ($res.StatusCode -eq 200) {
-                return $path
-            }
-        }
-        catch {
-            # try next path
-        }
-    }
-
-    return $null
-}
-
-function Wait-ForElectronUi {
-    param([int]$TimeoutSec = 90)
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ((Get-Date) -lt $deadline) {
-        for ($port = 3000; $port -le 3020; $port += 1) {
-            $path = Test-UiHttpReady -Port $port
-            if ($path) {
-                Write-Host "Electron UI ready on http://127.0.0.1:$port$path" -ForegroundColor Green
-                return $port
-            }
-        }
-
-        Start-Sleep -Seconds 2
-    }
-
-    throw "Electron UI not ready within ${TimeoutSec}s (expected bundled Next on :3000-:3020)"
-}
-
-function Test-QkrpcHealthOptional {
-    param([int]$TimeoutSec = 5)
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $health = Invoke-RestMethod -Uri 'http://127.0.0.1:9477/health' -TimeoutSec 2
-            if ($null -ne $health.ok) {
-                $label = if ($health.ok) { 'OK' } else { 'reachable (plugin may be offline)' }
-                Write-Host "qkrpc serve $label on :9477" -ForegroundColor $(if ($health.ok) { 'Green' } else { 'DarkYellow' })
-                return $health
-            }
-        }
-        catch {
-            # retry
-        }
-
-        Start-Sleep -Seconds 1
-    }
-
-    Write-Host 'qkrpc serve not detected on :9477 (optional for UI smoke)' -ForegroundColor DarkGray
-    return $null
-}
-
 function Start-ElectronLaunchSmoke {
     param([string]$ExePath)
 
-    if (-not $ExePath -or -not (Test-Path -LiteralPath $ExePath)) {
-        throw "win-unpacked QuickerAgent.exe not found: $ExePath"
+    if (-not $IsWindows) { throw 'Isolated Electron launch smoke currently requires Windows Job Objects.' }
+    if (-not $ExePath -or -not (Test-Path -LiteralPath $ExePath)) { throw "win-unpacked QuickerAgent.exe not found: $ExePath" }
+    Assert-ElectronSmokeBundleSupport $ExePath
+    $run = New-ElectronSmokeRun $RepoRoot
+    $launchEnvironment = Get-ElectronSmokeEnvironment $run
+    if (-not ('QuickerAgent.Smoke.OwnedJob' -as [type])) {
+        Add-Type -Path (Join-Path $ScriptDir 'lib/ElectronSmokeProcess.cs')
     }
-
-    Stop-QuickerAgentElectron
-    Remove-Item "$env:TEMP\quicker-agent-electron-boot.log" -Force -ErrorAction SilentlyContinue
-
-    Write-Host "Launching $ExePath ..." -ForegroundColor Cyan
-    $launchEnv = @{}
-    foreach ($key in [System.Environment]::GetEnvironmentVariables('Process').Keys) {
-        if ($key -ne 'ELECTRON_RUN_AS_NODE') {
-            $launchEnv[$key] = [System.Environment]::GetEnvironmentVariable($key, 'Process')
-        }
-    }
-    $proc = Start-Process -FilePath $ExePath -PassThru -Environment $launchEnv
+    $arguments = '--user-data-dir="' + (Join-Path $run.Root 'profile') + '"'
+    Write-Host "Launching isolated UI smoke; artifacts retained at $($run.Root)" -ForegroundColor Cyan
     try {
-        $port = Wait-ForElectronUi -TimeoutSec $UiTimeoutSec
-        $null = Test-QkrpcHealthOptional
-        Write-Host "launch OK (pid $($proc.Id), port $port)" -ForegroundColor Green
+        $info = Invoke-OwnedElectronSmokeRun -Start {
+            [QuickerAgent.Smoke.OwnedJob]::Start($ExePath, $arguments, $run.Root, $launchEnvironment)
+        } -Wait {
+            param($owner)
+            Wait-OwnedElectronSmokeUi $run $owner $UiTimeoutSec
+        }
+        Write-Host "launch HTTP OK (owned pid $($info.rootPid), port $($info.uiPort)); host RPC disabled" -ForegroundColor Green
     }
     finally {
-        Stop-QuickerAgentElectron
-        $bootLogs = @(
-            (Join-Path $env:TEMP 'quicker-agent-electron-boot.log')
-            (Join-Path $env:LOCALAPPDATA 'QuickerAgent\electron-boot.log')
-        )
-        foreach ($bootLog in $bootLogs) {
-            if (Test-Path -LiteralPath $bootLog) {
-                Write-Host "--- electron boot log ($bootLog) ---" -ForegroundColor DarkGray
-                Get-Content -LiteralPath $bootLog | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
+        foreach ($bootLog in @(
+            (Join-Path $run.Root 'temp/quicker-agent-electron-boot.log'),
+            (Join-Path $run.Root 'local/QuickerAgent/electron-boot.log')
+        )) {
+            if (Test-Path -LiteralPath $bootLog -PathType Leaf) {
+                Write-Host "Smoke boot log: $bootLog" -ForegroundColor DarkGray
+                Get-Content -LiteralPath $bootLog -Tail 100 | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
             }
         }
     }
 }
-
 $artifacts = Test-ElectronArtifacts
 
 if ($Action -eq 'verify') {

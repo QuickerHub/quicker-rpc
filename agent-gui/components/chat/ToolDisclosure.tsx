@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 type ToolDisclosureProps = {
   className?: string;
@@ -13,6 +13,10 @@ type ToolDisclosureProps = {
   collapsedClassName?: string;
   summary: ReactNode;
   children: ReactNode;
+  /** Retain reading state for lightweight content while the fold is closed. */
+  keepMounted?: boolean;
+  /** A single call shares the batch owner without displaying a batch heading. */
+  summaryHidden?: boolean;
 };
 
 /** Tool expand/collapse without native `<details>` (avoids controlled toggle loops). */
@@ -26,9 +30,13 @@ export function ToolDisclosure({
   collapsedClassName = "tool-card--collapsed",
   summary,
   children,
+  keepMounted = false,
+  summaryHidden = false,
 }: ToolDisclosureProps) {
   const isOpen = forcedOpen ?? open;
   const canToggle = forcedOpen === null && onOpenChange;
+  const visited = useRef(isOpen);
+  if (isOpen) visited.current = true;
 
   return (
     <div
@@ -42,6 +50,8 @@ export function ToolDisclosure({
       <button
         type="button"
         className={summaryClassName}
+        hidden={summaryHidden}
+        style={summaryHidden ? { display: "none" } : undefined}
         aria-expanded={isOpen}
         disabled={!canToggle}
         onClick={() => {
@@ -51,7 +61,7 @@ export function ToolDisclosure({
       >
         {summary}
       </button>
-      {isOpen ? children : null}
+      {keepMounted && visited.current ? <div hidden={!isOpen}>{children}</div> : isOpen ? children : null}
     </div>
   );
 }
