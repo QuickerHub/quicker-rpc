@@ -51,7 +51,7 @@ Electron shell → 窗口、preload/IPC、原生集成与所属服务进程的�
 | Agent service | 配置与数据路径、DB owner、turn/权限、模型与工具、取消与资源释放 | Next cookies、页面路由和 React 组件 |
 | HTTP adapter | 请求解析、请求身份/preview、Response/SSE 与断连信号 | 另一个 Agent loop 或另一套持久化 |
 | Desktop shell | 窗口、系统能力、preload、启动/关闭所属服务 | 复制 Agent、会话数据库或工具策略 |
-| qkrpc | V1 宿主适配、CLI/MCP/HTTP、YAML codec/source bundle | 桌面 UI 与模型会话状态 |
+| qkrpc | V1/V2 宿主适配、CLI/MCP/HTTP、YAML codec/source bundle | 桌面 UI 与模型会话状态 |
 
 先实现服务边界，再替换 UI 构建工具；已有 React、AI SDK、工具、YAML codec 与历史格式继续复用。
 生产阶段仍使用 Next standalone，不能把目标拓扑写成已落地事实。当前也不是单进程系统：

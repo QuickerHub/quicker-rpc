@@ -115,7 +115,8 @@ CLI、MCP 和 HTTP 共用 Contracts/Runtime/Transport，Quicker 版本差异只�
 
 - V1/net472 是当前完整宿主。
 - 现有 V1 动作源码编辑提供 CLI `action open/save`、MCP `qkrpc_action_open/save` 与 HTTP `action.open/save`；范围限 V1 动作程序体。
-- V2/net10 已实现多项核心 adapter，但 ActionSharing/Expressions/部分布局操作仍有 stub，ChromeControl/Triggers/Designer capability 当前关闭。
+- V2/net10 已接共享表达式服务及多项核心 adapter；ActionSharing/部分布局操作仍有 stub，ChromeControl/Triggers/Designer capability 当前关闭。
+- RPC/CLI health 已返回宿主类型、版本、本次加载 session 与动作能力；实例选择、写入目标绑定和 V2 source/codec 仍待完成。
 - capability 必须反映真实实现；能编译不等于能力对齐。
 
 V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。外部接入见 [MCP/CLI 集成](../agent-mcp-integration.md)。
