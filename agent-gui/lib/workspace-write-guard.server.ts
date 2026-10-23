@@ -15,6 +15,9 @@ export async function validateWorkspaceWritePath(path: string): Promise<{ ok: tr
   const checked = await resolveWorkspacePathChain(resolveWorkspaceRoot(), lexical, { lstat, realpath }, getRequestAbortSignal());
   if (!checked.ok) return checked;
   const canonical = relative(checked.root, checked.absolute).replace(/\\/g, "/");
+  if (/(?:^|\/)\.qkrpc\/project-binding\.json$/i.test(canonical)) {
+    return { ok: false, error: "project-binding.json is tool-managed; reopen the action explicitly instead of changing host provenance." };
+  }
   if (isActionSourceManagedPath(canonical)) {
     return { ok: false, error: "quicker.source.json and .qkrpc/baseline.json are tool-managed; edit program.source.yaml/files/ and use qkrpc_action_save." };
   }

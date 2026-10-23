@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { guardActionProjectBindingWrite } from "./action-project-host-binding.server";
 import { join } from "node:path";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { basename } from "node:path";
@@ -270,6 +271,8 @@ export async function readWorkspaceFileForApi(
 }
 
 export async function writeWorkspaceFileForApi(path: string, content: string) {
+  const guard = await guardActionProjectBindingWrite(path);
+  if (!guard.ok) return guard;
   return writeWorkspaceFile(path, content);
 }
 

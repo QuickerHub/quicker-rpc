@@ -45,6 +45,25 @@ internal static class ServeInvokeDispatcher
                     binding = JsonSerializer.Deserialize<QuickerRpcHostBinding>(raw, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 else selectedSession = Environment.GetEnvironmentVariable("QKRPC_HOST_SESSION");
             }
+            if (normalized is "action.apply" or "action.extract"
+                || (normalized == "action.get" && !string.IsNullOrWhiteSpace(ServeJsonArgs.GetString(args, "workspaceRoot", "workspace", "cwd"))))
+            {
+                var project = ActionProjectHostBinding.Find(ServeJsonArgs.GetString(args, "id", "actionId"),
+                    ServeJsonArgs.GetString(args, "dir"), ServeJsonArgs.GetString(args, "workspaceRoot", "workspace", "cwd"),
+                    required: normalized == "action.apply");
+                if (project is not null)
+                {
+                    if (binding is not null && !binding.SameDestination(project.HostBinding))
+                        return Fail(QuickerRpcBindingErrors.Mismatch, "Requested host differs from the disk project.");
+                    binding = project.HostBinding;
+                    if (string.IsNullOrWhiteSpace(ServeJsonArgs.GetString(args, "dir")))
+                    {
+                        var pinnedArgs = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(args.GetRawText())!;
+                        pinnedArgs["dir"] = JsonSerializer.SerializeToElement(project.Directory);
+                        args = JsonSerializer.SerializeToElement(pinnedArgs);
+                    }
+                }
+            }
             if (normalized == "action.save" && !ServeJsonArgs.GetBool(args, "dryRun"))
             {
                 var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty);

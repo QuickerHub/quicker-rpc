@@ -1,10 +1,9 @@
 import { existsSync, statSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
   findActionProjectDirectory,
-  resolveActionProjectDirectory,
 } from "@/lib/action-project-path";
 import {
   parseActionProjectInfo,
@@ -31,6 +30,9 @@ import { writeActionProjectSyncTrust } from "@/lib/action-project-sync-trust";
 import { normalizeActionProjectSyncVersion, stampActionProjectInfoVersion, syncActionProjectBodyAndMetadata } from "@/lib/action-project-sync-metadata";
 import { getRequestAbortSignal } from "@/lib/qkrpc-request-context";
 import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
+import { ActionProjectBindingError, actionProjectBindingFailure, findActionProjectBinding, pinActionProjectBinding, readActionProjectBinding, requireActionProjectBinding,
+  validateActionProjectPaths, withActionProjectBootstrap } from "./action-project-host-binding.server";
+import { currentQkrpcTarget } from "./qkrpc-host-binding";
 
 export type {
   WorkspaceProjectSummary,
@@ -83,6 +85,9 @@ export type WorkspaceSyncResult =
         | "manifest_failed"
         | "empty_program";
       error: string;
+      code?: string;
+      retryable?: false;
+      persistedParts?: { hostAction?: boolean; localProject?: boolean; binding?: boolean };
     };
 
 function countNestedSteps(steps: unknown): number {
@@ -478,6 +483,34 @@ export async function syncActionToWorkspace(
   actionId: string,
   options?: { projectDirectory?: string },
 ): Promise<WorkspaceSyncResult> {
+  try {
+    const existing = await findActionProjectBinding(actionId);
+    const directory = options?.projectDirectory?.trim() || existing?.directory || actionProjectDirFromName(actionId);
+    const { withProgramDocumentWriteOwner } = await import("./program-document-save.server");
+    return await withProgramDocumentWriteOwner(join(directory, "data.json"), async () => {
+      const absolute = await validateActionProjectPaths(directory);
+      if (existing) {
+        const resolved = resolveWorkspacePath(directory);
+        if (!resolved.ok || resolved.relative.replace(/\\/g, "/").toLowerCase() !== existing.directory.toLowerCase())
+          throw new ActionProjectBindingError("HOST_BINDING_MISMATCH", "Explicit directory differs from the existing bound action project.");
+        pinActionProjectBinding((await readActionProjectBinding(directory, actionId)).hostBinding);
+      } else if (existsSync(absolute) && (await readdir(absolute)).length) {
+        // An explicit target can identify a different action or an old unbound project.
+        // Check it locally before the first RPC, rather than relying on extract's final guard.
+        pinActionProjectBinding((await readActionProjectBinding(directory, actionId)).hostBinding);
+      }
+      return syncActionToWorkspaceUnderOwner(actionId, { projectDirectory: directory });
+    });
+  } catch (error) {
+    getRequestAbortSignal()?.throwIfAborted();
+    return { ok: false, reason: "extract_failed", ...actionProjectBindingFailure(error) };
+  }
+}
+
+async function syncActionToWorkspaceUnderOwner(
+  actionId: string,
+  options?: { projectDirectory?: string },
+): Promise<WorkspaceSyncResult> {
   const cwd = getWorkingDirectory();
   if (!cwd) {
     return {
@@ -585,19 +618,21 @@ export async function bootstrapActionProjectForCreate(
 
   const projectDir = actionProjectDirFromName(actionId);
   const info = actionProjectInfoFromCreateResponse(createPayload, hints);
-  const written = await bootstrapWorkspaceProjectOnCreate(
-    projectDir,
-    formatActionProjectInfoProto(info),
-    programData,
-  );
-  if (!written.ok) {
-    return {
-      ok: false,
-      reason: written.reason,
-      error: written.error,
-    };
+  let written: Awaited<ReturnType<typeof bootstrapWorkspaceProjectOnCreate>>;
+  try {
+    const binding = currentQkrpcTarget()?.binding;
+    if (!binding) throw new ActionProjectBindingError("HOST_BINDING_REQUIRED", "Create response has no verified host provenance.");
+    const { withProgramDocumentWriteOwner } = await import("./program-document-save.server");
+    written = await withProgramDocumentWriteOwner(join(projectDir, "data.json"), () => withActionProjectBootstrap(projectDir, actionId, binding, async () => {
+      const result = await bootstrapWorkspaceProjectOnCreate(projectDir, formatActionProjectInfoProto(info), programData);
+      if (!result.ok) throw new Error(result.error);
+      return result;
+    }));
+  } catch (error) {
+    getRequestAbortSignal()?.throwIfAborted();
+    return { ok: false, reason: "manifest_failed", ...actionProjectBindingFailure(error),
+      persistedParts: { hostAction: true, ...(error instanceof ActionProjectBindingError ? error.persistedParts : {}), binding: false } };
   }
-
   const manifest = await readActionProjectManifest(actionId, projectDir);
   if ("error" in manifest) {
     return { ok: false, reason: "manifest_failed", error: manifest.error };
@@ -734,14 +769,13 @@ export async function saveActionFromWorkspace(options: {
     );
   }
 
-  const projectDirRel = await resolveActionProjectDirectory(actionId);
-  if (!projectDirRel) {
-    const message = `No .quicker/actions project for action ${actionId}. Create with qkrpc_action_create or sync a non-empty action with qkrpc_action_get, then write data.json before patch.`;
-    return formatLocalToolResult(
-      { action: "action-save", success: false, errorMessage: message },
-      false,
-      message,
-    );
+  let projectDirRel: string;
+  try { projectDirRel = (await requireActionProjectBinding(actionId)).directory; }
+  catch (error) {
+    getRequestAbortSignal()?.throwIfAborted();
+    const message = error instanceof Error ? error.message : String(error);
+    return formatLocalToolResult({ action: "action-save", success: false, phase: "binding", errorMessage: message,
+      errorCode: actionProjectBindingFailure(error).code, retryable: false }, false, message, { retryable: false });
   }
 
   const projectResolved = resolveWorkspacePath(projectDirRel);
@@ -762,6 +796,14 @@ export async function saveActionFromWorkspace(options: {
   // Read local metadata, compile/apply, update remote presentation and stamp one version under one owner.
   // A local two-file save cannot change the target snapshot halfway through this host transaction.
   return withProgramDocumentWriteOwner(join(projectDirRel, "data.json"), async () => {
+
+  try { pinActionProjectBinding((await readActionProjectBinding(projectDirRel, actionId)).hostBinding); }
+  catch (error) {
+    getRequestAbortSignal()?.throwIfAborted();
+    const message = error instanceof Error ? error.message : String(error);
+    return formatLocalToolResult({ action: "action-save", success: false, phase: "binding", errorMessage: message,
+      errorCode: actionProjectBindingFailure(error).code, retryable: false }, false, message, { retryable: false });
+  }
 
   const { augmentToolResultWithPrefixWarnings, guardProjectValuePrefixes } =
     await import("@/lib/program-value-prefix-guard");

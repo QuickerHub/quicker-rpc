@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Proto.V1;
 using QuickerRpc.AgentModel.XAction.Project;
+using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console.Mcp;
 
@@ -54,9 +55,9 @@ internal static class QkrpcMcpWorkspaceSync
             root["workspaceSync"] = QkrpcMcpResponseCompact.CompactWorkspaceSyncNode(JsonNode.Parse(extractJson));
         }
 
-        QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
         try
         {
+            QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
             QkrpcMcpWorkspaceIndex.Write(workspaceRoot);
         }
         catch
@@ -91,6 +92,10 @@ internal static class QkrpcMcpWorkspaceSync
             return createJson;
         }
 
+        var wroteInfo = false;
+        var wroteData = false;
+        try
+        {
         var workspaceRoot = workspaceResult.root;
 
         var projectDir = ActionProjectCatalog.ResolveExtractProjectDirectory(
@@ -99,24 +104,29 @@ internal static class QkrpcMcpWorkspaceSync
             explicitDir: null,
             workspaceRoot);
 
-        Directory.CreateDirectory(projectDir);
+        var binding = root["hostBinding"] is JsonObject bindingJson
+            ? JsonSerializer.Deserialize<QuickerRpcHostBinding>(bindingJson.ToJsonString(), QkrpcMcpJson.SerializerOptions) : null;
+        using var projectOwner = ActionProjectHostBinding.ClaimExport(projectDir, actionId.Trim(), binding, allowExisting: false);
         Directory.CreateDirectory(Path.Combine(projectDir, QuickerProjectLayout.FilesDirName));
 
         var info = new ActionProjectInfo
         {
             Id = actionId.Trim(),
             Title = root["title"]?.GetValue<string>() ?? "新动作",
-            Description = root["description"]?.GetValue<string>(),
-            Icon = root["icon"]?.GetValue<string>(),
+            Description = root["description"]?.GetValue<string>() ?? string.Empty,
+            Icon = root["icon"]?.GetValue<string>() ?? string.Empty,
             EditVersion = root["editVersion"]?.GetValue<long>() ?? 0,
         };
         QuickerProjectFiles.WriteActionInfo(projectDir, info);
+        wroteInfo = true;
 
         WriteCreateProgramData(projectDir, dataJson);
+        wroteData = true;
+        ActionProjectHostBinding.WriteAfterExport(projectDir, actionId.Trim(), binding!);
 
-        QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
         try
         {
+            QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
             QkrpcMcpWorkspaceIndex.Write(workspaceRoot);
         }
         catch
@@ -132,6 +142,17 @@ internal static class QkrpcMcpWorkspaceSync
 
         await Task.CompletedTask.ConfigureAwait(false);
         return QkrpcMcpResponseCompact.Compact(root.ToJsonString());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            root["ok"] = false;
+            root["error"] = ex is QuickerRpcClientException failure ? failure.ErrorCode : "PROJECT_BINDING_WRITE_FAILED";
+            root["message"] = "Host action was created; local project binding failed. Do not repeat create. " + ex.Message;
+            root["retryable"] = false;
+            root["persistedParts"] = new JsonObject { ["hostAction"] = true, ["localInfo"] = wroteInfo, ["localData"] = wroteData, ["binding"] = false };
+            return root.ToJsonString();
+        }
     }
 
     internal static async Task<string> AugmentSubprogramCreateAsync(

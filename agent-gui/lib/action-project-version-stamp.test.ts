@@ -7,6 +7,19 @@ import { saveActionFromWorkspace, syncProjectEditVersionOnDisk } from "./action-
 import { saveProgramDocument, withProgramDocumentWriteOwner } from "./program-document-save.server";
 import { runWithQkrpcCwdAsync } from "./qkrpc-request-context";
 import type { QkrpcRunResult } from "./qkrpc-types";
+import type { QkrpcHostBinding } from "./qkrpc-host-binding";
+
+const binding: QkrpcHostBinding = {
+  hostInstanceId: "version-stamp-fixture", hostSessionId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  endpoint: "QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fixture",
+  capabilities: { "action.legacyBody.read": true, "action.legacyBody.write": true, "action.presentation.write": true },
+};
+
+async function writeBinding(directory: string, actionId: string) {
+  await mkdir(join(directory, ".qkrpc"), { recursive: true });
+  await writeFile(join(directory, ".qkrpc", "project-binding.json"), JSON.stringify({ schemaVersion: 1, kind: "action", actionId, hostBinding: binding }));
+}
 
 async function fixture(run: (root: string) => Promise<void>) {
   const parent = fileURLToPath(new URL("../../../../.tmp/qkrpc-ui-lifecycle/", import.meta.url));
@@ -69,6 +82,7 @@ test("whole production Sync owns preflight, body and metadata RPC so local two-f
       const beforeInfo = `{"id":"${id}","editVersion":"10","title":"Local A","description":"","icon":"","unknown":9007199254740993}`;
       await writeFile(join(directory, "data.json"), beforeBody);
       await writeFile(join(directory, "info.json"), beforeInfo);
+      await writeBinding(directory, id);
       let release!: () => void;
       const held = new Promise<void>((resolveHeld) => { release = resolveHeld; });
       let entered!: () => void;
@@ -121,6 +135,7 @@ test("production partial metadata Sync keeps old local version and never creates
       const beforeInfo = `{"id":"${id}","editVersion":"10","title":"Local A","description":"","icon":"","unknown":9007199254740993}`;
       await writeFile(join(directory, "data.json"), beforeBody);
       await writeFile(join(directory, "info.json"), beforeInfo);
+      await writeBinding(directory, id);
       const calls: string[] = [];
       const result = await saveActionFromWorkspace({ id }, { run: async (args) => {
         calls.push(args[1]!);
