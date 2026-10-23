@@ -39,6 +39,7 @@ async function handleRequest(req, res) {
       ok: true,
       protocolVersion: PROTOCOL_VERSION,
       runtimeVersion: RUNTIME_VERSION,
+      runtimeOwner: process.env.QUICKER_AGENT_RUNTIME_OWNER,
       browserReady: manager.browserReady,
       browserError: manager.browserError,
       sessionCount: manager.sessionCount,
@@ -106,7 +107,10 @@ server.on("upgrade", (req, socket, head) => {
   });
 });
 
+let shuttingDown = false;
 async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log("[browser-runtime] shutting down");
   wss.close();
   server.close();
@@ -126,3 +130,8 @@ server.listen(config.port, config.host, () => {
     `[browser-runtime] quicker-browser-runtime ${RUNTIME_VERSION} listening on http://${config.host}:${config.port}/health`,
   );
 });
+
+if (process.send) {
+  process.once("disconnect", () => { void shutdown(); });
+  process.on("message", (message) => { if (message === "shutdown") void shutdown(); });
+}

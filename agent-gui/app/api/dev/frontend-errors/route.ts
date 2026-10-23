@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import type { ClientFrontendErrorReport } from "@/lib/dev-frontend-types";
 import {
   appendClientFrontendErrors,
@@ -7,9 +6,9 @@ import {
 
 export const runtime = "nodejs";
 
-function devOnly(): NextResponse | null {
+function devOnly(): Response | null {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
   return null;
 }
@@ -18,7 +17,7 @@ export async function GET() {
   const blocked = devOnly();
   if (blocked) return blocked;
 
-  return NextResponse.json({
+  return Response.json({
     errors: readClientFrontendErrors(),
   });
 }
@@ -31,7 +30,7 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const incoming = Array.isArray(body)
@@ -61,5 +60,5 @@ export async function POST(req: Request) {
   }
 
   const errors = appendClientFrontendErrors(normalized);
-  return NextResponse.json({ ok: true, count: errors.length });
+  return Response.json({ ok: true, count: errors.length });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/renderer-navigation";
 import { type ReactNode } from "react";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
 import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";

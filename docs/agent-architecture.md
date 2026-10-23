@@ -19,7 +19,7 @@ UI / HTTP adapters
 | 层 | 当前入口 | 只负责 |
 |----|----------|--------|
 | HTTP | `lib/agent-service/chat-handler.ts`、`app/api/chat/route.ts` | 标准请求解码、显式 Cookie/preview 与错误适配；Next 只绑定真实 runner |
-| Node service | `lib/agent-service/`、`service/main.ts` | 独立 loopback HTTP、背压与断连、懒 runtime 组合和进程资源释放；当前实验性仅覆盖 chat |
+| Node service | `lib/agent-service/`、`service/main.ts` | 独立 loopback HTTP、背压与断连、懒 runtime、原 API handlers 与可选静态 React；受控切换 |
 | Application | `lib/agent-harness/turn-runner.ts` | 通过注入的端口串联 turn 阶段，持有一次请求的取消与资源 owner |
 | Server bindings | `lib/agent-harness/run-turn.server.ts` | 将配置、scope、工具和 usage 等真实服务绑定到应用层 |
 | Request | `lib/agent-harness/turn-request.server.ts` | 模式、slash、消息修复、LLM selection 标准化 |
@@ -31,14 +31,14 @@ UI / HTTP adapters
 ### 框架去耦与目标运行边界
 
 当前 Next.js 是现有实现的 HTTP/UI 宿主，不是 Agent 的产品要求。主页面只组合客户端
-Chat、启动占位和 Designer URL 参数；77 个 API route 承担本地服务入口。`/api/chat`
+Chat、启动占位和 Designer URL 参数；当前 72 个 API 路径承担本地服务入口。`/api/chat`
 已经只做 Request 解码与应用层绑定，runner/loop 使用 AI SDK 和标准 Response/SSE。
 SQLite、文件、子进程、ALS 和 stdio MCP 需要 Node.js，不能据此推导出需要 Next.js。
 
-后续工程以桌面优先的以下目标为准，当前尚未完成迁移：
+静态受控入口已实现以下边界；默认开发/兼容打包仍使用 Next，完整切换尚未完成：
 
 ```text
-React renderer（候选构建工具 Vite，静态资源与页面导航）
+React renderer（esbuild 静态资源与页面导航）
   → 现有 HTTP/SSE 契约
     → 独立 Node Agent service（唯一业务组合入口）
       → AI SDK / DB / 文件与工具 / qkrpc / browser / terminal adapters
@@ -54,7 +54,7 @@ Electron shell → 窗口、preload/IPC、原生集成与所属服务进程的�
 | qkrpc | V1/V2 宿主适配、CLI/MCP/HTTP、YAML codec/source bundle | 桌面 UI 与模型会话状态 |
 
 先实现服务边界，再替换 UI 构建工具；已有 React、AI SDK、工具、YAML codec 与历史格式继续复用。
-生产阶段仍使用 Next standalone，不能把目标拓扑写成已落地事实。当前也不是单进程系统：
+默认打包仍使用 Next standalone；`electron:prepare:static` 可生成不含 Next 的同构资源，完整切换须满足下述验收。当前也不是单进程系统：
 Next/Agent、qkrpc、browser 与 terminal 已有各自进程，重构要统一 owner，不能再新增一套平行服务。
 
 移除 Next 需要满足以下门槛；近期实现按 [产品主线](product/README.md#统一-rpc-与动作设计器当前主线)
@@ -76,17 +76,23 @@ CI 独立推进上述检查，先保护现有可运行版本。R4 已开始的�
 
 独立 Node 入口现已提供 `dev:agent-service`：`/health` 不导入模型配置、不打开 DB；首个
 `POST /api/chat` 才加载原 `runAgentChatTurn`。标准 AI SDK client transport 可完成工具执行、
-审批回传与续跑，不新增 Agent loop、会话协议或数据库格式。当前 UI/Electron 仍使用 Next，
-该入口只供受控开发验证。显式 profile 与单 writer 已接入：`--data-dir` / `QUICKER_AGENT_DATA_DIR`
+审批回传与续跑，不新增 Agent loop、会话协议或数据库格式。Node 与静态 UI/Electron 入口
+用于受控集成验证，默认开发和兼容打包继续使用 Next。显式 profile 与单 writer 已接入：`--data-dir` / `QUICKER_AGENT_DATA_DIR`
 启动时固定资料根，Next 与 Node 共用 canonical SQLite lease，第二 writer 在迁移前拒绝；
 生成资料与真实子进程覆盖竞争、崩溃和重开。旧二进制不遵守新租约，不能视为已受保护。
-其他 API、静态 renderer 与打包资源布局尚未迁移，完整桌面用户资料升级仍待验收。
+原 API handlers 已通过标准路由表接入 Node；静态 React、migrations/docs/skills、原生模块与
+Electron 组合已有可执行入口。搬移目录后的 fake 模型/工具 API 与真实 Edge、browser/terminal
+子进程退出验证，以及 Windows 隔离 packaged launch smoke 已通过。安装/升级、真实旧用户
+资料和 P1–P3 完整宿主流程仍待集成；兼容 Next 入口因此保留。运行清单见
+[静态运行目录](engineering/static-agent-runtime.md)。
 
 服务停止先终止接收、取消各自请求并等待 response reader/producer 结束，再释放 runtime。
 超过有界 grace 明确返回超时，仍保留 DB，待 `whenSettled()` 后延迟释放，不能一边关闭存储
 一边让晚回调重新打开。runtime 清理只处理本进程实际登记并保有句柄的 browser/terminal
 子进程；kill 失败或未确认退出时保留 owner/state 并报告失败，不能通过磁盘 PID 猜归属。
-旧 stale listener/端口处理仍是现存待整改路径，本切片不宣称其已完成。
+browser/terminal 的 stale listener/磁盘 PID 不再被作为终止授权；静态服务通过独立端口、
+profile 内状态与 runtime owner 拒绝跨 profile 复用，IPC 断连停止所属服务和子进程。
+浏览器工具 turn 取消到实际页面操作的传播仍未完成，不能以进程退出代替该验收。
 
 `check:agent-backend` 以内存编译检查本地依赖图，拒绝 Next 和残留本地 alias；npm 包保持
 external。它不执行配置或模型，也不是发布打包器。开发服务使用进程级

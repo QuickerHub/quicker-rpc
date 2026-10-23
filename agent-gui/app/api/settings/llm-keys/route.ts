@@ -119,8 +119,8 @@ function providerConfigStatus(id: LlmProviderId): ProviderConfigStatus {
   return status;
 }
 
-export async function GET() {
-  return withReleasePreviewRoute(async () => {
+export async function GET(req: Request) {
+  return withReleasePreviewRoute(req, async () => {
   scheduleRemotePublishConfigRefreshOnStartup();
   const secrets = loadLlmLocalSecrets();
   const direct = secrets.directApiKey;
@@ -190,7 +190,7 @@ type PutBody = {
 };
 
 export async function PUT(req: Request) {
-  return withReleasePreviewRoute(async () => {
+  return withReleasePreviewRoute(req, async () => {
   let body: PutBody;
   try {
     body = (await req.json()) as PutBody;

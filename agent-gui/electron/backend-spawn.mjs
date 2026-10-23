@@ -1,9 +1,10 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createConnection, createServer } from "node:net";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { reserveSmokeUiPort, startSmokeRpcGuard, writeSmokeHandshake } from "./smoke-isolation.mjs";
 import { AGENT_DATA_DIRECTORY_ENV } from "../lib/agent-data-profile.mjs";
+import { resolveRuntimeEntry } from "./runtime-entry.mjs";
 
 const UI_PORT_PREFERRED = 3000;
 const QKRPC_PORT_DEFAULT = 9477;
@@ -13,6 +14,7 @@ const QKRPC_PORT_DEFAULT = 9477;
 /** @type {{ qkrpc?: ManagedChild, node?: ManagedChild }} */
 const children = {};
 let smokeRpcGuard;
+let backendShutdown;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -75,34 +77,117 @@ async function httpProbe(host, port, path, mode, maxMs) {
   return false;
 }
 
-export function killChildTree(child) {
+export async function killChildTree(child, { timeoutMs = 1000, abortSignal } = {}) {
   if (!child?.pid || child.exitCode != null || child.signalCode != null) return;
+  abortSignal?.throwIfAborted();
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-      stdio: "ignore",
+    await new Promise((resolve, reject) => {
+      let command;
+      let timer;
+      let finished = false;
+      const finish = (error) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        abortSignal?.removeEventListener("abort", onAbort);
+        if (error) {
+          // Cancel only this helper. The backend handle stays registered until its actual exit.
+          if (command?.pid && command.exitCode == null && command.signalCode == null) {
+            try { command.kill(); } catch { /* The original stop failure remains authoritative. */ }
+          }
+          reject(error);
+        } else resolve();
+      };
+      const onAbort = () => finish(abortSignal.reason ?? new Error("Backend stop was cancelled"));
+      const onError = (error) => finish(new Error(`Failed to stop owned backend ${child.pid}: ${error.message}`));
+      const onExit = (code) => {
+        command.off("error", onError);
+        finish(code === 0 || child.exitCode != null || child.signalCode != null
+          ? undefined : new Error(`Failed to stop owned backend ${child.pid}`));
+      };
+      const onClose = () => {
+        command.off("error", onError);
+        command.off("exit", onExit);
+      };
+      try {
+        command = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+        // Keep the error listener through helper cancellation, which may itself emit an error.
+        command.on("error", onError);
+        command.once("exit", onExit);
+        command.once("close", onClose);
+        timer = setTimeout(() => finish(new Error(`Stopping owned backend ${child.pid} timed out`)), timeoutMs);
+        abortSignal?.addEventListener("abort", onAbort, { once: true });
+        if (abortSignal?.aborted) onAbort();
+      } catch (error) { finish(error); }
     });
     return;
   }
-  try {
-    child.kill("SIGTERM");
-  } catch {
-    // ignore
-  }
+  if (!child.kill("SIGTERM")) throw new Error(`Failed to stop owned backend ${child.pid}`);
 }
 
 export function shutdownBackends() {
-  void smokeRpcGuard?.close();
+  if (backendShutdown) return backendShutdown;
+  let resolveShutdown, rejectShutdown;
+  backendShutdown = new Promise((resolve, reject) => { resolveShutdown = resolve; rejectShutdown = reject; });
+  const guard = smokeRpcGuard;
   smokeRpcGuard = undefined;
-  if (children.qkrpc) {
-    killChildTree(children.qkrpc.child);
-    children.qkrpc = undefined;
-  }
-  if (children.node) {
-    // The smoke launcher owns the native Job handle, including startup failures.
-    // Do not target numeric PIDs after a smoke child may already have exited.
-    if (!children.node.smokeJobOwned) killChildTree(children.node.child);
-    children.node = undefined;
-  }
+  const guardStopped = guard?.close();
+  const node = children.node;
+  const qkrpc = children.qkrpc;
+  const stop = async () => {
+    await guardStopped;
+    if (node) {
+      // The smoke launcher owns the native Job handle, including startup failures.
+      if (!node.smokeJobOwned) await stopAgentChild(node.child);
+      if (children.node === node) children.node = undefined;
+    }
+    if (qkrpc) {
+      await stopAgentChild(qkrpc.child, 0);
+      if (children.qkrpc === qkrpc) children.qkrpc = undefined;
+    }
+  };
+  void stop().then(resolveShutdown, (error) => {
+    backendShutdown = undefined; // Keep retained handles available for a retry.
+    rejectShutdown(error);
+  });
+  return backendShutdown;
+}
+
+/** IPC drains turns and tools; fallback kill still waits for the retained handle's exit. */
+export function stopAgentChild(child, graceMs = 2500, { forceTimeoutMs = 1000 } = {}) {
+  if (!child?.pid || child.exitCode != null || child.signalCode != null) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    let timer;
+    let settled = false;
+    let forcing = false;
+    const forceController = new AbortController();
+    const complete = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.off("exit", done);
+      forceController.abort();
+      if (error) reject(error); else resolve();
+    };
+    const done = () => complete();
+    const force = () => {
+      if (settled || forcing) return;
+      if (child.exitCode != null || child.signalCode != null) { done(); return; }
+      forcing = true;
+      clearTimeout(timer);
+      timer = setTimeout(() => complete(new Error(`Owned backend ${child.pid} did not exit`)), forceTimeoutMs);
+      void killChildTree(child, { timeoutMs: forceTimeoutMs, abortSignal: forceController.signal }).catch((error) => {
+        if (child.exitCode != null || child.signalCode != null) done();
+        else complete(error);
+      });
+    };
+    child.once("exit", done);
+    if (child.connected) {
+      timer = setTimeout(force, graceMs);
+      try { child.send("shutdown", (error) => { if (error) force(); }); }
+      catch { force(); }
+    } else force();
+  });
 }
 
 async function resolveQkrpcPort(host) {
@@ -185,16 +270,18 @@ function spawnQkrpc(qkrpcDir, host, port) {
 }
 
 function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwned = false) {
-  const serverJs = join(appDir, "server.js");
+  const entry = resolveRuntimeEntry(appDir);
+  const serverJs = entry.path;
   if (!existsSync(serverJs)) {
     throw new Error(`server.js not found: ${serverJs}`);
   }
-  const child = spawn(nodeExe, [serverJs], {
+  const child = spawn(nodeExe, entry.kind === "static" ? [serverJs, "--host", host, "--port", String(port)] : [serverJs], {
     cwd: appDir,
-    stdio: "ignore",
+    stdio: entry.kind === "static" ? ["ignore", "ignore", "pipe", "ipc"] : "ignore",
     windowsHide: true,
     env: buildBundledChildEnv(host, port, envExtra),
   });
+  child.stderr?.on("data", (chunk) => console.error(`[agent service] ${chunk.toString().trimEnd()}`));
   children.node = { child, port, smokeJobOwned };
   return child;
 }
@@ -211,6 +298,8 @@ function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwn
  */
 export async function startProductionBackends(runtime) {
   const host = "127.0.0.1";
+  if (children.node || children.qkrpc) throw new Error("Desktop backends already started");
+  backendShutdown = undefined;
   if (runtime.smoke) {
     try {
       smokeRpcGuard = await startSmokeRpcGuard();
@@ -228,6 +317,7 @@ export async function startProductionBackends(runtime) {
       throw error;
     }
   }
+  try {
   const { port: qkrpcPort, shouldSpawn } = await resolveQkrpcPort(host);
   const uiPort = await resolveUiPort(host);
   const qkrpcUrl = `http://${host}:${qkrpcPort}`;
@@ -264,4 +354,8 @@ export async function startProductionBackends(runtime) {
     uiPort,
     qkrpcPort,
   };
+  } catch (error) {
+    await shutdownBackends();
+    throw error;
+  }
 }

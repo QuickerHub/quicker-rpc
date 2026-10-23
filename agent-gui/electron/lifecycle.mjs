@@ -8,13 +8,12 @@ export function registerEmbeddedBrowserShutdown(fn) {
 }
 
 function shutdownDesktopRuntimes() {
-  shutdownEmbeddedBrowser?.();
+  return shutdownEmbeddedBrowser?.();
 }
 
 /** Graceful shutdown aligned with Tauri `spawn_shutdown_and_exit` / `prepare_for_update_install`. */
 
-const SHUTDOWN_FORCE_EXIT_AFTER_MS = 3_000;
-const SHUTDOWN_BACKEND_DELAY_MS = 1_200;
+const SHUTDOWN_FORCE_EXIT_AFTER_MS = 6_000;
 const UI_EXIT_LEAD_MS = 60;
 
 let exitInProgress = false;
@@ -31,41 +30,30 @@ export function isMainWindowClosePermitted() {
 /**
  * @param {{ shutdownBackends: () => void }} ctx
  */
-export function prepareForUpdateInstall(ctx) {
-  shutdownDesktopRuntimes();
-  ctx.shutdownBackends();
+export async function prepareForUpdateInstall(ctx) {
+  await shutdownDesktopRuntimes();
+  await ctx.shutdownBackends();
 }
 
-/**
- * @param {{ app: import('electron').App, shutdownBackends: () => void, getMainWindow: () => import('electron').BrowserWindow | null }} ctx
- */
+/** Stop owned services before exiting so updates cannot race live database writers. */
 export function gracefulExit(ctx) {
-  const { app, shutdownBackends, getMainWindow } = ctx;
-
-  if (exitInProgress) {
-    shutdownDesktopRuntimes();
-    shutdownBackends();
-    app.exit(0);
-    return;
-  }
+  const { app, getMainWindow } = ctx;
+  if (exitInProgress) return;
   exitInProgress = true;
-
-  setTimeout(() => {
-    shutdownDesktopRuntimes();
-    shutdownBackends();
-    app.exit(0);
-  }, SHUTDOWN_FORCE_EXIT_AFTER_MS);
-
+  const force = setTimeout(() => app.exit(1), SHUTDOWN_FORCE_EXIT_AFTER_MS);
   setTimeout(() => {
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
       permitMainWindowClose();
       win.close();
     }
-    setTimeout(() => {
-      shutdownDesktopRuntimes();
-      shutdownBackends();
-      app.quit();
-    }, SHUTDOWN_BACKEND_DELAY_MS);
+    void prepareForUpdateInstall(ctx).then(() => {
+      clearTimeout(force);
+      app.exit(0);
+    }, (error) => {
+      console.error("[shutdown]", error);
+      clearTimeout(force);
+      app.exit(1);
+    });
   }, UI_EXIT_LEAD_MS);
 }

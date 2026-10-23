@@ -1,15 +1,18 @@
 import { createAgentChatHandler, type AgentChatHandlerServices } from "./chat-handler";
+import { isAgentApiPath } from "./api-router";
 
 export const AGENT_SERVICE_PROTOCOL_VERSION = 1;
 
 export type AgentServiceRuntime = {
   runTurn: AgentChatHandlerServices["runTurn"];
+  handleRequest?: (request: Request) => Promise<Response>;
   dispose: () => void | Promise<void>;
 };
 
 export type AgentServiceApplicationOptions = {
   loadRuntime: () => AgentServiceRuntime | Promise<AgentServiceRuntime>;
   onError?: (error: unknown) => void;
+  serveRenderer?: (request: Request) => Promise<Response>;
 };
 
 /** One service owns one lazy runtime; transport adapters only speak Request/Response. */
@@ -52,13 +55,27 @@ export function createAgentServiceApplication(options: AgentServiceApplicationOp
           ok: true,
           service: "quicker-agent",
           protocolVersion: AGENT_SERVICE_PROTOCOL_VERSION,
-          capabilities: ["chat"],
+          capabilities: ["chat", "http-api", ...(options.serveRenderer ? ["renderer"] : [])],
           runtime: runtime ? "loaded" : "lazy",
         });
       }
       if (path === "/api/chat") {
         if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
         return chat(request);
+      }
+      if (isAgentApiPath(path)) {
+        try {
+          const owned = await getRuntime();
+          request.signal.throwIfAborted();
+          if (closed) return unavailable();
+          if (owned.handleRequest) return await owned.handleRequest(request);
+        } catch (error) {
+          if (request.signal.aborted) return new Response(null, { status: 499 });
+          report(error);
+          return Response.json({ error: "Agent API request failed" }, { status: 500 });
+        }
+      } else if (options.serveRenderer) {
+        return options.serveRenderer(request);
       }
       return Response.json({ error: "Not found" }, { status: 404 });
     },

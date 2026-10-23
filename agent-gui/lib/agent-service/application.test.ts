@@ -8,7 +8,7 @@ test("health and unsupported routes never load configuration or storage", async 
   let loads = 0;
   const app = createAgentServiceApplication({ loadRuntime: () => { loads++; throw Error("unexpected runtime import"); } });
   const health = await app.handle(new Request("http://agent.test/health"));
-  assert.deepEqual(await health.json(), { ok: true, service: "quicker-agent", protocolVersion: 1, capabilities: ["chat"], runtime: "lazy" });
+  assert.deepEqual(await health.json(), { ok: true, service: "quicker-agent", protocolVersion: 1, capabilities: ["chat", "http-api"], runtime: "lazy" });
   assert.equal((await app.handle(new Request("http://agent.test/api/settings"))).status, 404);
   const method = await app.handle(new Request("http://agent.test/api/chat"));
   assert.equal(method.status, 405);

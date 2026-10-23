@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   parseLlmProbeConfigSource,
   parseLlmProbeMethod,
@@ -22,9 +21,9 @@ export async function GET(req: Request) {
       timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 12_000,
       includeAutoModels: includeAuto,
     });
-    return NextResponse.json(report);
+    return Response.json(report);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return Response.json({ ok: false, error: message }, { status: 500 });
   }
 }

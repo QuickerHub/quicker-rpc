@@ -23,12 +23,17 @@ const tests = [
   "lib/agent-service/chat-handler.test.ts",
   "lib/agent-service/application.test.ts",
   "lib/agent-service/production-runtime.test.ts",
+  "lib/agent-service/background-config.test.ts",
   "lib/agent-service/node-http.test.ts",
+  "lib/agent-service/api-router.test.ts",
+  "lib/agent-service/static-renderer.test.ts",
   "service/cli.test.ts",
   "lib/agent-data-profile.test.mjs",
   "lib/agent-data-profile-isolation.test.ts",
   "lib/runtime-start-handlers.test.ts",
   "lib/runtime-owned-children.test.mjs",
+  "lib/runtime-profile-ownership.test.ts",
+  "lib/terminal-runtime-endpoint.test.ts",
   "lib/program-turn-context.test.ts",
   "lib/qkrpc-connectivity-gate.test.ts",
   "lib/step-runner-search-guard.test.ts",
@@ -98,6 +103,7 @@ function run(args) {
 for (const path of tests) {
   if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing offline test: ${path}`);
 }
+run(["scripts/generate-service-routes.mjs", "--check"]);
 run(["node_modules/typescript/bin/tsc", "--noEmit", "--incremental", "false"]);
 run([
   "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",

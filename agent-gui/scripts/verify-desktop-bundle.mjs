@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyStaticRuntime } from "./verify-static-runtime.mjs";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -78,13 +79,19 @@ function countFiles(dir) {
   return n;
 }
 
-function verifyRoot({ label, dir }) {
+async function verifyRoot({ label, dir }) {
   if (!existsSync(dir)) {
     if (label === "bundled") {
       console.log(`verify-desktop-bundle: skip ${label} (${dir} not found yet)`);
       return true;
     }
     throw new Error(`Missing ${label} resources dir: ${dir}`);
+  }
+
+  if (existsSync(join(dir, "app", "runtime-manifest.json"))) {
+    const checked = await verifyStaticRuntime(join(dir, "app"), { nodeExecutable: join(dir, "node", "node.exe"), desktop: true });
+    console.log(`verify-desktop-bundle: OK ${label} — static React + Node (${checked.files} runtime files)`);
+    return true;
   }
 
   const structuredApp = join(dir, "app", "server.js");
@@ -199,7 +206,7 @@ if (checkBundled) {
 let ok = true;
 for (const root of roots) {
   try {
-    verifyRoot(root);
+    await verifyRoot(root);
   } catch (e) {
     console.error(String(e));
     ok = false;

@@ -1,3 +1,4 @@
+import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
 type BrowserRuntimeLifecycle = Pick<typeof import("@/lib/browser-runtime-lifecycle.mjs"),
   "checkBrowserRuntimeHealth" | "ensureBrowserRuntime" | "resolveBrowserPort">;
 
@@ -29,7 +30,7 @@ export function createStartBrowserRuntimeHandler({
     } = await loadLifecycle();
 
     const port = resolveBrowserPort();
-    const base = `http://${host}:${port}`;
+    const base = runtimeHttpOrigin(host, port);
 
     if (await checkBrowserRuntimeHealth(base)) {
       return Response.json({ ok: true, reused: true, base });
