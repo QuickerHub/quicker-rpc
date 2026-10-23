@@ -106,5 +106,7 @@ Int64/高精度字段保真、过期 baseline 返回 409 且不覆盖文件；�
 打包 smoke 使用原 Windows Job Object 隔离协议，所有 RPC 都被本轮 guard 拒绝。
 它验证打包产物与所属进程的启动，不能代替 NSIS 安装/升级、真实旧用户资料升级、
 V1/V2 专用动作写回或完整新版 Designer 与 Agent 协同。
-浏览器单次工具调用的 turn abortSignal 仍未贯穿到 runtime 中的实际页面操作，不能用服务退出
-验证代替这条 R2 验收。以上门槛完成前，保留 Next 开发与兼容打包入口；新静态产物本身不含 Next。
+浏览器单次调用现已把 turn abortSignal 传到独立 request owner 与按 session 串行的原生
+操作尾部，实际自建 Edge/HTTP 取消、排队、迟到结果及原 context/ref 复用另有验证；
+Electron 原生与用户浏览器继续独立验收，不能用服务退出代替。以上门槛完成前，保留
+Next 开发与兼容打包入口；新静态产物本身不含 Next。

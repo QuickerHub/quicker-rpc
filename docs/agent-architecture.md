@@ -2,7 +2,7 @@
 
 > 状态：当前权威架构文档。代码行为以测试和实现为准；本文定义模块边界与依赖方向。
 
-QuickerAgent 使用 TypeScript、Next.js 和 Vercel AI SDK。AI SDK
+QuickerAgent 使用 TypeScript、React 和 Vercel AI SDK；Next.js 保留为兼容宿主。AI SDK
 `ToolLoopAgent` 是模型与工具循环的唯一框架内核；项目代码只实现 Quicker 特有的请求解析、
 策略、上下文管理、工具适配和 UI 协议。
 
@@ -71,8 +71,8 @@ Next/Agent、qkrpc、browser 与 terminal 已有各自进程，重构要统一 o
 5. **替换桌面打包**：删除 Next server.js/tracing 专用启动分支前，验证原生模块、静态资源、
    独立用户资料、进程退出与升级。以实测启动时间、包体、内存与迭代耗时判断收益，不能凭框架名称宣称变快。
 
-CI 独立推进上述检查，先保护现有可运行版本。R4 已开始的状态丢失修复收口后，R5 面板扩展与
-更广 UI 拆分先等待服务边界，避免围绕旧宿主继续扩大改动。
+CI 独立推进上述检查，先保护现有可运行版本。R5 文件实例现已在客户端与呈现解耦，
+复用同一 Node/Next API；更广面板契约继续按实际生命周期逐项接入。
 
 独立 Node 入口现已提供 `dev:agent-service`：`/health` 不导入模型配置、不打开 DB；首个
 `POST /api/chat` 才加载原 `runAgentChatTurn`。标准 AI SDK client transport 可完成工具执行、
@@ -284,11 +284,25 @@ snapshot/etag 先复用。先保持当前请求/响应与聊天 SSE，测量 cat
 | `components/chat/Chat.tsx` | 持有现有会话与面板状态，向框架传入内容、回调与 DOM refs |
 | `components/chat/useAgentChatSession.ts` | 持有唯一 AI SDK 会话、消息、transport 和历史保存；提供针对实时 SDK 消息数组的条件替换 |
 | `components/chat/useChatMessageEditing.ts` | 持有单会话历史消息编辑锚点/草稿、确认与全局监听归属；输入正文继续由 composer 持有 |
+| `components/workspace/WorkspaceDocumentHost.tsx`、`lib/workspace-document-instances.ts` | 工作台文件实例与当前 Chat outlet 分开，固定存储/呈现 ports，编辑 Session 仍由 APDE 独占 |
 | `lib/agent-workbench-features.ts` | 声明快捷入口的稳定 id、文案、panel/command/route 目标及可用条件 |
 | `components/chat/ComposerShortcutCards.tsx` | 将功能定义绑定到已有图标、面板 hook、命令和路由 |
 | `app/theme.css`、`app/agent-workbench.css` | 主题根节点统一黑白灰通用 token（包含 body portal）；`.agent-workbench` 限定主工作台布局尺寸 |
 
 框架组件为纯展示组合，不启动 Agent、不持久化会话、不注册模型工具。保留现有分栏 DOM 与 refs，拖动、消息滚动和面板状态继续由原有组件负责。功能定义是界面入口目录；运行时工具目录与策略仍由 `TurnPlan` 和工具层负责。
+
+工作台文件实例由 Explorer provider 的私有 registry 持有，以 cwd、tab ID 与实例代次
+标识；它只保存 owner、基线描述与读请求 token，不存第二份编辑 present/history。
+所有 ChatPanel 外有唯一 `WorkspaceDocumentHost`，其 portal target 保持不变，切换时仅
+将 DOM 容器移到当前 outlet。APDE 自己的 Session、票据与历史原位保留；隐藏实例 inert，
+快捷键和 body portal 由 active 控制，Info/Sync/Delete 草稿及已发出的异步操作仍归原 owner。
+
+存储 port 固定 cwd/path，Info 的正文保存只允许同项目配对 data.json。load、refresh 和
+save 共用 cwd/tab 读代次，真正发布及 React updater 时仍须有效；shared cache 被失效后，
+旧 Promise 仍回原 waiter，但不能重新 seed 或释放替换请求。删除回执携带原 cwd/project，
+仅清理路径段内文档与缓存，未知旧回执只刷新，不清其它文件。Pin/focus 由当前可见 Chat
+presentation token 路由，不保留首次打开文件时的聊天闭包。完整浏览器/终端/trace 面板实例
+契约、trace run owner 和持久草稿恢复继续独立迁移。
 
 历史消息分支确认携带 mounted owner、thread、锚点、草稿与消息 revision。确认返回后先检查
 当前 owner，再通过 AI SDK 的同步 functional updater 比较实时 store；React 的节流消息副本
