@@ -20,10 +20,7 @@ function copySqliteBundle(src: string, dest: string): void {
   }
 }
 
-/** Copy legacy chats.db (install or old app-data layout) into agent.db when missing. */
-export function runLegacyAgentDatabaseFileMigration(agentDbPath: string): void {
-  if (existsSync(agentDbPath)) return;
-
+function defaultLegacyDatabaseCandidates(): string[] {
   const appData = resolveQuickerAgentAppDataDirectory();
   const installRoot = resolveQuickerAgentInstallDirectory();
   const candidates = [
@@ -45,7 +42,17 @@ export function runLegacyAgentDatabaseFileMigration(agentDbPath: string): void {
     }
   }
 
-  for (const src of candidates) {
+  return candidates;
+}
+
+/** Explicit candidates never fall back to user or install data. */
+export function runLegacyAgentDatabaseFileMigration(
+  agentDbPath: string,
+  sourceCandidates?: readonly string[],
+): void {
+  if (existsSync(agentDbPath)) return;
+
+  for (const src of sourceCandidates ?? defaultLegacyDatabaseCandidates()) {
     if (!existsSync(src)) continue;
     copySqliteBundle(src, agentDbPath);
     return;

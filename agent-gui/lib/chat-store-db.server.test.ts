@@ -37,7 +37,7 @@ let tempDir = "";
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "chat-db-test-"));
-  openChatDatabaseAt(join(tempDir, "chats.db"));
+  openChatDatabaseAt(join(tempDir, "chats.db"), { legacyImport: false });
 });
 
 afterEach(() => {

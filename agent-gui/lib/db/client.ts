@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -18,6 +18,16 @@ export const CHAT_DB_FILENAME = AGENT_DB_FILENAME;
 
 export type ChatDatabase = BetterSQLite3Database<typeof schema>;
 
+export type ChatDatabaseOpenOptions = {
+  /** Explicit database opens never discover user or install data implicitly. */
+  legacyImport: false | { directory: string };
+};
+
+type LegacyImportSources = false | {
+  databasePaths: readonly string[];
+  jsonPaths: (filename: string) => readonly string[];
+};
+
 let sqliteInstance: Database.Database | null = null;
 let drizzleInstance: ChatDatabase | null = null;
 let migrationsApplied = false;
@@ -31,17 +41,28 @@ export function resolveChatDatabasePath(): string {
   return resolveAgentDatabasePath();
 }
 
-function applyMigrations(db: ChatDatabase, dbPath: string, sqlite: Database.Database): void {
+function applyMigrations(
+  db: ChatDatabase,
+  dbPath: string,
+  sqlite: Database.Database,
+  legacySources?: LegacyImportSources,
+): void {
   if (migrationsApplied) return;
   backupChatDatabaseBeforeFirstMigration(sqlite, dbPath);
   patchLegacyChatSchema(sqlite);
   migrate(db, { migrationsFolder: resolveMigrationsFolder() });
-  seedAppKvFromLegacyJsonFiles(sqlite);
+  // Fresh databases only acquire their base tables during the initial migration.
+  patchLegacyChatSchema(sqlite);
+  if (legacySources !== false) {
+    seedAppKvFromLegacyJsonFiles(sqlite, legacySources?.jsonPaths);
+  }
   migrationsApplied = true;
 }
 
-function openSqliteAt(path: string): Database.Database {
-  runLegacyAgentDatabaseFileMigration(path);
+function openSqliteAt(path: string, legacySources?: LegacyImportSources): Database.Database {
+  if (legacySources !== false) {
+    runLegacyAgentDatabaseFileMigration(path, legacySources?.databasePaths);
+  }
   mkdirSync(dirname(path), { recursive: true });
   const sqlite = new Database(path);
   sqlite.pragma("journal_mode = WAL");
@@ -70,12 +91,23 @@ export function resetChatDatabaseClientForTests(): void {
   migrationsApplied = false;
 }
 
-/** @internal test helper */
-export function openChatDatabaseAt(path: string): ChatDatabase {
+/** @internal Explicit test/fixture initialization; production uses getChatDatabase. */
+export function openChatDatabaseAt(path: string, options: ChatDatabaseOpenOptions): ChatDatabase {
+  let legacySources: LegacyImportSources = false;
+  if (options.legacyImport !== false) {
+    const directory = options.legacyImport.directory;
+    if (!isAbsolute(directory)) {
+      throw new Error("An explicit legacy import directory must be absolute.");
+    }
+    legacySources = {
+      databasePaths: [join(directory, "chats.db"), join(directory, AGENT_DB_FILENAME)],
+      jsonPaths: (filename) => [join(directory, filename)],
+    };
+  }
   resetChatDatabaseClientForTests();
-  sqliteInstance = openSqliteAt(path);
+  sqliteInstance = openSqliteAt(path, legacySources);
   drizzleInstance = drizzle(sqliteInstance, { schema });
-  applyMigrations(drizzleInstance, path, sqliteInstance);
+  applyMigrations(drizzleInstance, path, sqliteInstance, legacySources);
   return drizzleInstance;
 }
 

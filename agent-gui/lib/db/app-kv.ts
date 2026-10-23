@@ -59,9 +59,16 @@ export function deleteAppKv(key: AppKvKeyName): void {
   sqlite.prepare("DELETE FROM app_kv WHERE key = ?").run(key);
 }
 
-function importLegacyJsonFile(sqlite: Database.Database, filename: string, key: AppKvKeyName): void {
+type LegacyJsonPathResolver = (filename: string) => readonly string[];
+
+function importLegacyJsonFile(
+  sqlite: Database.Database,
+  filename: string,
+  key: AppKvKeyName,
+  resolvePaths: LegacyJsonPathResolver,
+): void {
   if (readKvRaw(sqlite, key)) return;
-  for (const path of resolveLegacyPersistedJsonPaths(filename)) {
+  for (const path of resolvePaths(filename)) {
     if (!existsSync(path)) continue;
     try {
       const text = readFileSync(path, "utf8");
@@ -81,8 +88,11 @@ function importLegacyJsonFile(sqlite: Database.Database, filename: string, key: 
 }
 
 /** Import legacy JSON settings into app_kv after schema migration. */
-export function seedAppKvFromLegacyJsonFiles(sqlite: Database.Database): void {
+export function seedAppKvFromLegacyJsonFiles(
+  sqlite: Database.Database,
+  resolvePaths: LegacyJsonPathResolver = resolveLegacyPersistedJsonPaths,
+): void {
   for (const [filename, key] of Object.entries(LEGACY_JSON_TO_KV)) {
-    importLegacyJsonFile(sqlite, filename, key);
+    importLegacyJsonFile(sqlite, filename, key, resolvePaths);
   }
 }

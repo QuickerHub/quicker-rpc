@@ -106,7 +106,7 @@ test("legacy pre-Drizzle schema opens and preserves messages after migration", (
   const dbPath = join(tempDir, "chats.db");
   createLegacyNodeSqliteDatabase(dbPath);
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   const loaded = loadChatStoreFromDatabase({ messageScope: "all" });
   assert.ok(loaded);
   assert.equal(countPersistedMessages(loaded!), 1);
@@ -119,7 +119,7 @@ test("first Drizzle open creates pre-drizzle backup of populated legacy DB", () 
   createLegacyNodeSqliteDatabase(dbPath);
   const backupPath = `${dbPath}.pre-drizzle.bak`;
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   assert.ok(existsSync(backupPath));
 
   const backupDb = new Database(backupPath, { readonly: true });
@@ -137,18 +137,18 @@ test("reopening migrated database is idempotent and keeps messages", () => {
     sampleMessage("round-trip"),
   ]);
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   saveChatStoreToDatabase(store);
   resetChatDatabaseClientForTests();
   resetDatabasePersistedSnapshotForTests();
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   const loaded = loadChatStoreFromDatabase({ messageScope: "all" });
   assert.equal(loaded?.threads[0]?.messages[0]?.id, "round-trip");
 
   resetChatDatabaseClientForTests();
   resetDatabasePersistedSnapshotForTests();
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   const loadedAgain = loadChatStoreFromDatabase({ messageScope: "all" });
   assert.equal(loadedAgain?.threads[0]?.messages[0]?.id, "round-trip");
 });
@@ -175,7 +175,7 @@ test("save without previous snapshot does not delete existing sidebar threads", 
     openTabIds: [threadA],
   };
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   saveChatStoreToDatabase(full);
   resetDatabasePersistedSnapshotForTests();
 
@@ -195,7 +195,7 @@ test("save guard rejects wipe-all payload", () => {
     sampleMessage("keep-me"),
   ]);
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   saveChatStoreToDatabase(store);
   resetDatabasePersistedSnapshotForTests();
 
@@ -214,7 +214,7 @@ test("import refuses to replace existing message blobs without allowWipe", () =>
     sampleMessage("first"),
   ]);
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   saveChatStoreToDatabase(first);
   assert.equal(countPersistedMessagesInDatabase(), 1);
 
@@ -232,7 +232,7 @@ test("mergeImportedChatStoreIntoDatabase writes message blobs for legacy restore
   const dbPath = join(tempDir, "chats.db");
   const shell = defaultChatStore();
 
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   saveChatStoreToDatabase(shell);
   resetDatabasePersistedSnapshotForTests();
 
@@ -260,25 +260,17 @@ test("mergeImportedChatStoreIntoDatabase writes message blobs for legacy restore
   );
 });
 
-test("copying existing user DB file remains readable after Drizzle open", () => {
-  const userDb = process.env.CHAT_DB_SAFETY_TEST_PATH?.trim();
-  if (!userDb || !existsSync(userDb)) {
-    return;
-  }
-
+test("copying a populated fixture DB remains readable after Drizzle open", () => {
+  const fixtureDb = join(tempDir, "fixture-source.db");
+  createLegacyNodeSqliteDatabase(fixtureDb);
   const dbPath = join(tempDir, "chats-copy.db");
-  copyFileSync(userDb, dbPath);
-  if (existsSync(`${userDb}-wal`)) {
-    copyFileSync(`${userDb}-wal`, `${dbPath}-wal`);
-  }
-  if (existsSync(`${userDb}-shm`)) {
-    copyFileSync(`${userDb}-shm`, `${dbPath}-shm`);
-  }
+  copyFileSync(fixtureDb, dbPath);
 
   const before = readFileSync(dbPath);
-  openChatDatabaseAt(dbPath);
+  openChatDatabaseAt(dbPath, { legacyImport: false });
   const loaded = loadChatStoreFromDatabase({ messageScope: "all" });
   assert.ok(loaded);
+  assert.equal(loaded.threads[0]?.messages[0]?.id, "legacy-1");
   const after = readFileSync(dbPath);
   assert.ok(after.length >= before.length);
 });
