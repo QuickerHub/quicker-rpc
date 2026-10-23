@@ -24,8 +24,8 @@
   --ad-border-strong: #4a4a4a;
   --ad-bg-menu-hover: #3a3a3a;
   --ad-fg-danger-soft: #e8a0a0;
-  --ad-accent: #4f9bd8;
-  --ad-bg-active-filter: #1f3344;
+  --ad-accent: #d6d6d6;
+  --ad-bg-active-filter: #353535;
   --ad-fg-variable-type: #8aa6bd;
   --ad-fg-variable-in: #7ec97e;
   --ad-fg-variable-output: #e57373;
@@ -38,8 +38,8 @@
   --ad-fg-input: #efefef;
   --ad-border-subtle: #3b3b3b;
   --ad-bg-step-list: #000000;
-  --ad-accent-line: #73b0e2;
-  --ad-bg-drop-zone: #1f2b34;
+  --ad-accent-line: #b8b8b8;
+  --ad-bg-drop-zone: #303030;
   --ad-border-panel: #3d3d3d;
   --ad-border-children: #252525;
   --ad-fg-branch: #b7a46c;
@@ -47,12 +47,12 @@
   --ad-fg-secondary: #d6d6d6;
   --ad-fg-list-body: #d8d8d8;
   --ad-bg-hover-soft: #313131;
-  --ad-bg-selected-row: #2f3943;
+  --ad-bg-selected-row: #3b3b3b;
   /* StepListEditor row selection (same as selected-row in dark). */
   --ad-bg-step-row-selected: var(--ad-bg-selected-row);
   --ad-step-row-selected-ring: none;
-  --ad-bg-list-selected: #1f3a54;
-  --ad-accent-bright: #79b2ef;
+  --ad-bg-list-selected: #393939;
+  --ad-accent-bright: #eeeeee;
   --ad-fg-ban: #ff7979;
   --ad-fg-step-title: #d7d7d7;
   --ad-step-disabled-filter: saturate(0.65) brightness(0.65);
@@ -75,25 +75,25 @@
   /* Match VariableEditor list row hover. */
   --ad-bg-step-row-hover: var(--ad-bg-variable-list-item-hover);
   --ad-bg-list-hover: #2e2e2e;
-  --ad-bg-list-selected-hover: #274d70;
-  --ad-border-selected: #376a95;
+  --ad-bg-list-selected-hover: #464646;
+  --ad-border-selected: #8e8e8e;
   --ad-fg-hint: #8a8a8a;
   --ad-fg-form-muted: #b8b8b8;
   --ad-fg-section: #c8c8c8;
   --ad-fg-error-text: #d59b9b;
   --ad-border-tab-sep: #323232;
   --ad-bg-tab: #262626;
-  --ad-bg-tab-active: #1f2f42;
-  --ad-fg-tab-active: #76b2f1;
-  --ad-bg-tree-selected: #2a3640;
+  --ad-bg-tab-active: #393939;
+  --ad-fg-tab-active: #eeeeee;
+  --ad-bg-tree-selected: #393939;
   --ad-fg-expand-muted: #a8a8a8;
   --ad-fg-subtitle: #c7c7c7;
   --ad-fg-success: #6ca66c;
-  --ad-bg-mark: #35506b;
-  --ad-fg-mark: #dff0ff;
+  --ad-bg-mark: #4a4a4a;
+  --ad-fg-mark: #ffffff;
   /* Expression editor (CodeMirror) — aligned with former Monaco quicker-dark. */
-  --ad-editor-selection-bg: #35506b;
-  --ad-editor-selection-bg-inactive: #2a3640;
+  --ad-editor-selection-bg: #4a4a4a;
+  --ad-editor-selection-bg-inactive: #393939;
   --ad-editor-active-line-bg: rgba(255, 255, 255, 0.03);
   --ad-bg-toast: #2d2d30;
   --ad-border-toast: #3f3f46;
@@ -101,26 +101,26 @@
   --ad-bg-toast-error: #3a2520;
   --ad-border-toast-warn: #7a6a2e;
   --ad-bg-toast-warn: #3a3520;
-  --ad-border-toast-info: #3a5a7a;
-  --ad-bg-toast-info: #252a32;
+  --ad-border-toast-info: #555555;
+  --ad-bg-toast-info: #2a2a2a;
   --ad-fg-dismiss: #b0b0b0;
   --ad-fg-on-emphasis: #ffffff;
   --ad-bg-button-secondary: #333333;
   --ad-fg-param-label: #c8d0d8;
   --ad-fg-param-hint: #8a9199;
   --ad-fg-button-secondary: #e0e0e0;
-  --ad-bg-button-primary: #2f5f8f;
-  --ad-border-button-primary: #3a7ab8;
+  --ad-bg-button-primary: #4a4a4a;
+  --ad-border-button-primary: #787878;
   --ad-fg-popup-ghost: #d0d0d0;
   --ad-bg-icon-btn: #252525;
-  --ad-fg-icon-btn: #9bc4ef;
+  --ad-fg-icon-btn: #d6d6d6;
   --ad-border-popup-divider: #3a3a3a;
   --ad-overlay-hover: rgba(255, 255, 255, 0.08);
   --ad-shadow-popover: 0 6px 18px rgba(0, 0, 0, 0.35);
   --ad-shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.45);
   --ad-shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.55);
   --ad-backdrop-popup: rgba(0, 0, 0, 0.55);
-  --ad-drag-preview-fg: #dfeaf6;
+  --ad-drag-preview-fg: #e8e8e8;
 
   /* Main editor document tabs (VS Code–like editor group tab bar). */
   --ad-editor-tab-bar-bg: #252526;
@@ -130,7 +130,7 @@
   --ad-editor-tab-inactive-fg: #969696;
   --ad-editor-tab-active-fg: #cccccc;
   --ad-editor-tab-sep: rgba(128, 128, 128, 0.22);
-  --ad-editor-tab-active-top: #0078d4;
+  --ad-editor-tab-active-top: #d6d6d6;
   --ad-editor-tab-close-fg: #c5c5c5;
   --ad-editor-tab-close-hover-bg: rgba(255, 255, 255, 0.1);
 }
@@ -154,8 +154,8 @@ html[data-theme="light"] {
   --ad-border-strong: #bdbdbd;
   --ad-bg-menu-hover: #e8e8e8;
   --ad-fg-danger-soft: #b84c4c;
-  --ad-accent: #2b7abf;
-  --ad-bg-active-filter: #d6e8f7;
+  --ad-accent: #303030;
+  --ad-bg-active-filter: #e5e5e5;
   --ad-fg-variable-type: #4a6a8a;
   --ad-fg-variable-in: #2d8a3e;
   --ad-fg-variable-output: #c62828;
@@ -167,8 +167,8 @@ html[data-theme="light"] {
   --ad-border-input: #c4c4c4;
   --ad-fg-input: #1a1a1a;
   --ad-border-subtle: #c4c4c4;
-  --ad-accent-line: #2b7abf;
-  --ad-bg-drop-zone: #d6e8f7;
+  --ad-accent-line: #505050;
+  --ad-bg-drop-zone: #e5e5e5;
   --ad-border-panel: #d0d0d0;
   --ad-border-children: #e0e0e0;
   --ad-fg-branch: #8a7220;
@@ -176,12 +176,12 @@ html[data-theme="light"] {
   --ad-fg-secondary: #303030;
   --ad-fg-list-body: #242424;
   --ad-bg-hover-soft: #ebebeb;
-  --ad-bg-selected-row: #d6e8f7;
+  --ad-bg-selected-row: #e0e0e0;
   /* Step row: same fill as --ad-bg-selected-row; contrast from --ad-step-row-selected-ring. */
   --ad-bg-step-row-selected: var(--ad-bg-selected-row);
-  --ad-step-row-selected-ring: inset 0 0 0 1px rgba(24, 90, 145, 0.42);
-  --ad-bg-list-selected: #c9e2f7;
-  --ad-accent-bright: #1f6fad;
+  --ad-step-row-selected-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.42);
+  --ad-bg-list-selected: #e0e0e0;
+  --ad-accent-bright: #111111;
   --ad-fg-ban: #d92d2d;
   --ad-fg-step-title: #454a50;
   --ad-step-disabled-filter: saturate(0.82) brightness(0.9);
@@ -201,12 +201,12 @@ html[data-theme="light"] {
   /* Step list well: match variable list “well” so the two columns read as one surface in light mode. */
   --ad-bg-step-list: var(--ad-bg-variable-list-well);
   --ad-bg-variable-list-item: #ffffff;
-  --ad-bg-variable-list-item-hover: #eef0f4;
+  --ad-bg-variable-list-item-hover: #eeeeee;
   /* Match VariableEditor list row hover. */
   --ad-bg-step-row-hover: var(--ad-bg-variable-list-item-hover);
   --ad-bg-list-hover: #ebebeb;
-  --ad-bg-list-selected-hover: #b8daf6;
-  --ad-border-selected: #6ba3d4;
+  --ad-bg-list-selected-hover: #d5d5d5;
+  --ad-border-selected: #747474;
   --ad-fg-hint: #666666;
   --ad-fg-form-muted: #5a5a5a;
   --ad-fg-section: #333333;
@@ -214,17 +214,17 @@ html[data-theme="light"] {
   /* Toolbox: align tab strip + icon buttons with panel (avoid gray “blocks” on white). */
   --ad-border-tab-sep: #ececec;
   --ad-bg-tab: #ffffff;
-  --ad-bg-tab-active: #e8f2fc;
-  --ad-fg-tab-active: #1a5a94;
-  --ad-bg-tree-selected: #d6e8f7;
+  --ad-bg-tab-active: #e5e5e5;
+  --ad-fg-tab-active: #1a1a1a;
+  --ad-bg-tree-selected: #e0e0e0;
   --ad-fg-expand-muted: #5a5a5a;
   --ad-fg-subtitle: #404040;
   --ad-fg-success: #2d7a3e;
-  --ad-bg-mark: #b8d4f0;
-  --ad-fg-mark: #0f3a5c;
+  --ad-bg-mark: #d0d0d0;
+  --ad-fg-mark: #1a1a1a;
   /* Expression editor (CodeMirror) — aligned with former Monaco quicker-light. */
-  --ad-editor-selection-bg: #b8d4f0;
-  --ad-editor-selection-bg-inactive: #d6e8f7;
+  --ad-editor-selection-bg: #d0d0d0;
+  --ad-editor-selection-bg-inactive: #e0e0e0;
   --ad-editor-active-line-bg: rgba(0, 0, 0, 0.04);
   --ad-bg-toast: #ffffff;
   --ad-border-toast: #c8c8c8;
@@ -232,26 +232,26 @@ html[data-theme="light"] {
   --ad-bg-toast-error: #fdecea;
   --ad-border-toast-warn: #c4a860;
   --ad-bg-toast-warn: #faf6e6;
-  --ad-border-toast-info: #6a8ab0;
-  --ad-bg-toast-info: #eef4fa;
+  --ad-border-toast-info: #9a9a9a;
+  --ad-bg-toast-info: #f3f3f3;
   --ad-fg-dismiss: #555555;
   --ad-fg-on-emphasis: #ffffff;
   --ad-bg-button-secondary: #e8e8e8;
   --ad-fg-param-label: #2a3440;
   --ad-fg-param-hint: #5a6168;
   --ad-fg-button-secondary: #1a1a1a;
-  --ad-bg-button-primary: #2b7abf;
-  --ad-border-button-primary: #1f6fad;
+  --ad-bg-button-primary: #303030;
+  --ad-border-button-primary: #1a1a1a;
   --ad-fg-popup-ghost: #333333;
   --ad-bg-icon-btn: #ffffff;
-  --ad-fg-icon-btn: #1a5a94;
+  --ad-fg-icon-btn: #303030;
   --ad-border-popup-divider: #d8d8d8;
   --ad-overlay-hover: rgba(0, 0, 0, 0.06);
   --ad-shadow-popover: 0 6px 18px rgba(0, 0, 0, 0.12);
   --ad-shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.12);
   --ad-shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.18);
   --ad-backdrop-popup: rgba(0, 0, 0, 0.35);
-  --ad-drag-preview-fg: #0f2a44;
+  --ad-drag-preview-fg: #242424;
 
   --ad-editor-tab-bar-bg: #f3f3f3;
   --ad-editor-tab-row-border: #e8e8e8;
@@ -260,7 +260,7 @@ html[data-theme="light"] {
   --ad-editor-tab-inactive-fg: #616161;
   --ad-editor-tab-active-fg: #333333;
   --ad-editor-tab-sep: rgba(0, 0, 0, 0.08);
-  --ad-editor-tab-active-top: #0078d4;
+  --ad-editor-tab-active-top: #303030;
   --ad-editor-tab-close-fg: #424242;
   --ad-editor-tab-close-hover-bg: rgba(0, 0, 0, 0.06);
 }

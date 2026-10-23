@@ -47,6 +47,8 @@ import { collectStepParamFilePaths, type StepSummaryFileContents } from "@/lib/a
 import { projectRelativeFilePath } from "./formSpecModel";
 
 export type StepEditorPopupProps = {
+  active?: boolean;
+  keyboardOwnerId?: string;
   open: boolean;
   step: ActionStep | null;
   variables: ActionVariable[];
@@ -151,6 +153,8 @@ const StepInputParamRow = memo(function StepInputParamRow({
   && (prev.param.file ?? "") === (next.param.file ?? ""));
 
 export function StepEditorPopup({
+  active = true,
+  keyboardOwnerId,
   open,
   step,
   variables,
@@ -614,7 +618,7 @@ export function StepEditorPopup({
 
   // WPF-style accelerator: Alt+S applies from anywhere while dialog is open (capture so inputs still receive combo).
   useEffect(() => {
-    if (!open || !step) {
+    if (!active || !open || !step) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -655,9 +659,9 @@ export function StepEditorPopup({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose]);
+  }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose]);
 
-  if (!open || !step) {
+  if (!active || !open || !step) {
     return null;
   }
 
@@ -775,6 +779,7 @@ export function StepEditorPopup({
     <>
       <div
         className="step-editor-popup-backdrop"
+        data-program-keyboard-owner={keyboardOwnerId}
         role="presentation"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) {

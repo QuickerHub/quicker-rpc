@@ -37,6 +37,7 @@ import { normalizeLoadedProgramBodyIds } from "@/lib/action-editor/program/norma
 import { inferBranches } from "@/lib/action-editor/steps/actionStepNodeView";
 
 import { editorVarTypeToWire, wireVarTypeToEditor } from "@/lib/action-editor/wire/varTypeCodec";
+import { normalizeProgramWireForDisk } from "./normalizeProgramWireForDisk";
 
 
 
@@ -421,17 +422,7 @@ export function serializeProgramWireJson(
 /** Normalize data.json text to compact inputParams wire keys before disk write. */
 
 export function normalizeDataJsonTextForDisk(content: string): string {
-
-  const parsed = parseProgramWireJson(content);
-
-  if (!parsed.ok) {
-
-    return content;
-
-  }
-
-  return serializeProgramWireJson(parsed.present, parsed.extraTopLevel);
-
+  return normalizeProgramWireForDisk(content);
 }
 
 

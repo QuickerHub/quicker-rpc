@@ -1,4 +1,13 @@
 /* Action editor layout + step/variable UI */
+.x-program-editor input[type="checkbox"],
+.x-program-editor input[type="radio"],
+.step-editor-popup input[type="checkbox"],
+.step-editor-popup input[type="radio"],
+.form-def-editor-dialog input[type="checkbox"],
+.form-def-editor-dialog input[type="radio"] {
+  accent-color: var(--ad-accent);
+}
+
 .x-program-editor {
   flex: 1;
   display: grid;
@@ -2580,8 +2589,8 @@
 }
 
 .step-param-variable-picker-input::selection {
-  color: var(--ad-fg-on-emphasis);
-  background: var(--ad-accent);
+  color: var(--ad-fg-primary);
+  background: var(--ad-editor-selection-bg);
 }
 
 .step-param-variable-picker-popup {
@@ -2718,8 +2727,8 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   line-height: 1.4;
-  color: var(--ad-fg-accent, #7eb8da);
-  background: color-mix(in srgb, var(--ad-fg-accent, #7eb8da) 12%, transparent);
+  color: var(--ad-accent);
+  background: color-mix(in srgb, var(--ad-accent) 12%, transparent);
   word-break: break-all;
 }
 

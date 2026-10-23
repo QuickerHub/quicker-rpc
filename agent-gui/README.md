@@ -19,6 +19,10 @@
 
 ## 开发（统一入口）
 
+动作设计器回归：`pnpm check:agent-offline` 包含文档 revision、保真序列化和真实临时磁盘
+链；`pnpm check:action-designer` 使用已安装的 Microsoft Edge 验证真实 React 编辑器。
+后者禁止浏览器网络请求，使用合成动作和 fake 文件/宿主边界，无需模型或运行中的 Quicker。
+
 仓库根目录 **只用一个启动脚本**：
 
 ```powershell

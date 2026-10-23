@@ -102,7 +102,7 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
 ### 统一宿主与动作编辑边界
 
 已确认目标是同一 RPC 支持 V1/V2，优先复用 Quicker 新动作设计器，再研究通信效率。
-下面是待实施的契约边界，当前状态/交付顺序统一见 [主线计划](product/README.md#统一-rpc-与动作设计器当前主线)。
+下面是目标契约边界，当前状态/交付顺序统一见 [主线计划](product/README.md#统一-rpc-与动作设计器当前主线)。
 
 ```text
 React renderer：Agent 工作台 + Quicker Designer 组件/文档 controller
@@ -125,10 +125,14 @@ React renderer：Agent 工作台 + Quicker Designer 组件/文档 controller
 离线 codec 校验与 source dry-run 保持离线能力；其逻辑目标身份随文档保存，不要求为了
 校验而连接运行中的宿主。实际写回时才重新核验目标 session、能力和预期版本。
 
-当前内部 `IQuickerRpcHost.Info` 已有 V1/V2 与版本信息，但 wire health 没有完整宿主握手，
-两版本仍共用固定管道。V1 native source 与保存保护已实现；V2 有旧 body/patch 与宿主保存
-保护，尚未实现 `IQuickerRpcActionProgramSourceHost`。这与 V2 Designer UI port 为 null 是
-两个不同缺口，不能互相替代验证。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
+`GetHostSessionAsync` 已将实际 host kind/version、协议/schema、bootstrap session 和动作
+能力暴露到 RPC、CLI `ping --json` 与 HTTP `/health`。session 在同一次插件加载内稳定，
+不等同于跨重启的实例 ID。旧插件仅在方法不存在时兼容返回未知身份，不按版本猜能力；
+取消、断连和其它错误继续传播。两版本仍共用固定管道，尚无完整实例发现和写入绑定。
+V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
+未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
+持久化。V2 尚未实现 `IQuickerRpcActionProgramSourceHost`；这与 V2 Designer UI port 为
+null 是两个不同缺口。端口逐项对齐见 [V2 计划](design/quicker-rpc-plugin-v2.md)。
 
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，
@@ -148,6 +152,17 @@ client/surface 的 latest slot，部分 mutation snapshot 不含子程序；它�
 默认值文件和 `files/` 是另一类资源。迁移须同时保留 qkrpc 已有 `programWire` / 文件内容
 adapter，分别验收 catalog 拖放与外置文件保真往返。typed/proto 是编辑契约，不替代原生
 baseline；不能从生成模型的 `toJSON` 重建整个 V1 动作并丢弃未知字段。
+
+首轮迁移已经接入既有 `ActionProjectDataEditor`：`ProgramEditorTabWorkspace` 为每个
+文档创建独立 live-editor bridge，主程序与递归嵌入子程序保留已访问的编辑器和历史，
+只有可见且拥有焦点的 surface 处理快捷键。`assembleActionProgramSnapshot` 从当前
+handle 读取所有编辑内容，关闭子程序页签或切源码不会丢弃草稿。
+`lib/action-editor/document/` 的 controller 管理完整原生文档、局部 revision、身份和
+保存票据。保存只推进对应票据的基线，晚回执不会把其后的草稿标成已保存；外部文件
+变更会保留本地草稿并阻止覆盖。纯 controller 已有 Agent 事务入口，但实际 Agent 工具
+尚未接入打开的 UI session。当前磁盘会话没有伪造宿主身份。
+原生未知字段与外置文件引用在 projection overlay 及实际 `writeWorkspaceFile` 的磁盘
+规范化链中保留；后续 host adapter 仍须加入存储版本/CAS，这不等于已实现宿主事务。
 
 协议语义优先参考 Quicker `Designer/Protos/designer_host.proto` 中的 edit session、
 typed `ActionProgramBody`、`ActionStorageIdentity` 与 expected edit version；已有 catalog

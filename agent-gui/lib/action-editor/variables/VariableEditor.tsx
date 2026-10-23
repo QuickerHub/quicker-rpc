@@ -143,7 +143,7 @@ async function readVariableClipboardPayload(): Promise<ParsedVariableClipboard |
 }
 
 function cloneVariableForFormDraft(v: ActionVariable): ActionVariable {
-  return ActionVariable.fromPartial({
+  return { ...structuredClone(v), ...ActionVariable.fromPartial({
     id: v.id,
     key: v.key ?? "",
     varType: v.varType ?? 0,
@@ -159,7 +159,7 @@ function cloneVariableForFormDraft(v: ActionVariable): ActionVariable {
     inputParamInfo: v.inputParamInfo,
     outputParamInfo: v.outputParamInfo,
     tableDef: v.tableDef,
-  });
+  }) };
 }
 
 function variableFormFingerprint(v: ActionVariable): string {
@@ -476,6 +476,7 @@ function VariableEditorMultiBulkPanel({
 }
 
 export type VariableEditorProps = {
+  active?: boolean;
   variables: ActionVariable[];
   steps: ActionStep[];
   /** Main vs sub program tab: hides subprogram-only variable fields on the main surface. Default `"main"`. */
@@ -494,6 +495,7 @@ export type VariableEditorProps = {
 };
 
 export default function VariableEditor({
+  active = true,
   variables,
   steps,
   programSurface = "main",
@@ -630,7 +632,7 @@ export default function VariableEditor({
   }, [varTypeSelectOptions, variableFormDisplay]);
 
   useEffect(() => {
-    if (!typePickerOpen) {
+    if (!active || !typePickerOpen) {
       return;
     }
     const onPointerDown = (event: PointerEvent): void => {
@@ -648,10 +650,10 @@ export default function VariableEditor({
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [typePickerOpen]);
+  }, [active, typePickerOpen]);
 
   useEffect(() => {
-    if (!typePickerOpen) {
+    if (!active || !typePickerOpen) {
       setTypePickerPopupRect(null);
       return;
     }
@@ -687,10 +689,10 @@ export default function VariableEditor({
       window.removeEventListener("resize", updatePopupRect);
       window.removeEventListener("scroll", updatePopupRect, true);
     };
-  }, [typePickerOpen]);
+  }, [active, typePickerOpen]);
 
   useLayoutEffect(() => {
-    if (!typePickerOpen || !typePickerPopupRect || typePickerPopupRect.direction !== "up") {
+    if (!active || !typePickerOpen || !typePickerPopupRect || typePickerPopupRect.direction !== "up") {
       return;
     }
     const popup = typePickerPopupRef.current;
@@ -711,7 +713,7 @@ export default function VariableEditor({
         top: desiredTop
       };
     });
-  }, [typePickerOpen, typePickerPopupRect, varTypeSelectOptions.length]);
+  }, [active, typePickerOpen, typePickerPopupRect, varTypeSelectOptions.length]);
 
   const flushVariableFormIfChanged = useCallback((): void => {
     const sel = selectedVariable;
@@ -728,7 +730,7 @@ export default function VariableEditor({
       return;
     }
     onCommitVariables((prev) =>
-      prev.map((item) => (item.id === draft.id ? ActionVariable.fromPartial({ ...draft }) : item))
+      prev.map((item) => (item.id === draft.id ? structuredClone(draft) : item))
     );
     setFormDraft(null);
     formBaselineFingerprintRef.current = null;
@@ -740,12 +742,19 @@ export default function VariableEditor({
     });
   }, [flushVariableFormIfChanged]);
 
+  useEffect(() => {
+    if (active) return;
+    flushVariableFormIfChanged();
+    setTypePickerOpen(false);
+    setSortMenuOpen(false);
+  }, [active, flushVariableFormIfChanged]);
+
   const applyMultiBooleanField = useCallback(
     (field: "saveState" | "isInput" | "isOutput" | "isLocked", value: boolean) => {
       flushVariableFormSync();
       const idSet = new Set(selectedIds);
       onCommitVariables((prev) =>
-        prev.map((v) => (idSet.has(v.id) ? ActionVariable.fromPartial({ ...v, [field]: value }) : v))
+        prev.map((v) => (idSet.has(v.id) ? { ...structuredClone(v), [field]: value } : v))
       );
     },
     [flushVariableFormSync, onCommitVariables, selectedIds]
@@ -779,6 +788,7 @@ export default function VariableEditor({
   );
 
   useEffect(() => {
+    if (!active) return;
     const commitOnPageInactive = (): void => {
       flushVariableFormIfChanged();
     };
@@ -793,7 +803,7 @@ export default function VariableEditor({
       window.removeEventListener("blur", commitOnPageInactive);
       document.removeEventListener("visibilitychange", onVisibilityChanged);
     };
-  }, [flushVariableFormIfChanged]);
+  }, [active, flushVariableFormIfChanged]);
 
   const updateVariableFormDraft = useCallback(
     (partial: Partial<ActionVariable>): void => {
@@ -810,7 +820,7 @@ export default function VariableEditor({
         }
         const same = prev?.id === selectedVariable.id;
         const base = same ? prev! : cloneVariableForFormDraft(selectedVariable);
-        return ActionVariable.fromPartial({ ...base, ...partial, id: selectedVariable.id });
+        return structuredClone({ ...base, ...partial, id: selectedVariable.id });
       });
     },
     [selectedVariable]
@@ -1003,9 +1013,10 @@ export default function VariableEditor({
 
   useEffect(() => {
     const el = rootRef.current;
-    if (!el) return;
+    if (!active || !el) return;
 
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented) return;
       const ae = document.activeElement as HTMLElement | null;
       if (ae && !el.contains(ae) && ae !== document.body) {
         return;
@@ -1104,6 +1115,7 @@ export default function VariableEditor({
     el.addEventListener("keydown", onKeyDown);
     return () => el.removeEventListener("keydown", onKeyDown);
   }, [
+    active,
     copySelectionToClipboard,
     handleRemove,
     onStepHighlightFilter,
@@ -1122,6 +1134,7 @@ export default function VariableEditor({
   ]);
 
   useLayoutEffect(() => {
+    if (!active) return;
     const targetId = pendingScrollVariableIdRef.current;
     if (!targetId || selectedId !== targetId) {
       return;
@@ -1135,10 +1148,10 @@ export default function VariableEditor({
       row.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
     pendingScrollVariableIdRef.current = null;
-  }, [variables, selectedId]);
+  }, [active, variables, selectedId]);
 
   useEffect(() => {
-    if (!sortMenuOpen) return;
+    if (!active || !sortMenuOpen) return;
     const close = (e: MouseEvent): void => {
       if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
         setSortMenuOpen(false);
@@ -1146,7 +1159,7 @@ export default function VariableEditor({
     };
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
-  }, [sortMenuOpen]);
+  }, [active, sortMenuOpen]);
 
   return (
     <section className="variable-editor" ref={rootRef} tabIndex={-1}>
@@ -1439,7 +1452,7 @@ export default function VariableEditor({
                   ▾
                 </span>
               </button>
-              {typePickerOpen && typePickerPopupRect
+              {active && typePickerOpen && typePickerPopupRect
                 ? createPortal(
                     <div
                       ref={typePickerPopupRef}

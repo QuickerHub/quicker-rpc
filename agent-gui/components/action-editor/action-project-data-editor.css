@@ -210,6 +210,107 @@
   flex-direction: column;
 }
 
+.action-project-data-editor-visual[hidden],
+.program-editor-surface[hidden] {
+  display: none;
+}
+
+.program-editor-tab-workspace,
+.program-editor-surface {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.program-editor-tab-strip {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--ad-border-default);
+  color: var(--ad-fg-primary);
+  background: var(--ad-bg-panel);
+}
+
+.program-editor-tab-strip button,
+.program-editor-tab-add summary {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ad-fg-muted);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.program-editor-tab-strip button[aria-selected="true"] {
+  color: var(--ad-fg-primary);
+  border-bottom-color: var(--ad-fg-primary);
+  background: var(--ad-bg-menu-hover);
+}
+
+.program-editor-tab-strip button:focus-visible,
+.program-editor-tab-add summary:focus-visible {
+  outline: 1px solid var(--ad-border-focus);
+  outline-offset: -2px;
+}
+
+.program-editor-tab {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.program-editor-tab > [role="tab"] {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.program-editor-tab-strip .program-editor-tab-close {
+  padding: 6px;
+}
+
+.program-editor-tab-add {
+  position: relative;
+}
+
+.program-editor-tab-add summary {
+  list-style: none;
+}
+
+.program-editor-tab-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: min(300px, 80vw);
+  max-height: 280px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--ad-border-default);
+  background: var(--ad-bg-menu);
+  box-shadow: var(--ad-shadow-popup);
+}
+
+.program-editor-tab-menu button {
+  text-align: left;
+  border: 0;
+}
+
+.program-editor-tab-menu button:hover {
+  background: var(--ad-bg-menu-hover);
+  color: var(--ad-fg-primary);
+}
+
 .action-project-data-editor-visual .x-program-editor {
   flex: 1 1 auto;
   min-height: 280px;

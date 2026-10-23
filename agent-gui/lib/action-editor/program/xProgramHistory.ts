@@ -33,8 +33,9 @@ export type XProgramHistoryAction =
 
 export function cloneXProgramPresent(p: XProgramPresent): XProgramPresent {
   return {
-    steps: p.steps.map((s) => ActionStep.fromPartial(s)),
-    variables: p.variables.map((v) => ActionVariable.fromPartial(v))
+    // Native-file references (e.g. variable defaultValueFile) extend the proto projection.
+    steps: structuredClone(p.steps),
+    variables: structuredClone(p.variables)
   };
 }
 
@@ -56,7 +57,7 @@ function resolveStepsUpdater(
   updater: ActionStep[] | ((prev: ActionStep[]) => ActionStep[]),
   prev: ActionStep[]
 ): ActionStep[] {
-  return typeof updater === "function" ? updater(prev) : updater.map((s) => ActionStep.fromPartial(s));
+  return typeof updater === "function" ? updater(prev) : structuredClone(updater);
 }
 
 function resolveVariablesUpdater(
@@ -65,7 +66,7 @@ function resolveVariablesUpdater(
 ): ActionVariable[] {
   return typeof updater === "function"
     ? updater(prev)
-    : updater.map((v) => ActionVariable.fromPartial(v));
+    : structuredClone(updater);
 }
 
 export function createInitialXProgramHistoryState(present: XProgramPresent): XProgramHistoryState {
@@ -94,7 +95,7 @@ export function xProgramHistoryReducer(
         future: [],
         present: {
           ...state.present,
-          steps: nextSteps.map((s) => ActionStep.fromPartial(s))
+          steps: structuredClone(nextSteps)
         }
       };
     }
@@ -105,7 +106,7 @@ export function xProgramHistoryReducer(
         future: [],
         present: {
           ...state.present,
-          variables: nextVariables.map((v) => ActionVariable.fromPartial(v))
+          variables: structuredClone(nextVariables)
         }
       };
     }

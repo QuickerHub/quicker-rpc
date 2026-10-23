@@ -243,6 +243,8 @@ type CompactDraft = {
 };
 
 export type StepListEditorProps = {
+  active?: boolean;
+  keyboardOwnerId?: string;
   steps: ActionStep[];
   /** Records one undo snapshot for both steps and variables (host merges). */
   onCommitSteps: (updater: ActionStep[] | ((prev: ActionStep[]) => ActionStep[])) => void;
@@ -270,6 +272,8 @@ export type StepListEditorProps = {
 };
 
 export default function StepListEditor({
+  active = true,
+  keyboardOwnerId,
   steps,
   onCommitSteps,
   variables = [],
@@ -842,6 +846,10 @@ export default function StepListEditor({
   );
 
   useEffect(() => {
+    if (!active) flushCompactFormIfChanged();
+  }, [active, flushCompactFormIfChanged]);
+
+  useEffect(() => {
     const commitOnPageInactive = (): void => {
       flushCompactFormIfChanged();
     };
@@ -1125,6 +1133,10 @@ export default function StepListEditor({
 
   useEffect(() => {
     const onPointerDownCapture = (event: PointerEvent): void => {
+      if (!active) {
+        lastPointerDownInsideShellRef.current = false;
+        return;
+      }
       const shell = editorShellRef.current;
       if (!shell) {
         lastPointerDownInsideShellRef.current = false;
@@ -1135,10 +1147,11 @@ export default function StepListEditor({
     };
     document.addEventListener("pointerdown", onPointerDownCapture, true);
     return () => document.removeEventListener("pointerdown", onPointerDownCapture, true);
-  }, []);
+  }, [active]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (!active) return;
       const target = event.target;
       if (!(target instanceof Element)) {
         return;
@@ -1386,6 +1399,7 @@ export default function StepListEditor({
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [
+    active,
     copySelectedStepsToClipboard,
     editorTargetId,
     flushCompactSync,
@@ -1968,6 +1982,8 @@ export default function StepListEditor({
   return (
     <section ref={editorShellRef} className="step-editor" tabIndex={-1}>
       <StepEditorPopup
+        active={active}
+        keyboardOwnerId={keyboardOwnerId}
         open={editorTargetId != null && popupStep != null}
         step={popupStep}
         variables={variables}

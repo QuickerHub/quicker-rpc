@@ -8,7 +8,6 @@ import {
   useState,
   type JSX,
 } from "react";
-import dynamic from "next/dynamic";
 import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectMetaSummary } from "@/components/workspace/ActionProjectMetaSummary";
 import { ActionProjectSyncBar } from "@/components/workspace/ActionProjectSyncBar";
@@ -44,19 +43,15 @@ import { MAX_READ_CHARS } from "@/lib/workspace-file-helpers";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { fetchWorkspaceFile, fetchWorkspaceFileList } from "@/lib/workspace-explorer-api";
 import type { ActionSubProgram } from "@/lib/action-editor/types/common";
-import type { XProgramPresent } from "@/lib/action-editor/program/xProgramHistory";
+import type { ActionProgramSnapshot } from "@/lib/action-editor/program/assembleActionProgramSnapshot";
+import { createProgramDocumentSession, type ProgramDocumentSession } from "@/lib/action-editor/document/programDocumentSession";
+import { fingerprintProgramDocumentContent, serializeProgramDocumentSnapshot } from "@/lib/action-editor/document/programDocumentWire";
+import { ProgramEditorTabWorkspace, type ProgramEditorWorkspaceHandle } from "./ProgramEditorTabWorkspace";
 import {
   fetchGlobalSubProgramCatalog,
-  mergeSubProgramsForStepEditor,
 } from "@/lib/action-editor/subprograms/globalSubProgramCatalog";
 import {
-  normalizeProgramPresentForEditor,
-} from "@/lib/action-editor/program/xProgramHistory";
-import {
-  fingerprintProgramWire,
   parseProgramWireJson,
-  parseWireSubPrograms,
-  serializeProgramWireJson,
   serializeWireSubProgramsJson,
 } from "@/lib/action-editor/wire/programWire";
 import type { ProgramProjectDeleteKind } from "@/lib/use-program-project-delete";
@@ -68,11 +63,6 @@ import { ActionDesignerHelpDialog } from "@/components/action-editor/ActionDesig
 import "@/components/action-editor/action-editor-theme.css";
 import "@/components/action-editor/action-editor.css";
 import "@/components/action-editor/action-project-data-editor.css";
-
-const XProgramEditor = dynamic(
-  () => import("@/lib/action-editor/program/XProgramEditor"),
-  { ssr: false, loading: () => <p className="workspace-explorer-hint">加载动作编辑器…</p> },
-);
 
 type EditorTab = "visual" | "source";
 
@@ -86,6 +76,12 @@ type SourceFilePreview = {
 
 function normalizeWorkspacePath(value: string): string {
   return value.replace(/\\/g, "/");
+}
+
+function sameProgramDocument(left: string, right: string): boolean {
+  if (left === right) return true;
+  try { return fingerprintProgramDocumentContent(left) === fingerprintProgramDocumentContent(right); }
+  catch { return false; }
 }
 
 function ActionProjectSourceFileTabs({
@@ -171,6 +167,7 @@ export function ActionProjectDataEditor({
   const [contentTruncated, setContentTruncated] = useState(truncated);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [externalConflict, setExternalConflict] = useState<string | null>(null);
   const [pinStepFeedback, setPinStepFeedback] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -178,9 +175,11 @@ export function ActionProjectDataEditor({
   const [hasSavedLocalChanges, setHasSavedLocalChanges] = useState(false);
   const [projectInfo, setProjectInfo] = useState<ParsedActionProjectInfo | null>(null);
   const [infoRefreshKey, setInfoRefreshKey] = useState(0);
-  const extraTopLevelRef = useRef<Record<string, unknown>>({});
-  const baselineRef = useRef("");
-  const presentRef = useRef<XProgramPresent>({ steps: [], variables: [] });
+  const sessionRef = useRef<ProgramDocumentSession | null>(null);
+  const workspaceRef = useRef<ProgramEditorWorkspaceHandle | null>(null);
+  const incomingDocumentRef = useRef({ path, cwd });
+  const [documentRevision, setDocumentRevision] = useState(0);
+  const sessionMountRef = useRef<{ session: ProgramDocumentSession; mounted: boolean } | null>(null);
   const sourceFetchedRef = useRef<Set<string>>(new Set());
   const editorRootRef = useRef<HTMLDivElement | null>(null);
   const designerBackendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
@@ -211,12 +210,27 @@ export function ActionProjectDataEditor({
   }, [helpOpen]);
 
   useEffect(() => {
+    const sameDocument = incomingDocumentRef.current.path === path && incomingDocumentRef.current.cwd === cwd;
+    incomingDocumentRef.current = { path, cwd };
+    const current = sessionRef.current?.getState();
+    // A save acknowledgement must not replace a newer local draft or reset editor history.
+    if (sameDocument && current && !truncated) {
+      if (sessionRef.current?.isSaveAcknowledgement(content) || sameProgramDocument(content, current.content)) {
+        setExternalConflict(null);
+        return;
+      }
+      if (current.dirty || current.saving) {
+        setExternalConflict("工作区文件已在外部变更，当前草稿已保留。请在源码视图保留草稿并重新打开文件，比较合并后再保存。");
+        return;
+      }
+    }
+    setExternalConflict(null);
     setEditorContent(content);
     setContentTruncated(truncated);
     setSourceFileTab(normalizeWorkspacePath(path));
     setSourceFilePreviews({});
     sourceFetchedRef.current = new Set();
-  }, [content, truncated, path]);
+  }, [content, truncated, path, cwd]);
 
   useEffect(() => {
     if (!truncated || !cwd.trim()) return;
@@ -242,19 +256,37 @@ export function ActionProjectDataEditor({
     [editorContent],
   );
 
-  const normalizedPresent = useMemo((): XProgramPresent | null => {
-    if (!parsed.ok) return null;
-    return normalizeProgramPresentForEditor(parsed.present);
-  }, [editorContent, parsed.ok, parsed.ok ? parsed.present : null]);
-
-  const wireBaselineFingerprint = useMemo(() => {
-    if (!normalizedPresent) return "";
-    return fingerprintProgramWire(normalizedPresent);
-  }, [normalizedPresent]);
-  const embeddedSubPrograms = useMemo(() => {
-    if (!parsed.ok) return [];
-    return parseWireSubPrograms(parsed.extraTopLevel.subPrograms);
-  }, [parsed]);
+  const sessionResult = useMemo(() => {
+    if (!parsed.ok || contentTruncated) return null;
+    try {
+      const session = createProgramDocumentSession({ content: editorContent, identity: {
+        documentKey: `${normalizeWorkspacePath(cwd)}::${normalizeWorkspacePath(path)}`,
+      } });
+      return { session, initialPayload: session.readSnapshot() };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }, [editorContent, parsed.ok, contentTruncated, cwd, path]);
+  const session = sessionResult && "session" in sessionResult ? sessionResult.session : null;
+  const initialPayload = sessionResult && "initialPayload" in sessionResult ? sessionResult.initialPayload : null;
+  sessionRef.current = session ?? null;
+  useEffect(() => {
+    setDirty(session?.getState().dirty ?? false);
+    setSaving(session?.getState().saving ?? false);
+    setDocumentRevision(session?.getState().revision ?? 0);
+    if (!session) return;
+    const owner = { session, mounted: true };
+    sessionMountRef.current = owner;
+    return () => {
+      owner.mounted = false;
+      // StrictMode immediately remounts effects with the same session. Only a departed owner closes it.
+      queueMicrotask(() => {
+        const replacement = sessionMountRef.current;
+        if (replacement?.mounted && replacement.session === session) return;
+        session.close();
+      });
+    };
+  }, [session]);
   const embeddedSubProgramsWireJson = useMemo(() => {
     if (!parsed.ok) return undefined;
     return serializeWireSubProgramsJson(parsed.extraTopLevel.subPrograms);
@@ -262,10 +294,6 @@ export function ActionProjectDataEditor({
   const [globalCatalogSubPrograms, setGlobalCatalogSubPrograms] = useState<ActionSubProgram[]>([]);
   const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
   const isGlobalSubProgram = useMemo(() => isGlobalSubProgramDataPath(path), [path]);
-  const stepListSubPrograms = useMemo(
-    () => mergeSubProgramsForStepEditor(embeddedSubPrograms, globalCatalogSubPrograms),
-    [embeddedSubPrograms, globalCatalogSubPrograms],
-  );
   const parentActionId = useMemo(() => actionIdFromDataPath(path), [path]);
 
   useEffect(() => {
@@ -399,7 +427,7 @@ export function ActionProjectDataEditor({
     if (normalizedPath === normalizedDataPath) {
       return {
         path: normalizedDataPath,
-        content: editorContent,
+        content: session?.getState().content ?? editorContent,
         truncated: contentTruncated,
         totalChars,
         loading: false,
@@ -422,6 +450,8 @@ export function ActionProjectDataEditor({
     contentTruncated,
     totalChars,
     sourceFilePreviews,
+    session,
+    documentRevision,
   ]);
 
   useEffect(() => {
@@ -497,17 +527,15 @@ export function ActionProjectDataEditor({
     projectInfo?.name,
   ]);
 
-  useEffect(() => {
-    if (!parsed.ok || !normalizedPresent) return;
-    extraTopLevelRef.current = parsed.extraTopLevel;
-    baselineRef.current = wireBaselineFingerprint;
-    presentRef.current = normalizedPresent;
-    setDirty(false);
-  }, [editorContent, parsed, normalizedPresent, wireBaselineFingerprint]);
-
-  const handlePresentChange = useCallback((present: XProgramPresent, meta: { dirty: boolean }) => {
-    presentRef.current = present;
-    setDirty((prev) => (prev === meta.dirty ? prev : meta.dirty));
+  const handleSnapshotChange = useCallback((snapshot: ActionProgramSnapshot) => {
+    if (!session || sessionRef.current !== session) return;
+    const result = session.applySnapshot(snapshot, { expectedRevision: session.getState().revision, source: "ui" });
+    if (!result.ok) setSaveError(result.error);
+    setDirty(result.state.dirty);
+    setDocumentRevision(result.state.revision);
+  }, [session]);
+  const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
+    workspaceRef.current = handle;
   }, []);
 
   const programPinMeta = useMemo(() => {
@@ -553,7 +581,9 @@ export function ActionProjectDataEditor({
 
   const handlePinStepToChat = useCallback(
     (stepId: string) => {
-      const steps = presentRef.current.steps;
+      if (!session) return;
+      const snapshot = workspaceRef.current?.getSnapshot() ?? session.readSnapshot();
+      const steps = snapshot.steps;
       const nodePath = resolveNodePath(steps, stepId);
       if (!nodePath) {
         setPinStepFeedback("无法定位步骤在 data.json 中的路径");
@@ -565,10 +595,7 @@ export function ActionProjectDataEditor({
         return;
       }
 
-      const wireText = serializeProgramWireJson(
-        presentRef.current,
-        extraTopLevelRef.current,
-      );
+      const wireText = serializeProgramDocumentSnapshot(session.getState().content, snapshot);
       const sliceResult = computeProgramStepDiskSlice(wireText, nodePath);
       if (!sliceResult.ok) {
         setPinStepFeedback(sliceResult.error);
@@ -594,25 +621,33 @@ export function ActionProjectDataEditor({
       setPinStepFeedback("已添加到左侧当前对话输入框");
       window.setTimeout(() => setPinStepFeedback(null), 2500);
     },
-    [programPinMeta],
+    [programPinMeta, session],
   );
 
   const handleSave = useCallback(async () => {
-    if (!parsed.ok) return;
-    setSaving(true);
-    setSaveError(null);
-    const nextText = serializeProgramWireJson(presentRef.current, extraTopLevelRef.current);
-    const result = await onSave(nextText);
-    setSaving(false);
-    if (!result.ok) {
-      setSaveError(result.error ?? "保存失败");
+    if (!session || externalConflict) return;
+    const started = session.beginSave(() => workspaceRef.current?.getSnapshot() ?? session.readSnapshot());
+    if (!started.ok) {
+      setSaveError(started.error);
       return;
     }
-    baselineRef.current = fingerprintProgramWire(presentRef.current);
-    setDirty(false);
+    setSaving(started.state.saving);
+    setSaveError(null);
+    let outcome: { ok: boolean; error?: string };
+    try {
+      outcome = await onSave(started.ticket.content);
+    } catch (error) {
+      outcome = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+    const completed = session.completeSave(started.ticket, outcome.ok ? { ok: true } : { ok: false, error: outcome.error });
+    if (sessionRef.current !== session || !sessionMountRef.current?.mounted) return;
+    setSaving(completed.state.saving);
+    setDirty(completed.state.dirty);
+    setDocumentRevision(completed.state.revision);
+    if (!completed.ok) { setSaveError(completed.error); return; }
     setHasSavedLocalChanges(true);
     onSaved?.();
-  }, [onSave, onSaved, parsed.ok]);
+  }, [onSave, onSaved, session, externalConflict]);
 
   if (contentTruncated) {
     return (
@@ -641,6 +676,11 @@ export function ActionProjectDataEditor({
       </p>
     );
   }
+  if (!session || !initialPayload) {
+    return <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">
+      无法建立完整动作编辑会话：{sessionResult && "error" in sessionResult ? sessionResult.error : "动作尚未加载"}
+    </p>;
+  }
 
   return (
     <div className="action-project-data-editor" ref={editorRootRef}>
@@ -663,6 +703,8 @@ export function ActionProjectDataEditor({
                 actionId={actionId}
                 projectDirectory={projectDirectory}
                 hasLocalChanges={dirty || hasSavedLocalChanges}
+                blocked={dirty || saving}
+                blockReason={dirty || saving ? "请先保存当前编辑再同步到 Quicker" : undefined}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
               />
@@ -753,7 +795,7 @@ export function ActionProjectDataEditor({
           <button
             type="button"
             className="action-project-data-editor-save"
-            disabled={!dirty || saving}
+            disabled={!dirty || saving || Boolean(externalConflict)}
             onClick={() => void handleSave()}
           >
             {saving ? "保存中…" : "保存到工作区"}
@@ -766,6 +808,9 @@ export function ActionProjectDataEditor({
       {saveError ? (
         <p className="workspace-explorer-hint workspace-explorer-hint--err">{saveError}</p>
       ) : null}
+      {externalConflict ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">
+        {externalConflict}
+      </p> : null}
       {pinStepFeedback ? (
         <p
           className={`workspace-explorer-hint${
@@ -779,23 +824,24 @@ export function ActionProjectDataEditor({
         </p>
       ) : null}
 
-      {tab === "visual" && normalizedPresent ? (
-        <div className="action-project-data-editor-visual x-program-host">
+      <div hidden={tab !== "visual"} className="action-project-data-editor-visual x-program-host">
           <ThemeProvider>
-            <XProgramEditor
-              initialPresent={normalizedPresent}
-              baselineFingerprint={wireBaselineFingerprint}
-              programDocumentKey={path}
-              onPresentChange={handlePresentChange}
-              programSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
+            <ProgramEditorTabWorkspace
+              key={`${session.getState().identity.documentKey}::${editorContent}`}
+              documentKey={session.getState().identity.documentKey}
+              payload={initialPayload}
+              active={tab === "visual"}
+              mainSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}
-              subPrograms={stepListSubPrograms}
+              globalSubPrograms={globalCatalogSubPrograms}
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
+              onSnapshotChange={handleSnapshotChange}
+              onHandleChange={handleWorkspaceChange}
               onPinStepToChat={handlePinStepToChat}
             />
           </ThemeProvider>
         </div>
-      ) : tab === "source" ? (
+      {tab === "source" ? (
         <div className="action-project-data-editor-source-panel">
           <ActionProjectSourceFileTabs
             tabs={sourceFileTabs}

@@ -3,8 +3,9 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
+  useId,
   useMemo,
-  useReducer,
   useRef,
   useState,
   type JSX,
@@ -20,20 +21,26 @@ import VariableEditor from "@/lib/action-editor/variables/VariableEditor";
 import { useStepParamFileContents } from "@/lib/action-editor/steps/useStepParamFileContents";
 import {
   cloneXProgramPresent,
-  createInitialXProgramHistoryState,
   fingerprintXProgramPresent,
   normalizeProgramPresentForEditor,
   X_PROGRAM_HISTORY_ISOLATE_CLASS,
-  xProgramHistoryReducer,
   type XProgramPresent,
 } from "@/lib/action-editor/program/xProgramHistory";
 
 import type { XProgramEditorSurface } from "@/lib/action-editor/program/xProgramEditorSurface";
 import type { ActionProjectWorkspaceContext } from "@/lib/action-editor/steps/paramEditors/FormDefEditorDialog";
+import type { XProgramEditorHandle } from "./xProgramEditorHandle";
+import { useXProgramEditorHistory } from "./useXProgramEditorHistory";
+import { useActiveXProgramBridgeOptional } from "./activeXProgramBridge";
+import { ownsProgramKeyboardTarget } from "../shared/programKeyboardOwner";
 
 export type XProgramEditorProps = {
   initialPresent: XProgramPresent;
   onPresentChange?: (present: XProgramPresent, meta: { dirty: boolean }) => void;
+  editorTabId?: string;
+  onEditorHandleChange?: (handle: XProgramEditorHandle | null) => void;
+  /** Kept-alive inactive documents must not handle global shortcuts. */
+  active?: boolean;
   baselineFingerprint: string;
   /** Main action body vs embedded subprogram body. */
   programSurface?: XProgramEditorSurface;
@@ -50,6 +57,9 @@ export type XProgramEditorProps = {
 function XProgramEditorInner({
   initialPresent,
   onPresentChange,
+  editorTabId = "main",
+  onEditorHandleChange,
+  active = true,
   baselineFingerprint,
   programSurface = "main",
   workspaceContext,
@@ -59,37 +69,39 @@ function XProgramEditorInner({
   onPinStepToChat,
 }: XProgramEditorProps): JSX.Element {
   const { showToast } = useToast();
-  const [hist, dispatch] = useReducer(
-    xProgramHistoryReducer,
-    initialPresent,
-    createInitialXProgramHistoryState,
-  );
-  const histRef = useRef(hist);
-  histRef.current = hist;
+  const keyboardOwnerId = useId();
+  const editorRootRef = useRef<HTMLDivElement>(null);
+  const { history: hist, historyRef: histRef, dispatch, handle } = useXProgramEditorHistory(initialPresent);
+  const bridge = useActiveXProgramBridgeOptional();
+  const registerEditor = bridge?.registerEditor;
+  const unregisterEditor = bridge?.unregisterEditor;
+
+  useLayoutEffect(() => {
+    registerEditor?.(editorTabId, handle);
+    onEditorHandleChange?.(handle);
+    return () => {
+      unregisterEditor?.(editorTabId, handle);
+      onEditorHandleChange?.(null);
+    };
+  }, [editorTabId, handle, onEditorHandleChange, registerEditor, unregisterEditor]);
 
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
   const initialPresentRef = useRef(initialPresent);
   initialPresentRef.current = initialPresent;
-  const lastReportedDirtyRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     dispatch({
       type: "reset",
       present: normalizeProgramPresentForEditor(initialPresentRef.current),
     });
-    lastReportedDirtyRef.current = null;
-  }, [baselineFingerprint]);
+  }, [baselineFingerprint, dispatch]);
 
   useEffect(() => {
-    const present = hist.present;
+    const present = handle.getPresent();
     const dirty =
       fingerprintXProgramPresent(present) !== baselineFingerprint;
-    if (lastReportedDirtyRef.current === dirty) {
-      return;
-    }
-    lastReportedDirtyRef.current = dirty;
     onPresentChange?.(present, { dirty });
-  }, [hist.present, baselineFingerprint, onPresentChange]);
+  }, [hist.present, baselineFingerprint, handle, onPresentChange]);
 
   const commitSteps = useCallback((updater: ActionStep[] | ((prev: ActionStep[]) => ActionStep[])) => {
     dispatch({ type: "commitSteps", updater });
@@ -104,7 +116,9 @@ function XProgramEditorInner({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (!active || event.defaultPrevented) return;
       if (!(event.ctrlKey || event.metaKey)) return;
+      if (!ownsProgramKeyboardTarget(editorRootRef.current, keyboardOwnerId, event.target, document.activeElement)) return;
       const t = event.target;
       const inHistoryIsolate =
         t instanceof HTMLElement && t.closest(`.${X_PROGRAM_HISTORY_ISOLATE_CLASS}`) != null;
@@ -133,7 +147,7 @@ function XProgramEditorInner({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, []);
+  }, [active, dispatch, histRef, keyboardOwnerId]);
 
   const canUndo = hist.past.length > 0;
   const canRedo = hist.future.length > 0;
@@ -142,18 +156,20 @@ function XProgramEditorInner({
   const stepParamFileContents = useStepParamFileContents(hist.present.steps, workspaceContext);
 
   useEffect(() => {
-    if (!variablesOpen) return;
+    if (!active || !variablesOpen) return;
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape") return;
+      if (event.defaultPrevented || event.key !== "Escape") return;
       event.preventDefault();
       setVariablesOpen(false);
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [variablesOpen]);
+  }, [active, variablesOpen]);
 
   return (
     <div
+      ref={editorRootRef}
+      data-program-keyboard-owner={keyboardOwnerId}
       className={`x-program-editor${variablesOpen ? " x-program-editor--variables-open" : ""}`}
     >
       <div className="x-program-editor-toolbar" role="toolbar" aria-label="程序编辑">
@@ -199,6 +215,8 @@ function XProgramEditorInner({
       <div className="x-program-editor-body">
         <div className="x-program-editor-steps">
           <StepListEditor
+            active={active}
+            keyboardOwnerId={keyboardOwnerId}
             steps={hist.present.steps}
             onCommitSteps={commitSteps}
             variables={hist.present.variables}
@@ -233,6 +251,7 @@ function XProgramEditorInner({
             >
               <div className="x-program-editor-variables-drawer-body">
                 <VariableEditor
+                  active={active}
                   programSurface={programSurface}
                   variables={hist.present.variables}
                   steps={hist.present.steps}

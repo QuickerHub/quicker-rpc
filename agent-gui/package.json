@@ -13,6 +13,7 @@
     "lint": "next lint",
     "check:agent-offline": "node scripts/check-agent-offline.mjs",
     "check:agent-backend": "node scripts/check-agent-backend-dependencies.mjs",
+    "check:action-designer": "node scripts/check-action-designer.mjs",
     "test:agent-service": "node scripts/check-agent-service.mjs",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.mjs",
