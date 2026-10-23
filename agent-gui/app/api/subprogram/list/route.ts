@@ -1,4 +1,5 @@
 import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
+import { runDesignerCatalogRequest, postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,18 +14,17 @@ function unwrapItems(data: unknown): unknown[] {
   return Array.isArray(items) ? items : [];
 }
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const query = url.searchParams.get("query")?.trim() ?? "";
-  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? "200")));
+async function list(query: string, limitValue: unknown, request: DesignerCatalogRequest) {
+  const limit = Math.min(200, Math.max(1, Number(limitValue ?? "200")));
 
   const result = await invokeQkrpcHttp(
     {
       op: "subprogram.list",
       args: { query: query || undefined, limit },
     },
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, ...request.rpcOptions },
   );
+  requireDesignerCatalogResult(result, request);
 
   if (!result?.ok) {
     return Response.json(
@@ -34,4 +34,13 @@ export async function GET(req: Request) {
   }
 
   return Response.json({ ok: true, items: unwrapItems(result.parsed) });
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  return runDesignerCatalogRequest(req, {}, (request) => list(url.searchParams.get("query")?.trim() ?? "", url.searchParams.get("limit"), request));
+}
+
+export async function POST(req: Request) {
+  return postDesignerCatalogRequest(req, (body, request) => list(typeof body.query === "string" ? body.query.trim() : "", body.limit, request));
 }

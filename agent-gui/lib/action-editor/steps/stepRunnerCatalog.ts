@@ -1,3 +1,4 @@
+import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
 import { type StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep } from "@/lib/action-editor/types/common";
 import {
@@ -50,8 +51,21 @@ import { resolveEssentialStepRunnerFallback } from "@/lib/action-editor/steps/st
  */
 export async function fetchStepRunnersItems(
   baseUrl: string,
-  options?: { revalidate?: boolean },
+  options?: { revalidate?: boolean; signal?: AbortSignal; catalogPort?: DesignerCatalogPort },
 ): Promise<StepRunnerItem[]> {
+  const port = options?.catalogPort;
+  if (port) {
+    if (!port.remoteEnabled) return [];
+    const cached = port.get<StepRunnerItem[]>("list");
+    if (cached && !options?.revalidate) return cached;
+    return port.shared("catalog-list", async (signal) => {
+      const parsed = await designerHostGrpcGetStepRunners(baseUrl, signal, port);
+      signal.throwIfAborted();
+      const items = (parsed.items ?? []).map(stripStepRunnerItemForCatalogCache);
+      port.set("list", items);
+      return items;
+    }, options?.signal);
+  }
   const root = catalogCacheKey(baseUrl);
   const cached = stepRunnersItemsCache.get(root);
   if (cached && !options?.revalidate) {
@@ -92,7 +106,8 @@ function revalidateStepRunnersItemsInBackground(baseUrl: string): void {
   });
 }
 
-export function getCachedStepRunnersItems(baseUrl: string): StepRunnerItem[] | undefined {
+export function getCachedStepRunnersItems(baseUrl: string, port?: DesignerCatalogPort): StepRunnerItem[] | undefined {
+  if (port) return port.get<StepRunnerItem[]>("list");
   const root = catalogCacheKey(baseUrl);
   const mem = stepRunnersItemsCache.get(root);
   if (mem) return mem;
@@ -105,11 +120,16 @@ export function getCachedStepRunnersItems(baseUrl: string): StepRunnerItem[] | u
 }
 
 /** Synchronous browser-cache seed for first paint (icon/title). */
-export function getPrimedStepRunnerCatalogState(baseUrl: string): {
+export function getPrimedStepRunnerCatalogState(baseUrl: string, port?: DesignerCatalogPort): {
   lookup: StepRunnerLookup;
   catalogItems: StepRunnerItem[];
   schemaByCacheKey: Record<string, StepRunnerItem>;
 } | null {
+  if (port) {
+    const catalogItems = port.get<StepRunnerItem[]>("list") ?? [];
+    const schemaByCacheKey = port.get<Record<string, StepRunnerItem>>("schemas") ?? {};
+    return { lookup: buildStepRunnerLookup(catalogItems), catalogItems, schemaByCacheKey };
+  }
   const primed = getStepRunnerBrowserPrimedState(baseUrl);
   if (!primed) return null;
   const root = catalogCacheKey(baseUrl);
@@ -201,7 +221,7 @@ export async function hydrateMissingStepRunnerItems(
   items: readonly StepRunnerItem[],
   schemaByCacheKey: Readonly<Record<string, StepRunnerItem>>,
   signal?: AbortSignal,
-  options?: { revalidate?: boolean; baseUrl?: string },
+  options?: { revalidate?: boolean; baseUrl?: string; catalogPort?: DesignerCatalogPort },
 ): Promise<{
   catalogItems: StepRunnerItem[];
   schemaByCacheKey: Record<string, StepRunnerItem>;
@@ -226,6 +246,7 @@ export async function hydrateMissingStepRunnerItems(
           canonicalKey,
           req.controlLiteral,
           signal,
+          options?.catalogPort,
         );
         if (!detail || (detail.inputParamDefs?.length ?? 0) === 0) {
           const fallback = resolveEssentialStepRunnerFallback(canonicalKey, req.controlLiteral);
@@ -240,7 +261,8 @@ export async function hydrateMissingStepRunnerItems(
         }
         nextSchemas[cacheKey] = detail;
         schemaChanged = true;
-      } catch {
+      } catch (error) {
+        if (options?.catalogPort) throw error;
         const fallback = resolveEssentialStepRunnerFallback(canonicalKey, req.controlLiteral);
         if (fallback && (fallback.inputParamDefs?.length ?? 0) > 0) {
           nextSchemas[cacheKey] = fallback;
@@ -264,8 +286,9 @@ export async function hydrateMissingStepRunnerItems(
       uniqueMissing.map(async (key) => {
         try {
           const canonicalKey = resolveCanonicalStepRunnerKey(key, items);
-          return await fetchStepRunnerDetailItem(canonicalKey, undefined, signal);
-        } catch {
+          return await fetchStepRunnerDetailItem(canonicalKey, undefined, signal, options?.catalogPort);
+        } catch (error) {
+          if (options?.catalogPort) throw error;
           return null;
         }
       }),
@@ -295,7 +318,8 @@ export async function hydrateMissingStepRunnerItems(
     }
   }
 
-  if (schemaChanged && options?.baseUrl) {
+  if (schemaChanged && options?.catalogPort) options.catalogPort.set("schemas", nextSchemas);
+  if (schemaChanged && options?.baseUrl && !options.catalogPort) {
     mergeStepRunnerBrowserCache(options.baseUrl, {
       schemaByCacheKey: nextSchemas,
     });
@@ -308,7 +332,7 @@ export async function hydrateMissingStepRunnerEntries(
   keys: readonly string[],
   lookup: StepRunnerLookup,
   signal?: AbortSignal,
-  options?: { revalidate?: boolean; baseUrl?: string },
+  options?: { revalidate?: boolean; baseUrl?: string; catalogPort?: DesignerCatalogPort },
 ): Promise<StepRunnerLookup> {
   const missing = keys.filter((key) => {
     if (key.length === 0) return false;
@@ -327,7 +351,7 @@ export async function hydrateMissingStepRunnerEntries(
   await Promise.all(
     keysToFetch.map(async (key) => {
       try {
-        const item = await fetchStepRunnerDetailItem(key, undefined, signal);
+        const item = await fetchStepRunnerDetailItem(key, undefined, signal, options?.catalogPort);
         if (!item?.key) return;
         const before = lookup[key];
         mergeStepRunnerItemIntoLookup(extras, item, lookup);
@@ -342,7 +366,8 @@ export async function hydrateMissingStepRunnerEntries(
         ) {
           changed = true;
         }
-      } catch {
+      } catch (error) {
+        if (options?.catalogPort) throw error;
         /* ignore per-key failures */
       }
     }),
@@ -350,7 +375,7 @@ export async function hydrateMissingStepRunnerEntries(
 
   if (!changed) return lookup;
   const merged = mergeStepRunnerLookupEntries(lookup, extras);
-  if (options?.baseUrl) {
+  if (options?.baseUrl && !options.catalogPort) {
     mergeStepRunnerBrowserCache(options.baseUrl, { lookup: merged });
   }
   return merged;

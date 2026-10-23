@@ -527,6 +527,9 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
 
   if (positional[0] === "step-runner") {
     const verb = positional[1];
+    if (verb === "list") {
+      return { op: "step-runner.list", args: { limit: flagInt(flags, "limit") } };
+    }
     if (verb === "search") {
       return {
         op: "step-runner.search",

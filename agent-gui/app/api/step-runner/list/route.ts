@@ -1,5 +1,6 @@
 import { runQkrpc } from "@/lib/qkrpc";
 import { mapSearchItemToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
+import { runDesignerCatalogRequest, postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 import {
   hasStaticStepRunnersUiCatalog,
   listStaticStepRunnerSearchItems,
@@ -21,18 +22,18 @@ function unwrapPayload(data: unknown): Record<string, unknown> | null {
   return root;
 }
 
-export async function GET(req: Request) {
-  if (!useLiveCatalog()) {
+async function list(limitValue: unknown, request: DesignerCatalogRequest) {
+  if (!request.bound && !useLiveCatalog()) {
     return Response.json({ ok: true, items: listStaticStepRunnerSearchItems(), source: "static" });
   }
 
-  const url = new URL(req.url);
-  const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? "500")));
+  const limit = Math.min(500, Math.max(1, Number(limitValue ?? "500")));
 
   const result = await runQkrpc(
     ["step-runner", "list", "--limit", String(limit), "--json"],
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, ...request.rpcOptions },
   );
+  requireDesignerCatalogResult(result, request);
 
   if (!result.ok) {
     if (hasStaticStepRunnersUiCatalog()) {
@@ -55,4 +56,12 @@ export async function GET(req: Request) {
     .map(mapSearchItemToStepRunnerItem);
 
   return Response.json({ ok: true, items, source: "live" });
+}
+
+export async function GET(req: Request) {
+  return runDesignerCatalogRequest(req, {}, (request) => list(new URL(req.url).searchParams.get("limit"), request));
+}
+
+export async function POST(req: Request) {
+  return postDesignerCatalogRequest(req, (body, request) => list(body.limit, request));
 }

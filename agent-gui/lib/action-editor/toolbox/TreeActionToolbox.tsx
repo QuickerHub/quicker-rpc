@@ -1,5 +1,7 @@
 "use client";
 
+import { useDesignerCatalogPort } from "../catalog/DesignerCatalogProvider";
+
 import {
   useCallback,
   useEffect,
@@ -285,6 +287,8 @@ export default function TreeActionToolbox({ active = true, onInsertAtEnd }: Tree
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
   // Shared, etag-validated catalog store: first render already has the cached copy (no loading flash),
   // and identities only change when the host catalog actually changed.
+  const catalogPort = useDesignerCatalogPort();
+  const catalogOwner = useRef(catalogPort);
   const runnerCatalog = useToolboxCatalog();
   const favorites = EMPTY_FAVORITES;
   const [sortMode, setSortMode] = useState<ToolboxSortMode>("recommend");
@@ -381,7 +385,8 @@ export default function TreeActionToolbox({ active = true, onInsertAtEnd }: Tree
         const res = await fetchToolboxModuleSearch(
           backendBaseUrl,
           { keyword: debouncedFilter, skip: 0 },
-          ac.signal
+          ac.signal,
+          catalogPort,
         );
         if (seq !== searchSeqRef.current) {
           return;
@@ -407,9 +412,20 @@ export default function TreeActionToolbox({ active = true, onInsertAtEnd }: Tree
       }
     })();
     return () => {
+      searchSeqRef.current += 1;
       ac.abort();
     };
-  }, [active, debouncedFilter, backendBaseUrl, showToast, searchEpoch]);
+  }, [active, debouncedFilter, backendBaseUrl, showToast, searchEpoch, catalogPort]);
+
+  if (catalogOwner.current !== catalogPort) {
+    catalogOwner.current = catalogPort;
+    searchSeqRef.current += 1;
+    setSearchItems([]);
+    setSearchHasMore(false);
+    setSelectedTreeId("");
+    searchAppendLockRef.current = false;
+    setSearchLoadingMore(false);
+  }
 
   const appendSearchPage = useCallback(async (): Promise<void> => {
     if (!active || !debouncedFilter || searchLoading || searchLoadingMore || !searchHasMore || searchAppendLockRef.current) {
@@ -423,7 +439,7 @@ export default function TreeActionToolbox({ active = true, onInsertAtEnd }: Tree
       const res = await fetchToolboxModuleSearch(backendBaseUrl, {
         keyword: debouncedFilter,
         skip
-      });
+      }, undefined, catalogPort);
       if (seq !== searchSeqRef.current) {
         return;
       }
@@ -435,12 +451,12 @@ export default function TreeActionToolbox({ active = true, onInsertAtEnd }: Tree
         setSearchHasMore(false);
       }
     } finally {
-      searchAppendLockRef.current = false;
       if (seq === searchSeqRef.current) {
+        searchAppendLockRef.current = false;
         setSearchLoadingMore(false);
       }
     }
-  }, [active, debouncedFilter, searchHasMore, searchLoading, searchLoadingMore, backendBaseUrl]);
+  }, [active, debouncedFilter, searchHasMore, searchLoading, searchLoadingMore, backendBaseUrl, catalogPort]);
 
   const onToolboxTreeScroll = useCallback(
     (e: UIEvent<HTMLDivElement>): void => {

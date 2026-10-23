@@ -162,8 +162,14 @@ Sync 传递精确目录与预期记录；CLI 的逐子进程环境和 HTTP args 
 区别，持久 serve 不继承其它请求的预期身份。apply、validate、extract 和 set-metadata
 在各自 lease 内再比较完整原始记录，包含能力与保留的未知 host 字段；属性失配不重发正文。
 结构化错误和已持久化部分跨 API 保留，缓存、事件及 busy 回执按文档 generation 与完整目标
-隔离。多宿主选择、catalog 缓存/请求绑定、trace run owner 与 Agent/UI 共享实时 revision
-仍待接线；完整新版 Designer 和 V2 原生存储身份不能由这一层持久来源约束替代。
+隔离。设计器的七组 catalog HTTP 入口复用纯 `DesignerCatalogContext`，每次请求创建独立
+execution state，以项目目录和完整绑定在 RPC 前后核验目标，并将请求取消传入现有
+transport。主文档 loading/unbound 不发现宿主、不发 RPC；绑定失败不降级为静态结果。
+文档拥有 `DesignerCatalogPort`，嵌套 surface 共享它；完整目标、cwd 和文档 owner 隔离
+缓存及迟到结果。共用加载按 waiter 计数取消，单个消费者退出不取消其它消费者；端口关闭
+才释放其余所属请求。旧独立入口不携带 context 时保留兼容调用，不能用于主文档回退。
+多宿主选择、完整资源目录、trace run owner 与 Agent/UI 共享实时 revision 仍待接线；
+完整新版 Designer 和 V2 原生存储身份不能由这一层持久来源约束替代。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
 持久化。V2 已有 `IQuickerRpcActionProgramSourceHost` 的原生 catalog/draft adapter，复用

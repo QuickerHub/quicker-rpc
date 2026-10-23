@@ -5,6 +5,7 @@ import {
   hasStaticStepRunnersUiCatalog,
 } from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
 import { resolveStepRunnerKeyCandidates } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
+import { runDesignerCatalogRequest, postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 
 export const dynamic = "force-dynamic";
 
@@ -40,14 +41,16 @@ function unwrapSchema(data: unknown): Record<string, unknown> | null {
 
 async function fetchLiveStepRunnerItem(
   key: string,
-  controlField?: string,
+  controlField: string | undefined,
+  request: DesignerCatalogRequest,
 ): Promise<Record<string, unknown> | null> {
   const args = ["step-runner", "get-ui", "--key", key, "--json"];
   if (controlField) {
     args.push("--control-field", controlField);
   }
 
-  const result = await runQkrpc(args, { timeoutMs: 60_000 });
+  const result = await runQkrpc(args, { timeoutMs: 60_000, ...request.rpcOptions });
+  requireDesignerCatalogResult(result, request);
   if (!result.ok) {
     return null;
   }
@@ -71,16 +74,13 @@ function fetchStaticStepRunnerItem(
   return item as unknown as Record<string, unknown>;
 }
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const key = url.searchParams.get("key")?.trim() ?? "";
-  const controlField = url.searchParams.get("controlField")?.trim();
+async function get(key: string, controlField: string | undefined, request: DesignerCatalogRequest) {
 
   if (!key) {
     return Response.json({ ok: false, error: "key is required" }, { status: 400 });
   }
 
-  if (!useLiveCatalog()) {
+  if (!request.bound && !useLiveCatalog()) {
     const item = fetchStaticStepRunnerItem(key, controlField);
     if (item) {
       return Response.json({ ok: true, item, source: "static" });
@@ -93,13 +93,13 @@ export async function GET(req: Request) {
 
   const keysToTry = resolveStepRunnerKeyCandidates(key);
   for (const tryKey of keysToTry) {
-    const liveItem = await fetchLiveStepRunnerItem(tryKey, controlField);
+    const liveItem = await fetchLiveStepRunnerItem(tryKey, controlField, request);
     if (liveItem) {
       return Response.json({ ok: true, item: liveItem, source: "live" });
     }
   }
 
-  if (hasStaticStepRunnersUiCatalog()) {
+  if (!request.bound && hasStaticStepRunnersUiCatalog()) {
     for (const tryKey of keysToTry) {
       const staticItem = fetchStaticStepRunnerItem(tryKey, controlField);
       if (staticItem) {
@@ -115,4 +115,13 @@ export async function GET(req: Request) {
     },
     { status: 503 },
   );
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  return runDesignerCatalogRequest(req, {}, (request) => get(url.searchParams.get("key")?.trim() ?? "", url.searchParams.get("controlField")?.trim(), request));
+}
+
+export async function POST(req: Request) {
+  return postDesignerCatalogRequest(req, (body, request) => get(typeof body.key === "string" ? body.key.trim() : "", typeof body.controlField === "string" ? body.controlField.trim() : undefined, request));
 }
