@@ -123,6 +123,18 @@ inputs:
     var: title
 ```
 
+YAML `lit` keeps its literal text, including `@var:`, `@file:` and `@value:`
+prefixes. This input stays the text `@var:Name`:
+
+```yaml
+inputs:
+  title:
+    lit: "@var:Name"
+```
+
+Do not add compatibility JSON's extra `@value:` escape to a YAML `lit` value.
+`$=` and `$$` keep their native expression/interpolation behavior.
+
 Variable defaults use an inline scalar `default` or the flat `default.file`
 field for external text. Step-input bind mappings do not apply to variable
 defaults: do not write `default: { file: files/default.txt }` or a nested

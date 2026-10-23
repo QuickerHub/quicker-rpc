@@ -73,6 +73,14 @@ Subprogram variables[] only: `isInput` / `isOutput` expose the variable as a cal
 
 Expressions (`$$` / `$=`) must be **strings**. Compare/omit defaults with normalized literals (`true` ≡ `"true"`, arrays compared via JSON).
 
+Compatibility JSON also reads legacy `@var:`, `@file:` and `@value:` prefixes
+case-insensitively. To keep such text literal, add one `@value:` layer: the wire
+string `"@value:@var:Name"` means the literal `@var:Name`, while
+`"@value:@value:Name"` means the literal `@value:Name`. Writers escape canonical
+literal values automatically; do not add another layer after each save.
+`@var:` and `@file:` with an empty/whitespace suffix remain literal. This rule
+does not change native `$=` expression or `$$` interpolation semantics.
+
 ```json
 "inputs": {
   "title": "Hello",
