@@ -1222,6 +1222,12 @@ internal static class ServeInvokeDispatcher
             return Fail("MISSING_ACTION_ID", "args.id is required.");
         }
 
+        var expected = ActionProjectExpectedBinding.FromArgs(args);
+        expected?.RequireHostWrite();
+        var projectDir = expected is null ? null : ActionProjectExpectedBinding.RequireDirectory(
+            ServeJsonArgs.GetString(args, "dir"), ServeJsonArgs.GetString(args, "workspaceRoot", "workspace", "cwd"));
+        using var projectOwner = expected is null ? null : ActionProjectHostBinding.ClaimValidation(projectDir!, expected);
+        if (expected is not null) ActionProjectHostBinding.RequireConnection(projectDir!, rpc, id.Trim());
         var response = await rpc
             .UpdateActionMetadataAsync(
                 id.Trim(),
