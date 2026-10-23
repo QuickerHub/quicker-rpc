@@ -39,7 +39,7 @@ internal sealed class V2QuickerRpcHost : IQuickerRpcHost
         Expressions = expressions;
         ChromeControl = null;
         Triggers = null;
-        Designer = null;
+        Designer = new V2DesignerReadHost();
         Launcher = launcher;
     }
 

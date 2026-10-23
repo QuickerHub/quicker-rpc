@@ -52,7 +52,7 @@ QuickerRpc.Plugin.V2
 | Expressions | 已接共享表达式服务 | 按实际 V1/V2 行为验证，不再按未实现处理 |
 | ChromeControl | `false`/`null` | 实现后再开启 capability |
 | Triggers | `false`/`null` | 实现后再开启 capability |
-| Designer UI | `false`/`null` | 只有真正支持打开/内存态保护后开启 |
+| Designer UI | UI capability 仍 `false`；非空 Designer port 仅提供独立的 quick insert、toolbox 和 FA geometry 读取 | 原生 API/DTO 与现有 dispatcher 决定三个读操作；打开编辑器/context 等继续 unsupported，完整 UI 只有实际支持后开启 |
 
 ## 自动识别与设计器接入优先项
 
@@ -65,8 +65,8 @@ QuickerRpc.Plugin.V2
    不可读时返回 `DESIGNER_STATE_UNAVAILABLE`，打开时返回 `DESIGNER_OPEN`，force 不绕过。
    旧 body/presentation 写入已传播结构化错误码；反射实际源码的离线 fixture 覆盖无持久化副作用。
 4. Runtime 的十个可选 Designer 入口已使用现有 DTO 返回明确 unsupported；预取消请求
-   不读取端口、不调度其它宿主。Designer port 仍为 null、DesignerUi=false；只读摘要与
-   UI schema 读取的实现不代表编辑器打开、完整 catalog 或 FA 已支持。
+   不读取端口、不调度其它宿主。DesignerUi=false；独立读端口不代表编辑器打开、完整
+   catalog/FA 搜索、剪贴板或 text tool 已支持。
 5. 分别在 V1/V2 专用测试动作上验收读取、编辑、校验、保存、重读、冲突和重启；写入不对
    另一个实例自动重试。其余 capability 逐项继续下表流程，不冒充全量 parity。
 
@@ -86,6 +86,23 @@ QuickerRpc.Plugin.V2
 通过，包含真实 native response DTO 与所属 dispatcher fixture。另行运行的 31 项
 composition 测试有 6 项环境/原生依赖失败，未做干净基线对照，不宣称该整类绿色。
 这些证据均不启动 Quicker、不访问账号数据库，V2 活进程与完整 Designer 能力仍待验收。
+
+`V2DesignerReadHost` 另接三个只读操作：quick insert、toolbox 搜索与 FA geometry。
+前两项以真实原生 catalog DTO 建立每个 host 自己的纯搜索 snapshot，保留分页 JSON；
+后者只映射原生向量字段，不补造 label/unicode，非正数、非整数或溢出尺寸逐项拒绝。
+反射仅匹配当前宿主已加载的精确类型和方法；缺少纯 Designer Core 或现有 dispatcher
+时保守不可用，不为能力探测加载/初始化整个 Headless/账号栈。空或取消的 catalog 不发布。
+
+可选 `IQuickerRpcDesignerReadAvailability` 与三个 wire keys
+`designer.quickInsert.read`、`designer.toolbox.read`、`designer.fontAwesome.resolve`
+分别声明读取，不借用 DesignerUi。旧 V1 的已实现 Designer port 保持兼容；未知宿主
+没有显式可用性时不推定支持。V2 旧 FA search 的 maxResults/expand 与原生分页语义不同，
+继续明确 unsupported；本片不冒充完整图标搜索/选择器。
+
+实际 Core DI 与 manual bootstrap 都提供同一默认读实现。Core 原有自解析 IHost factory
+与 Launcher 缺少 Search interface 注册两处组合问题已最小修复；实际有界解析 fixture
+覆盖这两条链。25 项定向测试、无 V2 引用路径 7 项相关测试、真实 Plugin.V2 与 Runtime
+三目标构建通过，独立审查通过；活 V2 加载状态与完整双宿主仍待验收。
 
 ## V2 native source 边界
 

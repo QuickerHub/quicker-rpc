@@ -291,8 +291,8 @@ FA resolve 也已接相同文档 port：APDE 标题、嵌套预览、步骤旧�
 存在与否区分文档及旧入口，loading/unbound 不读全局持久缓存或默认宿主，绑定失败不回退。
 同 spec 的几何与迟到结果按 owner 隔离，服务端沿用项目 lease 和 RPC 前后目标核验。
 其它旧入口保留全局缓存兼容，导入模块不再主动读取持久存储。当前复用已有 FA RPC，
-未新增 C#；完整搜索分页/风格、账号上传库和 V2 Designer FA 仍缺实际端口，不能以
-绑定预览代替完整图标选择器。
+该文档绑定切片未新增 C#；完整搜索分页/风格与账号上传库仍待接端口，V2 几何读端口
+的当前边界见下文，不能以绑定预览代替完整图标选择器。
 吸收当前主线后的 649 项离线检查与两项完整真实 DOM 通过；实际步骤列表、标题和 portal
 覆盖多 owner、迟到结果、加载/未绑定以及旧入口兼容，独立复审通过。纯 catalog 的依赖图
 已确认不含 TSX。PR23 合入主线后，主产品 frontend check 通过；实际 162 V1 插件以
@@ -369,6 +369,14 @@ V2 活进程、完整 catalog/FA 和双宿主设计器继续独立验收。
 一致，CLI/serve/真实 V1 插件版本及新会话已确认；V1 参数 UI 详情和 FA 几何读取
 通过，专用动作版本未变、无额外宿主写入。主产品 frontend check 通过，此次 V1
 集成不代替 V2 活进程或 Setup 升级验收。
+
+V2 Designer port 已补独立 quick insert、toolbox 搜索与 FA 几何读取，按实际已加载的
+精确原生 API/DTO 和既有 dispatcher 分别声明 capability；不抬高旧 DesignerUi，也不
+初始化 Headless/Agent/账号服务。每 host 的 catalog snapshot 独立，取消/空结果不发布，
+原生分页 JSON 保留；旧 FA search 的语义尚未对齐，继续明确不支持。实际 Core DI 与
+manual 组合已覆盖，原有两处 DI 接线缺陷一并修复。25 项定向测试、7 项无 V2 引用
+相关测试、真实 Plugin.V2 与 Runtime 三目标构建及独立审查通过。尚未验收活 V2 加载态，
+缺少已加载类型时保持不可用；完整资源/图标目录及双宿主继续验收。
 
 **每个 PR 的验收与合并要求**：
 

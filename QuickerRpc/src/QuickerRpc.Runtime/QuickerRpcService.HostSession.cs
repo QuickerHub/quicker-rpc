@@ -18,6 +18,8 @@ public sealed partial class QuickerRpcService
             && (programs is not IQuickerRpcActionProgramSourceAvailability availability || availability.IsProgramSourceAvailable);
         var declared = _host.Capabilities;
         var hasDesigner = _host.Designer is not null && declared.DesignerUi;
+        var designerReads = _host.Designer as IQuickerRpcDesignerReadAvailability;
+        var legacyV1DesignerReads = info.Kind == QuickerHostKind.V1 && hasDesigner;
         return Task.FromResult(new QuickerRpcHostSessionInfo
         {
             ProtocolVersion = CurrentProtocolVersion,
@@ -42,6 +44,9 @@ public sealed partial class QuickerRpcService
                 [QuickerRpcHostCapabilityNames.DesignerContextRead] = hasDesigner,
                 [QuickerRpcHostCapabilityNames.DesignerActionOpen] = hasDesigner,
                 [QuickerRpcHostCapabilityNames.DesignerSubProgramOpen] = hasDesigner,
+                [QuickerRpcHostCapabilityNames.DesignerQuickInsertRead] = designerReads?.IsStepQuickInsertAvailable ?? legacyV1DesignerReads,
+                [QuickerRpcHostCapabilityNames.DesignerToolboxRead] = designerReads?.IsToolboxModulesAvailable ?? legacyV1DesignerReads,
+                [QuickerRpcHostCapabilityNames.DesignerFontAwesomeResolve] = designerReads?.IsFontAwesomeGeometryAvailable ?? legacyV1DesignerReads,
             },
         });
     }

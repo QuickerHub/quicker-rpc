@@ -90,6 +90,40 @@ public sealed class HostSessionRpcTests
         await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => service.GetHostSessionAsync(stop.Token));
     }
 
+    [TestMethod]
+    public async Task Independent_designer_reads_do_not_enable_editors_and_unknown_hosts_have_no_legacy_fallback()
+    {
+        var host = new FakeHost { Info = new() { Kind = QuickerHostKind.V2 } };
+        var designer = DispatchProxy.Create<IAvailableDesigner, DesignerAvailabilityPort>();
+        var reads = (DesignerAvailabilityPort)(object)designer;
+        reads.QuickInsert = true; reads.Geometry = true;
+        host.Designer = designer;
+        var session = await Service(host).GetHostSessionAsync();
+        Assert.IsTrue(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerQuickInsertRead]);
+        Assert.IsFalse(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerToolboxRead]);
+        Assert.IsTrue(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerFontAwesomeResolve]);
+        foreach (var key in new[] { QuickerRpcHostCapabilityNames.DesignerContextRead, QuickerRpcHostCapabilityNames.DesignerActionOpen, QuickerRpcHostCapabilityNames.DesignerSubProgramOpen })
+            Assert.IsFalse(session.Capabilities[key]);
+
+        host.Flags.DesignerUi = true;
+        host.Designer = DispatchProxy.Create<IQuickerRpcDesignerHost, NeverInvokePort>();
+        foreach (var kind in new[] { QuickerHostKind.V2, (QuickerHostKind)999 })
+        {
+            host.Info.Kind = kind;
+            session = await Service(host).GetHostSessionAsync();
+            Assert.IsFalse(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerQuickInsertRead]);
+            Assert.IsFalse(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerToolboxRead]);
+            Assert.IsFalse(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerFontAwesomeResolve]);
+        }
+        host.Info.Kind = QuickerHostKind.V1;
+        session = await Service(host).GetHostSessionAsync();
+        Assert.IsTrue(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerQuickInsertRead]);
+        Assert.IsTrue(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerToolboxRead]);
+        Assert.IsTrue(session.Capabilities[QuickerRpcHostCapabilityNames.DesignerFontAwesomeResolve]);
+        host.Designer = designer;
+        Assert.IsFalse((await Service(host).GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.DesignerToolboxRead], "Explicit availability wins over V1 compatibility.");
+    }
+
     private static QuickerRpcService Service(FakeHost host, QuickerRpcHostSessionScope? scope = null)
     {
         var dependencies = new QuickerRpcRuntimeDependencies(() => throw new AssertFailedException("Handshake must not build a catalog."), "fake");
@@ -97,6 +131,18 @@ public sealed class HostSessionRpcTests
     }
 
     public interface ISourceProgram : IQuickerRpcActionProgramHost, IQuickerRpcActionProgramSourceHost { }
+    public interface IAvailableDesigner : IQuickerRpcDesignerHost, IQuickerRpcDesignerReadAvailability { }
+    public class DesignerAvailabilityPort : DispatchProxy
+    {
+        public bool QuickInsert, Toolbox, Geometry;
+        protected override object? Invoke(MethodInfo? method, object?[]? args) => method?.Name switch
+        {
+            "get_IsStepQuickInsertAvailable" => QuickInsert,
+            "get_IsToolboxModulesAvailable" => Toolbox,
+            "get_IsFontAwesomeGeometryAvailable" => Geometry,
+            _ => throw new AssertFailedException("Availability must not call a native read: " + method?.Name),
+        };
+    }
     public interface IAvailableSourceProgram : ISourceProgram, IQuickerRpcActionProgramSourceAvailability { }
     public class SourceAvailabilityPort : DispatchProxy
     {

@@ -60,4 +60,7 @@ public static class QuickerRpcHostCapabilityNames
     public const string DesignerContextRead = "designer.context.read";
     public const string DesignerActionOpen = "designer.action.open";
     public const string DesignerSubProgramOpen = "designer.subprogram.open";
+    public const string DesignerQuickInsertRead = "designer.quickInsert.read";
+    public const string DesignerToolboxRead = "designer.toolbox.read";
+    public const string DesignerFontAwesomeResolve = "designer.fontAwesome.resolve";
 }
