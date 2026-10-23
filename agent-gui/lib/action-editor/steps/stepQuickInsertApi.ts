@@ -1,3 +1,5 @@
+import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
+import { buildQuickInsertCandidates, filterQuickInsertCandidates } from "./stepQuickInsertCandidates";
 import type { ActionSubProgram } from "@/lib/action-editor/types/common";
 import {
   designerHostGrpcPostStepQuickInsertSearchJson,
@@ -174,14 +176,19 @@ function buildSubProgramPayload(subPrograms: ActionSubProgram[]): Array<{
 export async function fetchStepQuickInsertSearch(
   baseUrl: string,
   args: { keyword: string; skip: number; subPrograms: ActionSubProgram[] },
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<StepQuickInsertSearchResult> {
+  if (port && !port.remoteEnabled) {
+    const items = filterQuickInsertCandidates(buildQuickInsertCandidates([], args.subPrograms), args.keyword);
+    return { items: items.slice(args.skip, args.skip + STEP_QUICK_INSERT_PAGE_SIZE), totalCount: items.length, hasMore: args.skip + STEP_QUICK_INSERT_PAGE_SIZE < items.length };
+  }
   const body = {
     keyword: args.keyword,
     skip: args.skip,
     subPrograms: buildSubProgramPayload(args.subPrograms)
   };
-  const json = await designerHostGrpcPostStepQuickInsertSearchJson(baseUrl, JSON.stringify(body), signal);
+  const json = await designerHostGrpcPostStepQuickInsertSearchJson(baseUrl, JSON.stringify(body), signal, port);
   let data: unknown;
   try {
     data = JSON.parse(json);
@@ -197,12 +204,14 @@ export async function fetchStepQuickInsertSearch(
 export async function fetchToolboxModuleSearch(
   baseUrl: string,
   args: { keyword: string; skip: number },
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  port?: DesignerCatalogPort,
 ): Promise<StepQuickInsertSearchResult> {
   const json = await designerHostGrpcPostToolboxSearchJson(
     baseUrl,
     JSON.stringify({ keyword: args.keyword, skip: args.skip }),
-    signal
+    signal,
+    port,
   );
   let data: unknown;
   try {

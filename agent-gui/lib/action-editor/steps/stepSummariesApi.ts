@@ -1,3 +1,4 @@
+import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
 import { ActionStep } from "@/lib/action-editor/types/common";
 import {
   designerHostGrpcGetActionStepSummary,
@@ -78,12 +79,14 @@ export function buildStepSummariesFingerprint(steps: ActionStep[]): string {
 export async function fetchActionStepSummary(
   baseUrl: string,
   stepRunnerKey: string,
-  step: ActionStep
+  step: ActionStep,
+  port?: DesignerCatalogPort,
 ): Promise<string> {
   const stepJson = JSON.stringify(ActionStep.toJSON(step));
   try {
-    return (await designerHostGrpcGetActionStepSummary(baseUrl, stepRunnerKey, stepJson)).trim();
-  } catch {
+    return (await designerHostGrpcGetActionStepSummary(baseUrl, stepRunnerKey, stepJson, port)).trim();
+  } catch (error) {
+    if (port) throw error;
     return "";
   }
 }
@@ -116,6 +119,7 @@ export async function fetchStepSummariesBatch(
   steps: ActionStep[],
   signal?: AbortSignal,
   embeddedSubProgramsWireJson?: string,
+  port?: DesignerCatalogPort,
 ): Promise<Record<string, string>> {
   const payloadSteps: { stepId: string; stepRunnerKey: string; stepJson: string }[] = [];
   for (const s of steps) {
@@ -141,10 +145,12 @@ export async function fetchStepSummariesBatch(
         steps: payloadSteps,
         subProgramsJson: embeddedSubProgramsWireJson?.trim() || undefined,
       }),
-      signal
+      signal,
+      port,
     );
     return parseStepSummariesBatchResponse(json);
-  } catch {
+  } catch (error) {
+    if (port) throw error;
     return {};
   }
 }

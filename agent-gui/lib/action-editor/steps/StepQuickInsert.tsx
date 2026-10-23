@@ -1,3 +1,4 @@
+import { useDesignerCatalogPort } from "../catalog/DesignerCatalogProvider";
 import {
   forwardRef,
   useCallback,
@@ -33,6 +34,8 @@ export type StepQuickInsertHandle = {
 
 export const StepQuickInsert = forwardRef<StepQuickInsertHandle, StepQuickInsertProps>(
   function StepQuickInsert({ open, backendBaseUrl, subPrograms, onPick, onCancel }, ref): JSX.Element | null {
+    const catalogPort = useDesignerCatalogPort();
+    const catalogOwner = useRef(catalogPort);
     const [query, setQuery] = useState("");
     const [debouncedQuery, setDebouncedQuery] = useState("");
     const [items, setItems] = useState<QuickInsertCandidate[]>([]);
@@ -53,6 +56,17 @@ export const StepQuickInsert = forwardRef<StepQuickInsertHandle, StepQuickInsert
     const pendingListScrollResetRef = useRef(false);
     /** Native scrollbar clicks often blur the input with relatedTarget=null; target may not be inside the root. */
     const pointerDownLikelyInsideWidgetRef = useRef(false);
+
+    if (catalogOwner.current !== catalogPort) {
+      catalogOwner.current = catalogPort;
+      searchSeqRef.current += 1;
+      setItems([]);
+      setHasMore(false);
+      setHighlightIndex(0);
+      appendLockRef.current = false;
+      setLoadingMore(false);
+      setListLoading(false);
+    }
 
     itemsRef.current = items;
     highlightIndexRef.current = highlightIndex;
@@ -134,7 +148,8 @@ export const StepQuickInsert = forwardRef<StepQuickInsertHandle, StepQuickInsert
           const res = await fetchStepQuickInsertSearch(
             backendBaseUrl,
             { keyword: debouncedQuery, skip: 0, subPrograms },
-            ac.signal
+            ac.signal,
+            catalogPort,
           );
           if (mySeq !== searchSeqRef.current) {
             return;
@@ -156,9 +171,10 @@ export const StepQuickInsert = forwardRef<StepQuickInsertHandle, StepQuickInsert
         }
       })();
       return () => {
+        searchSeqRef.current += 1;
         ac.abort();
       };
-    }, [open, debouncedQuery, backendBaseUrl, subPrograms]);
+    }, [open, debouncedQuery, backendBaseUrl, subPrograms, catalogPort]);
 
     useLayoutEffect(() => {
       if (!open) {
@@ -228,7 +244,7 @@ export const StepQuickInsert = forwardRef<StepQuickInsertHandle, StepQuickInsert
       const skip = itemsRef.current.length;
       const mySeq = searchSeqRef.current;
       try {
-        const res = await fetchStepQuickInsertSearch(backendBaseUrl, { keyword: kw, skip, subPrograms });
+        const res = await fetchStepQuickInsertSearch(backendBaseUrl, { keyword: kw, skip, subPrograms }, undefined, catalogPort);
         if (mySeq !== searchSeqRef.current) {
           return;
         }
@@ -243,10 +259,12 @@ export const StepQuickInsert = forwardRef<StepQuickInsertHandle, StepQuickInsert
           setHasMore(false);
         }
       } finally {
-        setLoadingMore(false);
-        appendLockRef.current = false;
+        if (mySeq === searchSeqRef.current) {
+          setLoadingMore(false);
+          appendLockRef.current = false;
+        }
       }
-    }, [open, listLoading, loadingMore, hasMore, debouncedQuery, backendBaseUrl, subPrograms]);
+    }, [open, listLoading, loadingMore, hasMore, debouncedQuery, backendBaseUrl, subPrograms, catalogPort]);
 
     const onListScroll = useCallback(
       (e: React.UIEvent<HTMLUListElement>): void => {
