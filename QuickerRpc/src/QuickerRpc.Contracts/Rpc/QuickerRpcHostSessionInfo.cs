@@ -21,6 +21,12 @@ public sealed class QuickerRpcHostSessionInfo
     [DataMember(Name = "hostSessionId")]
     public string HostSessionId { get; set; } = string.Empty;
 
+    [DataMember(Name = "hostInstanceId")]
+    public string HostInstanceId { get; set; } = string.Empty;
+
+    [DataMember(Name = "endpoint")]
+    public string Endpoint { get; set; } = string.Empty;
+
     [DataMember(Name = "host")]
     public QuickerRpcHostDescriptor Host { get; set; } = new();
 
