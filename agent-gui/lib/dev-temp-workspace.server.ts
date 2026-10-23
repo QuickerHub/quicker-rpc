@@ -1,13 +1,8 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, realpath, rm } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join, resolve, sep } from "node:path";
 import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
-import { isQuickerActionMissingError } from "@/lib/action-command-client";
-import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
-import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
-import { runQkrpc } from "@/lib/qkrpc";
-import { isQuickerSubProgramMissingError } from "@/lib/subprogram-command-client";
-import { listWorkspaceSubProgramProjects } from "@/lib/subprogram-project-workflow";
 import {
   DEV_TEMP_WORKSPACE_REL_DIR,
   type DevTempWorkspaceCleanupResult,
@@ -16,78 +11,29 @@ import {
   normalizePathForCompare,
 } from "@/lib/dev-temp-workspace.shared";
 
-const QKRPC_TIMEOUT_MS = 120_000;
-
 function agentGuiRoot(): string {
   return process.cwd();
 }
 
-function formatQkrpcError(result: {
-  stderr: string;
-  parsed: unknown;
-}): string {
-  const stderr = result.stderr.trim();
-  if (stderr) return stderr;
-  if (typeof result.parsed === "object" && result.parsed !== null) {
-    const row = result.parsed as Record<string, unknown>;
-    const msg = row.message ?? row.errorMessage ?? row.error;
-    if (typeof msg === "string" && msg.trim()) return msg.trim();
-  }
-  return "qkrpc 命令失败";
+function pathKey(path: string): string {
+  return process.platform === "win32" ? path.toLowerCase() : path;
 }
 
-async function deleteActionInQuicker(actionId: string): Promise<string | undefined> {
-  const result = await runQkrpc(
-    ["action", "delete", "--id", actionId, "--yes", "--json"],
-    { timeoutMs: QKRPC_TIMEOUT_MS },
-  );
-  if (result.ok) return undefined;
-  const error = formatQkrpcError(result);
-  if (isQuickerActionMissingError(error)) return undefined;
-  return error;
-}
-
-async function deleteSubprogramInQuicker(subprogramId: string): Promise<string | undefined> {
-  const result = await runQkrpc(
-    ["subprogram", "delete", "--id", subprogramId, "--yes", "--json"],
-    { timeoutMs: QKRPC_TIMEOUT_MS },
-  );
-  if (result.ok) return undefined;
-  const error = formatQkrpcError(result);
-  if (isQuickerSubProgramMissingError(error)) return undefined;
-  return error;
-}
-
-export async function scanDevTempWorkspaceArtifacts(): Promise<{
-  actionIds: string[];
-  subprogramIds: string[];
-}> {
-  const actionIds = new Set<string>();
-  const subprogramIds = new Set<string>();
-
-  const actions = await listWorkspaceActionProjects();
-  if (actions.ok) {
-    for (const project of actions.projects) {
-      const id = project.actionId?.trim();
-      if (id) actionIds.add(id);
+/** Anchor the entire managed path chain, including .local, to this application. */
+async function checkedDevTempWorkspaceRoot(): Promise<string> {
+  let directory = await realpath(agentGuiRoot());
+  for (const segment of DEV_TEMP_WORKSPACE_REL_DIR.split("/")) {
+    directory = join(directory, segment);
+    try {
+      if (pathKey(await realpath(directory)) !== pathKey(directory)) {
+        throw new Error("Dev temp workspace root path is redirected");
+      }
+    } catch (error) {
+      // A missing suffix is safe to create beneath the verified existing parent.
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-
-  const subprograms = await listWorkspaceSubProgramProjects();
-  if (subprograms.ok) {
-    for (const project of subprograms.projects) {
-      const id =
-        project.subProgramId?.trim()
-        || project.callIdentifier?.trim()
-        || project.dirName.trim();
-      if (id) subprogramIds.add(id);
-    }
-  }
-
-  return {
-    actionIds: [...actionIds],
-    subprogramIds: [...subprogramIds],
-  };
+  return directory;
 }
 
 export function resolveDevTempWorkspaceRoot(): string {
@@ -96,9 +42,8 @@ export function resolveDevTempWorkspaceRoot(): string {
 
 export function assertDevTempWorkspacePath(path: string): string {
   const absolute = resolve(path.trim());
-  const root = resolveDevTempWorkspaceRoot();
-  const prefix = `${root}${sep}`.toLowerCase();
-  if (!absolute.toLowerCase().startsWith(prefix)) {
+  const roots = [resolveDevTempWorkspaceRoot(), resolve(realpathSync(agentGuiRoot()), DEV_TEMP_WORKSPACE_REL_DIR)];
+  if (!roots.some((root) => pathKey(absolute).startsWith(pathKey(`${root}${sep}`)))) {
     throw new Error("Path is not under dev temp-workspaces root");
   }
   if (!isDevTempWorkspacePath(absolute)) {
@@ -127,8 +72,9 @@ export async function createDevTempWorkspace(options?: {
     throw new Error("Dev temp workspaces are only available in development");
   }
 
-  const root = resolveDevTempWorkspaceRoot();
+  const root = await checkedDevTempWorkspaceRoot();
   await mkdir(root, { recursive: true });
+  await checkedDevTempWorkspaceRoot();
 
   const id = randomUUID();
   const folderName = `ws-${id.slice(0, 8)}`;
@@ -155,31 +101,22 @@ export async function cleanupDevTempWorkspace(
     path: absolute,
     deletedActions: [],
     deletedSubprograms: [],
+    hostArtifactsPreserved: true,
     errors: [],
   };
 
-  await runWithAgentRequestContextAsync({ cwd: absolute }, async () => {
-    const artifacts = await scanDevTempWorkspaceArtifacts();
-
-    for (const actionId of artifacts.actionIds) {
-      const error = await deleteActionInQuicker(actionId);
-      if (error) {
-        result.errors.push(`Quicker ${actionId.slice(0, 8)}…: ${error}`);
-      } else {
-        result.deletedActions.push(actionId);
-      }
+  // A copied/exported program ID is a reference, not proof that this workspace owns
+  // the live host object. Removing local scratch files must never delete that object.
+  try {
+    const root = await checkedDevTempWorkspaceRoot();
+    const actual = await realpath(absolute);
+    if (!pathKey(actual).startsWith(pathKey(`${root}${sep}`))) {
+      throw new Error("Dev temp workspace resolves outside its managed root");
     }
-
-    for (const subprogramId of artifacts.subprogramIds) {
-      const error = await deleteSubprogramInQuicker(subprogramId);
-      if (error) {
-        result.errors.push(`Quicker SP ${subprogramId.slice(0, 12)}: ${error}`);
-      } else {
-        result.deletedSubprograms.push(subprogramId);
-      }
-    }
-  });
-
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return result;
+    throw error;
+  }
   await rm(absolute, { recursive: true, force: true });
   return result;
 }

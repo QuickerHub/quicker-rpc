@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rmdir, symlink, writeFile } from "node:fs/promises";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, beforeEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import {
   assertDevTempWorkspacePath,
   cleanupDevTempWorkspace,
@@ -64,5 +66,68 @@ describe("dev-temp-workspace.server", () => {
       () => assertDevTempWorkspacePath(join(sandboxRoot, "benchmarks")),
       /not under dev temp-workspaces root|not a dev temp workspace/,
     );
+  });
+
+  test("copied host references never invoke RPC or spawn during local cleanup", async () => {
+    const created = await createDevTempWorkspace({ seed: "empty" });
+    for (const kind of ["actions", "subprograms"]) {
+      const directory = join(created.path, ".quicker", kind, "copied-existing-program");
+      await mkdir(directory, { recursive: true });
+      await writeFile(join(directory, "info.json"), JSON.stringify({
+        id: "11111111-2222-4333-8444-555555555555", title: "Existing host content",
+      }));
+    }
+    let requests = 0;
+    const fetchSpy = mock.method(globalThis, "fetch", async () => { requests += 1; throw new Error("must not call host"); });
+    const spawnSpy = mock.method(childProcess, "spawn", () => { requests += 1; throw new Error("must not spawn host CLI"); });
+    syncBuiltinESMExports();
+    try {
+      const result = await cleanupDevTempWorkspace(created.path);
+      assert.deepEqual(result.deletedActions, []);
+      assert.deepEqual(result.deletedSubprograms, []);
+      assert.equal(result.hostArtifactsPreserved, true);
+      assert.equal(requests, 0);
+      await assert.rejects(readFile(join(created.path, ".quicker", "actions", "copied-existing-program", "info.json")));
+      assert.equal((await cleanupDevTempWorkspace(created.path)).hostArtifactsPreserved, true);
+    } finally {
+      fetchSpy.mock.restore();
+      spawnSpy.mock.restore();
+      syncBuiltinESMExports();
+    }
+  });
+
+  test("a workspace junction cannot remove files outside the managed root", async () => {
+    const outside = join(sandboxRoot, "keep-outside-temp-workspaces");
+    await mkdir(outside);
+    await writeFile(join(outside, "keep.txt"), "preserve");
+    await mkdir(resolveDevTempWorkspaceRoot(), { recursive: true });
+    const linked = join(resolveDevTempWorkspaceRoot(), "ws-linked");
+    await symlink(outside, linked, process.platform === "win32" ? "junction" : "dir");
+    await assert.rejects(cleanupDevTempWorkspace(linked), /outside its managed root/);
+    assert.equal(await readFile(join(outside, "keep.txt"), "utf8"), "preserve");
+  });
+
+  for (const redirected of ["root", "local"] as const) {
+    test(`a redirected ${redirected} ancestor cannot create or remove outside files`, async () => {
+      const outside = join(sandboxRoot, `preserve-${redirected}`);
+      const workspace = join(outside, ...(redirected === "local" ? ["temp-workspaces"] : []), "ws-existing");
+      await mkdir(workspace, { recursive: true });
+      await writeFile(join(workspace, "keep.txt"), "preserve");
+      const link = redirected === "local" ? join(sandboxRoot, ".local") : resolveDevTempWorkspaceRoot();
+      if (redirected === "local") await rmdir(link);
+      await symlink(outside, link, process.platform === "win32" ? "junction" : "dir");
+      await assert.rejects(cleanupDevTempWorkspace(join(resolveDevTempWorkspaceRoot(), "ws-existing")), /root path is redirected/);
+      await assert.rejects(createDevTempWorkspace({ seed: "empty" }), /root path is redirected/);
+      assert.equal(await readFile(join(workspace, "keep.txt"), "utf8"), "preserve");
+    });
+  }
+
+  test("an application checkout alias still resolves to its own managed workspaces", async () => {
+    const alias = join(sandboxRoot, "application-alias");
+    await symlink(sandboxRoot, alias, process.platform === "win32" ? "junction" : "dir");
+    process.chdir(alias);
+    const created = await createDevTempWorkspace({ seed: "empty" });
+    assert.equal(assertDevTempWorkspacePath(created.path), created.path);
+    assert.equal((await cleanupDevTempWorkspace(created.path)).hostArtifactsPreserved, true);
   });
 });

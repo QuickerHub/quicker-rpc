@@ -24,5 +24,7 @@ export type DevTempWorkspaceCleanupResult = {
   path: string;
   deletedActions: string[];
   deletedSubprograms: string[];
+  /** Directory cleanup never implies permission to delete referenced live programs. */
+  hostArtifactsPreserved?: boolean;
   errors: string[];
 };

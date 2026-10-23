@@ -13,4 +13,12 @@ describe("dev-temp-workspace-format", () => {
     assert.match(summary, /Quicker 动作 1 个/);
     assert.match(summary, /临时目录已删除/);
   });
+
+  test("local-only cleanup clearly preserves Quicker content", () => {
+    const summary = formatDevTempWorkspaceCleanupSummary({
+      path: "fixture", deletedActions: [], deletedSubprograms: [], errors: [],
+      hostArtifactsPreserved: true,
+    });
+    assert.match(summary, /临时目录已删除.*Quicker 内容保留/);
+  });
 });

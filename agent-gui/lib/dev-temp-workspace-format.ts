@@ -11,6 +11,7 @@ export function formatDevTempWorkspaceCleanupSummary(
     parts.push(`公共子程序 ${result.deletedSubprograms.length} 个`);
   }
   parts.push("临时目录已删除");
+  if (result.hostArtifactsPreserved) parts.push("Quicker 内容保留");
   if (result.errors.length > 0) {
     parts.push(result.errors[0]!);
   }
