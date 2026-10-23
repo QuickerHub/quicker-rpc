@@ -129,13 +129,23 @@ V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugi
 
 本表是用户要求的长期重构计划，随实现和验收更新；不另建平行 roadmap。
 基础壳、配色和几个布局槽位只算已有基础，不代表 Agent 设计或 V2 体验迁移完成。
+
+用户进一步指出架构混乱并质疑 Next.js 用途后，主线优先级调整为先重划服务与 UI 边界。
+目标为静态 React renderer、独立 Node Agent service 与薄 Electron 壳，Next 作为当前兼容宿主逐步退出；
+Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完成的工具、YAML codec、AI SDK loop、
+权限/取消修复继续保留。CI 已拆为独立对话与隔离分支推进。
+
+先收口正在实现的 R0/R4 修复，再完成“去框架依赖 → 服务组合入口 → 分组 API 兼容 →
+静态 renderer → 桌面打包”的顺序；R5 和更广 UI 抽取等待服务边界。具体证据、模块归属和切换门槛见
+[架构目标](../agent-architecture.md#框架去耦与目标运行边界)。不能把候选方案或单个去耦文件标成迁移完成。
+
 重构目标是让权限、执行生命周期、会话状态和展示扩展各有唯一归属，新增能力无需复制
 Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作台设计](../../agent-gui/DESIGN.md)，
 模块契约见 [Agent 架构](../agent-architecture.md)。
 
 | 阶段 / 优先级 | 用户问题与交付边界 | 负责功能域 / 代码锚点 | 依赖 | 验收门槛 | 状态 |
 |---|---|---|---|---|---|
-| R0 / P0：可信基线 | 重构前先知道什么真的能跑；隔离用户数据、宿主动作和付费模型请求，记录已存在失败 | CHAT / AUTHOR / WORKBENCH；`package.json`、离线 fixtures、`agent-harness/*.test.ts`、`qkrpc-argv.test.ts` | 无 | 有可重复的离线检查入口；不自动启用真实 Electron/动作删除测试；已知失败明确归因，不写成全部通过 | 离线入口、DB fixture 隔离与临时目录本地清理已实现；桌面 smoke 的用户数据/进程隔离仍待整改 |
+| R0 / P0：可信基线 | 重构前先知道什么真的能跑；隔离用户数据、宿主动作和付费模型请求，记录已存在失败 | CHAT / AUTHOR / WORKBENCH；`package.json`、离线 fixtures、`agent-harness/*.test.ts`、`qkrpc-argv.test.ts` | 无 | 有可重复的离线检查入口；不自动启用真实 Electron/动作删除测试；已知失败明确归因，不写成全部通过 | 离线入口、DB fixture 隔离与临时目录本地清理已实现；桌面 UI smoke 隔离协议和 fake 检查已实现，打包实机/原生 Job 执行尚未验收，RPC 明确离线 |
 | R1 / P0：能力与父子权限 | Ask、命令 allowlist、MCP 和子代理不能互相绕过；空交集不能恢复全部工具 | EXT / CHAT；`select-chat-tools.server.ts`、`turn-runtime.server.ts`、`agent-mcp/`、`task-tool.server.ts` | R0 | 未指定与显式空集合分开；最终工具集取所有限制的交集；未知风险 MCP 不进入 Ask；子代理复用父工具策略闭包，无递归 task；Ask 浏览器当前关闭，后续须以仅连接已有会话、无导航/启动副作用的观测端口逐项验收再开放 | 首轮权限边界已实现；操作描述与 TurnPlan 执行约束仍待统一 |
 | R2 / P0：取消与资源生命周期 | 点击停止、关闭连接或运行失败后，不继续悄悄请求模型、重试或占用工具连接 | CHAT / WORK / EXT；`api/chat/route.ts`、`run-turn.server.ts`、`stream-loop.server.ts`、工具上下文及 transport | R1 | 请求信号贯穿模型、压缩、工具和子代理；取消不转换成重试；MCP/reader/计时器至少有明确 owner 且只释放一次；两个并行 turn 互不取消 | 模型、压缩、qkrpc、Shell、MCP 首轮取消链已验收；浏览器/网络端口及派生进程归属待补 |
 | R3 / P1：会话控制与可见性 | 常驻隐藏会话仍可能响应全局输入；页面组件混合消息、审批、滚动、设置与 Launcher 生命周期 | CHAT / WORKBENCH；`Chat.tsx`、`useAgentChatSession.ts`、`ChatComposerFooter.tsx`、Launcher bridge | R1–R2 | 后台运行可以继续，但全局快捷键/录音只归前台 owner；切会话保留草稿与审批；控制器持有业务状态，展示组件只消费明确契约 | 隐藏输入、IME 与面板串会话已验收；执行事实按 turn 隔离并移除 thread 全局 Map；会话控制器拆分待实施 |

@@ -24,6 +24,11 @@ QuickerAgent 是面向 Quicker 动作维护与工作区任务的 Agent 工作台
 
 DeepSeek Harness 的布局组合和静态描述与运行状态分离是架构参考。工作台仍使用现有 AI SDK Agent 内核与消息流，扩展入口的工程约定见 [Agent 架构](../docs/agent-architecture.md#工作台组合边界)。
 
+后续优先将服务与展示边界落到代码，再扩大面板抽象。桌面优先的目标是静态 React 界面、
+独立 Node Agent service 与薄 Electron 壳；Next.js 当前承担兼容宿主，不作为产品能力约束。
+替换 UI 构建工具要保持会话、审批、Launcher 和 Designer embed 的现有交互，迁移门槛见
+[架构目标](../docs/agent-architecture.md#框架去耦与目标运行边界)。
+
 ## Agent 运行与会话原则
 
 - Agent、Ask、Launcher 和命令限制由最终可执行能力集共同约束；界面选择或子代理不能扩大父任务的权限。显式禁用所有工具与未配置工具是两种状态。

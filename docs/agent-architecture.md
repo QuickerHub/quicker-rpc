@@ -27,6 +27,55 @@ UI / HTTP adapters
 | Domain | `lib/agent-core/`、`agent-recovery-policy.ts` | 无 IO 的决策与值对象 |
 | Tool adapters | `lib/tools.ts` 及各 `*-tool.server.ts` | 调用外部能力并返回统一结果 |
 
+### 框架去耦与目标运行边界
+
+当前 Next.js 是现有实现的 HTTP/UI 宿主，不是 Agent 的产品要求。主页面只组合客户端
+Chat、启动占位和 Designer URL 参数；77 个 API route 承担本地服务入口。`/api/chat`
+已经只做 Request 解码与应用层绑定，runner/loop 使用 AI SDK 和标准 Response/SSE。
+SQLite、文件、子进程、ALS 和 stdio MCP 需要 Node.js，不能据此推导出需要 Next.js。
+
+后续工程以桌面优先的以下目标为准，当前尚未完成迁移：
+
+```text
+React renderer（候选构建工具 Vite，静态资源与页面导航）
+  → 现有 HTTP/SSE 契约
+    → 独立 Node Agent service（唯一业务组合入口）
+      → AI SDK / DB / 文件与工具 / qkrpc / browser / terminal adapters
+Electron shell → 窗口、preload/IPC、原生集成与所属服务进程的生命周期
+```
+
+| 边界 | 持有内容 | 不应持有 |
+|---|---|---|
+| Renderer | 会话展示、草稿、面板实例、输入与阅读状态 | 模型密钥、DB、Node/Next 服务端模块、工具执行 |
+| Agent service | 配置与数据路径、DB owner、turn/权限、模型与工具、取消与资源释放 | Next cookies、页面路由和 React 组件 |
+| HTTP adapter | 请求解析、请求身份/preview、Response/SSE 与断连信号 | 另一个 Agent loop 或另一套持久化 |
+| Desktop shell | 窗口、系统能力、preload、启动/关闭所属服务 | 复制 Agent、会话数据库或工具策略 |
+| qkrpc | V1 宿主适配、CLI/MCP/HTTP、YAML codec/source bundle | 桌面 UI 与模型会话状态 |
+
+先实现服务边界，再替换 UI 构建工具；已有 React、AI SDK、工具、YAML codec 与历史格式继续复用。
+生产阶段仍使用 Next standalone，不能把目标拓扑写成已落地事实。当前也不是单进程系统：
+Next/Agent、qkrpc、browser 与 terminal 已有各自进程，重构要统一 owner，不能再新增一套平行服务。
+
+迁移按以下可审查门槛推进：
+
+1. **切断框架依赖**：domain/application 与业务策略不导入 Next；cookies 留在 HTTP adapter。
+   首个切片已将 release-preview 的 ALS 策略与 Next cookies 读取分开，支持无 Next 的并发测试。
+2. **建立服务入口**：一个 composition root 绑定配置、DB 与工具，生命周期显式 start/stop；
+   用生成 fixture 验证启动、SSE、审批回传、取消及重启，旧入口只是同一服务的适配器。
+3. **迁移 API 领域组**：按 chat/history、settings、workspace/tools 分组保留原 HTTP/SSE 行为；
+   每组通过兼容测试再切流量。任一时刻只允许一个 DB writer 与一个工具执行 owner。
+4. **验证静态 renderer**：先迁主会话竖切片，再覆盖设置、Launcher、Designer embed、
+   浏览器/终端、深浅主题；保留现有会话和审批，不同时更换协议或状态格式。
+5. **替换桌面打包**：删除 Next server.js/tracing 专用启动分支前，验证原生模块、静态资源、
+   独立用户资料、进程退出与升级。以实测启动时间、包体、内存与迭代耗时判断收益，不能凭框架名称宣称变快。
+
+CI 独立推进上述检查，先保护现有可运行版本。R4 已开始的状态丢失修复收口后，R5 面板扩展与
+更广 UI 拆分先等待服务边界，避免围绕旧宿主继续扩大改动。
+
+外部依据：[AI SDK 后端支持](https://ai-sdk.dev/docs/getting-started#backend-framework-examples)
+包含 Node HTTP 与其他服务端框架；[Electron 进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)
+明确区分 main、renderer 与 Node 能力。这些说明技术可行性，不证明本项目已完成迁移。
+
 ## 2. 依赖规则
 
 1. Route 不包含模型、工具和 prompt 策略。
@@ -218,6 +267,18 @@ pnpm test:context-compression
 清单使用 fake SDK model、fake HTTP、生成的 DB fixture 和本次创建的子进程，不能自动读取
 用户旧数据库或调用真实 Quicker/模型。它覆盖当前重构切片，不替代所有业务验收。
 `agent-eval`（无 `test:`）、Electron launch/full smoke 和真实宿主动作测试不属于离线入口。
+
+Electron smoke 的 `verify` 只检查包产物；`launch/full` 仍须明确执行，并要求包内包含新的隔离握手。
+每次启动在仓库 `.tmp/electron-smoke/run-*` 创建独立 profile、AppData、HOME、临时目录和工作区，
+在加载应用模块前设置 Electron userData/sessionData。Windows Job Object 在恢复根进程前接管它，
+结束、取消或根进程早退只释放这个 job；不按名称停止应用，也不扫描或复用已有服务。
+脚本先核验 runId、profile、job 内 PID 与精确监听端口，再探测本轮 UI 并允许窗口加载。
+该 smoke 的 RPC 端口由本轮进程拥有，明确 `hostRpcDisabled=true`，拒绝所有调用；不验收真实
+Quicker 插件、动作读写或模型请求。旧包缺协议时先拒绝启动，需重新构建匹配的包。
+离线验证为 `node --test agent-gui/electron/*smoke*.test.mjs`（shell 展开按平台调整）与
+`pwsh -NoProfile -File agent-gui/scripts/Test-QuickerAgentElectronSmokeIsolation.ps1`；只用 fake app、
+socket、spawn、job/监听快照和生成目录。原生 Job Object 执行、打包 Electron 与实际窗口仍须单独验收，
+本轮未执行；测试日志和资料目录保留在对应 run 目录中供核对。
 
 影响 Next/API/UI 时还必须在 dev server 上运行 `dev_frontend_check`，直到 `ok: true`。
 涉及工具选择时增加 `chat-tool-selection`/`turn-plan` 契约测试；涉及 Agent loop 时使用

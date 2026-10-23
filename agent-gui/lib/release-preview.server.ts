@@ -1,15 +1,9 @@
 import "server-only";
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import { cookies } from "next/headers";
 import { RELEASE_PREVIEW_COOKIE } from "@/lib/release-preview-constants";
-
-const storage = new AsyncLocalStorage<boolean>();
-
-/** True inside API handlers wrapped with withReleasePreviewContext. */
-export function isReleasePreviewActive(): boolean {
-  return storage.getStore() ?? false;
-}
+import { runWithReleasePreview } from "@/lib/release-preview-context";
+export { isReleasePreviewActive } from "@/lib/release-preview-context";
 
 export async function readReleasePreviewFromCookies(): Promise<boolean> {
   const jar = await cookies();
@@ -21,7 +15,7 @@ export async function withReleasePreviewContext<T>(
   fn: () => T | Promise<T>,
 ): Promise<T> {
   const preview = await readReleasePreviewFromCookies();
-  return storage.run(preview, fn);
+  return runWithReleasePreview(preview, fn);
 }
 
 export async function withReleasePreviewRoute<T>(
