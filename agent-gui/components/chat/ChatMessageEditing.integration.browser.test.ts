@@ -10,7 +10,7 @@ import React,{StrictMode,useLayoutEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {ChatPanel} from '@/components/chat/Chat';
 import {AppConfirmHost} from '@/components/AppConfirmHost';
-window.fixture={};
+window.fixture={submitEvents:[],branchEvents:[]};
 const messages=id=>[{id:id+'-u1',role:'user',parts:[{type:'text',text:'first '+id}],metadata:{fixture:{opaque:'keep-prefix'}}},
  {id:id+'-a1',role:'assistant',parts:[{type:'text',text:'first answer'}]},
  {id:id+'-u2',role:'user',parts:[{type:'text',text:'second '+id}]},
@@ -44,7 +44,12 @@ test("production ChatPanel, composer, SDK session and confirmation branch throug
     tsconfig: path.join(process.cwd(), "tsconfig.json"), define: { "process.env.NODE_ENV": '"development"', "process.env": "{}" },
     plugins: [{ name: "generated-chat-fixture", setup(builder) {
       builder.onLoad({ filter: /[\\/]components[\\/]chat[\\/]Chat\.tsx$/ }, async (args) => ({
-        contents: `${await readFile(args.path, "utf8")}\nexport { ChatPanel };`, loader: "tsx", resolveDir: path.dirname(args.path),
+        contents: `${(await readFile(args.path, "utf8")).replace("const submitComposer = useCallback(() => {", "const submitComposer = useCallback(() => { window.fixture.submitEvents.push({threadId,visible,editAnchorMessageId,text:readComposerText()});")}\nexport { ChatPanel };`, loader: "tsx", resolveDir: path.dirname(args.path),
+      }));
+      builder.onLoad({ filter: /[\\/]components[\\/]chat[\\/]useChatMessageEditing\.ts$/ }, async (args) => ({
+        contents: (await readFile(args.path, "utf8")).replace("if (pendingConfirmation.current) return false;",
+          "window.fixture.branchEvents.push({pending:!!pendingConfirmation.current,...readBranchContext(),owner:undefined}); if (pendingConfirmation.current) return false;"),
+        loader: "ts", resolveDir: path.dirname(args.path),
       }));
       builder.onResolve({ filter: /.*/ }, (args) => Object.hasOwn(leaves, args.path) ? { path: args.path, namespace: "fixture-leaf" } : undefined);
       builder.onLoad({ filter: /.*/, namespace: "fixture-leaf" }, (args) => ({ contents: leaves[args.path]!, loader: "js" }));
@@ -85,9 +90,25 @@ test("production ChatPanel, composer, SDK session and confirmation branch throug
     assert.equal(await input("a").textContent(), "revised A from production composer");
     assert.equal(await panel("a").locator(".composer-edit-banner").count(), 1);
     await page.evaluate(() => (window as any).fixture.setActive("a"));
+    // focus() alone has no visibility/actionability wait and can run before React commits this switch.
+    await input("a").waitFor({ state: "visible" });
     await input("a").focus();
+    const beforeEnter = await page.evaluate(() => {
+      const panel = document.querySelector('[data-panel="a"]')!;
+      const field = panel.querySelector<HTMLElement>('footer [contenteditable="true"]')!;
+      return { banner: panel.querySelector(".composer-edit-banner")?.textContent, text: field.textContent,
+        focused: document.activeElement === field, editable: field.contentEditable, ariaDisabled: field.getAttribute("aria-disabled"),
+        visible: !panel.querySelector(".app-main--hidden") };
+    });
+    assert.equal(beforeEnter.focused, true, JSON.stringify(beforeEnter));
+    assert.equal(beforeEnter.visible, true, JSON.stringify(beforeEnter));
     await page.keyboard.press("Enter");
-    await page.getByRole("alertdialog").waitFor();
+    try { await page.getByRole("alertdialog").waitFor({ timeout: 5_000 }); }
+    catch (cause) {
+      const after = await page.evaluate(() => ({ submitEvents: (window as any).fixture.submitEvents, branchEvents: (window as any).fixture.branchEvents,
+        focused: document.activeElement?.outerHTML, banner: document.querySelector('[data-panel="a"] .composer-edit-banner')?.textContent }));
+      throw new Error(`Chat branch confirmation did not open: ${JSON.stringify({ beforeEnter, after, errors, requests })}`, { cause });
+    }
     await page.getByRole("button", { name: "确定", exact: true }).click();
     await panel("a").getByText("fixture reply", { exact: true }).waitFor();
     assert.equal(requests.length, 1);
