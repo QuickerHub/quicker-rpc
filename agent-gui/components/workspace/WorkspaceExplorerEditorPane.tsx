@@ -5,11 +5,13 @@ import { CodeMirrorPreview } from "@/components/chat/CodeMirrorPreview";
 import { DocsViewerPanel } from "@/components/chat/DocsViewerTabs";
 import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectInfoEditor } from "@/components/workspace/ActionProjectInfoEditor";
+import { saveProgramDocumentClient } from "@/lib/program-document-save-client";
 import { ActionProjectDataEditor } from "@/components/action-editor/ActionProjectDataEditor";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { isActionProjectInfoPath } from "@/lib/action-project-info-parse";
 import type { ExplorerFileTab } from "@/lib/workspace-explorer";
-import { formatWorkspaceFetchError } from "@/lib/workspace-explorer-api";
+import { fetchWorkspaceFile, formatWorkspaceFetchError } from "@/lib/workspace-explorer-api";
+import { invalidateWorkspaceFileReadCache } from "@/lib/workspace-file-read-cache";
 type WorkspaceExplorerEditorPaneProps = {
   showDoc: boolean;
   activeTab: ExplorerFileTab | null;
@@ -99,8 +101,19 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
               path={activeTab.path}
               content={activeTab.content}
               cwd={cwd}
-              onSave={(nextContent) => onSaveWorkspaceFile(activeTab.path, nextContent)}
-              onSaved={onRefreshTree}
+              onSave={async (nextContent) => {
+                const infoPath = activeTab.path.replace(/\\/g, "/");
+                if (!/^\.quicker\/actions\/[^/]+\/info\.json$/i.test(infoPath)) return onSaveWorkspaceFile(activeTab.path, nextContent);
+                const dataPath = infoPath.replace(/info\.json$/i, "data.json");
+                invalidateWorkspaceFileReadCache(cwd, dataPath);
+                const body = await fetchWorkspaceFile(cwd, dataPath);
+                if (!body.ok) return body;
+                if (body.truncated) return { ok: false, error: "动作正文未完整加载，无法保存属性" };
+                return saveProgramDocumentClient(cwd, { path: dataPath, content: body.content, expectedContent: body.content,
+                  metadata: { content: nextContent, expectedContent: activeTab.content ?? "" },
+                });
+              }}
+              onSaved={onActionProjectSynced}
               onSynced={onActionProjectSynced}
             />
             {activeTab.truncated ? (
@@ -121,7 +134,8 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
               totalChars={activeTab.totalChars}
               cwd={cwd}
               onSave={(nextContent) => onSaveWorkspaceFile(activeTab.path, nextContent)}
-              onSaved={onRefreshTree}
+              onSaveDocument={(request) => saveProgramDocumentClient(cwd, request)}
+              onSaved={onActionProjectSynced}
               onSynced={onActionProjectSynced}
             />
             {activeTab.truncated ? (

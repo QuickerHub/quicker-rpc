@@ -74,11 +74,12 @@ import {
   designerHostGrpcGetGlobalSubProgramIo,
   designerHostGrpcGetSharedSubProgramIo,
   seedStepRunnerDetailCache,
+  fetchStepRunnerDetailItem,
 } from "../shared/designerHostGrpcApi";
 import { StepEditorPopup } from "./paramEditors/StepEditorPopup";
 import type { ActionProjectWorkspaceContext } from "./paramEditors/FormDefEditorDialog";
 import { StepQuickInsert, type StepQuickInsertHandle } from "./StepQuickInsert";
-import { quickInsertCandidateToStep, type QuickInsertCandidate } from "./stepQuickInsertCandidates";
+import type { QuickInsertCandidate } from "./stepQuickInsertCandidates";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "./actionStepSerialization";
 import {
   buildStepRunnerLookup,
@@ -98,8 +99,10 @@ import {
   type StepSummaryFileContents,
 } from "./stepSummaryFileRefs";
 import { resolveStepRowIconSpec, type SubProgramStepListLabel } from "./stepRowIconSpec";
-import { buildStepFromRunner, type ToolboxDragPayload } from "./toolboxStepFactory";
+import type { ToolboxDragPayload } from "./toolboxStepFactory";
 import { StepIdManager } from "./stepIdManager";
+import type { RegisterToolboxInsert } from "../toolbox/toolboxInsertionRegistry";
+import { prepareToolboxStep } from "../toolbox/prepareToolboxStep";
 
 const INITIAL_STEPS: ActionStep[] = [
   {
@@ -269,6 +272,7 @@ export type StepListEditorProps = {
    */
   programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
+  registerToolboxInsert?: RegisterToolboxInsert;
 };
 
 export default function StepListEditor({
@@ -286,7 +290,12 @@ export default function StepListEditor({
   stepParamFileContents = {},
   programDocumentKey,
   onPinStepToChat,
+  registerToolboxInsert,
 }: StepListEditorProps): JSX.Element {
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const insertGeneration = useRef(0);
+  useLayoutEffect(() => () => { insertGeneration.current += 1; }, [active]);
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
   const primedCatalogRef = useRef(getPrimedStepRunnerCatalogState(backendBaseUrl));
@@ -923,19 +932,33 @@ export default function StepListEditor({
     refocusEditorShell();
   };
 
-  const handleQuickInsertPick = useCallback(
-    (candidate: QuickInsertCandidate): void => {
-      if (!quickInsert) {
-        return;
-      }
-      flushCompactSync();
-      const step = quickInsertCandidateToStep(candidate, runnerItems, () => stepIdManagerRef.current.nextId());
-      setPendingToolboxInsert({ dropIndicator: quickInsert.dropIndicator, step });
+  const openToolboxInsert = useCallback(async (payload: ToolboxDragPayload, target: DropIndicator): Promise<void> => {
+    if (!activeRef.current) return;
+    flushCompactSync();
+    setQuickInsert(null);
+    const generation = ++insertGeneration.current;
+    try {
+      const step = await prepareToolboxStep(payload, runnerItems, () => stepIdManagerRef.current.nextId(), fetchStepRunnerDetailItem);
+      if (!activeRef.current || generation !== insertGeneration.current) return;
+      setPendingToolboxInsert({ dropIndicator: target, step });
       setEditorTargetId(step.stepId);
-      setQuickInsert(null);
-    },
-    [flushCompactSync, quickInsert, runnerItems]
-  );
+    } catch (error) {
+      if (activeRef.current && generation === insertGeneration.current) {
+        notifyClipboard?.(error instanceof Error ? error.message : String(error), "error");
+      }
+    }
+  }, [flushCompactSync, runnerItems, notifyClipboard]);
+
+  useEffect(() => {
+    if (!active || !registerToolboxInsert) return;
+    return registerToolboxInsert((payload) => openToolboxInsert(payload, { kind: "container", parentId: "root", branch: "root" }));
+  }, [active, registerToolboxInsert, openToolboxInsert]);
+
+  const handleQuickInsertPick = useCallback((candidate: QuickInsertCandidate): void => {
+    if (!quickInsert) return;
+    const payload = candidate.kind === "runner" ? candidate.payload : { stepRunnerKey: "sys:subprogram", subProgramIdentifier: candidate.subProgramIdentifier };
+    void openToolboxInsert(payload, quickInsert.dropIndicator);
+  }, [openToolboxInsert, quickInsert]);
 
   const applyStepEditor = (next: ActionStep): boolean => {
     flushCompactSync();
@@ -1425,6 +1448,7 @@ export default function StepListEditor({
   };
 
   const handleDrop = (event: DragEvent<HTMLElement>): void => {
+    if (!active) return;
     setQuickInsert(null);
     if (!dropIndicator) {
       clearDragState();
@@ -1433,9 +1457,7 @@ export default function StepListEditor({
 
     const toolboxPayload = parseToolboxPayload(event);
     if (draggingIds.length === 0 && toolboxPayload) {
-      const newStep = buildStepFromRunner(toolboxPayload, runnerItems, () => stepIdManagerRef.current.nextId());
-      setPendingToolboxInsert({ dropIndicator, step: newStep });
-      setEditorTargetId(newStep.stepId);
+      void openToolboxInsert(toolboxPayload, dropIndicator);
       clearDragState();
       return;
     }

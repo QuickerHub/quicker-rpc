@@ -21,14 +21,17 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public string Endpoint { get; }
     public QuickerRpcHostSessionInfo Info { get; }
     public int Writes;
+    public int StorageWrites;
     public int Handshakes;
     public bool DropAfterWrite;
     public Func<string, long?, QuickerRpcApplyXActionResult>? Apply;
+    public Func<string, QuickerRpcActionStorageIdentity, long?, bool, QuickerRpcApplyXActionResult>? ApplyWithStorage;
     public Func<CancellationToken, Task<QuickerRpcApplyXActionResult>>? AsyncApply;
     public int HandshakeDelayMilliseconds;
     public string BodyJson = "{\"Steps\":[],\"Variables\":[],\"SubPrograms\":[]}";
+    public QuickerRpcActionStorageIdentity? StorageIdentity;
 
-    public FakeBindingHost(string kind = "v1", bool source = true, bool legacy = false)
+    public FakeBindingHost(string kind = "v1", bool source = true, bool legacy = false, bool storage = true)
     {
         Endpoint = QuickerRpcEndpointNames.ForSession(SessionId);
         Info = new QuickerRpcHostSessionInfo
@@ -44,7 +47,7 @@ public sealed class FakeBindingHost : IAsyncDisposable
                 [QuickerRpcHostCapabilityNames.ActionLegacyBodyPatch] = true,
             },
         };
-        target = legacy ? new LegacyTarget(this) : new Target(this);
+        target = legacy ? new LegacyTarget(this) : storage ? new StorageTarget(this) : new Target(this);
         first = NewPipe();
         loop = RunAsync();
     }
@@ -93,7 +96,8 @@ public sealed class FakeBindingHost : IAsyncDisposable
         public Task<string> PingAsync(CancellationToken cancellationToken = default) => Task.FromResult("pong");
         public Task<int> GetProtocolVersionAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
         public Task<QuickerRpcGetActionProgramSourceResult> GetActionProgramSourceAsync(string id, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new QuickerRpcGetActionProgramSourceResult { Success = true, ActionId = id, EditVersion = 7, BodyJson = owner.BodyJson });
+            Task.FromResult(new QuickerRpcGetActionProgramSourceResult { Success = true, ActionId = id,
+                EditVersion = owner.StorageIdentity?.Version ?? 7, StorageIdentity = owner.StorageIdentity, BodyJson = owner.BodyJson });
         public async Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceAsync(string id, string body, long? version, bool force, CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref owner.Writes);
@@ -115,7 +119,7 @@ public sealed class FakeBindingHost : IAsyncDisposable
         { Interlocked.Increment(ref owner.Writes); return Task.FromResult(new QuickerRpcActionTraceRunResult()); }
     }
 
-    public sealed class Target : LegacyTarget
+    public class Target : LegacyTarget
     {
         public Target(FakeBindingHost owner) : base(owner) { }
         public async Task<QuickerRpcHostSessionInfo> GetHostSessionAsync(CancellationToken cancellationToken = default)
@@ -123,6 +127,23 @@ public sealed class FakeBindingHost : IAsyncDisposable
             Interlocked.Increment(ref owner.Handshakes);
             if (owner.HandshakeDelayMilliseconds > 0) await Task.Delay(owner.HandshakeDelayMilliseconds, cancellationToken);
             return owner.Info;
+        }
+    }
+
+    public sealed class StorageTarget : Target
+    {
+        public StorageTarget(FakeBindingHost owner) : base(owner) { }
+        public async Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceWithStorageAsync(string id, string body,
+            QuickerRpcActionStorageIdentity storageIdentity, long? version = null, bool force = false,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref owner.StorageWrites);
+            if (owner.ApplyWithStorage is not null)
+            {
+                Interlocked.Increment(ref owner.Writes);
+                return owner.ApplyWithStorage(id, storageIdentity, version, force);
+            }
+            return await ApplyActionProgramSourceAsync(id, body, version, force, cancellationToken);
         }
     }
 }

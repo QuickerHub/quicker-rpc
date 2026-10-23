@@ -2,10 +2,12 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { normalizeEditVersion } from "@/lib/action-project-info-from-get";
+import type { ActionProjectEditVersion } from "./action-project-edit-version";
+import { parseQkrpcJson } from "./qkrpc-json";
 import { resolveWorkspacePath } from "@/lib/workspace-fs";
 
 export type ActionProjectSyncTrust = {
-  editVersion: number;
+  editVersion: ActionProjectEditVersion;
   updatedUtc: string;
 };
 
@@ -19,11 +21,11 @@ export async function readActionProjectSyncTrust(
 
   try {
     const raw = await readFile(resolved.absolute, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = parseQkrpcJson(raw);
     if (typeof parsed !== "object" || parsed === null) return undefined;
     const record = parsed as Record<string, unknown>;
     const editVersion = normalizeEditVersion(
-      typeof record.editVersion === "number" ? record.editVersion : undefined,
+      record.editVersion,
     );
     const updatedUtc =
       typeof record.updatedUtc === "string" ? record.updatedUtc.trim() : "";
@@ -36,7 +38,7 @@ export async function readActionProjectSyncTrust(
 
 export async function writeActionProjectSyncTrust(
   projectDirectory: string,
-  editVersion: number,
+  editVersion: ActionProjectEditVersion,
 ): Promise<void> {
   const normalized = normalizeEditVersion(editVersion);
   if (normalized == null) return;

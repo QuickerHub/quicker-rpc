@@ -44,7 +44,7 @@ export function ActiveXProgramBridgeProvider({
   ), []);
   const getActiveEditor = useCallback(() => getEditorForSurface(activeTabId), [activeTabId, getEditorForSurface]);
   const getActiveTargetLabel = useCallback(() => (
-    activeTabId === "main"
+    activeTabId === "metadata" ? "属性" : activeTabId === "main"
       ? "主程序"
       : subProgramTabs.find((tab) => tab.id === activeTabId)?.row.name?.trim() || "子程序"
   ), [activeTabId, subProgramTabs]);

@@ -314,6 +314,15 @@ internal sealed class QuickerRpcGuardedService : IQuickerRpcService
         CancellationToken cancellationToken = default) =>
         InvokeAsync(nameof(ApplyActionProgramSourceAsync), () => inner.ApplyActionProgramSourceAsync(actionId, bodyJson, expectedEditVersion, force, cancellationToken), cancellationToken);
 
+    public Task<QuickerRpcApplyXActionResult> ApplyActionProgramSourceWithStorageAsync(
+        string actionId,
+        string bodyJson,
+        QuickerRpcActionStorageIdentity storageIdentity,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync(nameof(ApplyActionProgramSourceWithStorageAsync), () => inner.ApplyActionProgramSourceWithStorageAsync(actionId, bodyJson, storageIdentity, expectedEditVersion, force, cancellationToken), cancellationToken);
+
     public Task<QuickerRpcGetCompressedSharedActionResult> GetCompressedSharedActionAsync(
         string sharedActionId,
         string? returnMode = null,

@@ -8,6 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { currentQkrpcTarget, configuredQkrpcBinding, hasUnverifiedQkrpcRead, markUnverifiedQkrpcRead, bindQkrpcTarget, readHostBinding, isOfflineSourceInvoke, isQkrpcReadOnlyInvoke, bindingFailure, type QkrpcHostBinding } from "@/lib/qkrpc-host-binding";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
+import { parseQkrpcJson } from "@/lib/qkrpc-json";
 import {
   isBundledAgentRuntime,
   resolveEffectiveWorkingDirectory,
@@ -164,7 +165,7 @@ function tryParseJson(stdout: string): unknown | null {
   const trimmed = stdout.trim();
   if (!trimmed) return null;
   try {
-    return JSON.parse(trimmed) as unknown;
+    return parseQkrpcJson(trimmed);
   } catch {
     return null;
   }
@@ -441,16 +442,19 @@ async function runBoundQkrpcCli(args: string[], options?: QkrpcRunOptions): Prom
     if (!binding) return bindingFailure("HOST_BINDING_REQUIRED", "This bundle has no verified host binding. Reopen explicitly.");
   }
   if (!binding && invoke.op !== "action.save") {
-    if (hasUnverifiedQkrpcRead() && !isQkrpcReadOnlyInvoke(invoke) && !process.env.QKRPC_HOST_SESSION)
+    if (hasUnverifiedQkrpcRead() && !isQkrpcReadOnlyInvoke(invoke) && !process.env.QKRPC_HOST_SESSION?.trim())
       return bindingFailure("HOST_BINDING_REQUIRED", "The previous read had no verified identity. Select a host explicitly before writing.");
     const discovered = await spawnQkrpcCli(["host", "list", "--json"], { ...options, timeoutMs: Math.min(options?.timeoutMs ?? 10_000, 10_000) });
     options?.abortSignal?.throwIfAborted();
+    const selectedSession = process.env.QKRPC_HOST_SESSION?.trim();
     const candidates = ((discovered.parsed as { candidates?: unknown[] } | null)?.candidates ?? [])
       .map(readHostBinding).filter((b): b is QkrpcHostBinding => Boolean(b
-        && (!process.env.QKRPC_HOST_SESSION || b.hostSessionId === process.env.QKRPC_HOST_SESSION)
+        && (!selectedSession || b.hostSessionId === selectedSession)
         && (invoke.op !== "action.open" || b.capabilities["action.source.read"] === true)));
     if (candidates.length > 1) return bindingFailure("HOST_SELECTION_REQUIRED", "Multiple compatible hosts. Select a host session explicitly.");
     binding = candidates[0];
+    if (!binding && selectedSession)
+      return bindingFailure("HOST_UNAVAILABLE", "The selected CLI host session is unavailable or incompatible. No other host was selected.");
     if (!binding && !isQkrpcReadOnlyInvoke(invoke))
       return bindingFailure("HOST_BINDING_REQUIRED", "No verified CLI host binding. No write was sent.");
   }

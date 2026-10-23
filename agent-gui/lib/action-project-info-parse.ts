@@ -1,11 +1,13 @@
 import { basenamePath } from "@/lib/workspace-file-tool";
 import {
-  editVersionToNumber,
+  editVersionToValue,
   formatActionProjectInfoProto,
   parseActionProjectInfoProto,
   patchActionProjectInfoProtoText,
   type ActionProjectInfo,
 } from "@/lib/action-project-info";
+import { normalizeActionProjectEditVersion, isInvalidActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
+import { parseQkrpcJson } from "./qkrpc-json";
 
 export type { ActionProjectInfo };
 
@@ -20,7 +22,7 @@ export type ParsedActionProjectInfo = {
   description?: string;
   icon?: string;
   callIdentifier?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
   /** Subprogram-only extra JSON fields. */
   extra: Record<string, unknown>;
 };
@@ -50,10 +52,11 @@ function pickString(obj: Record<string, unknown>, ...keys: string[]): string | u
   return undefined;
 }
 
-function pickLong(obj: Record<string, unknown>, ...keys: string[]): number | undefined {
+function pickLong(obj: Record<string, unknown>, ...keys: string[]): ActionProjectEditVersion | undefined {
   for (const key of keys) {
     const value = obj[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const version = normalizeActionProjectEditVersion(value);
+    if (version != null) return version;
   }
   return undefined;
 }
@@ -65,7 +68,7 @@ function actionInfoToParsed(data: ActionProjectInfo): ParsedActionProjectInfo {
     title: data.title?.trim() || undefined,
     description: data.description?.trim() || undefined,
     icon: data.icon?.trim() || undefined,
-    editVersion: editVersionToNumber(data.editVersion),
+    editVersion: editVersionToValue(data.editVersion),
     extra: {},
   };
 }
@@ -76,7 +79,7 @@ function parseEmbeddedSubProgramInfo(content: string): ParseActionProjectInfoRes
 
   let obj: unknown;
   try {
-    obj = JSON.parse(trimmed) as unknown;
+    obj = parseQkrpcJson(trimmed);
   } catch (e) {
     const message = e instanceof Error ? e.message : "无效的 JSON";
     return { ok: false, error: message };
@@ -132,7 +135,7 @@ function parseSubProgramInfo(content: string): ParseActionProjectInfoResult {
 
   let obj: unknown;
   try {
-    obj = JSON.parse(trimmed) as unknown;
+    obj = parseQkrpcJson(trimmed);
   } catch (e) {
     const message = e instanceof Error ? e.message : "无效的 JSON";
     return { ok: false, error: message };
@@ -181,7 +184,7 @@ export function parseActionProjectInfo(content: string): ParseActionProjectInfoR
 
   let peek: unknown;
   try {
-    peek = JSON.parse(trimmed) as unknown;
+    peek = parseQkrpcJson(trimmed);
   } catch (e) {
     const message = e instanceof Error ? e.message : "无效的 JSON";
     return { ok: false, error: message };
@@ -192,6 +195,9 @@ export function parseActionProjectInfo(content: string): ParseActionProjectInfoR
   }
 
   const record = peek as Record<string, unknown>;
+  if (["editVersion", "EditVersion"].some((key) => isInvalidActionProjectEditVersion(record[key]))) {
+    return { ok: false, error: "info.json editVersion 必须是精确的非负 Int64 整数" };
+  }
   if (isEmbeddedSubProgramInfoRecord(record)) {
     return parseEmbeddedSubProgramInfo(content);
   }
@@ -250,7 +256,7 @@ export function patchActionProjectInfoText(
 
   let peek: unknown;
   try {
-    peek = JSON.parse(trimmed) as unknown;
+    peek = parseQkrpcJson(trimmed);
   } catch (e) {
     const message = e instanceof Error ? e.message : "无效的 JSON";
     return { ok: false, error: message };

@@ -1,3 +1,5 @@
+import { normalizeActionProjectEditVersion, isInvalidActionProjectEditVersion, comparePreciseActionProjectEditVersions, type ActionProjectEditVersion } from "./action-project-edit-version";
+
 export type ActionProjectSyncState =
   | "in_sync"
   | "quicker_ahead"
@@ -8,27 +10,22 @@ export type ActionProjectSyncState =
 export type ActionProjectSyncStatus = {
   state: ActionProjectSyncState;
   message: string;
-  localEditVersion?: number;
-  remoteEditVersion?: number;
+  localEditVersion?: ActionProjectEditVersion;
+  remoteEditVersion?: ActionProjectEditVersion;
   remoteTitle?: string;
   projectDirectory?: string;
 };
 
-function normalizeSyncEditVersion(value?: number): number | undefined {
-  if (value == null || !Number.isFinite(value) || value <= 0) {
-    return undefined;
-  }
-  return Math.trunc(value);
-}
-
 export function compareActionEditVersions(
-  local?: number,
-  remote?: number,
-  options?: { trustedRemoteEditVersion?: number },
+  local?: ActionProjectEditVersion,
+  remote?: ActionProjectEditVersion,
+  options?: { trustedRemoteEditVersion?: ActionProjectEditVersion },
 ): ActionProjectSyncState {
-  const normLocal = normalizeSyncEditVersion(local);
-  const normRemote = normalizeSyncEditVersion(remote);
-  const normTrusted = normalizeSyncEditVersion(options?.trustedRemoteEditVersion);
+  const normLocal = normalizeActionProjectEditVersion(local);
+  const normRemote = normalizeActionProjectEditVersion(remote);
+  const normTrusted = normalizeActionProjectEditVersion(options?.trustedRemoteEditVersion);
+  if (isInvalidActionProjectEditVersion(remote)) return "unknown_remote";
+  if (isInvalidActionProjectEditVersion(local)) return "unknown_local";
 
   // Trust records the catalog version we last pulled/pushed successfully.
   if (normTrusted != null && normRemote != null && normTrusted === normRemote) {
@@ -47,7 +44,7 @@ export function compareActionEditVersions(
   }
   if (normLocal == null) return "unknown_local";
   if (normLocal === normRemote) return "in_sync";
-  if (normLocal < normRemote) return "quicker_ahead";
+  if (comparePreciseActionProjectEditVersions(normLocal, normRemote) < 0) return "quicker_ahead";
   return "disk_ahead";
 }
 
@@ -115,9 +112,9 @@ export function isActionProjectVersionConflictError(error: string): boolean {
   return /version conflict/i.test(error);
 }
 
-function formatEditVersionForDisplay(version?: number): string {
+function formatEditVersionForDisplay(version?: ActionProjectEditVersion): string {
   if (version == null) return "无版本";
-  if (version >= 1_000_000_000_000) {
+  if (typeof version === "number" && version >= 1_000_000_000_000) {
     const date = new Date(version);
     if (!Number.isNaN(date.getTime())) {
       return date.toLocaleString("zh-CN", {
@@ -135,8 +132,8 @@ function formatEditVersionForDisplay(version?: number): string {
 
 export function formatSyncStatusMessage(
   state: ActionProjectSyncState,
-  local?: number,
-  remote?: number,
+  local?: ActionProjectEditVersion,
+  remote?: ActionProjectEditVersion,
 ): string {
   const localLabel =
     local != null ? `本地 ${formatEditVersionForDisplay(local)}` : "本地无版本";

@@ -10,6 +10,8 @@ import {
   type ActionProjectInfo,
 } from "@/lib/gen/action_project_pb";
 import { readCompressedFromGetPayload } from "@/lib/action-project-info-from-get";
+import { parseQkrpcJson } from "./qkrpc-json";
+import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
 
 export type { ActionProjectInfo };
 
@@ -18,7 +20,16 @@ export function editVersionToNumber(
 ): number | undefined {
   if (editVersion === undefined) return undefined;
   const n = Number(editVersion);
-  return Number.isFinite(n) ? n : undefined;
+  return Number.isSafeInteger(n) ? n : undefined;
+}
+
+export function editVersionToValue(editVersion: bigint | undefined): ActionProjectEditVersion | undefined {
+  return normalizeActionProjectEditVersion(editVersion);
+}
+
+function readInfoEditVersion(value: unknown): bigint {
+  const version = normalizeActionProjectEditVersion(value);
+  return version == null ? 0n : BigInt(version);
 }
 
 export type ActionProjectCreateHints = {
@@ -38,10 +49,7 @@ export function actionProjectInfoFromCreateResponse(
       ?? "",
   ).trim();
   const editVersionRaw = createPayload.editVersion ?? createPayload.EditVersion;
-  const editVersion =
-    typeof editVersionRaw === "number" && Number.isFinite(editVersionRaw)
-      ? BigInt(Math.trunc(editVersionRaw))
-      : 0n;
+  const editVersion = readInfoEditVersion(editVersionRaw);
 
   return create(ActionProjectInfoSchema, {
     id: actionId,
@@ -72,10 +80,7 @@ export function actionProjectInfoFromMetadataGet(
 ): ActionProjectInfo {
   const compressed = readCompressedFromGetPayload(payload);
   const editVersionRaw = payload.editVersion ?? payload.EditVersion;
-  const editVersion =
-    typeof editVersionRaw === "number" && Number.isFinite(editVersionRaw)
-      ? BigInt(Math.trunc(editVersionRaw))
-      : 0n;
+  const editVersion = readInfoEditVersion(editVersionRaw);
 
   return create(ActionProjectInfoSchema, {
     id:
@@ -103,10 +108,7 @@ function legacyJsonToProtoJson(root: Record<string, unknown>): JsonValue {
   }
 
   const editVersionRaw = root.editVersion ?? root.EditVersion ?? 0;
-  const editVersion =
-    typeof editVersionRaw === "number" && Number.isFinite(editVersionRaw)
-      ? BigInt(Math.trunc(editVersionRaw))
-      : 0n;
+  const editVersion = readInfoEditVersion(editVersionRaw);
 
   const exportedRaw = root.exportedUtc ?? root.ExportedUtc;
   let exportedUtc = undefined;
@@ -138,7 +140,7 @@ export function parseActionProjectInfoProto(
 
   let raw: unknown;
   try {
-    raw = JSON.parse(trimmed) as unknown;
+    raw = parseQkrpcJson(trimmed);
   } catch (e) {
     const message = e instanceof Error ? e.message : "无效的 JSON";
     return { ok: false, error: message };

@@ -47,6 +47,9 @@ import type { ActionProgramSnapshot } from "@/lib/action-editor/program/assemble
 import { createProgramDocumentSession, type ProgramDocumentSession } from "@/lib/action-editor/document/programDocumentSession";
 import { fingerprintProgramDocumentContent, serializeProgramDocumentSnapshot } from "@/lib/action-editor/document/programDocumentWire";
 import { ProgramEditorTabWorkspace, type ProgramEditorWorkspaceHandle } from "./ProgramEditorTabWorkspace";
+import { ProgramAppearanceEditor } from "./ProgramAppearanceEditor";
+import type { ProgramDocumentMetadataPatch } from "@/lib/action-editor/document/programDocumentMetadata";
+import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult } from "@/lib/program-document-save";
 import {
   fetchGlobalSubProgramCatalog,
 } from "@/lib/action-editor/subprograms/globalSubProgramCatalog";
@@ -132,8 +135,9 @@ export type ActionProjectDataEditorProps = {
   totalChars?: number;
   cwd: string;
   onSave: (nextContent: string) => Promise<{ ok: boolean; error?: string }>;
+  onSaveDocument?: (request: ProgramDocumentSaveRequest) => Promise<ProgramDocumentSaveResult>;
   onSaved?: () => void;
-  onSynced?: () => void;
+  onSynced?: () => void | Promise<void>;
 };
 
 function displayTitleFromProjectInfo(
@@ -154,6 +158,7 @@ export function ActionProjectDataEditor({
   totalChars,
   cwd,
   onSave,
+  onSaveDocument,
   onSaved,
   onSynced,
 }: ActionProjectDataEditorProps): JSX.Element {
@@ -168,11 +173,21 @@ export function ActionProjectDataEditor({
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [externalConflict, setExternalConflict] = useState<string | null>(null);
+  const [metadataConflict, setMetadataConflict] = useState<string | null>(null);
+  const [metadataError, setMetadataError] = useState<string | null>(null);
   const [pinStepFeedback, setPinStepFeedback] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [hasSavedLocalChanges, setHasSavedLocalChanges] = useState(false);
+  const documentOwnerKey = `${cwd}::${path}`;
+  const documentOwnerKeyRef = useRef(documentOwnerKey);
+  documentOwnerKeyRef.current = documentOwnerKey;
+  const [syncBusyOwner, setSyncBusyOwner] = useState<{ key: string; busy: boolean } | null>(null);
+  const hostSyncBusy = syncBusyOwner?.key === documentOwnerKey && syncBusyOwner.busy;
+  const handleSyncBusyChange = useCallback((busy: boolean) => {
+    if (documentOwnerKeyRef.current === documentOwnerKey) setSyncBusyOwner({ key: documentOwnerKey, busy });
+  }, [documentOwnerKey]);
   const [projectInfo, setProjectInfo] = useState<ParsedActionProjectInfo | null>(null);
   const [infoRefreshKey, setInfoRefreshKey] = useState(0);
   const sessionRef = useRef<ProgramDocumentSession | null>(null);
@@ -180,6 +195,8 @@ export function ActionProjectDataEditor({
   const incomingDocumentRef = useRef({ path, cwd });
   const [documentRevision, setDocumentRevision] = useState(0);
   const sessionMountRef = useRef<{ session: ProgramDocumentSession; mounted: boolean } | null>(null);
+  const metadataSourceOwnerRef = useRef<ProgramDocumentSession | null>(null);
+  const projectInfoReadRef = useRef(0);
   const sourceFetchedRef = useRef<Set<string>>(new Set());
   const editorRootRef = useRef<HTMLDivElement | null>(null);
   const designerBackendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
@@ -273,7 +290,7 @@ export function ActionProjectDataEditor({
   useEffect(() => {
     setDirty(session?.getState().dirty ?? false);
     setSaving(session?.getState().saving ?? false);
-    setDocumentRevision(session?.getState().revision ?? 0);
+    setDocumentRevision((revision) => revision + 1);
     if (!session) return;
     const owner = { session, mounted: true };
     sessionMountRef.current = owner;
@@ -348,6 +365,7 @@ export function ActionProjectDataEditor({
     return { cwd: activeCwd, projectDir };
   }, [cwd, projectDirectory]);
   const infoJsonPath = useMemo(() => actionProjectInfoPathFromDataPath(path), [path]);
+  const metadataEnabled = Boolean(onSaveDocument) && !isEmbeddedSubProgram && !isGlobalSubProgram;
 
   useEffect(() => {
     if (tab !== "source" || !projectDirectory?.trim() || !cwd.trim()) {
@@ -434,6 +452,10 @@ export function ActionProjectDataEditor({
         error: undefined as string | undefined,
       };
     }
+    const metadata = session?.getState().metadata;
+    if (metadata && normalizedPath === normalizeWorkspacePath(metadata.path)) {
+      return { path: normalizedPath, content: metadata.content, truncated: false, totalChars: undefined, loading: false, error: undefined as string | undefined };
+    }
     const preview = sourceFilePreviews[normalizedPath];
     return {
       path: normalizedPath,
@@ -454,38 +476,85 @@ export function ActionProjectDataEditor({
     documentRevision,
   ]);
 
-  useEffect(() => {
+  const refreshProjectInfo = useCallback(async (isCurrent: () => boolean): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const readId = ++projectInfoReadRef.current;
+    const ownsRead = () => isCurrent() && projectInfoReadRef.current === readId;
     if (!infoJsonPath) {
-      setProjectInfo(null);
-      return;
+      if (ownsRead()) setProjectInfo(null);
+      return { ok: true };
     }
-    let cancelled = false;
-    void (async () => {
+    try {
       const result = await fetchWorkspaceFile(cwd, infoJsonPath);
-      if (cancelled) return;
+      if (!ownsRead()) return { ok: true };
       if (!result.ok) {
         setProjectInfo(null);
-        return;
+        if (metadataEnabled) setMetadataError(result.error);
+        return { ok: false, error: result.error };
       }
       const parsed = parseActionProjectInfo(result.content);
       setProjectInfo(parsed.ok ? parsed.data : null);
-    })();
+      if (metadataEnabled && session && sessionRef.current === session) {
+        if (result.truncated) {
+          setMetadataError("属性文件未完整加载");
+          return { ok: false, error: "属性文件未完整加载" };
+        }
+        const reconciled = session.reconcileMetadataSource({ path: infoJsonPath, content: result.content });
+        if (!reconciled.ok) {
+          if (reconciled.code === "metadata_conflict" || reconciled.code === "identity_conflict") {
+            setMetadataConflict("动作属性已在外部变更，当前草稿已保留。请比较合并后再保存。");
+          } else setMetadataError(reconciled.error);
+          return { ok: false, error: reconciled.error };
+        }
+        setDirty(reconciled.state.dirty);
+        // A replacement session may reach the same numeric revision as the old one.
+        // Always notify React after attaching its metadata, including batched path changes.
+        setDocumentRevision((revision) => revision + 1);
+        setMetadataConflict(null);
+        setMetadataError(null);
+      }
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (ownsRead() && metadataEnabled) setMetadataError(message);
+      return { ok: false, error: message };
+    }
+  }, [cwd, infoJsonPath, session, metadataEnabled]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (metadataSourceOwnerRef.current !== session) {
+      metadataSourceOwnerRef.current = session ?? null;
+      setMetadataError(null);
+      setMetadataConflict(null);
+    }
+    void refreshProjectInfo(() => !cancelled && documentOwnerKeyRef.current === documentOwnerKey && sessionRef.current === session);
     return () => {
       cancelled = true;
     };
-  }, [cwd, infoJsonPath, infoRefreshKey]);
+  }, [refreshProjectInfo, session, documentOwnerKey]);
 
-  const handleSynced = useCallback(() => {
+  const handleSynced = useCallback(async () => {
+    const isCurrent = () => documentOwnerKeyRef.current === documentOwnerKey && sessionRef.current === session;
+    if (!isCurrent()) return;
+    const refreshed = await refreshProjectInfo(isCurrent);
+    if (!isCurrent()) return;
+    if (!refreshed.ok) {
+      const message = `宿主已同步，但工作区刷新失败：${refreshed.error}。请重新打开项目核对后再保存。`;
+      setMetadataConflict(message);
+      setMetadataError(null);
+      throw new Error(message);
+    }
     setHasSavedLocalChanges(false);
     setSourceFilePreviews({});
     sourceFetchedRef.current = new Set();
     setInfoRefreshKey((n) => n + 1);
-    onSynced?.();
-  }, [onSynced]);
+    await onSynced?.();
+  }, [documentOwnerKey, session, refreshProjectInfo, onSynced]);
 
-  const metaTitle = displayTitleFromProjectInfo(projectInfo, projectFolder);
-  const metaDescription = projectInfo?.description?.trim() ?? "";
-  const metaIcon = projectInfo?.icon;
+  const liveMetadata = session?.readMetadata();
+  const metaTitle = liveMetadata?.title ?? displayTitleFromProjectInfo(projectInfo, projectFolder);
+  const metaDescription = liveMetadata?.description ?? projectInfo?.description?.trim() ?? "";
+  const metaIcon = liveMetadata?.icon ?? projectInfo?.icon;
 
   const deleteTarget = useMemo((): {
     kind: ProgramProjectDeleteKind;
@@ -532,11 +601,18 @@ export function ActionProjectDataEditor({
     const result = session.applySnapshot(snapshot, { expectedRevision: session.getState().revision, source: "ui" });
     if (!result.ok) setSaveError(result.error);
     setDirty(result.state.dirty);
-    setDocumentRevision(result.state.revision);
+    setDocumentRevision((revision) => revision + 1);
   }, [session]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
   }, []);
+  const handleMetadataChange = useCallback((patch: ProgramDocumentMetadataPatch) => {
+    if (!session || sessionRef.current !== session) return;
+    const result = session.applyMetadata(patch, { expectedRevision: session.getState().revision, source: "ui" });
+    if (!result.ok) setSaveError(result.error);
+    setDirty(result.state.dirty);
+    setDocumentRevision((revision) => revision + 1);
+  }, [session]);
 
   const programPinMeta = useMemo(() => {
     const normalizedPath = path.replace(/\\/g, "/");
@@ -625,7 +701,7 @@ export function ActionProjectDataEditor({
   );
 
   const handleSave = useCallback(async () => {
-    if (!session || externalConflict) return;
+    if (!session || externalConflict || metadataConflict || hostSyncBusy) return;
     const started = session.beginSave(() => workspaceRef.current?.getSnapshot() ?? session.readSnapshot());
     if (!started.ok) {
       setSaveError(started.error);
@@ -633,21 +709,43 @@ export function ActionProjectDataEditor({
     }
     setSaving(started.state.saving);
     setSaveError(null);
-    let outcome: { ok: boolean; error?: string };
+    let outcome: ProgramDocumentSaveResult;
     try {
-      outcome = await onSave(started.ticket.content);
+      const ticket = started.ticket;
+      if (onSaveDocument) {
+        outcome = await onSaveDocument({ path, content: ticket.content, expectedContent: ticket.baselineContent,
+          ...(ticket.metadata ? { metadata: { content: ticket.metadata.content, expectedContent: ticket.metadata.baselineContent } } : {}),
+        });
+      } else {
+        const saved = await onSave(ticket.content);
+        outcome = saved.ok ? { ok: true } : { ok: false, error: saved.error ?? "保存失败" };
+      }
     } catch (error) {
       outcome = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
-    const completed = session.completeSave(started.ticket, outcome.ok ? { ok: true } : { ok: false, error: outcome.error });
+    const completed = session.completeSave(started.ticket, outcome);
     if (sessionRef.current !== session || !sessionMountRef.current?.mounted) return;
     setSaving(completed.state.saving);
     setDirty(completed.state.dirty);
-    setDocumentRevision(completed.state.revision);
-    if (!completed.ok) { setSaveError(completed.error); return; }
+    setDocumentRevision((revision) => revision + 1);
+    if (!completed.ok) {
+      setSaveError(completed.error);
+      if (!outcome.ok && outcome.code === "metadata_conflict") {
+        setMetadataConflict("动作属性已在外部变更，当前草稿已保留。请比较合并后再保存。");
+      } else if (!outcome.ok && outcome.code === "body_conflict") {
+        setExternalConflict("工作区文件已在外部变更，当前草稿已保留。请比较合并后再保存。");
+      }
+      if (completed.persistedParts?.body || completed.persistedParts?.metadata) {
+        setHasSavedLocalChanges(true);
+        setInfoRefreshKey((value) => value + 1);
+        onSaved?.();
+      }
+      return;
+    }
     setHasSavedLocalChanges(true);
+    setInfoRefreshKey((value) => value + 1);
     onSaved?.();
-  }, [onSave, onSaved, session, externalConflict]);
+  }, [onSave, onSaveDocument, onSaved, session, externalConflict, metadataConflict, path, hostSyncBusy]);
 
   if (contentTruncated) {
     return (
@@ -699,14 +797,16 @@ export function ActionProjectDataEditor({
                 className="action-project-data-editor-toolbar"
               />
               <ActionProjectSyncBar
+                key={documentOwnerKey}
                 cwd={cwd}
                 actionId={actionId}
                 projectDirectory={projectDirectory}
                 hasLocalChanges={dirty || hasSavedLocalChanges}
-                blocked={dirty || saving}
-                blockReason={dirty || saving ? "请先保存当前编辑再同步到 Quicker" : undefined}
+                blocked={dirty || saving || Boolean(externalConflict || metadataConflict)}
+                blockReason={externalConflict || metadataConflict || (dirty || saving ? "请先保存当前编辑再同步到 Quicker" : undefined)}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
+                onBusyChange={handleSyncBusyChange}
               />
               {deleteTarget ? (
                 <ProgramProjectDeleteControl
@@ -723,14 +823,16 @@ export function ActionProjectDataEditor({
           <div className="action-project-data-editor-actions">
             <div className="action-project-data-editor-actions-row">
               <ActionProjectSyncBar
+                key={documentOwnerKey}
                 cwd={cwd}
                 actionId={syncActionId}
                 projectDirectory={syncProjectDirectory}
                 hasLocalChanges={dirty || hasSavedLocalChanges}
-                blocked={dirty}
-                blockReason={dirty ? "请先点击「保存到工作区」再同步到 Quicker" : undefined}
+                blocked={dirty || saving || Boolean(externalConflict || metadataConflict)}
+                blockReason={externalConflict || metadataConflict || (dirty || saving ? "请先点击「保存到工作区」再同步到 Quicker" : undefined)}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
+                onBusyChange={handleSyncBusyChange}
               />
               {deleteTarget ? (
                 <ProgramProjectDeleteControl
@@ -795,7 +897,7 @@ export function ActionProjectDataEditor({
           <button
             type="button"
             className="action-project-data-editor-save"
-            disabled={!dirty || saving || Boolean(externalConflict)}
+            disabled={!dirty || saving || hostSyncBusy || Boolean(externalConflict || metadataConflict)}
             onClick={() => void handleSave()}
           >
             {saving ? "保存中…" : "保存到工作区"}
@@ -811,6 +913,9 @@ export function ActionProjectDataEditor({
       {externalConflict ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">
         {externalConflict}
       </p> : null}
+      {metadataConflict || metadataError ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">
+        {metadataConflict || metadataError}
+      </p> : null}
       {pinStepFeedback ? (
         <p
           className={`workspace-explorer-hint${
@@ -824,7 +929,7 @@ export function ActionProjectDataEditor({
         </p>
       ) : null}
 
-      <div hidden={tab !== "visual"} className="action-project-data-editor-visual x-program-host">
+      <div hidden={tab !== "visual"} inert={hostSyncBusy} aria-busy={hostSyncBusy} className="action-project-data-editor-visual x-program-host">
           <ThemeProvider>
             <ProgramEditorTabWorkspace
               key={`${session.getState().identity.documentKey}::${editorContent}`}
@@ -838,6 +943,8 @@ export function ActionProjectDataEditor({
               onSnapshotChange={handleSnapshotChange}
               onHandleChange={handleWorkspaceChange}
               onPinStepToChat={handlePinStepToChat}
+              metadataPanel={metadataEnabled && liveMetadata ? <ProgramAppearanceEditor
+                value={liveMetadata} disabled={hostSyncBusy} onChange={handleMetadataChange} onSave={() => void handleSave()} /> : undefined}
             />
           </ThemeProvider>
         </div>

@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { qkrpcEditVersionSchema } from "@/lib/qkrpc-edit-version-schema";
 import {
   DOCS_GET_REFERENCE_TOOL,
   DOCS_GET_TOOL,
@@ -235,7 +236,7 @@ export const legacyQuickerToolAliases = {
     inputSchema: z.object({
       id: z.string().uuid(),
       xaction: z.record(z.unknown()),
-      expectedEditVersion: z.number().int().optional(),
+      expectedEditVersion: qkrpcEditVersionSchema.optional(),
       force: z.boolean().optional(),
     }),
     execute: async ({ id, xaction, expectedEditVersion, force }) =>
@@ -293,7 +294,7 @@ export const legacyQuickerToolAliases = {
       "Deprecated: use qkrpc_subprogram_transfer({ direction: \"import\", dir })",
     inputSchema: z.object({
       dir: z.string(),
-      expectedEditVersion: z.number().int().optional(),
+      expectedEditVersion: qkrpcEditVersionSchema.optional(),
       force: z.boolean().optional(),
     }),
     execute: async ({ dir, expectedEditVersion, force }) =>
@@ -328,7 +329,7 @@ export const legacyQuickerToolAliases = {
     inputSchema: z.object({
       id: z.string(),
       patch: z.record(z.unknown()),
-      expectedEditVersion: z.number().int().optional(),
+      expectedEditVersion: qkrpcEditVersionSchema.optional(),
       force: z.boolean().optional(),
     }),
     execute: async ({ id, patch, expectedEditVersion, force }) =>
@@ -347,7 +348,7 @@ export const legacyQuickerToolAliases = {
     inputSchema: z.object({
       id: z.string(),
       program: z.record(z.unknown()),
-      expectedEditVersion: z.number().int().optional(),
+      expectedEditVersion: qkrpcEditVersionSchema.optional(),
       force: z.boolean().optional(),
     }),
     execute: async ({ id, program, expectedEditVersion, force }) =>

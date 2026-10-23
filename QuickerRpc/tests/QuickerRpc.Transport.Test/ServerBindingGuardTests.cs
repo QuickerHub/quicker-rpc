@@ -16,9 +16,11 @@ public sealed class ServerBindingGuardTests
     public async Task Dedicated_connection_requires_its_own_handshake_and_legacy_alias_never_allows_writes()
     {
         foreach (var legacy in new[] { false, true })
+        foreach (var sourceWrite in new[] { false, true })
         {
             var inner = DispatchProxy.Create<IQuickerRpcService, RecordingService>();
             var fixture = (RecordingService)(object)inner;
+            fixture.SourceWrite = sourceWrite;
             await RunConnection(inner, fixture, legacy);
         }
     }
@@ -39,17 +41,31 @@ public sealed class ServerBindingGuardTests
         {
             var required = await Assert.ThrowsExceptionAsync<RemoteInvocationException>(() => rpc.ApplyActionProgramSourceAsync("fixture", "{}"));
             StringAssert.Contains(required.ErrorData!.ToString()!, QuickerRpcBindingErrors.Required);
+            await Assert.ThrowsExceptionAsync<RemoteInvocationException>(() => rpc.ApplyActionProgramSourceWithStorageAsync("fixture", "{}", new() { Kind = "catalog", Version = 7 }));
             Assert.AreEqual(0, fixture.Writes);
             await rpc.GetHostSessionAsync();
             if (legacy)
             {
                 await Assert.ThrowsExceptionAsync<RemoteInvocationException>(() => rpc.ApplyActionProgramSourceAsync("fixture", "{}"));
+                await Assert.ThrowsExceptionAsync<RemoteInvocationException>(() => rpc.ApplyActionProgramSourceWithStorageAsync("fixture", "{}", new() { Kind = "catalog", Version = 7 }));
                 Assert.AreEqual(0, fixture.Writes);
             }
             else
             {
-                await rpc.ApplyActionProgramSourceAsync("fixture", "{}");
-                Assert.AreEqual(1, fixture.Writes);
+                if (fixture.SourceWrite)
+                {
+                    await rpc.ApplyActionProgramSourceAsync("fixture", "{}");
+                    await rpc.ApplyActionProgramSourceWithStorageAsync("fixture", "{}", new() { Kind = "catalog", Version = 7 });
+                    Assert.AreEqual(2, fixture.Writes);
+                }
+                else
+                {
+                    var unsupported = await Assert.ThrowsExceptionAsync<RemoteInvocationException>(() => rpc.ApplyActionProgramSourceAsync("fixture", "{}"));
+                    StringAssert.Contains(unsupported.ErrorData!.ToString()!, QuickerRpcBindingErrors.Unsupported);
+                    unsupported = await Assert.ThrowsExceptionAsync<RemoteInvocationException>(() => rpc.ApplyActionProgramSourceWithStorageAsync("fixture", "{}", new() { Kind = "catalog", Version = 7 }));
+                    StringAssert.Contains(unsupported.ErrorData!.ToString()!, QuickerRpcBindingErrors.Unsupported);
+                    Assert.AreEqual(0, fixture.Writes);
+                }
             }
         }
     }
@@ -57,6 +73,7 @@ public sealed class ServerBindingGuardTests
     public class RecordingService : DispatchProxy
     {
         public int Writes;
+        public bool SourceWrite;
         private readonly string session = Guid.NewGuid().ToString("N");
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
@@ -65,9 +82,10 @@ public sealed class ServerBindingGuardTests
                 {
                     HostInstanceId = "fixture", HostSessionId = session, Endpoint = QuickerRpcEndpointNames.ForSession(session),
                     ProtocolVersion = 1, Host = new() { Kind = "v1" },
-                    Capabilities = new System.Collections.Generic.Dictionary<string, bool> { [QuickerRpcHostCapabilityNames.ActionSourceWrite] = true },
+                    Capabilities = new System.Collections.Generic.Dictionary<string, bool> { [QuickerRpcHostCapabilityNames.ActionSourceWrite] = SourceWrite },
                 });
-            if (method.Name == nameof(IQuickerRpcService.ApplyActionProgramSourceAsync))
+            if (method.Name == nameof(IQuickerRpcService.ApplyActionProgramSourceAsync)
+                || method.Name == nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync))
             { Interlocked.Increment(ref Writes); return Task.FromResult(new QuickerRpcApplyXActionResult { Success = true }); }
             throw new AssertFailedException("Unexpected fake method: " + method.Name);
         }

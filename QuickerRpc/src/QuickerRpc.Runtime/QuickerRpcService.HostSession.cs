@@ -14,7 +14,8 @@ public sealed partial class QuickerRpcService
         var info = _host.Info;
         var programs = _host.ActionPrograms;
         var hasPrograms = programs is not null;
-        var hasSource = programs is IQuickerRpcActionProgramSourceHost;
+        var hasSource = programs is IQuickerRpcActionProgramSourceHost
+            && (programs is not IQuickerRpcActionProgramSourceAvailability availability || availability.IsProgramSourceAvailable);
         var declared = _host.Capabilities;
         var hasDesigner = _host.Designer is not null && declared.DesignerUi;
         return Task.FromResult(new QuickerRpcHostSessionInfo

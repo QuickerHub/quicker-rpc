@@ -9,6 +9,7 @@ import {
   parseSuccessfulActionPatchFromToolPart,
 } from "@/lib/turn-action-link";
 import { normalizeEditVersion } from "@/lib/action-project-info-from-get";
+import type { ActionProjectEditVersion } from "./action-project-edit-version";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,7 +17,7 @@ const UUID_RE =
 export type ActionPatchFollowUpContext = {
   actionId: string;
   actionTitle?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
 };
 
 function isUuid(value: string): boolean {
@@ -37,7 +38,7 @@ function readActionIdFromPatchOutput(output: unknown): string | undefined {
   return typeof id === "string" && isUuid(id) ? id : undefined;
 }
 
-function readEditVersionFromPatchOutput(output: unknown): number | undefined {
+function readEditVersionFromPatchOutput(output: unknown): ActionProjectEditVersion | undefined {
   if (!isStructuredToolResult(output) || !output.ok) return undefined;
   const data = output.data;
   if (typeof data !== "object" || data === null) return undefined;
@@ -47,7 +48,7 @@ function readEditVersionFromPatchOutput(output: unknown): number | undefined {
       ? (root.payload as Record<string, unknown>)
       : root;
   const v = payload.editVersion;
-  return normalizeEditVersion(typeof v === "number" ? v : undefined);
+  return normalizeEditVersion(v);
 }
 
 function readStringField(record: Record<string, unknown>, key: string): string | undefined {
@@ -113,7 +114,7 @@ function parsePatchToolPart(part: {
   state?: string;
   input?: unknown;
   output?: unknown;
-}): { actionId: string; editVersion?: number } | null {
+}): { actionId: string; editVersion?: ActionProjectEditVersion } | null {
   const parsed = parseSuccessfulActionPatchFromToolPart(part);
   if (!parsed) return null;
   return {

@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { qkrpcEditVersionSchema, type QkrpcEditVersion } from "@/lib/qkrpc-edit-version-schema";
 import {
   buildWorkspaceProjectSummary,
   parseQkrpcPayload,
@@ -54,14 +55,14 @@ const subprogramIdInputSchema = z.discriminatedUnion("action", [
     action: z.literal("patch"),
     id: z.string(),
     patch: z.record(z.unknown()),
-    expectedEditVersion: z.number().int().optional(),
+    expectedEditVersion: qkrpcEditVersionSchema.optional(),
     force: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("replace"),
     id: z.string(),
     program: z.record(z.unknown()),
-    expectedEditVersion: z.number().int().optional(),
+    expectedEditVersion: qkrpcEditVersionSchema.optional(),
     force: z.boolean().optional(),
   }),
   z.object({
@@ -72,7 +73,7 @@ const subprogramIdInputSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("import"),
     dir: z.string(),
-    expectedEditVersion: z.number().int().optional(),
+    expectedEditVersion: qkrpcEditVersionSchema.optional(),
     force: z.boolean().optional(),
   }),
   z.object({
@@ -97,7 +98,7 @@ const subprogramIdSchema = z.object({
     ),
   id: z.string().describe("Subprogram id or name"),
   returnMode: returnModeSchema.optional().describe("get: full | structure | metadata"),
-  expectedEditVersion: z.number().int().optional().describe("import: expectedEditVersion"),
+  expectedEditVersion: qkrpcEditVersionSchema.optional().describe("import: expectedEditVersion"),
   force: z.boolean().optional().describe("import: force on conflict"),
   dir: z.string().optional().describe("export: output dir; import: source dir"),
   var: z.string().optional().describe("edit_var: variable key"),
@@ -147,7 +148,7 @@ export type QkrpcSubprogramToolInput = QkrpcSubprogramQueryToolInput & {
     | "replace";
   program?: Record<string, unknown>;
   patch?: Record<string, unknown>;
-  expectedEditVersion?: number;
+  expectedEditVersion?: QkrpcEditVersion;
   force?: boolean;
   name?: string;
   description?: string;
@@ -439,7 +440,7 @@ export const QKRPC_SUBPROGRAM_IMPORT_TOOL_DEF = tool({
   description: "Import a global subprogram project from a directory.",
   inputSchema: z.object({
     dir: z.string().describe("Source directory path"),
-    expectedEditVersion: z.number().int().optional(),
+    expectedEditVersion: qkrpcEditVersionSchema.optional(),
     force: z.boolean().optional().describe("Ignore editVersion conflict"),
   }),
   execute: async (input) =>

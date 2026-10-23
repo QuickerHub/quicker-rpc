@@ -299,6 +299,8 @@ internal sealed class QuickerV2ActionAccessor
 
     public Type ActionItem2Type => _actionItem2Type;
 
+    internal void RefreshActionIndex(object action) => _addOrUpdateAction.Invoke(_store, [action]);
+
     private static QuickerV2ActionAccessor? TryCreate()
     {
         if (!QuickerV2Runtime.IsRunningInQuicker)

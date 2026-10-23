@@ -24,6 +24,7 @@ import {
   ACTION_PROJECT_PUSHED_EVENT,
 } from "@/lib/action-project-sync-events";
 import { ActionProjectSyncConflictDialog } from "@/components/workspace/ActionProjectSyncConflictDialog";
+import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "@/lib/action-project-edit-version";
 
 type ActionProjectSyncBarProps = {
   cwd: string;
@@ -36,7 +37,8 @@ type ActionProjectSyncBarProps = {
   /** Workspace has unsaved or saved-but-unpushed program edits. */
   hasLocalChanges?: boolean;
   className?: string;
-  onSynced?: () => void;
+  onSynced?: () => void | Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 function stateClassName(state: ActionProjectSyncState | null): string {
@@ -91,6 +93,7 @@ export function ActionProjectSyncBar({
   hasLocalChanges = false,
   className,
   onSynced,
+  onBusyChange,
 }: ActionProjectSyncBarProps) {
   const [busy, setBusy] = useState(false);
   const [syncUi, setSyncUi] = useState(() => initialSyncUi(cwd, actionId));
@@ -98,6 +101,14 @@ export function ActionProjectSyncBar({
   const { statusText, statusErr, syncState } = syncUi;
   const mountedRef = useRef(true);
   const statusRequestRef = useRef(0);
+  const busyCallbackRef = useRef(onBusyChange);
+  busyCallbackRef.current = onBusyChange;
+
+  useEffect(() => {
+    busyCallbackRef.current?.(busy);
+  }, [busy]);
+
+  useEffect(() => () => busyCallbackRef.current?.(false), []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -175,8 +186,9 @@ export function ActionProjectSyncBar({
       ) {
         return;
       }
-      if (detail.editVersion != null && detail.editVersion > 0) {
-        const status = buildInSyncStatusAfterPush(detail.editVersion);
+      const version = normalizeActionProjectEditVersion(detail.editVersion);
+      if (version != null) {
+        const status = buildInSyncStatusAfterPush(version);
         applyStatusResult({ ok: true, status });
         return;
       }
@@ -190,7 +202,7 @@ export function ActionProjectSyncBar({
     async (
       op: "pull" | "push",
       fn: () => Promise<
-        | { ok: true; message: string; editVersion?: number; summary?: { editVersion?: number } }
+        | { ok: true; message: string; editVersion?: ActionProjectEditVersion; summary?: { editVersion?: ActionProjectEditVersion } }
         | { ok: false; error: string; versionConflict?: boolean }
       >,
     ) => {
@@ -206,69 +218,75 @@ export function ActionProjectSyncBar({
         });
       }
       let result:
-        | { ok: true; message: string; editVersion?: number; summary?: { editVersion?: number } }
+        | { ok: true; message: string; editVersion?: ActionProjectEditVersion; summary?: { editVersion?: ActionProjectEditVersion } }
         | { ok: false; error: string; versionConflict?: boolean };
       try {
         result = await fn();
+      } catch (error) {
+        result = { ok: false, error: error instanceof Error ? error.message : String(error) };
       } finally {
         if (op === "pull") {
           endActionProjectImport(actionId);
         }
       }
       if (!mountedRef.current) return false;
-      setBusy(false);
-      if (!result.ok) {
-        if (op === "push" && result.versionConflict) {
-          const refreshed = await fetchActionProjectSyncStatus(cwd, actionId);
-          if (refreshed.ok) {
-            applyStatusResult(refreshed);
-            setConflictStatus(refreshed.status);
-            return false;
+      try {
+        if (!result.ok) {
+          if (op === "push" && result.versionConflict) {
+            const refreshed = await fetchActionProjectSyncStatus(cwd, actionId);
+            if (refreshed.ok) {
+              applyStatusResult(refreshed);
+              setConflictStatus(refreshed.status);
+              return false;
+            }
           }
+          setSyncUi({
+            statusText: result.error,
+            statusErr: true,
+            syncState: null,
+          });
+          writeActionProjectSyncCache(cwd, actionId, {
+            state: null,
+            message: result.error,
+            error: true,
+          });
+          return false;
         }
-        setSyncUi({
-          statusText: result.error,
-          statusErr: true,
-          syncState: null,
-        });
-        writeActionProjectSyncCache(cwd, actionId, {
-          state: null,
-          message: result.error,
-          error: true,
-        });
-        return false;
-      }
 
-  const syncedEditVersion =
-    "editVersion" in result
-    && typeof result.editVersion === "number"
-    && result.editVersion > 0
-      ? result.editVersion
-      : "summary" in result
-        && result.summary
-        && typeof result.summary.editVersion === "number"
-        && result.summary.editVersion > 0
-        ? result.summary.editVersion
-        : undefined;
+        const syncedEditVersion = normalizeActionProjectEditVersion(result.editVersion)
+          ?? normalizeActionProjectEditVersion(result.summary?.editVersion);
 
-      if (syncedEditVersion != null) {
-        applyStatusResult({
-          ok: true,
-          status: buildInSyncStatusAfterPush(syncedEditVersion),
-        });
-      } else {
-        setSyncUi((prev) => ({
-          ...prev,
-          statusText: result.message,
-          statusErr: false,
-        }));
-      }
+        if (syncedEditVersion != null) {
+          applyStatusResult({
+            ok: true,
+            status: buildInSyncStatusAfterPush(syncedEditVersion),
+          });
+        } else {
+          setSyncUi((prev) => ({
+            ...prev,
+            statusText: result.message,
+            statusErr: false,
+          }));
+        }
 
-      onSynced?.();
-      if (syncedEditVersion == null) {
-        await runStatusCheck({ silent: true });
+        try {
+          await onSynced?.();
+        } catch (error) {
+          if (!mountedRef.current) return false;
+          const detail = error instanceof Error ? error.message : String(error);
+          const message = detail.startsWith("宿主已同步") ? detail : `宿主已同步，但工作区刷新失败：${detail}`;
+          setConflictStatus(null);
+          applyStatusResult({ ok: false, error: message });
+          return false;
+        }
+        if (!mountedRef.current) return false;
+        if (syncedEditVersion == null) {
+          await runStatusCheck({ silent: true });
+        }
+        return true;
+      } finally {
+        if (mountedRef.current) setBusy(false);
       }
-      return true;
     },
     [
       actionId,

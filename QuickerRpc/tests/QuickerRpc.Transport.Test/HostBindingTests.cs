@@ -41,6 +41,9 @@ public sealed class HostBindingTests
         await using var session = await QuickerRpcClient.ConnectBoundAsync(b.Binding);
         var error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => session.Rpc.ApplyActionProgramSourceAsync("fake", "{}"));
         Assert.AreEqual(QuickerRpcBindingErrors.Unsupported, error.ErrorCode);
+        error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => session.Rpc.ApplyActionProgramSourceWithStorageAsync("fake", "{}",
+            new() { Kind = "catalog", Version = 7 }));
+        Assert.AreEqual(QuickerRpcBindingErrors.Unsupported, error.ErrorCode);
         Assert.AreEqual(0, b.Writes);
     }
 
@@ -71,17 +74,50 @@ public sealed class HostBindingTests
         Assert.AreEqual(0, a.Writes);
     }
 
-    [TestMethod]
-    public async Task Old_plugin_cannot_be_bound_and_write_disconnect_returns_unknown_without_retry()
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Old_plugin_cannot_be_bound_and_write_disconnect_returns_unknown_without_retry(bool withStorage)
     {
         await using var legacy = new FakeBindingHost(legacy: true);
         var error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => QuickerRpcClient.ConnectBoundAsync(legacy.Binding));
         Assert.AreEqual(QuickerRpcBindingErrors.InvalidHandshake, error.ErrorCode);
         await using var current = new FakeBindingHost { DropAfterWrite = true };
         await using var session = await QuickerRpcClient.ConnectBoundAsync(current.Binding);
-        error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => session.Rpc.ApplyActionProgramSourceAsync("fake", "{}"));
+        error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => withStorage
+            ? session.Rpc.ApplyActionProgramSourceWithStorageAsync("fake", "{}", new() { Kind = "catalog", Version = 7 })
+            : session.Rpc.ApplyActionProgramSourceAsync("fake", "{}"));
         Assert.AreEqual(QuickerRpcBindingErrors.UnknownWriteResult, error.ErrorCode);
         Assert.AreEqual(1, current.Writes);
+        Assert.AreEqual(withStorage ? 1 : 0, current.StorageWrites);
+    }
+
+    [TestMethod]
+    public async Task Storage_write_cancel_before_dispatch_is_known_but_sent_cancel_is_unknown_without_retry()
+    {
+        await using var host = new FakeBindingHost("v2");
+        await using var session = await QuickerRpcClient.ConnectBoundAsync(host.Binding);
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+        await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => session.Rpc.ApplyActionProgramSourceWithStorageAsync("fake", "{}",
+            new() { Kind = "catalog", Version = 7 }, cancellationToken: cancel.Token));
+        Assert.AreEqual(0, host.Writes);
+
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.AsyncApply = async token =>
+        {
+            started.TrySetResult(true);
+            await Task.Delay(Timeout.Infinite, token);
+            return new QuickerRpcApplyXActionResult { Success = true };
+        };
+        using var sentCancel = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var pending = session.Rpc.ApplyActionProgramSourceWithStorageAsync("fake", "{}", new() { Kind = "catalog", Version = 7 }, cancellationToken: sentCancel.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        sentCancel.Cancel();
+        var error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => pending);
+        Assert.AreEqual(QuickerRpcBindingErrors.UnknownWriteResult, error.ErrorCode);
+        Assert.AreEqual(1, host.Writes);
+        Assert.AreEqual(1, host.StorageWrites);
     }
 
     [TestMethod]

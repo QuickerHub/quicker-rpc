@@ -830,6 +830,8 @@ public static class ProgramSourceYamlParser
             return false;
         }
 
+        if (LosslessProgramJson.TryParseNumber(raw, out var exactNumber)) return exactNumber;
+
         if (long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l))
         {
             return l;

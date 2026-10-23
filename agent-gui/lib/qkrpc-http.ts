@@ -1,6 +1,7 @@
 import { bindQkrpcTarget, bindingFailure, configuredQkrpcBinding, currentQkrpcTarget, hasUnverifiedQkrpcRead, markUnverifiedQkrpcRead, isOfflineSourceInvoke,
   isQkrpcReadOnlyInvoke, readHostBinding, type QkrpcHostBinding } from "@/lib/qkrpc-host-binding";
 import type { QkrpcInvoke } from "@/lib/qkrpc-argv";
+import { parseQkrpcJson } from "@/lib/qkrpc-json";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
@@ -103,7 +104,7 @@ export async function resolveQkrpcHttpBinding(base: string, invoke: QkrpcInvoke,
   const configured = configuredQkrpcBinding();
   if (configured && "exitCode" in configured) return configured;
   if (configured) return bindQkrpcTarget({ gateway: base, binding: configured }).binding;
-  if (hasUnverifiedQkrpcRead() && !isQkrpcReadOnlyInvoke(invoke) && !process.env.QKRPC_HOST_SESSION)
+  if (hasUnverifiedQkrpcRead() && !isQkrpcReadOnlyInvoke(invoke) && !process.env.QKRPC_HOST_SESSION?.trim())
     return bindingFailure("HOST_BINDING_REQUIRED", "The previous read had no verified identity. Select a host explicitly before writing.");
   const discovery = await fetch(`${base}/v1/invoke`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -119,6 +120,7 @@ export async function resolveQkrpcHttpBinding(base: string, invoke: QkrpcInvoke,
     return bindingFailure("HOST_SELECTION_REQUIRED", "Multiple compatible hosts. Select a host session explicitly.");
   let binding = candidates[0];
   if (binding) binding = bindQkrpcTarget({ gateway: base, binding }).binding;
+  else if (session) return bindingFailure("HOST_UNAVAILABLE", "The selected host session is unavailable or incompatible. No other host was selected.");
   else if (!isQkrpcReadOnlyInvoke(invoke)) return bindingFailure("HOST_BINDING_REQUIRED", "No verified host binding. Upgrade the plugin or select an available host session.");
   return binding;
 }
@@ -188,7 +190,7 @@ export async function invokeQkrpcHttp(
     }
     let body: ServeInvokeBody;
     try {
-      body = JSON.parse(text) as ServeInvokeBody;
+      body = parseQkrpcJson(text) as ServeInvokeBody;
     } catch {
       return {
         ok: false,

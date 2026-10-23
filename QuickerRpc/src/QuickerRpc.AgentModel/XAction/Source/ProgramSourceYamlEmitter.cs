@@ -251,7 +251,8 @@ public static class ProgramSourceYamlEmitter
             JTokenType.Null => "null",
             JTokenType.Boolean => token.Value<bool>() ? "true" : "false",
             JTokenType.Integer => FormatInteger(token),
-            JTokenType.Float => FormatFloat(token.Value<double>()),
+            JTokenType.Float => FormatFloat(token),
+            JTokenType.Raw => LosslessProgramJson.RequireNumberText(token),
             JTokenType.String => FormatString(token.Value<string>() ?? string.Empty),
             JTokenType.Date => FormatDate(token),
             _ => FormatDoubleQuoted(token.ToString()),
@@ -284,14 +285,16 @@ public static class ProgramSourceYamlEmitter
         return ((JValue)token).ToString(CultureInfo.InvariantCulture) ?? "0";
     }
 
-    private static string FormatFloat(double value)
+    private static string FormatFloat(JToken token)
     {
+        var value = token.Value<double>();
         if (double.IsNaN(value) || double.IsInfinity(value))
         {
             return FormatDoubleQuoted(value.ToString(CultureInfo.InvariantCulture));
         }
 
-        var s = value.ToString("G17", CultureInfo.InvariantCulture);
+        // Decimal-valued JValues must not be converted through Double before emission.
+        var s = token.ToString(Newtonsoft.Json.Formatting.None);
         // Integer-valued floats must keep a decimal marker so Decode stays JTokenType.Float.
         if (s.Contains('.') || s.Contains('e', StringComparison.OrdinalIgnoreCase))
         {

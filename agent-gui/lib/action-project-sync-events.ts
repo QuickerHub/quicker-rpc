@@ -1,5 +1,7 @@
 import type { ActionProjectSyncStatus } from "@/lib/action-project-sync-types";
 import { formatSyncStatusMessage } from "@/lib/action-project-sync-types";
+import { normalizeEditVersion } from "@/lib/action-project-info-from-get";
+import type { ActionProjectEditVersion } from "./action-project-edit-version";
 import {
   invalidateActionProjectSyncCache,
   writeActionProjectSyncCache,
@@ -10,27 +12,32 @@ export const ACTION_PROJECT_PUSHED_EVENT = "quicker:action-project-pushed";
 export type ActionProjectPushedDetail = {
   cwd: string;
   actionId: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
 };
 
 export function buildInSyncStatusAfterPush(
-  editVersion: number,
+  editVersion: ActionProjectEditVersion,
 ): ActionProjectSyncStatus {
+  const normalized = normalizeEditVersion(editVersion);
+  if (normalized == null) {
+    return { state: "unknown_remote", message: formatSyncStatusMessage("unknown_remote") };
+  }
   return {
     state: "in_sync",
-    message: formatSyncStatusMessage("in_sync", editVersion, editVersion),
-    localEditVersion: editVersion,
-    remoteEditVersion: editVersion,
+    message: formatSyncStatusMessage("in_sync", normalized, normalized),
+    localEditVersion: normalized,
+    remoteEditVersion: normalized,
   };
 }
 
 export function markActionProjectSyncedAfterPush(
   cwd: string,
   actionId: string,
-  editVersion?: number,
+  editVersion?: ActionProjectEditVersion,
 ): void {
   if (!cwd.trim() || !actionId.trim()) return;
-  if (editVersion != null && editVersion > 0) {
+  editVersion = normalizeEditVersion(editVersion);
+  if (editVersion != null) {
     const status = buildInSyncStatusAfterPush(editVersion);
     writeActionProjectSyncCache(cwd, actionId, {
       state: status.state,

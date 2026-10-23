@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type JSX, type ReactNode } from "react";
 import XProgramEditor from "@/lib/action-editor/program/XProgramEditor";
 import {
   ActiveXProgramBridgeProvider,
@@ -15,6 +15,9 @@ import type { ActionSubProgram } from "@/lib/action-editor/types/common";
 import type { ActionProjectWorkspaceContext } from "@/lib/action-editor/steps/paramEditors/FormDefEditorDialog";
 import { ActionSubProgramKind } from "@/lib/action-editor/subprograms/subProgramUi";
 import { mergeSubProgramsForStepEditor } from "@/lib/action-editor/subprograms/globalSubProgramCatalog";
+import TreeActionToolbox from "@/lib/action-editor/toolbox/TreeActionToolbox";
+import { createToolboxInsertionRegistry } from "@/lib/action-editor/toolbox/toolboxInsertionRegistry";
+import "./program-editor-toolbox.css";
 
 export type ProgramEditorWorkspaceHandle = {
   getSnapshot(): ActionProgramSnapshot;
@@ -31,6 +34,7 @@ export type ProgramEditorTabWorkspaceProps = {
   onSnapshotChange?: (snapshot: ActionProgramSnapshot) => void;
   onHandleChange?: (handle: ProgramEditorWorkspaceHandle | null) => void;
   onPinStepToChat?: (stepId: string) => void;
+  metadataPanel?: ReactNode;
 };
 
 type ProgramTab = { surface: string; row: ActionSubProgram; label: string };
@@ -59,9 +63,10 @@ export function ProgramEditorTabWorkspace(props: ProgramEditorTabWorkspaceProps)
 function ProgramEditorTabWorkspaceBody({
   documentKey, payload, active = true, mainSurface = "main", workspaceContext,
   globalSubPrograms = [], embeddedSubProgramsWireJson, onSnapshotChange, onHandleChange,
-  onPinStepToChat, activeTabId, onSelectTab,
+  onPinStepToChat, metadataPanel, activeTabId, onSelectTab,
 }: ProgramEditorTabWorkspaceProps & { activeTabId: string; onSelectTab: (id: string) => void }): JSX.Element {
   const bridge = useActiveXProgramBridge();
+  const insertionRegistry = useRef(createToolboxInsertionRegistry());
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [visitedTabs, setVisitedTabs] = useState<string[]>([]);
   const [liveSnapshot, setLiveSnapshot] = useState(payload);
@@ -93,6 +98,13 @@ function ProgramEditorTabWorkspaceBody({
   const changeHandlers = useMemo(() => new Map(["main", ...available.map((tab) => tab.surface)]
     .map((surface) => [surface, (present: XProgramPresent) => handlePresentChange(surface, present)])),
   [available, handlePresentChange]);
+  const insertionHandlers = useMemo(() => new Map(["main", ...available.map((tab) => tab.surface)]
+    .map((surface) => [surface, (handler: Parameters<typeof insertionRegistry.current.register>[1]) => insertionRegistry.current.register(surface, handler)])),
+  [available]);
+  const requestToolboxInsert = useCallback((payload: Parameters<typeof insertionRegistry.current.request>[1]) => {
+    if (!active || activeTabId === "metadata") return Promise.resolve();
+    return insertionRegistry.current.request(activeTabId, payload);
+  }, [active, activeTabId]);
   const subPrograms = useMemo(
     () => mergeSubProgramsForStepEditor(liveSnapshot.subPrograms, globalSubPrograms),
     [liveSnapshot.subPrograms, globalSubPrograms],
@@ -117,6 +129,12 @@ function ProgramEditorTabWorkspaceBody({
   }, []);
 
   const mainVisible = active && activeTabId === "main";
+  const metadataVisible = active && activeTabId === "metadata" && metadataPanel != null;
+  const [metadataVisited, setMetadataVisited] = useState(false);
+  useEffect(() => {
+    if (activeTabId === "metadata") setMetadataVisited(true);
+    if (activeTabId === "metadata" && metadataPanel == null) onSelectTab("main");
+  }, [activeTabId, metadataPanel, onSelectTab]);
   const mainPanelId = useId();
   const handleTabKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!(event.target instanceof HTMLElement) || event.target.getAttribute("role") !== "tab") return;
@@ -139,6 +157,8 @@ function ProgramEditorTabWorkspaceBody({
           aria-controls={mainPanelId} onClick={() => onSelectTab("main")}>
           {mainSurface === "subProgram" ? "子程序" : "主程序"}
         </button>
+        {metadataPanel != null ? <button type="button" role="tab" aria-selected={activeTabId === "metadata"}
+          aria-controls={`${mainPanelId}-metadata`} onClick={() => { setMetadataVisited(true); onSelectTab("metadata"); }}>属性</button> : null}
         {openTabs.map((surface) => {
           const tab = tabsById.get(surface);
           if (!tab) return null;
@@ -167,12 +187,20 @@ function ProgramEditorTabWorkspaceBody({
       {duplicateIds ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">
         子程序标识缺失或重复，无法安全打开编辑标签。
       </p> : null}
+      <div className="program-editor-catalog-layout">
+      <aside className="program-editor-catalog" hidden={metadataVisible}>
+        <div className="program-editor-catalog-heading">模块</div>
+        <TreeActionToolbox active={active && activeTabId !== "metadata"} onInsertAtEnd={requestToolboxInsert} />
+      </aside>
+      <div className="program-editor-documents">
+      {metadataVisited && metadataPanel != null ? <div id={`${mainPanelId}-metadata`} role="tabpanel" aria-label="属性"
+        hidden={!metadataVisible} className="program-editor-metadata-surface">{metadataPanel}</div> : null}
       <div id={mainPanelId} role="tabpanel" aria-label={mainSurface === "subProgram" ? "子程序" : "主程序"}
         hidden={!mainVisible} className="program-editor-surface">
         <XProgramEditor initialPresent={initialPayload.current} baselineFingerprint={fingerprintXProgramPresent(initialPayload.current)}
           editorTabId="main" active={mainVisible} programDocumentKey={documentKey} programSurface={mainSurface}
           workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-          onPresentChange={changeHandlers.get("main")} onPinStepToChat={onPinStepToChat} />
+          onPresentChange={changeHandlers.get("main")} onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get("main")} />
       </div>
       {visitedTabs.map((surface) => {
         const tab = tabsById.get(surface);
@@ -183,9 +211,11 @@ function ProgramEditorTabWorkspaceBody({
           <XProgramEditor initialPresent={tab.row} baselineFingerprint={fingerprintXProgramPresent(tab.row)}
             editorTabId={surface} active={visible} programDocumentKey={`${documentKey}#${surface}`} programSurface="subProgram"
             workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-            onPresentChange={changeHandlers.get(surface)} />
+            onPresentChange={changeHandlers.get(surface)} registerToolboxInsert={insertionHandlers.get(surface)} />
         </div>;
       })}
+      </div>
+      </div>
     </div>
   );
 }

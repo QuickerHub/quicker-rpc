@@ -9,7 +9,7 @@ import { ActionProjectSyncBar } from "@/components/workspace/ActionProjectSyncBa
 import { ActionProjectToolbar } from "@/components/workspace/ActionProjectToolbar";
 import { ProgramProjectDeleteControl } from "@/components/workspace/ProgramProjectDeleteControl";
 import { EditableInline } from "@/components/workspace/EditableInline";
-import { invokeActionCommand } from "@/lib/action-command-client";
+import { patchProgramDocumentMetadata } from "@/lib/action-editor/document/programDocumentMetadata";
 import { resolveActionIdFromProject } from "@/lib/action-project-id";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
@@ -212,9 +212,20 @@ function InfoBody({
 }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hasSavedLocalChanges, setHasSavedLocalChanges] = useState(false);
+  const saveOwnerRef = useRef(`${cwd}::${path}`);
+  saveOwnerRef.current = `${cwd}::${path}`;
+  const ownerKey = `${cwd}::${path}`;
+  const [syncBusyOwner, setSyncBusyOwner] = useState<{ key: string; busy: boolean } | null>(null);
+  const hostSyncBusy = syncBusyOwner?.key === ownerKey && syncBusyOwner.busy;
+  const handleSyncBusyChange = useCallback((busy: boolean) => {
+    if (saveOwnerRef.current === ownerKey) setSyncBusyOwner({ key: ownerKey, busy });
+  }, [ownerKey]);
   useEffect(() => {
     setSaveError(null);
-  }, [path]);
+    setSaving(false);
+    setHasSavedLocalChanges(false);
+  }, [cwd, path]);
   const projectDir = projectDirNameFromInfoPath(path);
   const projectDirectory = projectDir
     ? actionProjectDirFromName(projectDir)
@@ -292,6 +303,16 @@ function InfoBody({
   ]);
 
   const buildPatchedContent = useCallback(() => {
+    if (data.kind === "action") {
+      try {
+        return { ok: true as const, content: patchProgramDocumentMetadata(content, {
+          ...(draftTitle !== displayValue ? { title: draftTitle } : {}),
+          ...(draftDescription !== descriptionValue ? { description: draftDescription } : {}),
+        }) };
+      } catch (error) {
+        return { ok: false as const, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
     let nextContent = content;
     if (draftTitle !== displayValue) {
       const patched = patchActionProjectInfoText(nextContent, displayField, draftTitle);
@@ -306,6 +327,7 @@ function InfoBody({
     return { ok: true as const, content: nextContent };
   }, [
     content,
+    data.kind,
     descriptionValue,
     displayField,
     displayValue,
@@ -314,7 +336,7 @@ function InfoBody({
   ]);
 
   const handleSave = useCallback(async () => {
-    if (!isDirty || saving) return;
+    if (!isDirty || saving || hostSyncBusy) return;
     setSaving(true);
     setSaveError(null);
 
@@ -325,41 +347,30 @@ function InfoBody({
       return;
     }
 
-    const fileResult = await onSave(patched.content);
+    const owner = saveOwnerRef.current;
+    let fileResult: { ok: boolean; error?: string };
+    try {
+      fileResult = await onSave(patched.content);
+    } catch (error) {
+      fileResult = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+    if (saveOwnerRef.current !== owner) return;
     if (!fileResult.ok) {
       setSaveError(fileResult.error ?? "保存失败");
       setSaving(false);
       return;
     }
 
-    if (data.kind === "action" && linkedActionId) {
-      const metaResult = await invokeActionCommand({
-        op: "set-metadata",
-        id: linkedActionId,
-        title: draftTitle,
-        description: draftDescription,
-        expectedEditVersion: data.editVersion,
-      });
-      if (!metaResult.ok) {
-        setSaveError(`已写入 info.json，同步 Quicker 失败：${metaResult.error}`);
-        setSaving(false);
-        return;
-      }
-    }
-
     setSaving(false);
+    setHasSavedLocalChanges(true);
     onSaved?.();
   }, [
     buildPatchedContent,
-    data.editVersion,
-    linkedActionId,
-    data.kind,
-    draftDescription,
-    draftTitle,
     isDirty,
     onSave,
     onSaved,
     saving,
+    hostSyncBusy,
   ]);
 
   const noopCommit = useCallback(async () => {}, []);
@@ -368,6 +379,8 @@ function InfoBody({
     <article className="project-info-editor">
         <div
           className={`project-info-main-card${isDirty ? " project-info-main-card--dirty" : ""}`}
+          inert={hostSyncBusy || saving}
+          aria-busy={hostSyncBusy || saving}
         >
           <header className="project-info-header">
             <ProjectInfoMetaPopup data={data} />
@@ -417,10 +430,10 @@ function InfoBody({
               <button
                 type="button"
                 className="project-info-save-btn"
-                disabled={saving}
+                disabled={saving || hostSyncBusy}
                 onClick={() => void handleSave()}
               >
-                {saving ? "保存中…" : "保存"}
+                {saving ? "保存中…" : "保存到工作区"}
               </button>
             </div>
           ) : null}
@@ -454,13 +467,15 @@ function InfoBody({
         {data.kind === "action" && linkedActionId ? (
           <>
             <ActionProjectSyncBar
-              key={linkedActionId}
+              key={ownerKey}
               cwd={cwd}
               actionId={linkedActionId}
               projectDirectory={projectDirectory}
-              blocked={isDirty}
-              blockReason="请先保存标题/描述，再拉取或提交步骤"
-              onSynced={onSynced}
+              blocked={isDirty || saving}
+              blockReason="请先保存当前修改，再同步到 Quicker"
+              hasLocalChanges={isDirty || hasSavedLocalChanges}
+              onSynced={() => { setHasSavedLocalChanges(false); onSynced?.(); }}
+              onBusyChange={handleSyncBusyChange}
             />
             <ActionProjectToolbar actionId={linkedActionId} />
           </>

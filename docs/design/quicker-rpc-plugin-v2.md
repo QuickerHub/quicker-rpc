@@ -43,7 +43,7 @@ QuickerRpc.Plugin.V2
 | 端口/能力 | 当前 V2 | 对齐要求 |
 |---|---|---|
 | Session | 已有 adapter 与 wire host-session/capability 握手；旧插件身份保持未知 | 实例发现、专属 endpoint、选择和写入绑定仍待完成 |
-| ActionPrograms | 已有旧 body/get/patch 与 Designer 打开保存保护；未实现 native source host，YAML open/save 当前 unsupported | 补 `IQuickerRpcActionProgramSourceHost`、typed/native body 与 codec bridge；roundtrip、storage identity/revision、Designer guard、错误和部分保存语义一致 |
+| ActionPrograms | 已实现 native source adapter、catalog/draft 身份、原始 JSON 条件持久化与共享 YAML codec；按实际存储 API 和 UI dispatcher 探测 capability | 真项目编译、真实 DTO + fake 仓储 roundtrip/冲突/取消/部分保存已覆盖；目标绑定合入后的专用活进程动作、重启与打包验收仍待完成 |
 | SubPrograms | 已有读写/同步路径 | create/update/delete/publish 逐项验证 |
 | ActionRuns/trace | 已有 V2 run/trace service | 普通运行、trace、失败位置与取消一致 |
 | ActionCatalog/Search | 已有查询/搜索；部分布局操作 stub | action/profile/layout 操作逐项清零或决策不支持 |
@@ -61,13 +61,39 @@ QuickerRpc.Plugin.V2
    不能据此完成多实例选择与写入路由。
 2. Designer 初期复用 Quicker 的结构化编辑会话、`ActionStorageIdentity`、预期编辑版本与
    host persistence 语义；适配 V1/V2，而不是将 V1 压缩 Agent JSON 当作完整设计器文档。
-3. 补 V2 native source 后再开放 YAML；`TrySaveAction` 必须明确确认编辑器未打开，状态
+3. V2 source 仅在具备原生条件存储 API 和 UI dispatcher 的宿主开放；`TrySaveAction` 必须明确确认编辑器未打开，状态
    不可读时返回 `DESIGNER_STATE_UNAVAILABLE`，打开时返回 `DESIGNER_OPEN`，force 不绕过。
    旧 body/presentation 写入已传播结构化错误码；反射实际源码的离线 fixture 覆盖无持久化副作用。
 4. Runtime 所有可选端口先检查支持性；当前部分 `_host.Designer!` 路径需要改为结构化
    unsupported，不能让 null port 变成空引用异常。
 5. 分别在 V1/V2 专用测试动作上验收读取、编辑、校验、保存、重读、冲突和重启；写入不对
    另一个实例自动重试。其余 capability 逐项继续下表流程，不冒充全量 parity。
+
+## V2 native source 边界
+
+`V2ActionProgramSourceService` 复用 `IQuickerRpcActionProgramSourceHost`、Runtime handler、
+`V1ProgramSourceCodec` 的原生字段映射和共享正文合并器。V2 的 `XActionDto` 原生字段与
+该映射一致；typed DTO 仅做校验，持久化始终保留原始 JSON，避免固定模型丢失未知字段。
+读写从 V2 adapter 自行调度到 Quicker UI 线程，不能依赖 V2 的 inline scheduler。
+
+保留原 `ApplyActionProgramSourceAsync` 的 CLR/wire 签名，身份写入使用不同名的
+`ApplyActionProgramSourceWithStorageAsync`。Console 依据已打开 bundle 的存储身份一次选路；
+新入口缺失时不降级重试，旧 V1 bundle 继续走原入口。存储身份不替代独立的宿主绑定。
+原生读取、YAML 与磁盘 checkpoint 复用数值保真 parser：普通数值保留原类型，无法通过
+普通 JValue 原样往返的高精度数、指数和负零保留经过验证的原始数值词法。
+
+`QuickerV2SourceStorage` 先严格查询 `IActionDraftRepository.GetDraftByActionId`；失败不回退
+正式动作。草稿使用 exact draftId/CurrentVersion 与 `TrySave`；正式动作用
+`ISyncV5LocalRepository.GetItem` 的原始 `ItemDataJson` 和 `TryUpsertLocalItemIfUnchanged`
+的 ChangeToken CAS。同步策略、版本历史仍由宿主仓储处理；提交后刷新索引、发布变更、
+`NotifyActionUpdated`、触发同步，任一后续失败均保留 `Persisted=true`。结果不确定时返回
+`SOURCE_WRITE_RESULT_UNKNOWN`，调用方必须重新打开，不能自动重放。
+
+sidecar/baseline 保留 `kind`（catalog/draft）、`draftId`、`version` 和原生 snapshot hash；
+force 只放宽同一身份的内容版本冲突，不能跨 draftId/catalog 改道，也不能绕过 Designer。
+未修改正文不增加草稿历史。外置脚本/变量默认值与连续 checkpoint 继续使用共享 source bundle。
+继承来源正文（`UseSource=true`）明确拒绝，避免把缓存/投影误作可写本地正文；须先在 Quicker
+保存本地正文。缺少上述 API 的旧 V2 宿主保持 source capability=false。
 
 ## 对齐工作顺序
 
@@ -104,6 +130,13 @@ V2 宿主的 `Microsoft.AspNetCore.App` shared framework 提供核心 Hosting/Lo
 dotnet build QuickerRpc/src/QuickerRpc.Plugin.V2/QuickerRpc.Plugin.V2.csproj -c Release
 dotnet test QuickerRpc/tests/QuickerRpc.Runtime.Test -c Release -p:IncludeV2HostTests=true --filter "FullyQualifiedName~V2ActionEditingGuardTests|FullyQualifiedName~HostSessionRpcTests"
 ```
+
+新增 source 的宿主无关回归使用 `-p:IncludeV2HostTests=false --filter FullyQualifiedName~V2ActionSourceTests`。
+实际编译插件与真实 DTO fixture 使用 `IncludeV2HostTests=true`，设置
+`QKRPC_V2_TEST_HOST_ROOT` 为明确的本机编译宿主目录，再运行
+`V2CompiledActionSourceTests`；该 fixture 不读取宿主数据库、不解析真实动作、不连接进程。
+`ActionSourceWorkspaceTests` 验证离线 dry-run、文件、sidecar 与部分结果，
+`ActionProgramSourceContractTests` 验证真实随机管道的 identity/partial DTO 往返。
 
 以下 probe 检查另行按本机宿主环境运行，不能作为纯离线 fixture 使用：
 

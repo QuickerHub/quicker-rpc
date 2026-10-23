@@ -2,11 +2,12 @@ import type { ActionStep, ActionSubProgram } from "../types/common";
 import type { ActionProgramSnapshot } from "../program/assembleActionProgramSnapshot";
 import { parseProgramWireJson, parseWireSubPrograms, serializeProgramWireJson } from "../wire/programWire";
 import { compactWireInputParam, expandWireInputParams, parseWireParamKey } from "../../input-param-wire";
+import { isLosslessJsonNumber, losslessJsonNumberText, parseLosslessJson, stringifyLosslessJson } from "../shared/losslessJson";
 
 type RecordValue = Record<string, unknown>;
 
 function isRecord(value: unknown): value is RecordValue {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value) && !isLosslessJsonNumber(value);
 }
 
 function record(value: unknown): RecordValue {
@@ -22,13 +23,14 @@ function records(value: unknown): RecordValue[] {
 }
 
 function parseNative(content: string): RecordValue {
-  const value: unknown = JSON.parse(content);
+  const value: unknown = parseLosslessJson(content);
   if (!isRecord(value)) throw new Error("data.json root must be an object");
   return value;
 }
 
 /** Semantic JSON comparison does not treat property order or disk formatting as an edit. */
 export function programDocumentFingerprint(value: unknown): string {
+  if (isLosslessJsonNumber(value)) return losslessJsonNumberText(value);
   if (Array.isArray(value)) return `[${value.map(programDocumentFingerprint).join(",")}]`;
   if (isRecord(value)) {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${programDocumentFingerprint(value[key])}`).join(",")}}`;
@@ -41,19 +43,20 @@ function same(a: unknown, b: unknown): boolean {
 }
 
 function readBody(raw: RecordValue): Pick<ActionProgramSnapshot, "steps" | "variables"> {
-  const parsed = parseProgramWireJson(JSON.stringify(raw));
+  const parsed = parseProgramWireJson(stringifyLosslessJson(raw));
   if (!parsed.ok) throw new Error(parsed.error);
   return parsed.present;
 }
 
 function readSubProgram(raw: RecordValue): ActionSubProgram {
-  const metadata = parseWireSubPrograms([{ ...raw, steps: [], variables: [], subPrograms: [] }])[0]!;
+  const projectedMetadata = JSON.parse(stringifyLosslessJson({ ...raw, steps: [], variables: [], subPrograms: [] })) as RecordValue;
+  const metadata = parseWireSubPrograms([projectedMetadata])[0]!;
   const body = readBody(raw);
   return {
     ...metadata,
     ...body,
-    stepCount: typeof raw.stepCount === "number" ? raw.stepCount : body.steps.length,
-    variableCount: typeof raw.variableCount === "number" ? raw.variableCount : body.variables.length,
+    stepCount: typeof projectedMetadata.stepCount === "number" ? projectedMetadata.stepCount : body.steps.length,
+    variableCount: typeof projectedMetadata.variableCount === "number" ? projectedMetadata.variableCount : body.variables.length,
     subPrograms: records(raw.subPrograms).map(readSubProgram),
   };
 }
@@ -99,12 +102,14 @@ function without(raw: RecordValue, fields: ReadonlySet<string>): RecordValue {
 
 function canonicalInputs(raw: unknown, known: unknown): RecordValue {
   const extensions: RecordValue = {};
+  const opaqueValues: RecordValue = {};
   for (const [key, value] of Object.entries(record(raw))) {
+    if (Array.isArray(value) || isLosslessJsonNumber(value) || (isRecord(value) && Object.values(value).some(isLosslessJsonNumber))) opaqueValues[key] = value;
     if (!isRecord(value)) continue;
     const extra = without(value, new Set(["varKey", "VarKey", "value", "Value", "file", "File"]));
     if (Object.keys(extra).length) extensions[parseWireParamKey(key).baseKey] = extra;
   }
-  return { bindings: record(known), extensions };
+  return { bindings: record(known), extensions, opaqueValues };
 }
 
 function canonicalKnownValue(raw: unknown, known: unknown): unknown {
@@ -118,6 +123,7 @@ function canonicalKnownValue(raw: unknown, known: unknown): unknown {
 function opaqueVariableDefaults(variable: RecordValue): RecordValue {
   const result: RecordValue = {};
   for (const key of ["defaultValue", "default", "DefaultValue", "default_value"]) {
+    if (Array.isArray(variable[key]) || isLosslessJsonNumber(variable[key])) { result[key] = structuredClone(variable[key]); continue; }
     if (!isRecord(variable[key])) continue;
     // Only legacy defaultValue.file is interpreted by the existing codec. Objects at
     // the other scalar aliases are opaque in their entirety, including a `file` member.
@@ -350,5 +356,5 @@ export function serializeProgramDocumentSnapshot(content: string, snapshot: Acti
   });
   const out = mergeBody(raw, before, after);
   if (!same(before.subPrograms, after.subPrograms)) out.subPrograms = mergeSubs(records(after.subPrograms));
-  return `${JSON.stringify(out, null, 2)}\n`;
+  return `${stringifyLosslessJson(out, 2)}\n`;
 }

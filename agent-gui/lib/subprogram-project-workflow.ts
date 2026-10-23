@@ -24,6 +24,8 @@ import {
 } from "@/lib/action-project-info-parse";
 import { formatQkrpcResultForAgent, runQkrpcForTool, type QkrpcRunResult } from "@/lib/qkrpc";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { normalizeActionProjectEditVersion, type ActionProjectEditVersion } from "./action-project-edit-version";
+import { parseQkrpcJson } from "./qkrpc-json";
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
 import {
   globalSubProgramProjectDir,
@@ -38,7 +40,7 @@ export type SubProgramProjectInfo = {
   description?: string;
   icon?: string;
   callIdentifier?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
   exportedUtc?: string;
 };
 
@@ -47,7 +49,7 @@ export type SubProgramProjectManifest = {
   subProgramId: string;
   name?: string;
   callIdentifier?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
 };
 
 export type SubProgramProjectMeta = {
@@ -56,7 +58,7 @@ export type SubProgramProjectMeta = {
   subProgramId?: string;
   name?: string;
   callIdentifier?: string;
-  editVersion?: number;
+  editVersion?: ActionProjectEditVersion;
 };
 
 export type ProgramProjectDataSummary = ActionProjectDataSummary & {
@@ -183,8 +185,9 @@ export function formatSubProgramProjectInfo(
   if (info.callIdentifier?.trim()) {
     record.CallIdentifier = info.callIdentifier.trim();
   }
-  if (info.editVersion != null && Number.isFinite(info.editVersion)) {
-    record.EditVersion = info.editVersion;
+  const version = normalizeActionProjectEditVersion(info.editVersion);
+  if (version != null) {
+    record.EditVersion = version;
   }
   if (info.exportedUtc?.trim()) record.ExportedUtc = info.exportedUtc.trim();
   return `${JSON.stringify(record, null, 2)}${trailingNewline ? "\n" : ""}`;
@@ -381,7 +384,7 @@ async function repairSubprogramInfoIfMissingName(
 
 async function summarizeProjectDataJson(
   projectDirectory: string,
-  editVersion: number | undefined,
+  editVersion: ActionProjectEditVersion | undefined,
   primaryId: string,
 ): Promise<
   { ok: true; summary: ActionProjectDataSummary } | { ok: false; error: string }
@@ -457,13 +460,13 @@ export async function getEmbeddedSubprogramProjectDataSummary(
     subProgramId,
   });
   const infoResolved = resolveWorkspacePath(`${projectDirectory}/info.json`);
-  let editVersion: number | undefined;
+  let editVersion: ActionProjectEditVersion | undefined;
   if (infoResolved.ok && existsSync(infoResolved.absolute)) {
     try {
-      const info = JSON.parse(stripJsonBom(await readFile(infoResolved.absolute, "utf8"))) as {
-        editVersion?: number;
+      const info = parseQkrpcJson(stripJsonBom(await readFile(infoResolved.absolute, "utf8"))) as {
+        editVersion?: ActionProjectEditVersion;
       };
-      editVersion = info.editVersion;
+      editVersion = normalizeActionProjectEditVersion(info.editVersion);
     } catch {
       /* ignore */
     }
@@ -614,10 +617,7 @@ export async function saveSubprogramFromWorkspace(options: {
   }
 
   const importPayload = parseQkrpcPayload(importResult);
-  const newVersion =
-    typeof importPayload?.editVersion === "number"
-      ? importPayload.editVersion
-      : undefined;
+  const newVersion = normalizeActionProjectEditVersion(importPayload?.editVersion);
   if (newVersion != null) {
     await syncProjectEditVersionOnDisk(projectDirRel, newVersion);
   }
