@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/lib/renderer-navigation";
 import { REACT_HOOKS_FAULT_EVENT } from "@/components/dev/DevErrorCapture";
 
 const RELOAD_COUNT_KEY = "qa-react-hooks-recovery-count";

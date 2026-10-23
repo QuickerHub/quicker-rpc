@@ -31,6 +31,10 @@ QuickerAgent 把安装文件、用户数据和 Agent 工作区分开，避免升
 
 Electron 和 legacy Tauri 共用 `agent-gui/scripts/desktop-bundle-prepare.mjs`，暂存 Next standalone、portable Node、qkrpc、ripgrep 及现有浏览器/终端资源。`verify-desktop-bundle.mjs` 校验必要文件和 SQLite ABI；不再暂存语音或剪贴板插件 metadata、registry 或模型。
 
+新静态入口 `electron:prepare:static` 使用相同的用户数据/发布配置格式，安装资源改为
+静态 React + 独立 Node。目录、原生模块检查与退出 owner 见
+[静态运行目录](engineering/static-agent-runtime.md)。Next staging 暂留作 C4 验收前的兼容入口。
+
 ## 修改入口
 
 | 想改 | 先看 |

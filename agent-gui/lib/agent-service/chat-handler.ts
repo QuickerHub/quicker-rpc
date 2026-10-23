@@ -11,7 +11,7 @@ export type AgentChatHandlerServices = {
 };
 
 /** Match the existing cookie adapter: exact name, last valid decoded value. */
-function readReleasePreview(request: Request): boolean {
+export function readReleasePreview(request: Request): boolean {
   let preview = false;
   for (const pair of (request.headers.get("cookie") ?? "").split(/; */)) {
     const separator = pair.indexOf("=");

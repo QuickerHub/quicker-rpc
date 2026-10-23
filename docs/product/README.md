@@ -144,7 +144,11 @@ Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完�
 标准 HTTP/SSE、原 runner/SDK loop、审批往返与取消/停止回归已接通；当前主壳仍运行 Next。
 生产依赖图检查拒绝 Next，browser/terminal 的服务关闭只回收本进程真实登记的子进程。
 显式数据根与新版 Next/Node 的单 writer 约束已实现，隔离 CLI/真实子进程验证通过；
-其余 API 分组、静态 renderer、桌面资源打包和真实资料升级仍待实施。
+现有 72 个 API 路径已接入 Node，静态 React 可从搬移后的独立目录运行；同一 SDK loop 的
+SSE/审批、历史/设置/workspace/Designer/docs/skills、真实 browser/terminal 启停和隔离 Edge
+前端检查已有回归。Electron 静态资源、原生模块、NSIS 生成与 Windows Job 隔离 packaged
+launch smoke 已验证；NSIS 安装/升级、真实旧资料与 P1–P3 的完整编辑闭环仍待集成。
+默认开发/兼容打包与 Next 依赖因此保留。见 [运行清单](../engineering/static-agent-runtime.md)。
 
 #### 统一 RPC 与动作设计器：当前主线
 
@@ -154,11 +158,11 @@ Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完�
 
 | 顺序 | 交付与边界 | 负责入口 | 验收门槛 / 当前状态 |
 |---|---|---|---|
-| A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | 一个兼容实例自动选中；多实例明确选择；断连不把保存切往另一宿主；未知/不支持能力返回结构化错误。已实现 wire 握手与 bootstrap session，旧插件保持身份未知；V1 活进程已核验。实例发现/专属 endpoint、选择、source/Agent 写前绑定与断线禁重发已在 P2 隔离分支实现并验证；双宿主活进程及集成热更仍待验收 |
+| A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | 一个兼容实例自动选中；多实例明确选择；断连不把保存切往另一宿主；未知/不支持能力返回结构化错误。wire 握手与 bootstrap session、实例发现/专属 endpoint、选择、source/Agent 写前绑定与断线禁重发已完成离线集成。source bundle 同时保留 HostBinding 与 V2 StorageIdentity，旧插件只读；双宿主活进程、集成热更和 legacy 文档跨请求绑定仍待验收 |
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。资源目录、完整属性/子程序操作与 host session 接线仍待迁移 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 source 可用；V2 adapter/保真条件存储、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已验证，仅在具备原生 API 的宿主声明能力。目标绑定后的 V1/V2 专用动作、Designer、重启与打包仍待集成验收 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | Agent 生成或修改的动作能进入同一设计器检查并保存；手工编辑与 Agent 并发修改有 revision/冲突处理；Ask 不写、不绕过脏状态或基线。待实施 |
-| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。Node chat 与资料根基础已实现，完整切换未完成 |
+| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。72 API、静态 React/Node、资源/native/真实子进程与隔离 Electron 打包启动已验证；安装/升级及 P1–P3 完整流程待集成，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
 
 首个实现切片是 A0 的最小身份/能力契约与 A1 的可运行设计器迁移并行推进；真实宿主写入
@@ -170,6 +174,9 @@ Agent、工具表、历史存储或设计器业务逻辑。来源与边界见 [�
 `pnpm check:action-designer`。后者使用真实 React 编辑器和隔离 Edge 页面，覆盖连续编辑、
 嵌套页签、文件引用、撤销/重做、源码切换、保存中的新草稿、watcher 先到回执、保存失败、
 外部冲突和跨文档晚回执；它不连接真实 Quicker，也不能替代 A2 的宿主写回验收。
+同步链以精确字符串保留超出 JS 安全整数的合法 Int64 版本，覆盖工具参数、CAS、磁盘戳、
+trust、状态比较及冲突展示。普通保存只写工作区；显式 Sync 等到 stamped info 被当前文档
+确认后才解锁，读回失败保留草稿并阻止覆盖，不重放已成功的宿主写入。
 
 <a id="refactor-execution-plan"></a>
 #### 完整实施计划与并行分工
@@ -187,7 +194,7 @@ Agent 执行循环、文档会话、权限和工具服务。代码整理、界�
 
 **现有基线**：宿主握手、V1 source bundle/codec、独立 Node chat service、隔离资料根、
 设计器多 surface/history、完整 body snapshot、模块目录、外观属性与保存票据已实现。当前主界面仍依赖
-Next；V2 source adapter 与宿主多实例绑定已完成离线实现和编译，正在集成。专用动作写回、
+Next；V2 source adapter、宿主多实例绑定和静态 runtime 已完成首轮离线集成与编译。专用动作写回、
 真实双宿主、实时 Agent/Designer 文档共享和完整新版设计器仍未验收。
 本节状态必须随实现更新，不把“分支已编译”写成“主产品已可用”。
 

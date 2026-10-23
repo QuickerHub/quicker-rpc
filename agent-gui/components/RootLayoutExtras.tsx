@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/lib/renderer-navigation";
 import { AppConfirmHost } from "@/components/AppConfirmHost";
 import { AppMessageHost } from "@/components/AppMessageHost";
 import { AppWindowFocusTracker } from "@/components/AppWindowFocusTracker";

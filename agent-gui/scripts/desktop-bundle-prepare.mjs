@@ -549,7 +549,7 @@ export function ensureBundledRipgrep(ctx) {
   console.log(`ripgrep staged: ${rgExe}`);
 }
 
-function verifyStagedBundle(agentGuiRoot, resourcesDir, label) {
+export function verifyStagedBundle(agentGuiRoot, resourcesDir, label) {
   const { status } = spawnSync(
     process.execPath,
     [

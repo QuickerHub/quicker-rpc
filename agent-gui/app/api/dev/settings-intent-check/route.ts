@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   evaluateSettingsIntentCase,
   summarizeSettingsIntentBatch,
@@ -63,7 +62,7 @@ async function runCases(cases: SettingsIntentCase[]) {
 
 export async function GET(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   const url = new URL(req.url);
@@ -74,19 +73,19 @@ export async function GET(req: Request) {
     : allCases;
 
   if (cases.length === 0) {
-    return NextResponse.json(
+    return Response.json(
       { ok: false, error: caseId ? `Unknown caseId: ${caseId}` : "No cases" },
       { status: 400 },
     );
   }
 
   const summary = await runCases(cases);
-  return NextResponse.json(summary, { status: summary.ok ? 200 : 503 });
+  return Response.json(summary, { status: summary.ok ? 200 : 503 });
 }
 
 export async function POST(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   let body: { utterance?: string; caseId?: string } = {};
@@ -105,7 +104,7 @@ export async function POST(req: Request) {
       resolveVia: "query",
       expect: { intent: "" },
     });
-    return NextResponse.json({
+    return Response.json({
       ok: !error && resolve?.ok !== false,
       utterance,
       resolve,
@@ -120,7 +119,7 @@ export async function POST(req: Request) {
     : undefined;
 
   if (caseId && !testCase) {
-    return NextResponse.json(
+    return Response.json(
       { ok: false, error: `Unknown caseId: ${caseId}` },
       { status: 400 },
     );
@@ -129,9 +128,9 @@ export async function POST(req: Request) {
   if (testCase) {
     const { resolve, error } = await resolveCase(testCase);
     const result = evaluateSettingsIntentCase(testCase, resolve, error);
-    return NextResponse.json(result, { status: result.pass ? 200 : 503 });
+    return Response.json(result, { status: result.pass ? 200 : 503 });
   }
 
   const summary = await runCases(allCases);
-  return NextResponse.json(summary, { status: summary.ok ? 200 : 503 });
+  return Response.json(summary, { status: summary.ok ? 200 : 503 });
 }

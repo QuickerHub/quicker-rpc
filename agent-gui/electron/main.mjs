@@ -1,3 +1,4 @@
+import { resolveRuntimeEntry } from "./runtime-entry.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Notification } from "./electron-api.mjs";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -312,7 +313,7 @@ async function handleDesktopInvoke(command, args) {
     return null;
   }
   if (command === "prepare_for_update_install") {
-    prepareForUpdateInstall(lifecycleCtx());
+    await prepareForUpdateInstall(lifecycleCtx());
     return null;
   }
   if (command === "show_native_notification") {
@@ -412,7 +413,7 @@ async function bootProduction() {
     `boot paths packaged=${app.isPackaged} resourceRoot=${resourceRoot} nodeExe=${nodeExe} qkrpcDir=${qkrpcDir}`,
   );
 
-  const serverJs = join(appDir, "server.js");
+  const serverJs = resolveRuntimeEntry(appDir).path;
   const waitMs = process.argv.includes("--updated") ? 20_000 : 8_000;
   if (!existsSync(nodeExe)) {
     writeBootLog(`waiting for bundled node (${waitMs}ms): ${nodeExe}`);
@@ -422,10 +423,10 @@ async function bootProduction() {
     }
   }
   if (!existsSync(serverJs)) {
-    writeBootLog(`waiting for app server.js (${waitMs}ms): ${serverJs}`);
+    writeBootLog(`waiting for app service entry (${waitMs}ms): ${serverJs}`);
     await waitForBundledFile(serverJs, { timeoutMs: waitMs });
     if (!existsSync(serverJs)) {
-      throw new Error(`app runtime missing server.js under ${appDir}`);
+      throw new Error(`app runtime missing its service entry under ${appDir}`);
     }
   }
 
@@ -502,10 +503,20 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
+let backendsStopped = false;
+app.on("before-quit", (event) => {
   keyInputCaptureCommands?.key_input_capture_end();
   globalShortcutCommands?.unregisterAll();
-  if (!isDev()) shutdownBackends();
+  if (!isDev() && !backendsStopped) {
+    event.preventDefault();
+    void shutdownBackends().then(() => {
+      backendsStopped = true;
+      app.quit();
+    }, (error) => {
+      writeBootLog(`backend shutdown failed: ${error}`);
+      app.exit(1);
+    });
+  }
 });
 
 void main().catch((err) => {

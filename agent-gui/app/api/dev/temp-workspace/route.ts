@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
 import {
   cleanupDevTempWorkspace,
@@ -10,7 +9,7 @@ export const runtime = "nodejs";
 
 function devOnly() {
   if (!isAgentGuiDebugMode()) {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
   return null;
 }
@@ -30,10 +29,10 @@ export async function POST(req: Request) {
 
   try {
     const created = await createDevTempWorkspace({ seed });
-    return NextResponse.json(created);
+    return Response.json(created);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return Response.json({ error: message }, { status: 500 });
   }
 }
 
@@ -45,19 +44,19 @@ export async function DELETE(req: Request) {
   try {
     body = (await req.json()) as { path?: string };
   } catch {
-    return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 });
+    return Response.json({ error: "INVALID_JSON" }, { status: 400 });
   }
 
   const path = body.path?.trim() ?? "";
   if (!path) {
-    return NextResponse.json({ error: "path is required" }, { status: 400 });
+    return Response.json({ error: "path is required" }, { status: 400 });
   }
 
   try {
     const cleanup = await cleanupDevTempWorkspace(path);
-    return NextResponse.json({ ok: true, ...cleanup });
+    return Response.json({ ok: true, ...cleanup });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return Response.json({ error: message }, { status: 400 });
   }
 }

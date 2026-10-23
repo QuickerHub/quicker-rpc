@@ -1,3 +1,4 @@
+import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
 import {
   buildBrowserHealthUrl,
   buildBrowserInvokeUrl,
@@ -8,7 +9,6 @@ import {
   ensureBrowserRuntime,
   fetchBrowserRuntimeHealth,
   isBrowserRuntimeVersionCurrent,
-  killListenerOnPort,
 } from "@/lib/browser-runtime-lifecycle.mjs";
 
 export type BrowserInvokeResult = {
@@ -36,8 +36,8 @@ export async function checkBrowserRuntimeHealth(timeoutMs = 3000): Promise<boole
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return false;
-    const body = (await res.json()) as { ok?: boolean };
-    return body.ok === true;
+    const body = (await res.json()) as { ok?: boolean; runtimeOwner?: string };
+    return body.ok === true && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || body.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
   } catch {
     return false;
   } finally {
@@ -52,14 +52,13 @@ async function startBrowserRuntime(): Promise<void> {
 
   const host = resolveBrowserHost();
   const port = resolveBrowserPort();
-  const base = `http://${host}:${port}`;
+  const base = runtimeHttpOrigin(host, port);
 
   const health = await fetchBrowserRuntimeHealth(base);
   if (isBrowserRuntimeVersionCurrent(health)) return;
 
   if (health.ok && !isBrowserRuntimeVersionCurrent(health)) {
-    killListenerOnPort(port);
-    await new Promise((r) => setTimeout(r, 400));
+    throw new Error("Browser runtime port belongs to another owner or incompatible runtime");
   }
 
   await ensureBrowserRuntime(process.cwd(), host);

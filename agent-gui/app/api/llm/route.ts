@@ -18,15 +18,15 @@ import { withReleasePreviewRoute } from "@/lib/release-preview.server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return withReleasePreviewRoute(async () => {
+export async function GET(req: Request) {
+  return withReleasePreviewRoute(req, async () => {
     const snapshot = buildLlmOptionsResponse();
     return Response.json(snapshot satisfies LlmOptionsResponse);
   });
 }
 
 export async function POST(req: Request) {
-  return withReleasePreviewRoute(async () => {
+  return withReleasePreviewRoute(req, async () => {
     const body = (await req.json()) as {
       provider?: string;
       selection?: string;

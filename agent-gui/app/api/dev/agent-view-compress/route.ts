@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   estimateStructuredResultChars,
   formatToolResultForAgent,
@@ -26,10 +25,10 @@ function estimatePayloadChars(value: unknown): number {
 
 export async function GET() {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
-  return NextResponse.json({
+  return Response.json({
     compressionEnabled: isToolResultAgentViewCompressionEnabled(),
     scenarios: AGENT_VIEW_SCENARIOS.map((scenario) => ({
       id: scenario.id,
@@ -42,19 +41,19 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   let body: AgentViewCompressRequest;
   try {
     body = (await req.json()) as AgentViewCompressRequest;
   } catch {
-    return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 });
+    return Response.json({ error: "INVALID_JSON" }, { status: 400 });
   }
 
   const scenario = getAgentViewScenario(body.scenarioId?.trim() ?? "");
   if (!scenario) {
-    return NextResponse.json({ error: "UNKNOWN_SCENARIO" }, { status: 400 });
+    return Response.json({ error: "UNKNOWN_SCENARIO" }, { status: 400 });
   }
 
   const raw = scenario.buildRaw();
@@ -67,7 +66,7 @@ export async function POST(req: Request) {
   const afterChars = estimatePayloadChars(compressed);
   const stats = readToolCompressStats(compressed);
 
-  return NextResponse.json({
+  return Response.json({
     scenarioId: scenario.id,
     toolName: scenario.toolName,
     compressionEnabled: isToolResultAgentViewCompressionEnabled(),

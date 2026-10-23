@@ -17,6 +17,14 @@
 2. LLM：复制 `llm-config.example.json` → `llm-config.json`，填写各 provider 的 `apiKey` / `model`（可选 `defaultProvider`；某 provider 加 `"hidden": true` 可从模型菜单隐藏）。**发布版**默认通过 `BUNDLED_LLM_BINGLEIMUZI_API_KEY` 在构建时注入混淆 Key，安装包内不含明文 Key。  
 3. **开发**：Node.js 20+、pnpm  
 
+## 静态运行目录（受控切换）
+
+`pnpm build:static` 生成无 Next 的 React + Node 目录；`pnpm test:static-runtime` 在搬移后的目录
+验证 fake 模型、API、真实 browser/terminal 子进程和独立 Edge 页面。
+`pnpm electron:prepare:static` 暂存同一运行目录供 Electron 打包，既有 `dev.ps1` / `:3000` HMR
+继续使用。完整命令、API/资源清单与尚未完成的安装/升级和宿主门槛见
+[静态运行目录](../docs/engineering/static-agent-runtime.md)。
+
 ## 开发（统一入口）
 
 动作设计器回归：`pnpm check:agent-offline` 包含文档 revision、保真序列化和真实临时磁盘

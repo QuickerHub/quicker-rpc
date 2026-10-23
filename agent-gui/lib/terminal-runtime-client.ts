@@ -1,3 +1,6 @@
+import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
+
+let selectedRuntime: { base: string; runtimeOwner?: string } | undefined;
 const DEFAULT_TERMINAL_PORT = 6022;
 
 export function resolveTerminalRuntimePort(): number {
@@ -18,16 +21,15 @@ export function resolveTerminalRuntimeHost(): string {
 }
 
 export function resolveTerminalRuntimeBase(): string {
-  const host = resolveTerminalRuntimeHost();
-  const port = resolveTerminalRuntimePort();
-  return `http://${host}:${port}`;
+  if (selectedRuntime) return selectedRuntime.base;
+  return runtimeHttpOrigin(resolveTerminalRuntimeHost(), resolveTerminalRuntimePort());
 }
 
 export function resolveTerminalWebSocketUrl(): string {
-  const host = resolveTerminalRuntimeHost();
-  const port = resolveTerminalRuntimePort();
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${host}:${port}/v1/terminal/ws`;
+  const url = new URL(resolveTerminalRuntimeBase());
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/v1/terminal/ws";
+  return url.toString();
 }
 
 export type TerminalRuntimeEnsureResult = {
@@ -47,6 +49,7 @@ let xtermChunkWarmup: Promise<unknown> | null = null;
 /** @internal test helper */
 export function resetTerminalRuntimeWarmupForTests(): void {
   runtimeWarmup = null;
+  selectedRuntime = undefined;
 }
 
 /** Drop cached warmup so the next connect re-probes /api/terminal/runtime. */
@@ -81,7 +84,7 @@ export function warmupXtermChunks(): Promise<unknown> {
 
 /** Skip Next.js spawn hop when terminal-runtime is already listening. */
 async function probeTerminalRuntimeDirect(): Promise<TerminalRuntimeEnsureResult | null> {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || !selectedRuntime) return null;
   const base = resolveTerminalRuntimeBase();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DIRECT_HEALTH_TIMEOUT_MS);
@@ -93,12 +96,12 @@ async function probeTerminalRuntimeDirect(): Promise<TerminalRuntimeEnsureResult
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { ok?: boolean };
-    if (body.ok !== true) return null;
+    const body = (await res.json()) as { ok?: boolean; runtimeOwner?: string };
+    if (body.ok !== true || selectedRuntime.runtimeOwner && body.runtimeOwner !== selectedRuntime.runtimeOwner) return null;
     return {
       ok: true,
       base,
-      port: resolveTerminalRuntimePort(),
+      port: Number(new URL(base).port),
     };
   } catch {
     return null;
@@ -114,6 +117,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function probeTerminalRuntimeDirectWithRetry(): Promise<TerminalRuntimeEnsureResult | null> {
+  if (!selectedRuntime) return null;
   for (let attempt = 0; attempt < DIRECT_HEALTH_PROBE_ATTEMPTS; attempt += 1) {
     const direct = await probeTerminalRuntimeDirect();
     if (direct?.ok) return direct;
@@ -138,6 +142,7 @@ export async function ensureTerminalRuntime(): Promise<TerminalRuntimeEnsureResu
       base?: string;
       port?: number;
       message?: string;
+      runtimeOwner?: string;
     };
     if (!res.ok || body.ok !== true) {
       return {
@@ -145,10 +150,12 @@ export async function ensureTerminalRuntime(): Promise<TerminalRuntimeEnsureResu
         message: body.message ?? `terminal runtime HTTP ${res.status}`,
       };
     }
+    const base = typeof body.base === "string" ? body.base : resolveTerminalRuntimeBase();
+    selectedRuntime = { base, runtimeOwner: body.runtimeOwner };
     return {
       ok: true,
-      base: typeof body.base === "string" ? body.base : resolveTerminalRuntimeBase(),
-      port: typeof body.port === "number" ? body.port : resolveTerminalRuntimePort(),
+      base,
+      port: typeof body.port === "number" ? body.port : Number(new URL(base).port),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -165,8 +165,8 @@ async function probeBuiltinGroupAvailability(
   };
 }
 
-export async function GET() {
-  return withReleasePreviewRoute(async () => {
+export async function GET(req: Request) {
+  return withReleasePreviewRoute(req, async () => {
   const groups = listBuiltinGroupDisplayRows();
   const timeoutMs = 8_000;
 

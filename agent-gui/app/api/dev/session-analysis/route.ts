@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   analyzeChatThreadExportJson,
   analyzeChatThreadExportText,
@@ -15,10 +14,10 @@ type SessionAnalysisRequest = {
 
 export async function GET() {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
-  return NextResponse.json({
+  return Response.json({
     ok: true,
     format: "quicker-agent-chat-export",
     method: "POST",
@@ -28,14 +27,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
+    return Response.json({ error: "Not available" }, { status: 404 });
   }
 
   let body: SessionAnalysisRequest;
   try {
     body = (await req.json()) as SessionAnalysisRequest;
   } catch {
-    return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 });
+    return Response.json({ error: "INVALID_JSON" }, { status: 400 });
   }
 
   try {
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
         : analyzeChatThreadExportJson(body.payload);
 
     const report = formatSessionAnalysisReport(result);
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       report,
       matchedTaskId: result.matchedTask?.id ?? null,
@@ -55,12 +54,12 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     if (error instanceof ChatThreadExportParseError) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+      return Response.json({ ok: false, error: error.message }, { status: 400 });
     }
     if (error instanceof SyntaxError) {
-      return NextResponse.json({ ok: false, error: "INVALID_EXPORT_JSON" }, { status: 400 });
+      return Response.json({ ok: false, error: "INVALID_EXPORT_JSON" }, { status: 400 });
     }
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return Response.json({ ok: false, error: message }, { status: 500 });
   }
 }

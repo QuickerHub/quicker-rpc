@@ -13,6 +13,14 @@ Next.js + Vercel AI SDK；`qkrpc serve`（9477）或 CLI 子进程。系统提�
 - pnpm / Node 20+；LLM key：`llm-*-config.json`（gitignore）→ skill `quicker-agent-llm-apikey-config`。
 - qkrpc 连不上：见父文档；**禁** `shell_exec` 探活（`lib/instructions.ts`、`lib/shell-policy.ts`）。
 
+## 静态 React / Node 受控入口
+
+- `pnpm build:static` / `build:static:dev` 只构建独立 `.tmp` 产物，不改 `.next`；用显式 data-dir 和临时端口。
+- `pnpm check:service-routes` 防止 API manifest 漂移；handler 仍是 `app/api/` 的单一实现。
+- `pnpm test:static-runtime` 使用生成资料、fake HTTP、独立 Edge 和真实本次 browser/terminal child，包含开发态 frontend check。
+- `electron:prepare:static` / 静态打包是显式入口；未完成安装/升级和完整宿主流程前不删除兼容 Next。
+- 资源/生命周期/验证边界见 [静态运行目录](../docs/engineering/static-agent-runtime.md)。
+
 ## Frontend check（改 UI 后必做 — Agent 自动执行）
 
 改 `components/`、`app/`、`lib/`（UI）、`globals.css`、Electron 壳、`/tool-test` 后，**宣布完成前**循环直到 `ok: true`（skill `.cursor/skills/quicker-agent-gui-frontend/SKILL.md`，命令 `/frontend-check`）：

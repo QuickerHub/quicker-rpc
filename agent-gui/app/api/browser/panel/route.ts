@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   executeBrowserTool,
@@ -57,12 +56,12 @@ export async function POST(request: Request) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, message: "Invalid JSON" }, { status: 400 });
+    return Response.json({ ok: false, message: "Invalid JSON" }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json(
+    return Response.json(
       { ok: false, message: parsed.error.message },
       { status: 400 },
     );
@@ -70,18 +69,18 @@ export async function POST(request: Request) {
 
   const toolInput = mapPanelAction(parsed.data);
   if (!toolInput) {
-    return NextResponse.json({ ok: false, message: "Missing required fields" }, { status: 400 });
+    return Response.json({ ok: false, message: "Missing required fields" }, { status: 400 });
   }
 
   const result = await executeBrowserTool(toolInput, { audience: "panel" });
   if (result.ok === false) {
-    return NextResponse.json(
+    return Response.json(
       { ok: false, message: result.stderr ?? "browser action failed" },
       { status: 502 },
     );
   }
 
-  return NextResponse.json({
+  return Response.json({
     ok: true,
     data: typeof result.data === "object" && result.data !== null ? result.data : {},
   });

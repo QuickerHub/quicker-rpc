@@ -62,8 +62,8 @@ const LEGACY_DOCS_DIR = "docs/action-authoring/agent";
 const AUTHORING_REFERENCES_DIR = "docs/authoring-references";
 
 function authoringReferencesRoot(): string | null {
-  const repo = resolveQuickerRpcRepoRoot();
-  return repo ? join(repo, AUTHORING_REFERENCES_DIR) : null;
+  const root = resolveQuickerRpcRepoRoot() ?? resolveAgentGuiRoot();
+  return join(root, AUTHORING_REFERENCES_DIR);
 }
 
 function isStandaloneReferencePath(relPath: string): boolean {

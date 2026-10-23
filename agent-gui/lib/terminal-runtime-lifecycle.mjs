@@ -1,8 +1,10 @@
+import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
+import { requestOwnedChildTreeStop } from "./owned-child-stop.mjs";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { RUNTIME_VERSION } from "../terminal-runtime/config.mjs";
-import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
+import { isProcessAlive } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "terminal-runtime.json";
 const DEFAULT_TERMINAL_PORT = 6022;
@@ -12,7 +14,7 @@ const ownedTerminalChildren = new Map();
 /** @typedef {{ pid: number; port?: number; ownerPid: number; startedAt: number }} TerminalRuntimeState */
 
 export function terminalRuntimeStatePath(agentGuiRoot) {
-  return join(agentGuiRoot, ".runtime", STATE_FILE);
+  return join(process.env.AGENT_GUI_RUNTIME_STATE_DIR?.trim() || join(agentGuiRoot, ".runtime"), STATE_FILE);
 }
 
 /** @returns {TerminalRuntimeState | null} */
@@ -94,6 +96,7 @@ export async function fetchTerminalRuntimeHealth(base, timeoutMs = 3000) {
     const body = await res.json();
     return {
       ok: body?.ok === true,
+      runtimeOwner: typeof body?.runtimeOwner === "string" ? body.runtimeOwner : undefined,
       runtimeVersion:
         typeof body?.runtimeVersion === "string" ? body.runtimeVersion : undefined,
       protocolVersion:
@@ -109,12 +112,13 @@ export async function fetchTerminalRuntimeHealth(base, timeoutMs = 3000) {
 /** @param {string} base */
 export async function checkTerminalRuntimeHealth(base, timeoutMs = 3000) {
   const health = await fetchTerminalRuntimeHealth(base, timeoutMs);
-  return health.ok === true;
+  return health.ok === true && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
 /** @param {TerminalRuntimeHealth} health */
 export function isTerminalRuntimeVersionCurrent(health) {
-  return health.ok === true && health.runtimeVersion === RUNTIME_VERSION;
+  return health.ok === true && health.runtimeVersion === RUNTIME_VERSION
+    && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
 async function waitForTerminalRuntimeHealth(base, maxMs = 30_000) {
@@ -140,11 +144,8 @@ export function reconcileStaleTerminalRuntime(agentGuiRoot) {
   const serveAlive = isProcessAlive(state.pid);
   const ownerAlive = isProcessAlive(state.ownerPid);
 
-  if (serveAlive && !ownerAlive) {
-    killProcessTree(state.pid);
-    clearTerminalRuntimeState(agentGuiRoot);
-    return true;
-  }
+  // A prior owner's PID may have been recycled. Only retained child handles may stop it.
+  if (serveAlive && !ownerAlive) return false;
 
   if (!serveAlive) {
     clearTerminalRuntimeState(agentGuiRoot);
@@ -222,7 +223,9 @@ function stopOwnedTerminalChild(agentGuiRoot, child) {
   else if (child.pid !== owned.pid) failed(new Error("Owned terminal runtime child identity changed"));
   else {
     timer = setTimeout(() => failed(new Error(`Owned terminal runtime ${owned.pid} did not exit within 2000ms`)), 2000);
-    if (!killProcessTree(owned.pid)) failed(new Error(`Failed to stop owned terminal runtime ${owned.pid}`));
+    void requestOwnedChildTreeStop(child).then((accepted) => {
+      if (!accepted) failed(new Error(`Failed to stop owned terminal runtime ${owned.pid}`));
+    }, failed);
   }
   return pending;
 }
@@ -254,22 +257,18 @@ export async function ensureTerminalRuntime(agentGuiRoot, host) {
 
   const runtimeRoot = resolveTerminalRuntimeRoot(agentGuiRoot ?? process.cwd());
   const port = resolveTerminalPort();
-  const base = `http://${host}:${port}`;
+  const base = runtimeHttpOrigin(host, port);
 
   const health = await fetchTerminalRuntimeHealth(base);
-  if (health.ok && isTerminalRuntimeVersionCurrent(health)) {
+  if (health.ok && isTerminalRuntimeVersionCurrent(health)
+    && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
     console.log(`terminal: reusing runtime ${health.runtimeVersion} at ${base}/health`);
     return null;
   }
 
-  if (health.ok && !isTerminalRuntimeVersionCurrent(health)) {
-    console.log(
-      `terminal: stale runtime ${health.runtimeVersion ?? "unknown"} (want ${RUNTIME_VERSION}) — restarting`,
-    );
-    const { killListenerOnPort } = await import("./browser-runtime-lifecycle.mjs");
-    killListenerOnPort(port);
-    clearTerminalRuntimeState(runtimeRoot);
-    await new Promise((r) => setTimeout(r, 400));
+  if (health.ok && (!isTerminalRuntimeVersionCurrent(health)
+    || process.env.QUICKER_AGENT_RUNTIME_OWNER && health.runtimeOwner !== process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
+    throw new Error("terminal runtime port is owned by another service or an incompatible runtime");
   }
 
   reconcileStaleTerminalRuntime(runtimeRoot);
@@ -288,7 +287,7 @@ export async function ensureTerminalRuntime(agentGuiRoot, host) {
     [entry, "--host", host, "--port", String(port)],
     {
       cwd: runtimeRoot,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe", "ipc"],
       windowsHide: true,
       env: {
         ...process.env,
