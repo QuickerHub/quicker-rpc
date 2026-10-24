@@ -118,6 +118,12 @@ public sealed class QuickerRpcStepRunnerInputContractInput
     [JsonPropertyName("literalPolicy"), JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string LiteralPolicy { get; set; } = "unknown";
 
+    /// <summary>none | options | unknown. Independent of the existing-value condition above.</summary>
+    [DataMember(Name = "literalValueRestriction")]
+    [Newtonsoft.Json.JsonProperty("literalValueRestriction", DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include, NullValueHandling = Newtonsoft.Json.NullValueHandling.Include)]
+    [JsonPropertyName("literalValueRestriction"), JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string LiteralValueRestriction { get; set; } = "unknown";
+
     [DataMember(Name = "blockedReason")]
     [Newtonsoft.Json.JsonProperty("blockedReason", DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include, NullValueHandling = Newtonsoft.Json.NullValueHandling.Include)]
     [JsonPropertyName("blockedReason"), JsonIgnore(Condition = JsonIgnoreCondition.Never)]
