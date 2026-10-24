@@ -20,6 +20,8 @@
     <!-- Match Quicker install Newtonsoft.Json (assembly 13.0.0.0); avoid APIs missing at plugin runtime. -->
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
+    <PackageVersion Include="System.IO.Pipes.AccessControl" Version="5.0.0" />
+    <PackageVersion Include="System.Security.Principal.Windows" Version="5.0.0" />
     <PackageVersion Include="Google.Protobuf" Version="3.30.2" />
     <PackageVersion Include="Grpc.Tools" Version="2.71.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />

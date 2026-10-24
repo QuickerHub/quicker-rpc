@@ -21,11 +21,12 @@
     <ProjectReference Include="..\..\src\QuickerRpc.Plugin.V2\QuickerRpc.Plugin.V2.csproj" Condition="'$(IncludeV2HostTests)' == 'true'" />
   </ItemGroup>
   <ItemGroup Condition="'$(IncludeV2HostTests)' != 'true'">
-    <Compile Remove="PluginV2CompositionTests.cs;V2CatalogSearchTests.cs;QuickerV2HostProbeTests.cs;QuickerV2SavePathProbeTests.cs;QuickerV2SyncTypeProbeTests.cs;V2CompiledActionSourceTests.cs;V2DesignerReadPrimitivesTests.cs;V2DesignerReadCatalogTests.cs" />
+    <Compile Remove="PluginV2CompositionTests.cs;V2CatalogSearchTests.cs;QuickerV2HostProbeTests.cs;QuickerV2SavePathProbeTests.cs;QuickerV2SyncTypeProbeTests.cs;V2CompiledActionSourceTests.cs;V2DesignerReadPrimitivesTests.cs;V2DesignerReadCatalogTests.cs;V2StepRunnerInputContractTests.cs" />
     <!-- Exercise the actual reflection save guard offline without loading a Quicker host assembly. -->
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2ActionAccessor.cs" Link="OfflineV2\QuickerV2ActionAccessor.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2Reflection.cs" Link="OfflineV2\QuickerV2Reflection.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2StepRunnerMapper.cs" Link="OfflineV2\QuickerV2StepRunnerMapper.cs" />
+    <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2StepRunnerCatalogBuilder.cs" Link="OfflineV2\QuickerV2StepRunnerCatalogBuilder.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2Runtime.cs" Link="OfflineV2\QuickerV2Runtime.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2TypeNames.cs" Link="OfflineV2\QuickerV2TypeNames.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2OperationPayloadWriter.cs" Link="OfflineV2\QuickerV2OperationPayloadWriter.cs" />

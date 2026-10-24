@@ -1,10 +1,17 @@
 import { cpSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { isBuiltin } from "node:module";
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createWindowsPackageMetadataInspector } from "./runtime-package-metadata.mjs";
 
 const key = (path) => process.platform === "win32" ? path.toLowerCase() : path;
 const excluded = (name) => key(name) === "node_modules";
+const buildScaffoldParts = ["build", "node_gyp_bins"];
+function buildScaffold(root, path) {
+  const parts = relative(root, path).split(sep).map(key);
+  return parts.length >= 2 && buildScaffoldParts.every((part, index) => parts[index] === part);
+}
+const buildScaffoldRoot = (root, path) => key(resolve(path)) === key(join(root, ...buildScaffoldParts));
 const fingerprint = (stat) => [stat.dev, stat.ino, stat.mode, stat.nlink, stat.size, stat.mtimeNs, stat.ctimeNs, stat.birthtimeNs].map(String).join(":");
 const kind = (stat) => stat.isSymbolicLink() ? "link" : stat.isDirectory() ? "directory" : stat.isFile() ? "file" : "special";
 
@@ -13,10 +20,12 @@ function local(path) {
     || process.platform === "win32" && /^[/\\]{2}/.test(path)) throw new Error(`Unsafe package source path: ${path}`);
 }
 
-function within(root, path) {
+function within(root, path, allowScaffoldRoot = false) {
   const suffix = relative(root, path);
   if (suffix === ".." || suffix.startsWith(`..${sep}`) || isAbsolute(suffix)) throw new Error(`Package source escapes its root: ${path}`);
   if (suffix.split(sep).some(excluded)) throw new Error(`Package source link enters excluded node_modules: ${path}`);
+  if (buildScaffold(root, path) && !(allowScaffoldRoot && buildScaffoldRoot(root, path)))
+    throw new Error(`Package source enters excluded build helper node_gyp_bins: ${path}`);
   local(path);
   return path;
 }
@@ -109,8 +118,8 @@ export function createPackageSourceInspector({ inspectMetadata = createWindowsPa
     }
   }
 
-  function capture(root, path, expected) {
-    within(root, resolve(path));
+  function capture(root, path, expected, allowScaffoldRoot = false) {
+    within(root, resolve(path), allowScaffoldRoot);
     const trace = [];
     const links = new Set();
     function record(file) {
@@ -139,7 +148,7 @@ export function createPackageSourceInspector({ inspectMetadata = createWindowsPa
       cursor = root;
       entry = rootEntry;
     }
-    const canonical = within(root, realpathSync(cursor));
+    const canonical = within(root, realpathSync(cursor), allowScaffoldRoot);
     const actual = statSync(canonical, { bigint: true });
     const type = kind(actual);
     if (type !== "file" && type !== "directory") throw new Error(`Unsupported package source entry: ${path}`);
@@ -169,7 +178,17 @@ export function createPackageSourceInspector({ inspectMetadata = createWindowsPa
     if (!packages.has(key(root))) {
       metadata([root], { treeRoot: root });
       const entries = new Map();
+      const omitted = new Map();
       function visit(path, active) {
+        if (buildScaffoldRoot(root, path)) {
+          const proof = capture(root, path, undefined, true);
+          const physical = [join(root, "build"), path];
+          if (proof.type !== "directory" || physical.some((item) =>
+            !proof.trace.some((entry) => key(entry.path) === key(item) && entry.type === "directory")))
+            throw new Error(`Package build helper must be a physical directory: ${path}`);
+          omitted.set(key(path), proof);
+          return;
+        }
         const proof = capture(root, path);
         entries.set(key(path), proof);
         if (proof.type !== "directory") return;
@@ -182,13 +201,31 @@ export function createPackageSourceInspector({ inspectMetadata = createWindowsPa
         }
       }
       visit(root, new Set());
-      packages.set(key(root), { entries });
+      packages.set(key(root), { entries, omitted });
     }
     try {
       const manifest = readManifest(root);
-      if (typeof manifest.main === "string" && manifest.main && (!Object.hasOwn(manifest, "exports") || isBuiltin(requestedName))) {
+      if (typeof manifest.main === "string" && manifest.main && (manifest.exports == null || isBuiltin(requestedName))) {
         within(root, resolve(root, manifest.main));
+        let decoded = manifest.main;
+        try { decoded = decodeURIComponent(manifest.main); } catch { /* Node validates malformed targets. */ }
+        within(root, resolve(root, decoded));
       }
+      // Validate declared local targets before Node's resolver can follow them.
+      // Node remains responsible for export conditions and fallback selection.
+      function declaredTargets(value) {
+        if (typeof value === "string") {
+          if (!value.startsWith("./")) return;
+          let target;
+          try { target = fileURLToPath(new URL(value, pathToFileURL(join(root, "package.json")))); }
+          catch { return; /* Node validates malformed targets and fallback arrays. */ }
+          if (buildScaffold(root, target))
+            throw new Error(`Package declaration enters excluded build helper node_gyp_bins: ${value}`);
+        } else if (Array.isArray(value)) value.forEach(declaredTargets);
+        else if (value && typeof value === "object") Object.values(value).forEach(declaredTargets);
+      }
+      declaredTargets(manifest.exports);
+      declaredTargets(manifest.imports);
       return manifest;
     } catch (error) {
       packages.delete(key(root));
@@ -201,6 +238,12 @@ export function createPackageSourceInspector({ inspectMetadata = createWindowsPa
     if (!packages.has(key(canonical))) throw new Error(`Package source was not inspected: ${root}`);
     cpSync(canonical, target, { recursive: true, dereference: true, filter: (path) => {
       if (path !== canonical && excluded(basename(path))) return false;
+      if (buildScaffoldRoot(canonical, path)) {
+        const proof = packages.get(key(canonical)).omitted.get(key(path));
+        if (!proof) throw new Error(`Package build helper was not inspected: ${path}`);
+        capture(canonical, path, proof, true);
+        return false;
+      }
       assertOwned(canonical, path);
       return true;
     } });

@@ -62,6 +62,17 @@ QuickerRpc.Plugin.V2
 宿主版本和插件会话，再部署已核验的产物并使用专属测试动作；设备启动不代表任何
 qkrpc capability 已经验证。逐项结果继续进入本计划的动作读写与重启矩阵。
 
+首轮已在局域网 Quicker 2.3.20（release-v2 `623c38be`）启动 171 插件，并用私有
+172 候选 CLI 验证实际 V2 发现、会话绑定和只读 health；同一候选也识别本机 V1。
+提权 Windows 客户端改为核验实际管道 owner 与有效用户 SID，用户 owner 的管道成功
+握手，外部 Administrators owner 的管道在发送任何 RPC 字节前被拒绝。服务器的受保护
+用户 DACL 不变；现有 Quicker 和 MCP 进程保留。该候选尚未替换日常安装。
+
+171 在该发布版的 source read/write 与 input-contract capability 均为 false，两个模块
+UI 查询也实际失败。发布版私有 DI/存储实现名称与当前开发源码不符；已取得并校验实际
+加载 DLL 的元数据，后续 adapter 优先使用稳定公开接口。只读目录、原生输入契约和
+source 读写分别验证，不能由健康连接、公开方法名或离线 DTO 推定写入能力已具备。
+
 Debug Eval profile 隔离账号正文，不等于隔离完整进程。现有启动路径仍共享 WebView
 目录、MCP Home/config、日志及发现文件，也可触发浏览器注册、全局输入 hooks、IPC
 和第三方监听；仅隐藏 Shell 或设置 Eval DataRoot 不能满足自有测试实例的边界。
@@ -87,6 +98,15 @@ Debug/Release binary 均不能替代实际加载及双宿主验收。
    另一个实例自动重试。其余 capability 逐项继续下表流程，不冒充全量 parity。
 
 ## V2 Designer 只读基础
+
+`stepRunner.inputContract.read` 另有可选的原生输入契约端口。它要求已加载的精确
+`Quicker.StepEngine` API、现有 `ActionStep.StepRunnerService` 和 UI dispatcher；每次在
+该 dispatcher 上调用当前 service 的 `GetRunner`，读取原始定义，再复用共享 policy
+builder。没有对应 API、service 或 dispatcher 的宿主继续 unavailable，不从 UI/Agent
+目录或缓存补权限。返回 provenance 为 `hostKind=v2`；旧 V1 builder 入口保持原样。
+原生默认控制值、精确空值、变量模式、输入来源、封闭选项和未知可见性均保留原有
+严格边界。该代码已有真实 DTO/API shape 与取消、DI/manual、序列化的离线回归，
+实际 LAN V2 的绑定读取和能力声明仍待部署验证，不代表运行时类型转换或完整 parity。
 
 `GetUiDetailAsync` 使用 `StepRunnerUiSchemaJson`，保留图标、control field、变量模式和
 参数 UI 信息；Agent `GetDetailAsync` 保持现有压缩格式。两条路径共用 catalog mapper，

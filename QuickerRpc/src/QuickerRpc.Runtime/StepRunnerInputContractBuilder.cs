@@ -11,8 +11,13 @@ namespace QuickerRpc.Runtime;
 public static class StepRunnerInputContractBuilder
 {
     public static QuickerRpcStepRunnerInputContractResult Build(StepRunnerCatalog catalog,
-        QuickerRpcStepRunnerInputContractRequest request)
+        QuickerRpcStepRunnerInputContractRequest request) => Build(catalog, request, "v1");
+
+    public static QuickerRpcStepRunnerInputContractResult Build(StepRunnerCatalog catalog,
+        QuickerRpcStepRunnerInputContractRequest request, string hostKind)
     {
+        if (hostKind is not ("v1" or "v2"))
+            return Failure("UNSUPPORTED_HOST", "Runtime input contracts require an explicit supported host kind.");
         if (request is null || string.IsNullOrWhiteSpace(request.StepRunnerKey))
             return Failure("INVALID_INPUT_CONTRACT_REQUEST", "A step runner key is required.");
         var runner = catalog.TryFind(request.StepRunnerKey);
@@ -46,7 +51,7 @@ public static class StepRunnerInputContractBuilder
 
         var contract = new QuickerRpcStepRunnerInputContract
         {
-            Source = "runtime-definition", HostKind = "v1", StepRunnerKey = runner.Key,
+            Source = "runtime-definition", HostKind = hostKind, StepRunnerKey = runner.Key,
             ControlFieldKey = control?.Key,
             AppliedControlFieldValue = controlValueKnown ? controlValue : null,
             ReservedBindings = new List<string> { "file", "varKey", InputParamWireCoercer.FileKeySuffix, InputParamWireCoercer.VarKeySuffix },
