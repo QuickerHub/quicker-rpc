@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
 import { build } from "esbuild";
-import { chromium } from "playwright";
+import { chromium, type Locator } from "playwright";
 
 // Production document/controller/workspace and catalog adapter; only host IO and icon leaves are fixtures.
 const fixture = `
@@ -56,6 +56,13 @@ async function compileFixture(contents = fixture) {
     } }] });
 }
 
+async function typeEditorText(field: Locator, value: string) {
+  await field.click();
+  await field.press("Control+A");
+  await field.pressSequentially(value);
+  assert.equal(await field.innerText(), value);
+}
+
 test("native module help preserves drafts, focus and document ownership", { timeout: 60_000 }, async () => {
   const result = await compileFixture();
   assert.ok(Object.keys(result.metafile!.inputs).every(file => !/(?:^|\/)lib\/(?:db\/|qkrpc\.ts|llm-config)/.test(file.replaceAll("\\", "/"))));
@@ -88,7 +95,7 @@ test("native module help preserves drafts, focus and document ownership", { time
     const trigger = popup.getByRole("button", { name: "模块帮助", exact: true });
     await trigger.waitFor();
     assert.deepEqual(docs, [], "opening parameters must not prefetch help");
-    await popup.getByRole("textbox").first().fill("kept draft");
+    await typeEditorText(popup.getByRole("textbox").first(), "kept draft");
     await trigger.click(); await help.waitFor();
     assert.equal(await help.locator("iframe").getAttribute("src"), "https://docs.example.test/a?mode=one&embed=1#parameters");
     await help.locator("iframe").waitFor();
@@ -218,7 +225,7 @@ async function navigationFixture(sameOrigin = false) {
     await page.locator('[data-step-id="a-help"]').dblclick();
     const popup = page.locator(".step-editor-popup");
     await popup.getByRole("button", { name: "模块帮助", exact: true }).waitFor();
-    await popup.getByRole("textbox").first().fill("unsaved navigation draft");
+    await typeEditorText(popup.getByRole("textbox").first(), "unsaved navigation draft");
     await popup.getByRole("button", { name: "模块帮助", exact: true }).click();
     const frame = page.frameLocator(".module-help-preview iframe");
     await frame.getByText("Documentation scripts ready", { exact: true }).waitFor();
