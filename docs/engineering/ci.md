@@ -198,3 +198,5 @@ pwsh -NoProfile -File scripts/ci/Test-OfflineDotNet.ps1
 `Generated knowledge`、两个 `Offline Agent (...)`、`Host-independent .NET`、
 `Transport contracts (Ubuntu)`、`Designer DOM (Windows Edge)` 与 `Static SPA (Windows Edge)`，
 不能仅用会因纯说明文档跳过的 job 作为门禁。原有检查名称保留；工作流本身不修改分支保护或 ruleset。
+
+<!-- Temporary docs-only CI routing proof; this validation draft will be closed. -->
