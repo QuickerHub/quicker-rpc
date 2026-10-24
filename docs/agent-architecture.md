@@ -686,6 +686,20 @@ shell；密钥只允许通过 `${ENV_NAME}` 展开；可写/外部工具建议�
 allowlist。Launcher、title test 与 benchmark 不加载 MCP。实现位于 `lib/agent-mcp/`，客户端依赖锁定
 到与 AI SDK 6 同代的 `@ai-sdk/mcp`，不引入第二套 Agent 框架。
 
+每次 turn 在同一连接内读取 `tools/list` 的全部页；cursor 保持原值，重复 cursor、重复工具名
+或规范化 ID 冲突均使该 server 本轮加载失败，不发布已读部分。目录读取受 64 页、2048 个
+工具、累计 4 MiB 序列化描述及整段 15 秒限制；失败关闭该 client 并记录诊断，其它 server
+仍可加载。调用方取消则收口整个 owner，迟到页不能进入新 turn。
+
+`LoadedAgentMcpTools.catalogs` 只保留通过原 allowlist/Ask 筛选的协议数据和当前连接来源，
+不包含 execute 闭包、headers、env 或命令参数。实际 server name/version 未报告时保留
+`null`；上报 version 只是来源描述，不作为工具 revision、权限证明或跨 turn 缓存键。
+下一 turn 仍重新连接、读取。该内部目录尚未新增 HTTP knowledge 入口或持久缓存。
+
+本地 `list_tools` 的 get/bundle 通过既有 `ai.asSchema` 等待并输出规范 JSON Schema，保留
+嵌套字段和约束；不把 Zod/SDK wrapper 本身交给 JSON 序列化。转换不执行 validator、审批
+或工具，失败不返回伪 schema 或半个 bundle。统一 knowledge 查询仍按前述来源契约接线。
+
 ## 9. 验证门槛
 
 Agent 核心改动至少执行：
