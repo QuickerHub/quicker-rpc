@@ -33,12 +33,10 @@ Collective name for the RPC stack:
 Subprogram invoked from the QuickerAgent action. C# entry:
 
 ```csharp
-Launcher.StartFromQuickerInParam(quicker_in_param, _context);
-// or
 Launcher.Start(_context);
 ```
 
-Resolves `LauncherStartOptions` from trigger + `quicker_in_param` (see main SKILL.md table).
+Resolves `LauncherStartOptions` from the actual action context, including trigger and `quicker_in_param` (see main SKILL.md table). Use `StartFromQuickerInParam` only when the caller already has a defined string variable to pass explicitly; `quicker_in_param` is not an automatically declared C# identifier.
 
 ## Bootstrap action
 

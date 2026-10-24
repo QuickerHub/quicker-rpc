@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../QuickerRpc.Transport.Test/Fixtures/FakeBindingHost.cs" Link="Fixtures/FakeBindingHost.cs" />
+    <Compile Include="../QuickerRpc.Transport.Test/Fixtures/CurrentUserPipeFixture.cs" Link="Fixtures/CurrentUserPipeFixture.cs" />
     <ProjectReference Include="..\..\src\QuickerRpc.Console\QuickerRpc.Console.csproj" />
   </ItemGroup>
 </Project>
