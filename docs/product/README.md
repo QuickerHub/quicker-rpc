@@ -402,6 +402,15 @@ manual 组合已覆盖，原有两处 DI 接线缺陷一并修复。25 项定向
 新会话同时声明三个兼容读 capability，主产品 frontend check 通过。此证据继续属于
 V1 集成，不代表 V2 已启动或这些可选原生类型在 V2 中已加载。
 
+完整 FA 分页已补共享 wire/可选 host port 和独立 `designer.fontAwesome.page.read`。
+V1 用全 enum 及来源中英文评分，V2 匹配精确 native SearchPage/七字段 DTO；保留完整
+total、样式和分页事实，不改变旧 maxResults/expand 搜索。原生缺失、页事实失配和取消
+明确失败，既有 dispatcher 和完整 host binding 继续约束读取。通用 ResolveType 会补载
+satellite，三个旧 read factory 与新 page 已改为精确已加载程序集查找，避免探测触发初始化。
+V1 15 项、Runtime 22 项、无 V2 引用 7 项及 Transport 14 项通过；独立审查修正了原 owner
+断线测试和跨 Quicker/Core 的 metadata 检查。当前 2.2.11 编译宿主缺新分页类型，仅验证
+PE 缺失/拒绝和固定 DTO；V2 原生算法、活进程及完整图标选择器仍待验收。准备集成版本 165。
+
 R5 文件实例首片已接生产 Chat/dock：已访问文件由工作台保活，切文件、browser/trace、
 折叠面板、切聊天/cwd 不卸载 APDE Session、属性草稿或 pending save。active 管理快捷键
 与 portal，删除选项不会因隐藏重现被重置；Pin/focus 跟随当前可见 Chat。读写固定

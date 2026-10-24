@@ -104,6 +104,25 @@ composition 测试有 6 项环境/原生依赖失败，未做干净基线对照�
 覆盖这两条链。25 项定向测试、无 V2 引用路径 7 项相关测试、真实 Plugin.V2 与 Runtime
 三目标构建通过，独立审查通过；活 V2 加载状态与完整双宿主仍待验收。
 
+## Font Awesome 分页与读取探测
+
+完整 FA 分页使用独立可选 `IQuickerRpcDesignerFontAwesomePageHost`，通过
+`SearchFontAwesomeIconsPageAsync` 和 `designer.fontAwesome.page.read` 连接。V1 直接使用
+自己的全 enum catalog；V2 匹配 native `SearchPage(string,string,int,int)` 与七字段页 DTO，
+保留 query/style、skip/take、完整 total 和 hasMore，检查规范化与返回事实一致性。
+Brand 别名、96 默认/300 上限、中文/英文评分与品牌排序按来源处理；旧 search 不变。
+
+读取探测已从会补载 satellite 的通用 `ResolveType` 改为精确已加载 assembly lookup。
+此收口同时覆盖三个已有读 factory 和 page，保留 injected 构造入口；不扫描磁盘、不加载
+模块、不创建 Application/dispatcher，缺失时 capability=false 和明确 unsupported。
+
+V1 page/旧 search 15 项、V2 catalog/handshake 22 项、无 V2 引用 7 项、Transport 14 项及
+修后原 owner 断线和 metadata 定向回归通过。实际 Plugin.V1/V2 与 Runtime 三目标构建
+通过；V1 构建有 243 条未分类警告，未做干净基线对照。当前 2.2.11 编译宿主未收录新
+page DTO/resolver，且主程序集有 logging module initializer，故只用命名 DLL 的 PE metadata
+核验缺失与拒绝路径；固定 DTO/dispatcher fixture 不等于真实 native 算法或活 V2 验收。
+Node page adapter 和完整图标选择器仍待接线。
+
 ## V2 native source 边界
 
 `V2ActionProgramSourceService` 复用 `IQuickerRpcActionProgramSourceHost`、Runtime handler、
