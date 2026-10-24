@@ -5,7 +5,7 @@ export const STATIC_RUNTIME_NATIVE_CONTEXTS = Object.freeze({
   playwright: "browser-runtime",
 });
 
-/** Keep this function self-contained: the verifier serializes it into a plain Node child. */
+/** Imported by a plain Node child; require stays rooted in the generated app's probe context. */
 export function probeStaticRuntimeNative(appRoot, require, contexts = {}) {
   const fs = require("node:fs");
   const path = require("node:path");
