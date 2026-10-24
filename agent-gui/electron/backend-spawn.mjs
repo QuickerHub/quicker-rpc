@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createConnection, createServer } from "node:net";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { reserveSmokeUiPort, startSmokeRpcGuard, writeSmokeHandshake } from "./smoke-isolation.mjs";
 import { AGENT_DATA_DIRECTORY_ENV } from "../lib/agent-data-profile.mjs";
 import { resolveRuntimeEntry } from "./runtime-entry.mjs";
@@ -15,9 +16,19 @@ const QKRPC_PORT_DEFAULT = 9477;
 const children = {};
 let smokeRpcGuard;
 let backendShutdown;
+let pendingStartup;
+let startupOwner;
+let closing = false;
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export class BackendStartupCancelledError extends Error {
+  constructor() {
+    super("Desktop backend startup was cancelled by shutdown");
+    this.name = "BackendStartupCancelledError";
+  }
+}
+
+function sleep(ms, signal) {
+  return delay(ms, undefined, { signal });
 }
 
 function isPortFree(host, port) {
@@ -30,35 +41,53 @@ function isPortFree(host, port) {
   });
 }
 
-async function findFreePort(host, start, maxAttempts = 200) {
+async function findFreePort(host, start, maxAttempts = 200, signal) {
   for (let port = start; port < start + maxAttempts; port++) {
-    if (await isPortFree(host, port)) return port;
+    signal?.throwIfAborted();
+    const free = await isPortFree(host, port);
+    signal?.throwIfAborted();
+    if (free) return port;
   }
   throw new Error(`no free port from ${start} on ${host}`);
 }
 
-async function httpProbe(host, port, path, mode, maxMs) {
+async function httpProbe(host, port, path, mode, maxMs, signal) {
   const started = Date.now();
   const request =
     `GET ${path} HTTP/1.1\r\nHost: ${host}\r\nConnection: close\r\n\r\n`;
 
   while (Date.now() - started < maxMs) {
+    signal?.throwIfAborted();
     try {
       const text = await new Promise((resolve, reject) => {
         const socket = createConnection({ host, port }, () => {
-          socket.write(request);
+          if (!signal?.aborted) socket.write(request);
         });
         let buf = "";
+        let settled = false;
+        const finish = (error) => {
+          if (settled) return;
+          settled = true;
+          signal?.removeEventListener("abort", aborted);
+          socket.setTimeout(0);
+          socket.destroy();
+          if (error) reject(error); else resolve(buf);
+        };
+        const aborted = () => finish(signal.reason);
         socket.on("data", (chunk) => {
           buf += chunk.toString("utf8");
         });
-        socket.on("end", () => resolve(buf));
-        socket.on("error", reject);
-        socket.setTimeout(800, () => {
-          socket.destroy();
-          reject(new Error("timeout"));
+        socket.once("end", () => finish());
+        socket.on("error", finish);
+        socket.once("close", () => {
+          finish(new Error("Probe connection closed before the response ended"));
+          socket.removeListener("error", finish);
         });
+        socket.setTimeout(800, () => finish(new Error("timeout")));
+        signal?.addEventListener("abort", aborted, { once: true });
+        if (signal?.aborted) aborted();
       });
+      signal?.throwIfAborted();
 
       const ok200 = text.includes("HTTP/1.1 200") || text.includes("HTTP/1.0 200");
       if (mode === "status200" && ok200) return true;
@@ -70,9 +99,10 @@ async function httpProbe(host, port, path, mode, maxMs) {
         return true;
       }
     } catch {
+      signal?.throwIfAborted();
       // retry
     }
-    await sleep(Date.now() - started < 3000 ? 80 : 200);
+    await sleep(Date.now() - started < 3000 ? 80 : 200, signal);
   }
   return false;
 }
@@ -129,13 +159,18 @@ export function shutdownBackends() {
   if (backendShutdown) return backendShutdown;
   let resolveShutdown, rejectShutdown;
   backendShutdown = new Promise((resolve, reject) => { resolveShutdown = resolve; rejectShutdown = reject; });
-  const guard = smokeRpcGuard;
-  smokeRpcGuard = undefined;
-  const guardStopped = guard?.close();
-  const node = children.node;
-  const qkrpc = children.qkrpc;
+  closing = true;
+  const startup = pendingStartup;
+  const owner = startupOwner;
+  startupOwner?.abort(new BackendStartupCancelledError());
   const stop = async () => {
-    await guardStopped;
+    // Startup can still be registering resources after a port/listener await.
+    await startup?.catch(() => {});
+    const guard = smokeRpcGuard;
+    smokeRpcGuard = undefined;
+    const node = children.node;
+    const qkrpc = children.qkrpc;
+    await guard?.close();
     if (node) {
       // The smoke launcher owns the native Job handle, including startup failures.
       if (!node.smokeJobOwned) await stopAgentChild(node.child);
@@ -146,7 +181,15 @@ export function shutdownBackends() {
       if (children.qkrpc === qkrpc) children.qkrpc = undefined;
     }
   };
-  void stop().then(resolveShutdown, (error) => {
+  void stop().then(() => {
+    if (pendingStartup === startup) {
+      pendingStartup = undefined;
+      if (startupOwner === owner) startupOwner = undefined;
+    }
+    closing = false;
+    resolveShutdown();
+  }, (error) => {
+    closing = false;
     backendShutdown = undefined; // Keep retained handles available for a retry.
     rejectShutdown(error);
   });
@@ -190,32 +233,47 @@ export function stopAgentChild(child, graceMs = 2500, { forceTimeoutMs = 1000 } 
   });
 }
 
-async function resolveQkrpcPort(host) {
-  const healthy = await httpProbe(host, QKRPC_PORT_DEFAULT, "/health", "qkrpcHealth", 350);
+async function resolveQkrpcPort(host, signal) {
+  const healthy = await httpProbe(host, QKRPC_PORT_DEFAULT, "/health", "qkrpcHealth", 350, signal);
   if (healthy) return { port: QKRPC_PORT_DEFAULT, shouldSpawn: false };
-  if (await isPortFree(host, QKRPC_PORT_DEFAULT)) {
+  const free = await isPortFree(host, QKRPC_PORT_DEFAULT);
+  signal.throwIfAborted();
+  if (free) {
     return { port: QKRPC_PORT_DEFAULT, shouldSpawn: true };
   }
-  const port = await findFreePort(host, QKRPC_PORT_DEFAULT + 1);
+  const port = await findFreePort(host, QKRPC_PORT_DEFAULT + 1, undefined, signal);
   return { port, shouldSpawn: true };
 }
 
-async function resolveUiPort(host) {
-  if (await isPortFree(host, UI_PORT_PREFERRED)) {
+async function resolveUiPort(host, signal) {
+  const free = await isPortFree(host, UI_PORT_PREFERRED);
+  signal.throwIfAborted();
+  if (free) {
     return UI_PORT_PREFERRED;
   }
   console.warn(
     `[startup] port ${UI_PORT_PREFERRED} busy; using next free port — chat auto-restore may differ`,
   );
-  return findFreePort(host, UI_PORT_PREFERRED + 1);
+  return findFreePort(host, UI_PORT_PREFERRED + 1, undefined, signal);
 }
 
-function waitForChildSpawn(child, label) {
+function waitForChildSpawn(child, label, signal) {
   return new Promise((resolve, reject) => {
-    child.once("spawn", () => resolve());
-    child.once("error", (err) => {
-      reject(new Error(`${label} spawn failed: ${err.message}`));
-    });
+    let settled = false;
+    const cleanup = () => {
+      signal?.removeEventListener("abort", aborted);
+      child.off("spawn", spawned); child.off("error", failed); child.off("close", closed);
+    };
+    const spawned = () => { cleanup(); if (!settled) { settled = true; resolve(); } };
+    const failed = (error) => { cleanup(); if (!settled) { settled = true; reject(new Error(`${label} spawn failed: ${error.message}`)); } };
+    const closed = () => failed(new Error("child closed before spawn"));
+    const aborted = () => {
+      if (!settled) { settled = true; signal.removeEventListener("abort", aborted); reject(signal.reason); }
+      // Keep child listeners until spawn/error/close so a late spawn failure is observed.
+    };
+    child.once("spawn", spawned); child.once("error", failed); child.once("close", closed);
+    signal?.addEventListener("abort", aborted, { once: true });
+    if (signal?.aborted) aborted();
   });
 }
 
@@ -297,65 +355,64 @@ function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwn
  * @returns {Promise<{ uiUrl: string, host: string, uiPort: number, qkrpcPort: number }>}
  */
 export async function startProductionBackends(runtime) {
-  const host = "127.0.0.1";
-  if (children.node || children.qkrpc) throw new Error("Desktop backends already started");
+  if (pendingStartup || closing || children.node || children.qkrpc) throw new Error("Desktop backends already started or starting");
+  const owner = new AbortController();
+  startupOwner = owner;
   backendShutdown = undefined;
-  if (runtime.smoke) {
-    try {
-      smokeRpcGuard = await startSmokeRpcGuard();
-      const uiPort = await reserveSmokeUiPort();
-      const child = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, {
-        QKRPC_HTTP_URL: `http://${host}:${smokeRpcGuard.port}`, QKRPC_TRANSPORT: "http",
-        HOME: process.env.HOME, AGENT_GUI_ROOT: process.env.AGENT_GUI_ROOT,
-        AGENT_GUI_DEFAULT_CWD: process.env.AGENT_GUI_DEFAULT_CWD,
-      }, true);
-      await waitForChildSpawn(child, "isolated smoke node");
-      writeSmokeHandshake(runtime.smoke, { uiPort, uiPid: child.pid, rpcPort: smokeRpcGuard.port, rpcPid: process.pid });
-      return { uiUrl: `http://${host}:${uiPort}`, host, uiPort, qkrpcPort: smokeRpcGuard.port };
-    } catch (error) {
-      shutdownBackends();
-      throw error;
+  // Publish ownership before resource allocation or reentrant shutdown can run.
+  const pending = Promise.resolve().then(() => startOwnedBackends(runtime, owner.signal));
+  pendingStartup = pending;
+  try {
+    return await pending;
+  } catch (error) {
+    const failure = owner.signal.aborted ? owner.signal.reason : error;
+    await shutdownBackends();
+    throw failure;
+  } finally {
+    if (pendingStartup === pending) {
+      pendingStartup = undefined;
+      startupOwner = undefined;
     }
   }
-  try {
-  const { port: qkrpcPort, shouldSpawn } = await resolveQkrpcPort(host);
-  const uiPort = await resolveUiPort(host);
-  const qkrpcUrl = `http://${host}:${qkrpcPort}`;
-  const qkrpcExe = join(
-    runtime.qkrpcDir,
-    process.platform === "win32" ? "qkrpc.exe" : "qkrpc",
-  );
+}
 
-  const nodeEnv = {
-    QKRPC_HTTP_URL: qkrpcUrl,
-    QKRPC_TRANSPORT: "http",
-    QKRPC_BIN: qkrpcExe,
-  };
+async function startOwnedBackends(runtime, signal) {
+  signal.throwIfAborted();
+  const host = "127.0.0.1";
+  if (runtime.smoke) {
+    smokeRpcGuard = await startSmokeRpcGuard();
+    signal.throwIfAborted();
+    const uiPort = await reserveSmokeUiPort();
+    signal.throwIfAborted();
+    const child = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, {
+      QKRPC_HTTP_URL: `http://${host}:${smokeRpcGuard.port}`, QKRPC_TRANSPORT: "http",
+      HOME: process.env.HOME, AGENT_GUI_ROOT: process.env.AGENT_GUI_ROOT,
+      AGENT_GUI_DEFAULT_CWD: process.env.AGENT_GUI_DEFAULT_CWD,
+    }, true);
+    await waitForChildSpawn(child, "isolated smoke node", signal);
+    signal.throwIfAborted();
+    writeSmokeHandshake(runtime.smoke, { uiPort, uiPid: child.pid, rpcPort: smokeRpcGuard.port, rpcPid: process.pid });
+    return { uiUrl: `http://${host}:${uiPort}`, host, uiPort, qkrpcPort: smokeRpcGuard.port };
+  }
+  const { port: qkrpcPort, shouldSpawn } = await resolveQkrpcPort(host, signal);
+  const uiPort = await resolveUiPort(host, signal);
+  signal.throwIfAborted();
+  const qkrpcUrl = `http://${host}:${qkrpcPort}`;
+  const qkrpcExe = join(runtime.qkrpcDir, process.platform === "win32" ? "qkrpc.exe" : "qkrpc");
+  const nodeEnv = { QKRPC_HTTP_URL: qkrpcUrl, QKRPC_TRANSPORT: "http", QKRPC_BIN: qkrpcExe };
 
   if (shouldSpawn) {
     const qkrpcChild = spawnQkrpc(runtime.qkrpcDir, host, qkrpcPort);
-    await waitForChildSpawn(qkrpcChild, "qkrpc");
-    const ok = await httpProbe(host, qkrpcPort, "/health", "qkrpcHealth", 45_000);
-    if (!ok) {
-      throw new Error(`timeout waiting for qkrpc serve on ${qkrpcUrl}`);
-    }
+    await waitForChildSpawn(qkrpcChild, "qkrpc", signal);
+    const ok = await httpProbe(host, qkrpcPort, "/health", "qkrpcHealth", 45_000, signal);
+    if (!ok) throw new Error(`timeout waiting for qkrpc serve on ${qkrpcUrl}`);
   }
 
+  signal.throwIfAborted();
   const nodeChild = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, nodeEnv);
-  await waitForChildSpawn(nodeChild, "node");
-  const uiOk = await httpProbe(host, uiPort, "/", "status200", 60_000);
-  if (!uiOk) {
-    throw new Error(`timeout waiting for UI http://${host}:${uiPort}/`);
-  }
-
-  return {
-    uiUrl: `http://${host}:${uiPort}`,
-    host,
-    uiPort,
-    qkrpcPort,
-  };
-  } catch (error) {
-    await shutdownBackends();
-    throw error;
-  }
+  await waitForChildSpawn(nodeChild, "node", signal);
+  const uiOk = await httpProbe(host, uiPort, "/", "status200", 60_000, signal);
+  if (!uiOk) throw new Error(`timeout waiting for UI http://${host}:${uiPort}/`);
+  signal.throwIfAborted();
+  return { uiUrl: `http://${host}:${uiPort}`, host, uiPort, qkrpcPort };
 }
