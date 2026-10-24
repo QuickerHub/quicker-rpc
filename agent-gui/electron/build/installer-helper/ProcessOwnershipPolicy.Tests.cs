@@ -9,9 +9,10 @@ internal static class Tests
         public int Pid;
         public long Created = 1;
         public string Path;
-        public bool Exited, Unknown, Changed;
+        public bool Exited, Unknown, Changed, ReadThrows, OpenThrows;
         public int Requests, Opens, Disposals, Reads;
         public Action Close;
+        public Action Read;
         public Process(int pid, string path) { Pid = pid; Path = path; }
     }
     private sealed class Lease : IProcessLease
@@ -21,6 +22,8 @@ internal static class Tests
         public ProcessIdentity ReadIdentity()
         {
             process.Reads++;
+            if (process.Read != null) process.Read();
+            if (process.ReadThrows) throw new Exception("fixture access denied");
             return new ProcessIdentity(process.Pid, process.Created + (process.Changed && process.Reads > 1 ? 1 : 0), process.Path);
         }
         public bool HasExited { get { return process.Exited; } }
@@ -33,7 +36,9 @@ internal static class Tests
         public Action<int> OnCapture;
         public int Captures;
         public bool InvalidDirectory;
-        public string ResolveFinalDirectory(string path) { return InvalidDirectory ? null : path; }
+        public bool CaseSensitiveAncestor;
+        public ResolvedInstallationDirectory ResolveFinalDirectory(string path)
+        { return InvalidDirectory ? null : new ResolvedInstallationDirectory(path, !CaseSensitiveAncestor); }
         public IEnumerable<ProcessCandidate> CaptureProcesses()
         {
             Captures++; if (OnCapture != null) OnCapture(Captures);
@@ -43,7 +48,8 @@ internal static class Tests
         }
         public IProcessLease OpenStableProcess(int pid)
         {
-            foreach (Process process in Processes) if (process.Pid == pid && !process.Exited) return process.Unknown ? null : new Lease(process);
+            foreach (Process process in Processes) if (process.Pid == pid && !process.Exited)
+            { if (process.OpenThrows) throw new Exception("fixture open denied"); return process.Unknown ? null : new Lease(process); }
             return null;
         }
         public long MonotonicMilliseconds { get; private set; }
@@ -94,11 +100,42 @@ internal static class Tests
             Run("unresolved final directory refuses enumeration or signalling", delegate {
                 var platform = new Platform { InvalidDirectory = true }; Check(!Stop(platform).Success && platform.Captures == 0, "default path fallback");
             });
+            Run("case-sensitive target ancestry cannot be authorized by case-folded strings", delegate {
+                var platform = new Platform { CaseSensitiveAncestor = true };
+                Check(!Stop(platform).Success && platform.Captures == 0, "case-sensitive identity collapsed");
+            });
+            Run("protected foreign open/read failures do not block a fresh target", delegate {
+                var platform = new Platform(); var unreadable = new Process(2, @"C:\Windows\protected-service.exe") { ReadThrows = true };
+                platform.Processes.Add(unreadable); platform.Processes.Add(new Process(3, @"C:\Windows\other-service.exe") { OpenThrows = true });
+                Check(Stop(platform).Success && unreadable.Requests == 0 && unreadable.Opens == unreadable.Disposals, "foreign access failure or leak");
+            });
+            Run("relevant read failure never authorizes a close", delegate {
+                var platform = new Platform(); var root = new Process(1, @"C:\App\quicker-agent.exe") { ReadThrows = true }; platform.Processes.Add(root);
+                Check(Stop(platform).Code == "PROCESS_IDENTITY_UNAVAILABLE" && root.Requests == 0 && root.Opens == root.Disposals, "relevant read ignored");
+            });
+            Run("an unknown creation identity never authorizes a close", delegate {
+                var platform = new Platform(); var root = new Process(1, @"C:\App\quicker-agent.exe") { Created = 0 }; platform.Processes.Add(root);
+                Check(Stop(platform).Code == "PROCESS_IDENTITY_UNAVAILABLE" && root.Requests == 0, "unknown creation time accepted");
+            });
+            Run("slow capture or identity read expires before a close request", delegate {
+                foreach (bool slowCapture in new[] { true, false }) {
+                    var platform = new Platform(); var root = new Process(1, @"C:\App\quicker-agent.exe"); platform.Processes.Add(root);
+                    if (slowCapture) platform.OnCapture = delegate(int count) { platform.Delay(200); };
+                    else root.Read = delegate { platform.Delay(200); };
+                    Check(Stop(platform).Code == "OWNERSHIP_CHECK_TIMEOUT" && root.Requests == 0 && root.Opens == root.Disposals, "late close or lease leak");
+                }
+            });
+            Run("a second quiet capture cannot claim success after its deadline", delegate {
+                var platform = new Platform(); platform.OnCapture = delegate(int pass) { if (pass == 2) platform.Delay(200); };
+                Check(Stop(platform).Code == "OWNERSHIP_CHECK_TIMEOUT", "late quiet success");
+            });
             Run("fresh and same-directory overlay plans never execute legacy uninstallers", delegate {
                 Check(InstallationPolicy.Plan(@"C:\App", null, true, false) == InstallPlan.Fresh, "fresh plan");
                 Check(InstallationPolicy.Plan(@"C:\App", @"c:\app", true, true) == InstallPlan.VerifiedSameDirectoryOverlay, "overlay plan");
                 Check(InstallationPolicy.Plan(@"C:\App", @"C:\Other", true, true) == InstallPlan.TargetChanged, "target changed");
                 Check(InstallationPolicy.Plan(@"C:\App", @"C:\App", false, true) == InstallPlan.UnverifiedInstallation, "unknown product accepted");
+                Check(InstallationPolicy.Plan("", null, true, true) == InstallPlan.UnverifiedInstallation, "unresolved directory accepted");
+                Check(InstallationPolicy.Plan(@"C:\App", "", true, true) == InstallPlan.UnverifiedInstallation, "partial registered directory accepted");
                 Check(InstallationPolicy.Plan(@"C:\App", @"C:\App", true, false) == InstallPlan.OverlayUnavailable, "missing overlay pretended safe");
             });
             Console.WriteLine("Policy fixtures passed: " + passed); return 0;

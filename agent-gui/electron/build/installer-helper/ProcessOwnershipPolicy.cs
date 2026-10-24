@@ -24,9 +24,20 @@ namespace QuickerAgent.Installer
         public ProcessCandidate(int pid, string imageName) { Pid = pid; ImageName = imageName; }
     }
 
+    public sealed class ResolvedInstallationDirectory
+    {
+        public readonly string FinalPath;
+        // A native adapter must inspect the final directory and every resolved
+        // ancestor; merely normalizing casing or expanding a junction is insufficient.
+        public readonly bool CaseInsensitiveAncestorsVerified;
+        public ResolvedInstallationDirectory(string finalPath, bool verified)
+        { FinalPath = finalPath; CaseInsensitiveAncestorsVerified = verified; }
+    }
+
     public interface IProcessLease : IDisposable
     {
         // After exit this must still report the same object's creation identity.
+        // Read failure is unknown, never permission to act. Dispose must not throw.
         ProcessIdentity ReadIdentity();
         bool HasExited { get; }
         // The adapter must recheck its held handle and window owner before WM_CLOSE.
@@ -36,8 +47,10 @@ namespace QuickerAgent.Installer
 
     public interface IInstallationProcessPlatform
     {
-        string ResolveFinalDirectory(string directory);
+        ResolvedInstallationDirectory ResolveFinalDirectory(string directory);
         IEnumerable<ProcessCandidate> CaptureProcesses();
+        // Open/read can return null or throw for protected foreign processes.
+        // The policy treats an unreadable root/bundled image candidate as blocking.
         IProcessLease OpenStableProcess(int pid);
         long MonotonicMilliseconds { get; }
         void Delay(int milliseconds);
@@ -65,6 +78,7 @@ namespace QuickerAgent.Installer
         }
         private static bool Potential(string name)
         {
+            if (String.IsNullOrWhiteSpace(name)) return true;
             foreach (string value in new[] { "quicker-agent.exe", "QuickerAgent.exe", "node.exe", "qkrpc.exe", "rg.exe" })
                 if (String.Equals(name, value, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
@@ -82,17 +96,25 @@ namespace QuickerAgent.Installer
             int requests = 0;
             try
             {
-                string target = platform.ResolveFinalDirectory(directory);
-                if (String.IsNullOrWhiteSpace(target) || timeoutMs <= 0)
-                    return new ProcessStopResult(false, "INSTALL_TARGET_UNVERIFIED", requests);
-                target = target.TrimEnd('\\');
                 long deadline = checked(platform.MonotonicMilliseconds + timeoutMs);
+                ResolvedInstallationDirectory resolved = platform.ResolveFinalDirectory(directory);
+                if (resolved == null || !resolved.CaseInsensitiveAncestorsVerified || String.IsNullOrWhiteSpace(resolved.FinalPath) || timeoutMs <= 0)
+                    return new ProcessStopResult(false, "INSTALL_TARGET_UNVERIFIED", requests);
+                string target = resolved.FinalPath.TrimEnd('\\');
                 int quiet = 0;
+                bool hadRunning = false;
                 while (true)
                 {
-                    foreach (ProcessCandidate candidate in platform.CaptureProcesses())
+                    if (platform.MonotonicMilliseconds >= deadline) return new ProcessStopResult(false, hadRunning ? "PROCESS_STILL_RUNNING" : "OWNERSHIP_CHECK_TIMEOUT", requests);
+                    var candidates = platform.CaptureProcesses();
+                    if (platform.MonotonicMilliseconds >= deadline) return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests);
+                    foreach (ProcessCandidate candidate in candidates)
                     {
-                        IProcessLease lease = platform.OpenStableProcess(candidate.Pid);
+                        if (platform.MonotonicMilliseconds >= deadline) return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests);
+                        IProcessLease lease;
+                        try { lease = platform.OpenStableProcess(candidate.Pid); }
+                        catch { lease = null; }
+                        if (platform.MonotonicMilliseconds >= deadline) { if (lease != null) lease.Dispose(); return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests); }
                         if (lease == null)
                         {
                             if (Potential(candidate.ImageName)) return new ProcessStopResult(false, "PROCESS_IDENTITY_UNAVAILABLE", requests);
@@ -100,8 +122,9 @@ namespace QuickerAgent.Installer
                         }
                         ProcessIdentity identity;
                         try { identity = lease.ReadIdentity(); }
-                        catch { lease.Dispose(); throw; }
-                        if (identity == null || String.IsNullOrWhiteSpace(identity.FinalImagePath) || identity.Pid != candidate.Pid)
+                        catch { identity = null; }
+                        if (platform.MonotonicMilliseconds >= deadline) { lease.Dispose(); return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests); }
+                        if (identity == null || identity.CreationTime <= 0 || String.IsNullOrWhiteSpace(identity.FinalImagePath) || identity.Pid != candidate.Pid)
                         {
                             lease.Dispose();
                             if (Potential(candidate.ImageName)) return new ProcessStopResult(false, "PROCESS_IDENTITY_UNAVAILABLE", requests);
@@ -115,20 +138,24 @@ namespace QuickerAgent.Installer
                     foreach (Owned entry in held.Values)
                     {
                         if (!entry.Identity.Same(entry.Lease.ReadIdentity())) return new ProcessStopResult(false, "PROCESS_IDENTITY_CHANGED", requests);
-                        if (entry.Lease.HasExited) continue;
+                        bool exited = entry.Lease.HasExited;
+                        if (platform.MonotonicMilliseconds >= deadline) return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests);
+                        if (exited) continue;
                         running = true;
                         if (entry.Root && !entry.Requested)
                         {
                             entry.Requested = true;
-                            if (!entry.Lease.RequestWindowClose()) return new ProcessStopResult(false, "ROOT_CLOSE_UNAVAILABLE", requests);
                             requests++;
+                            if (!entry.Lease.RequestWindowClose()) return new ProcessStopResult(false, "ROOT_CLOSE_UNAVAILABLE", requests);
                         }
                     }
                     // A second capture catches processes that appeared during a root's
                     // close request. No descendant ownership is inferred from parent PID.
                     quiet = running ? 0 : quiet + 1;
+                    if (platform.MonotonicMilliseconds >= deadline) return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests);
                     if (quiet >= 2) return new ProcessStopResult(true, "VERIFIED_ROOTS_CLOSED", requests);
                     if (platform.MonotonicMilliseconds >= deadline) return new ProcessStopResult(false, "PROCESS_STILL_RUNNING", requests);
+                    hadRunning = running;
                     platform.Delay(Math.Min(50, (int)Math.Max(1, deadline - platform.MonotonicMilliseconds)));
                 }
             }
@@ -144,7 +171,8 @@ namespace QuickerAgent.Installer
         // implement overlay explicitly before the production installer consumes this.
         public static InstallPlan Plan(string finalDirectory, string registeredFinalDirectory, bool productIdentityVerified, bool overlayAvailable)
         {
-            if (!productIdentityVerified) return InstallPlan.UnverifiedInstallation;
+            if (!productIdentityVerified || String.IsNullOrWhiteSpace(finalDirectory)
+                || (registeredFinalDirectory != null && String.IsNullOrWhiteSpace(registeredFinalDirectory))) return InstallPlan.UnverifiedInstallation;
             if (registeredFinalDirectory == null) return InstallPlan.Fresh;
             if (!String.Equals(finalDirectory, registeredFinalDirectory, StringComparison.OrdinalIgnoreCase)) return InstallPlan.TargetChanged;
             return overlayAvailable ? InstallPlan.VerifiedSameDirectoryOverlay : InstallPlan.OverlayUnavailable;
