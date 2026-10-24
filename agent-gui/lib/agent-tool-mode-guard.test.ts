@@ -83,3 +83,31 @@ test("Ask browser rejects all dispatch until a side-effect-free observation adap
   assert.equal(calls.length, 0);
   assert.equal(await applyToolModeGuards({ browser }, "agent").browser.execute!({ action: "navigate" }, options), "observed");
 });
+
+test("Ask program get requires explicit read ports and cannot replay the exporting executor", async () => {
+  let exports = 0, reads = 0;
+  const base = Object.fromEntries(["qkrpc_action_get", "qkrpc_subprogram_get"].map((id) => [id, tool({
+    inputSchema: z.object({ id: z.string() }).passthrough(), needsApproval: true,
+    execute: async () => { exports += 1; return "exported"; },
+  })]));
+  const denied = applyToolModeGuards(base, "ask");
+  for (const definition of Object.values(denied)) {
+    const result = await definition.execute!({ id: "fixture" }, options);
+    assert.ok(isStructuredToolResult(result)); assert.equal(result.ok, false);
+  }
+  const parent = applyToolCallPolicies(applyToolModeGuards(base, "ask", {
+    qkrpc_action_get: async () => { reads += 1; return "read"; },
+    qkrpc_subprogram_get: async () => { reads += 1; return "read"; },
+  }), { qkrpc_action_get: { maxCallsPerTurn: 1, maxIdenticalCallsPerTurn: 1 } });
+  const child = selectSubagentTools(parent, ["qkrpc_action_get"]);
+  assert.equal(child.qkrpc_action_get, parent.qkrpc_action_get);
+  assert.equal(child.qkrpc_action_get.needsApproval, true);
+  // An old approved payload or an inherited tool still executes the current mode's read port.
+  assert.equal(await child.qkrpc_action_get.execute!({ id: "fixture", action: "export", readOnly: false }, options), "read");
+  const exhausted = await parent.qkrpc_action_get.execute!({ id: "other" }, options);
+  assert.ok(isStructuredToolResult(exhausted)); assert.equal(exhausted.ok, false);
+  assert.equal(await parent.qkrpc_subprogram_get.execute!({ id: "fixture" }, options), "read");
+  assert.equal(reads, 2); assert.equal(exports, 0);
+  assert.equal(await applyToolModeGuards(base, "agent").qkrpc_action_get.execute!({ id: "fixture" }, options), "exported");
+  assert.equal(exports, 1);
+});

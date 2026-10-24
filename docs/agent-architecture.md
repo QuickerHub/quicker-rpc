@@ -407,6 +407,12 @@ context”。
 | UI 输出 | 原始 tool result / `displayData` | 不受模型视图裁剪影响 |
 | Schema 暴露 | `agent-harness/model-tool-definitions.ts` | 核心/当前 bundle/MCP 保留完整 schema，其余提供发现提示 |
 
+Ask 的动作/子程序 get 使用显式读取执行端口，绕开兼容 get 的自动导出，并重建限定命令，
+只通过 CLI `--no-bootstrap` 连接现有宿主；不进入可能自启动的 HTTP pool，不重试或转走
+导出入口。当前模式的最终 wrapper 同样约束历史审批续跑与子代理，未提供读取端口时拒绝。
+Agent 的兼容导出行为保留。其它 Ask 远端查询和恢复入口的副作用审计仍未完成；尤其原
+`qkrpc_wait` 会启动 serve/插件，不把这两个 getter 的修复视为整个 Ask 已无副作用。
+
 工具以用户意图、权限和副作用为边界。不要只为减少 tool 数量合并不同风险或不同
 工作流阶段；模型可见 schema 保持 provider 兼容的扁平对象。需要降低 prompt 成本时，
 优先使用 `TurnPlan` 选择相关工具子集、瘦身 schema 和压缩工具结果，不牺牲稳定 tool id。

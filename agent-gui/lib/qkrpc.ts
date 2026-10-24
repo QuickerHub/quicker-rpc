@@ -599,6 +599,26 @@ export function runQkrpcForToolOnce(args: string[], options?: QkrpcRunOptions): 
   });
 }
 
+/** Ask program reads cannot enter a serve pool that may bootstrap its connection. */
+export function runQkrpcReadOnlyGetForTool(args: string[], options?: QkrpcRunOptions): Promise<QkrpcRunResult> {
+  const invoke = argvToInvoke(args);
+  if (invoke?.op !== "action.get" && invoke?.op !== "subprogram.get") {
+    return Promise.resolve(qkrpcValidationError("Read-only program access only permits action get or subprogram get."));
+  }
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  const id = invoke.args.id;
+  if (typeof id !== "string" || !id.trim()) return Promise.resolve(qkrpcValidationError("Program id is required."));
+  // Rebuild the narrow command so a caller cannot override the connection-only flag.
+  const readArgs = [invoke.op === "action.get" ? "action" : "subprogram", "get", "--id", id];
+  if (typeof invoke.args.returnMode === "string") readArgs.push("--return-mode", invoke.args.returnMode);
+  readArgs.push("--no-bootstrap");
+  return executeSingleQkrpcToolCall(readArgs, { ...options, abortSignal }, {
+    run: runQkrpcCliDirect,
+    isConnectivityBlocked: isQkrpcConnectivityBlockedThisTurn,
+    markConnectivityBlocked: markQkrpcConnectivityBlockedThisTurn,
+  });
+}
+
 /**
  * Run qkrpc with in-tool retries for timeouts/transient errors.
  * Used by agent tools so the model does not immediately repeat the same call.

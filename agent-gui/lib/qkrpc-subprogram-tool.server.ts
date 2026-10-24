@@ -19,12 +19,14 @@ import {
   formatQkrpcResultForAgent,
   qkrpcValidationError,
   runQkrpcForTool,
+  runQkrpcReadOnlyGetForTool,
   runQkrpcWithPatchFileForTool,
   runQkrpcWithProgramForTool,
 } from "@/lib/qkrpc";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { rejectBenchModeTool } from "@/lib/bench-mode.server";
+import { getRequestChatMode } from "@/lib/qkrpc-request-context";
 import { programDataSchema, programDataHasBody, normalizeProgramDataInput } from "@/lib/program-data-input";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
@@ -177,11 +179,24 @@ export async function executeQkrpcSubprogramQueryTool(
   );
 }
 
+/** Explicit Ask execution port: preserve the remote read without workspace export. */
+export async function executeQkrpcSubprogramGetReadOnly(
+  input: Omit<Extract<QkrpcSubprogramIdToolInput, { action: "get" }>, "action">,
+  options?: { abortSignal?: AbortSignal },
+): Promise<Record<string, unknown>> {
+  options?.abortSignal?.throwIfAborted();
+  const args = ["subprogram", "get", "--id", input.id];
+  if (input.returnMode) args.push("--return-mode", input.returnMode);
+  const result = await runQkrpcReadOnlyGetForTool(args, options);
+  return formatToolResultForAgent(QKRPC_SUBPROGRAM_GET_TOOL, input, formatQkrpcResultForAgent(result));
+}
+
 export async function executeQkrpcSubprogramIdTool(
   input: QkrpcSubprogramIdToolInput,
 ): Promise<Record<string, unknown>> {
   switch (input.action) {
     case "get": {
+      if (getRequestChatMode() === "ask") return executeQkrpcSubprogramGetReadOnly(input);
       const args = ["subprogram", "get", "--id", input.id];
       if (input.returnMode) args.push("--return-mode", input.returnMode);
       const getResult = await runQkrpcForTool(args);
@@ -412,7 +427,7 @@ export const QKRPC_SUBPROGRAM_QUERY_TOOL_DEF = tool({
 
 export const QKRPC_SUBPROGRAM_GET_TOOL_DEF = tool({
   description:
-    "Sync one global subprogram to .quicker/subprograms/{id}/ (first time). "
+    "Read one global subprogram. In Agent mode, sync to .quicker/subprograms/{id}/ (first time); in Ask mode, read only without exporting workspace files. "
     + "After create skip re-get — use workspace_program. NOT body edits.",
   inputSchema: z.object({
     id: z.string().describe("Subprogram id or name"),

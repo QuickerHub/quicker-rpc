@@ -264,6 +264,14 @@ R2 补浏览器/网络端口及派生进程 owner；R3 拆会话控制器并验�
 R6 验收 V1 YAML 真实宿主链；R7 检查主题、浮层、焦点、键盘、长会话与失败态；R8 落实
 依赖边界检查和最终逐项审计。P1 集成时按这些验收条件推进，P4 承接运行/打包相关项。
 
+R1 审计发现兼容 get 会顺带导出文件：Ask 的动作/子程序读取已改为显式只读端口，
+只通过带 `--no-bootstrap` 的 CLI 读取现有绑定宿主，不导出、不进入自启动 HTTP pool，
+也不失败重试或回退。最终 mode guard、历史审批续跑、子代理和直接 Ask 调用均覆盖；
+Agent 的兼容导出保留。生产假 CLI/HTTP、文件写入 spy 及 SDK 审批回归通过独立审查，
+整合后 682 项离线/类型检查通过。
+其它 Ask 查询、连接恢复与 pre-turn Designer context 仍有自动启动路径，下一片继续
+收紧目录与最终执行门禁；这两个 getter 的修复不表示 Ask 整体无副作用。
+
 旧 JSON 动作项目已加入 `.qkrpc/project-binding.json`，CLI/MCP/serve/Agent 的导出、创建和
 同步跨请求保留来源宿主，写前核验 action ID、目录和 info；多个同 ID 项目不取首个，
 未绑定旧项目不自动继承当前连接。C#/Node 共用项目 lease，部分 bootstrap 不重发宿主创建，
