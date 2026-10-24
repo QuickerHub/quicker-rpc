@@ -1866,7 +1866,7 @@ public sealed class StepRunnerOptions
 [Verb("fa", HelpText = "Font Awesome icon search (names[]; write fa:{name} or fa:{name}:{#color}).")]
 public sealed class FaOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search | resolve")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | resolve | page")]
     public string? Command { get; set; }
 
     [Option("spec", HelpText = "Single fa: spec for fa resolve (e.g. fa:Light_Flask).")]
@@ -1880,6 +1880,15 @@ public sealed class FaOptions
 
     [Option("limit", Default = 40, HelpText = "Max results for fa search.")]
     public int Limit { get; set; }
+
+    [Option("style", HelpText = "Style for fa page (e.g. Solid, Regular, Brands, Light). Empty includes all styles.")]
+    public string? Style { get; set; }
+
+    [Option("skip", Default = 0, HelpText = "Page offset for fa page (negative becomes zero).")]
+    public int Skip { get; set; }
+
+    [Option("take", Default = 96, HelpText = "Page size for fa page (default 96, maximum 300).")]
+    public int Take { get; set; }
 
     [Option("expand", HelpText = "Do not compress: full enum names, all style variants (Solid/Regular/Light).")]
     public bool Expand { get; set; }

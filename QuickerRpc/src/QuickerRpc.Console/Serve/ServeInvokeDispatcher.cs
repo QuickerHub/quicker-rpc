@@ -181,6 +181,7 @@ internal static class ServeInvokeDispatcher
             "clipboard.read-special-format" => await ClipboardReadSpecialFormatAsync(rpc, args, token).ConfigureAwait(false),
             "clipboard.write-special-format" => await ClipboardWriteSpecialFormatAsync(rpc, args, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
+            "fa.page" => await FaPageAsync(rpc, args, token).ConfigureAwait(false),
             "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
             "expr.run" => await ExprRunAsync(rpc, args, token).ConfigureAwait(false),
             "chrome.run" => await ChromeRunAsync(rpc, args, token).ConfigureAwait(false),
@@ -2282,6 +2283,25 @@ internal static class ServeInvokeDispatcher
         }
 
         return Ok(new { ok = true });
+    }
+
+    private static async Task<ServeInvokeResponse> FaPageAsync(IQuickerRpcService rpc, JsonElement args, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        foreach (var name in new[] { "query", "style" })
+            if (args.TryGetProperty(name, out var text) && text.ValueKind is not JsonValueKind.Null and not JsonValueKind.String)
+                return Fail("INVALID_FA_PAGE_REQUEST", "query/style must be strings or null.");
+        foreach (var name in new[] { "skip", "take" })
+            if (args.TryGetProperty(name, out var value) && (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out _)))
+                return Fail("INVALID_FA_PAGE_REQUEST", "skip/take must be Int32 numbers.");
+        var response = await rpc.SearchFontAwesomeIconsPageAsync(ServeJsonArgs.GetString(args, "query"),
+            ServeJsonArgs.GetString(args, "style"), ServeJsonArgs.GetInt(args, "skip") ?? 0,
+            ServeJsonArgs.GetInt(args, "take") ?? 96, token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if (!response.Success)
+            return Fail(response.ErrorMessage?.StartsWith("UNSUPPORTED_HOST", StringComparison.Ordinal) == true
+                ? "UNSUPPORTED_HOST" : "FA_PAGE_FAILED", response.ErrorMessage ?? "The host's paged FA catalog is unavailable.");
+        return Ok(new { ok = true, action = "fa-page", payload = Program.SerializeFaPagePayload(response) });
     }
 
     private static async Task<ServeInvokeResponse> FaSearchAsync(

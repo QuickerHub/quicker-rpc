@@ -42,6 +42,7 @@ export const agentApiRoutes = [
   { path: "/api/docs/[topic]/reference/[file]", methods: ["GET"], load: () => import("../../app/api/docs/[topic]/reference/[file]/route") },
   { path: "/api/docs/[topic]", methods: ["GET"], load: () => import("../../app/api/docs/[topic]/route") },
   { path: "/api/docs", methods: ["GET"], load: () => import("../../app/api/docs/route") },
+  { path: "/api/fa/page", methods: ["POST"], load: () => import("../../app/api/fa/page/route") },
   { path: "/api/fa/resolve", methods: ["POST"], load: () => import("../../app/api/fa/resolve/route") },
   { path: "/api/icons/fa-vector", methods: ["GET"], load: () => import("../../app/api/icons/fa-vector/route") },
   { path: "/api/icons/res", methods: ["GET"], load: () => import("../../app/api/icons/res/route") },

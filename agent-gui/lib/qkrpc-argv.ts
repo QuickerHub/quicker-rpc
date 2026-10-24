@@ -710,6 +710,14 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
 
   if (positional[0] === "fa") {
     const verb = positional[1];
+    if (verb === "page") {
+      const invalidInteger = ["skip", "take"].some((name) => flags[name] !== undefined
+        && (typeof flags[name] !== "string" || !/^[+-]?\d+$/.test(flags[name] as string)
+          || Number(flags[name]) < -2_147_483_648 || Number(flags[name]) > 2_147_483_647));
+      if (invalidInteger || ["query", "style"].some((name) => flags[name] !== undefined && typeof flags[name] !== "string")) return null;
+      return { op: "fa.page", args: { query: flagStr(flags, "query"), style: flagStr(flags, "style"),
+        skip: flagInt(flags, "skip"), take: flagInt(flags, "take") } };
+    }
     if (verb === "search") {
       return {
         op: "fa.search",

@@ -155,3 +155,22 @@ test("source transport failures do not appear as successful saves", async () => 
     },
   );
 });
+
+test("FA page HTTP forwards exact binding/criteria and reports disconnect as a read failure", async () => {
+  const invoke = sourceInvoke(["fa", "page", "--query", "camera", "--style", "Light", "--skip", "24", "--take", "2"]);
+  await withFakeServe(() => Response.json({ ok: true, data: { ok: true, payload: { names: ["Light_Camera"], totalCount: 25, hasMore: false } } }), async (requests) => {
+    const result = await invokeQkrpcHttp(invoke, { hostBinding: fakeBinding, timeoutMs: 7000 });
+    assert.equal(result?.ok, true);
+    assert.deepEqual(requests, [{ ...invoke, hostBinding: fakeBinding, timeoutSeconds: 7 }]);
+  });
+  await withFakeServe(() => { throw new TypeError("fetch failed"); }, async (requests) => {
+    const result = await invokeQkrpcHttp(invoke, { hostBinding: fakeBinding });
+    assert.equal((result?.parsed as { error: string }).error, "HOST_UNAVAILABLE");
+    assert.equal(requests.length, 1);
+  });
+  await withFakeServe(() => { throw new Error("No dispatch after preabort"); }, async (requests) => {
+    const abort = new AbortController(), reason = new Error("page cancelled"); abort.abort(reason);
+    await assert.rejects(invokeQkrpcHttp(invoke, { hostBinding: fakeBinding, abortSignal: abort.signal }), (error) => error === reason);
+    assert.equal(requests.length, 0);
+  });
+});

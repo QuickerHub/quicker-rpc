@@ -88,6 +88,8 @@ const tests = [
   "lib/action-editor/catalog/designerCatalogTransport.test.ts",
   "lib/action-editor/catalog/designerFaGeometry.test.ts",
   "lib/action-editor/catalog/designerFaGeometry.server.test.ts",
+  "lib/action-editor/catalog/designerFaPage.test.ts",
+  "lib/action-editor/catalog/designerFaPage.server.test.ts",
   "lib/fa-icon-cache.test.ts",
   "lib/action-editor/program/assembleActionProgramSnapshot.test.ts",
   "lib/action-editor/wire/normalizeProgramWireForDisk.test.ts",

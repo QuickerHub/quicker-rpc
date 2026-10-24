@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { argvToInvoke } from "./qkrpc-argv.ts";
 
+test("FA page maps its independent criteria without changing legacy search", () => {
+  assert.deepEqual(argvToInvoke(["fa", "page", "--query", "camera", "--style", "Brand", "--skip", "24", "--take", "96"]),
+    { op: "fa.page", args: { query: "camera", style: "Brand", skip: 24, take: 96 } });
+  assert.deepEqual(argvToInvoke(["fa", "page"]), { op: "fa.page", args: { query: undefined, style: undefined, skip: undefined, take: undefined } });
+  for (const value of ["1.5", "1junk", "2147483648", ""]) assert.equal(argvToInvoke(["fa", "page", "--skip", value]), null);
+  assert.equal(argvToInvoke(["fa", "page", "--style"]), null);
+  assert.deepEqual(argvToInvoke(["fa", "search", "--query", "camera", "--limit", "3", "--expand"]),
+    { op: "fa.search", args: { query: "camera", limit: 3, expand: true } });
+});
+
 test("argvToInvoke maps settings open and pages", () => {
   assert.deepEqual(argvToInvoke(["settings", "pages", "--json"]), {
     op: "settings.pages",
