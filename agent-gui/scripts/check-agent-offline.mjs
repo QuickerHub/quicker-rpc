@@ -58,6 +58,7 @@ const tests = [
   "components/chat/tool-part-layout.test.ts",
   "lib/tool-popup-view.test.ts",
   "lib/use-throttled-stream-value.test.ts",
+  "lib/message-scroll-frame-owner.test.ts",
   "lib/release-preview-context.test.ts",
   "lib/workspace-general-file-tool.test.ts",
   "lib/workspace-program-readonly.test.ts",
