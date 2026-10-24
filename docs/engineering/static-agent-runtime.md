@@ -108,9 +108,9 @@ Int64/高精度字段保真、过期 baseline 返回 409 且不覆盖文件；�
 
 live 文档 fixture 还走完整 SPA：Explorer 打开动作，保留未 blur 人工备注，通过真实
 “+对话”入口授权并发送；fake 模型经原 SDK read/edit 调用原 APDE，切文件不改变目标，
-回执保持未保存，一次 undo 恢复人工内容，正文/属性磁盘 hash 不变。上述产品断言已经
-通过，整个测试仍因展开 Explorer 后 watcher 阻止 Node 自然退出而为红，退出修复须集成
-后复验；不得用未展开 Explorer 的旧 smoke 结论覆盖本项。
+回执保持未保存，一次 undo 恢复人工内容，正文/属性磁盘 hash 不变。展开 Explorer 后的
+watcher 曾使整个测试退出失败；接入 runtime 所属 watcher/timer/pending read 清理后，
+完整 SPA 已复验通过，Node 自然退出 85ms，未触发强制回收，保留原 5 秒门槛。
 
 打包 smoke 使用原 Windows Job Object 隔离协议，所有 RPC 都被本轮 guard 拒绝。
 它验证打包产物与所属进程的启动，不能代替 NSIS 安装/升级、真实旧用户资料升级、
@@ -148,12 +148,15 @@ NSIS 3.0.4.1 的 `/PPO` 插件查找使用独立 parser 工具副本，来源与
 30 秒进度报告后，首次安装与同目录 0.0.1→0.0.2 升级实际通过；两版各 7212 个程序文件
 逐一核对大小与 SHA-256，注册身份/版本及合成数据库、插件/缓存哨兵核验通过。
 制品 GUI 构建源为 `9f76f2ce`，早于最新主线；本项证明安装链，不代表最新 GUI 打包验收。
+升级后的已安装程序也使用独立合成 profile 与 owned Job 启动通过；专属 UI ready、RPC guard
+返回 `SMOKE_HOST_RPC_DISABLED` 和所属进程回收均已核验，不访问真实宿主。
 
 [验收脚本](../../agent-gui/scripts/Test-IsolatedNsisAcceptance.ps1) 默认 `-Action Plan` 只读输出
 身份与命令；`Fresh`、`Upgrade`、`Launch`、`Verify` 必须显式运行。它复用现有 owned Job、
 合成 profile 与 RPC guard；setup 的短 TEMP 不改变 Electron smoke 的资料映射。
-真实 builder、setup、原生窗口与桌面 smoke 都不加入自动离线清单；CI 只登记模板/参数/
-路径/隔离策略的纯测试。上述首次安装、原目录升级、完整 payload hash 与合成资料保留
+真实 setup、原生窗口与桌面 smoke 不加入自动离线清单；CI 有模板/参数/路径策略纯测试及
+小型合成包的两遍 `/WX` 编译，直接解析 PE 提取卸载器，不运行生成程序。
+上述首次安装、原目录升级、完整 payload hash 与合成资料保留
 已有隔离实测；生产快捷方式、真正卸载及真实旧资料仍是独立验收门槛。
 
 浏览器单次调用现已把 turn abortSignal 传到独立 request owner 与按 session 串行的原生

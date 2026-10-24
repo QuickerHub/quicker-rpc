@@ -51,6 +51,10 @@ stop/PATH helper 替换为 fake，不改动真实安装。独立进程 fixture �
 和失败时只回收自己创建的 child。
 Windows job 另编译生成的休眠 `qkrpc.exe`，只向枚举器提供本次创建的进程，验证根路径/
 兄弟/嵌套及 serve/MCP/端口隔离，最后逐一回收自己的句柄。它不枚举或终止产品进程。
+Windows job 还用小型合成包运行生产 NSIS 模板的两遍真实 `/WX` 编译，固定 builder/
+模板及工具 hash；直接解析第一遍 PE 提取卸载器，不执行生成 stub、setup 或卸载器。
+两个历史 6010 未使用函数负控必须准确失败，编译/负控失败阻断 job，并上传本轮诊断。
+这条门禁验证模板可编译，不包含完整 Electron payload、安装、快捷方式或升级语义。
 真实 MCP 自动重启竞争及 Setup 升级不在该流水线，不能将离线证据记为实际升级成功。
 
 浏览器脚本采集回归在内存中实际执行仓库脚本，避免 fake `page.evaluate` 无条件返回数组
