@@ -43,7 +43,7 @@ QuickerRpc.Plugin.V2
 | 端口/能力 | 当前 V2 | 对齐要求 |
 |---|---|---|
 | Session | 已有 adapter、专属 endpoint、发现/选择与 wire host-session/capability；旧插件身份保持未知 | V1 活进程已验收，双宿主及 V2 实际选择/重启继续验收 |
-| ActionPrograms | 已实现 native source adapter、catalog/draft 身份、原始 JSON 条件持久化与共享 YAML codec；按实际存储 API 和 UI dispatcher 探测 capability | 真项目编译、真实 DTO + fake 仓储 roundtrip/冲突/取消/部分保存已覆盖；目标绑定合入后的专用活进程动作、重启与打包验收仍待完成 |
+| ActionPrograms | 原始 JSON source adapter、catalog/draft 身份、条件持久化与共享 YAML codec 已有离线实现；实际 2.3.20 的存储访问不满足该反射入口，source read/write 保持关闭 | 先取得稳定原文端口及可靠 Designer/提交收据，再验收真实动作保存；公开 authoring rollback 不等价于 source save，见下文发布版边界 |
 | SubPrograms | 已有读写/同步路径 | create/update/delete/publish 逐项验证 |
 | ActionRuns/trace | 已有 V2 run/trace service | 普通运行、trace、失败位置与取消一致 |
 | ActionCatalog/Search | 已有查询/搜索；部分布局操作 stub | action/profile/layout 操作逐项清零或决策不支持 |
@@ -53,6 +53,74 @@ QuickerRpc.Plugin.V2
 | ChromeControl | `false`/`null` | 实现后再开启 capability |
 | Triggers | `false`/`null` | 实现后再开启 capability |
 | Designer UI | UI capability 仍 `false`；非空 Designer port 仅提供独立的 quick insert、toolbox 和 FA geometry 读取 | 原生 API/DTO 与现有 dispatcher 决定三个读操作；打开编辑器/context 等继续 unsupported，完整 UI 只有实际支持后开启 |
+
+<a id="v2-source-release-2320"></a>
+## Quicker 2.3.20 的 source 兼容边界
+
+本节依据已核验的实际发布 DLL 的 PE/IL 静态分析，不以开发分支源码或 fake 仓储代替发布版行为。
+目标为 `2.3.20.0`，ProductVersion 标记的提交为
+`623c38be29c2b5dd3b4972e813f5ffc4ea588d93`；`Quicker.dll` SHA-256 为
+`2CAD39DCC928B37137F1F508EB3536A496E06BA23CC1251666C2A8F1884E5B77`，
+`Quicker.Ai.Workspace.dll` 为
+`F90F00BB03CC66E8ECD4F35E6E7B29AAD0C36504BE25F7D3D09DEDD0B12411FD`。
+这是合同兼容证据，不能当作动作写回、重启或全量 V2 验收。
+
+发布 DLL 中部分私有 DI、动作命令和暂存仓储类型名已混淆，原反射入口不能据此创建 source 存储。
+不硬编码混淆名，不按方法形状搜索并授权任意服务，也不另开用户数据库。
+StepRunner 的 `ActionStep.StepRunnerService` 与公开 `IStepRunnerService` 是另一条仍可用的原生只读入口；
+目录及 input-contract 读取不能证明 source 持久化能力。`legacyBody` capability 为 true 也不等于原文读写已通过。
+
+### 已有公开 authoring 合同
+
+`Quicker.Modules.Headless.Ai.QuickerActionProgramSource` 与 `QuickerActionProgramSink`
+仍具有可定位的公开名称，其公共合同位于 `Quicker.Ai.Workspace`：
+
+| 接口 | 已确认的实际语义或限制 |
+|---|---|
+| `IActionProgramSource.GetProgramAsync(actionId, includeDrafts, cancellationToken)` | `includeDrafts=true` 固定读取暂存身份；读取异常不回退正式动作，无暂存时返回空。正式动作必须用明确的 action 身份，不能因未找到就改读同名全局子程序。 |
+| `ActionProgramSnapshot.Info` | 包含 `StorageSource`、`DraftId`、`EditVersion`、`StorageChangeToken` 及外观/选项；须保留它们的来源与完整身份，不能从模型或 UI schema 补造。正式动作 token 来自序列化后的 native action，暂存 token 来自原生 draft。 |
+| `ActionProgramSnapshot.Data` / `RawStoredActionJson` | 普通 XAction 的 Data 来自 typed payload；RawStoredActionJson 不是普通 XAction 的完整原文出口，它仅在部分不可编辑投影分支中提供原稿。不能因字段存在就承诺原文保真。 |
+| `IActionProgramRollbackSink.RestoreSnapshotAsync(snapshot, expectedCurrentEditVersion, expectedCurrentContentHash, cancellationToken)` | 内容 hash 重载确实存在，空 hash 被拒。动作分支在现有 UI dispatcher 中构造完整候选，catalog/draft 分别复验版本和内容 token 后进入原生条件写；不能概括成“V2 没有 CAS”。公共子程序不支持这个内容绑定重载。 |
+| `IActionProgramSink.PatchFromWorkspaceAsync(...)` | 接受 native working copy 目录；它不是直接接受原始 body JSON 的无副作用保存接口。不能为适配 RPC 临时制造另一套工作副本/基线。 |
+| `QuickerWorkspaceAuthoringFactory.Create(workspaceRoot)` | 会确保 Headless 服务初始化并创建 workspace 目录；不用于 health/capability 探测，也不用于取得一个假定无副作用的 repository owner。 |
+
+公开 rollback 仍不满足 qkrpc source save 的全部合同：
+
+- 普通 XAction 经 typed `XAction` / `XActionDto` 重建 Steps、Variables、SubPrograms；该 DTO 没有未知字段扩展容器，不能据此承诺保留存储原文中的未知字段。
+- rollback 同时处理 Info 中的 catalog 元数据；它不是已声明的“仅修改程序体”端口。不能把默认值重投影成用户未请求的元数据更新。
+- 持久化后，索引刷新、通知或部分历史记录错误可能仅被记录，公开成功结果没有完整透传这些诊断。`ActionProgramPatchResult` 的 Ok/VersionConflict/Message 不提供明确的 persisted/commit-state，不能恢复现有 `SOURCE_POST_COMMIT_FAILED` 语义。
+- 所审计的公开动作 rollback/CAS 路径未提供可供外部调用者依赖的 Designer 已关闭证明。调度到 UI 线程不等于检查已打开或未确认的编辑草稿。
+
+### 原文 owner 与最小原生扩展
+
+实际原文由 native 动作命令通过自己的写协调器及已持有的
+`ISyncV5LocalRepository.GetItem` 读取 `ItemDataJson`；暂存原文则来自原生 draft 的 `ActionJson`。
+原生提交最终会调用该 repository 的 `TryUpsertLocalItemIfUnchanged`。
+稳定的 repository 接口存在，但目前没有确认可供插件取得这些**已构造 owner**的稳定公开入口；
+不遍历私有字段取实例，不实例化另一个仓储，也不绕过原生通知和 Designer 保护直接写库。
+
+下一片需要薄的 native raw-source 端口，复用已有 owner、存储和命令链；不是新增存储源。
+建议合同如下，尚未实现，不据此开启 capability：
+
+| 操作 | 必要输入与结果 |
+|---|---|
+| `TryGetCurrentPort()` | 只返回当前宿主已经构造的端口及合同版本/逐操作可用性；不创建服务、工作区、dispatcher 或目录。公开名称和成员须经发布混淆后的 PE 检查。 |
+| `ReadRawAsync(actionId, cancellationToken)` | 返回完整原始 native action JSON，以及 catalog/draft、不可变 draft id、版本和绑定 owner 的内容 token；读取错误、身份变化、未知来源不回退。普通 XAction 也必须取得原文，typed Data 不代替它。 |
+| `SaveBodyAsync(actionId, expectedIdentity, bodyJson, cancellationToken)` | 只合并已允许的 body 字段，保留其它原始字段；最终提交前核验 native Designer 状态，再在同一原生条件写内检查版本/hash/存储身份。force 不绕过 Designer 或未知状态。 |
+| 写入收据 | 区分确认未写入、已提交、已提交但刷新失败、结果未知；保留实际版本/存储身份及诊断。已派发后的取消不承诺回滚，未知结果不自动重发。 |
+
+合同版本、原生来源、状态及 false/0/null 必须显式保真；缺失或未知状态不能默认成已关闭、可写或成功。
+qkrpc 后续先接已有 DTO/Runtime 的严格只读实现及可选的**分操作** availability：
+旧 `IsProgramSourceAvailable` 同时控制 read/write，不能只实现读取就把两项一起开启。
+只有取得完整原文并验证绑定身份后才开放 `action.source.read`；缺少写入任一保证时
+`action.source.write` 仍为 false。V1 继续兼容原端口，无原生扩展的旧 V2 明确 unsupported。
+原生侧和 adapter 都需覆盖未知字段保留、错误 owner/draft、取消晚到、CAS 冲突、打开 Designer、
+提交后刷新失败和真实发布产物 shape；在这些条件满足前不创建空壳接口 PR。
+
+原生 MCP 是另一条可评估的明确 adapter 边界，不能静默回退：须证明其 server 属于同一
+PID/进程创建身份与 RPC 会话，保留 working-copy/revision、client consent、写权限及未知结果语义。
+若 open 会创建 native draft，就不是纯 host read，必须如实进入操作效果和审批约束。
+不使用 MCP script/reflection 绕过缺失的公开端口，不借另一宿主或账号 CLI 绕过 capability。
 
 ## 自动识别与设计器接入优先项
 
@@ -160,6 +228,9 @@ page DTO/resolver，且主程序集有 logging module initializer，故只用命
 Node page adapter 和完整图标选择器仍待接线。
 
 ## V2 native source 边界
+
+以下是现有严格 adapter 的实现合同及离线回归范围，只在匹配的原生存储 API 上可用。
+2.3.20 的原文路径尚未接通；[发布版限制](#v2-source-release-2320)不能由本节的 fake 仓储结果替代。
 
 `V2ActionProgramSourceService` 复用 `IQuickerRpcActionProgramSourceHost`、Runtime handler、
 `V1ProgramSourceCodec` 的原生字段映射和共享正文合并器。V2 的 `XActionDto` 原生字段与

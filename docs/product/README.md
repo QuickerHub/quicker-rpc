@@ -139,8 +139,13 @@ CLI、MCP 和 HTTP 共用 Contracts/Runtime/Transport，Quicker 版本差异只�
 - V1/net472 是当前完整宿主。
 - 现有 V1 动作源码编辑提供 CLI `action open/save`、MCP `qkrpc_action_open/save` 与 HTTP `action.open/save`；范围限 V1 动作程序体。
 - V2/net10 已接共享表达式服务及多项核心 adapter；ActionSharing/部分布局操作仍有 stub，ChromeControl/Triggers/Designer capability 当前关闭。
-- RPC/CLI health 已返回宿主类型、版本、本次加载 session 与动作能力；专属 endpoint、候选选择、不可变写入绑定和 V2 native source/codec 已有离线实现及集成回归。V1 已热更核验，绑定后的双宿主动作写回、V2 加载与重启仍待验收。
+- RPC/CLI health 已返回宿主类型、版本、本次加载 session 与动作能力；专属 endpoint、候选选择、不可变写入绑定和 V2 native source/codec 已有离线实现及集成回归。V1 已热更核验，独立候选 CLI 已在真实 V2 2.3.20 完成发现与会话绑定；双宿主动作写回和重启仍待验收。
 - capability 必须反映真实实现；能编译不等于能力对齐。
+
+实际 V2 2.3.20 的 source read/write 继续关闭：公开 authoring Source/Sink 虽有版本/hash 条件写，
+但普通 XAction 原文、外部 Designer 保护及完整提交收据尚不满足现 source 合同。
+原生只读 schema/目录或成功绑定不等于可保存动作；限制与最小扩展见
+[V2 发布版 source 边界](../design/quicker-rpc-plugin-v2.md#v2-source-release-2320)。
 
 动作/全局子程序的完整 runtime 摘要分页已有实验性 V1 原生只读端口、两项独立 capability、
 CLI `action/subprogram catalog-page` 与 HTTP `resource.catalog.page`。已审计 native build
@@ -210,7 +215,7 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 |---|---|---|---|
 | A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | wire 握手、专属 endpoint、选择、source/Agent 写前绑定与断线禁重发已有离线集成。source bundle 保留 HostBinding 与 V2 StorageIdentity，旧插件只读；V1 source 连续写回及 legacy JSON 持久绑定在本机 0.14.8.159 验收。主动作目标显示、本地完整记录 CAS 和 CLI/HTTP lease 内再次核验已实现；catalog 请求及文档缓存已绑定完整目标。完整 runtime 目录已有两项独立 capability、host/session/owner 快照与 CLI/HTTP 闭环；本机 169 V1 已实测完整分页。V2 目录、多宿主选择、原生 V2 文档与双宿主活进程仍待验收，A0 未完成 |
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。ResourcePane 已接两类绑定目录的筛选、分页、只读选择和刷新；V1 组合动作（已知 XAction）打开复用完整绑定的本地项目或导出到空目录，通过原文件实例入口打开，已有草稿/undo、迟到及未知收据已有 fixture/DOM 回归。169 已验收已有项目复用/重复 UUID/错误 owner 拒绝（HTTP，文件 hash 未变、未执行动作），首次导出及 native GUI 点击仍待验收。全局子程序调用插入/拖放已复用模块参数表单，调用及新变量单事务/undo、未blur草稿和跨文档晚确认已有真实 DOM 回归；动作引用插入/拖放也已接原生 sys:runAction/StartAction 映射、绑定 schema 与同一事务，39 项真实 DOM 及迟到请求不抢快速插入草稿的 13 场景通过；两个调用链原生 GUI 验收、V2/子程序打开、必要资源操作、完整属性与 host session 接线仍待迁移，A1 未完成 |
-| A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 adapter/保真条件存储、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已验证；V2 活进程、Designer、进程重启与完整打包流程仍待集成验收 |
+| A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 source adapter、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已有离线回归；候选 CLI 的真实 V2 发现/绑定已验证，但 2.3.20 source 仍关闭，待稳定原文 owner/Designer 保护/提交收据后再接真实读写；重启和完整打包仍待验收 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。主动作“+对话”私有 pin 已授权本轮备注与契约支持的既有普通输入编辑，复用原 APDE revision/history；真实 SDK、隔离完整 SPA、单次撤销和停止隔离已验证。Ask 只读，停止后保留已应用回执且迟到调用不重放；无文件/宿主写入。嵌套 UI 入口、完整参数模式/变量/属性/外置文件、Agent Save/Sync、多宿主与完整人工/Agent 交错仍未完成 |
 | A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 默认生产 build/start/prepare/发布已切静态 React/Node，Next 为开发依赖与显式 legacy；会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后才删除兼容分支。现有 API、资源/native/真实子进程与隔离 Electron 打包启动已验证；NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
