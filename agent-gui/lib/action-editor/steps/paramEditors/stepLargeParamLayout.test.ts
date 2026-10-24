@@ -11,6 +11,9 @@ test("script tabs require native multiline metadata, not key substrings or ordin
   assert.equal(isStepParamScriptHero(def("reference", { isMultiLine: true })), false);
   assert.equal(isStepParamScriptHero(def("user_code", { isMultiLine: true })), true);
   assert.equal(isStepParamScriptHero(def("expression", { isMultiLine: true })), true);
+  const oldWire = { key: "code", isMultiLine: true } as Parameters<typeof isStepParamScriptHero>[0];
+  assert.equal(isStepParamScriptHero(oldWire), true, "older already-mapped UI items may omit the optional hint");
+  assert.equal(stepLargeParamLanguageBadge(oldWire), "");
 });
 test("explicit native highlight metadata enables large fields without inspecting their values", () => {
   for (const type of [" C# ", "JSON", "tsx", "python", "SQL", "xaml", "markdown"]) {

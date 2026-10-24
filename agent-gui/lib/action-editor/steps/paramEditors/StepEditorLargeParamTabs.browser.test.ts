@@ -18,7 +18,7 @@ import{getCachedStepRunnerDetailItem}from'@/lib/action-editor/shared/designerHos
 const state=window.fixture={requests:[],unexpected:[],writes:[],handles:{},delaySchema:false,releaseSchema:null,files:{a:"print('a original')",b:"print('b original')"}};
 const ids={a:'abcdefab-cdef-4abc-8def-abcdefabcdef',b:'bbcdefab-cdef-4abc-8def-abcdefabcdef'};
 const schemas={
- 'sys:fixture-large':{stepRunnerKey:'sys:fixture-large',name:'Large step',inputs:[
+ 'sys:fixture-large':{stepRunnerKey:'sys:fixture-large',name:'Large step',helpLink:'https://docs.example.test/large',inputs:[
   {key:'mode',title:'Mode',valueType:'Enum',variableMode:1,isControlField:true,options:[{key:'both',name:'All fields'},{key:'text',name:'Text only'}]},
   {key:'code',title:'C# source',valueType:'Text',isMultiLine:true,defaultHighlightType:'csharp',variableMode:0},
   {key:'body',title:'JSON body',valueType:'Text',isMultiLine:true,defaultHighlightType:'json',variableMode:0},
@@ -86,7 +86,8 @@ async function mount(page: Page, contents = fixture) {
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
-  await page.route("**/*", route => route.abort());
+  await page.route("**/*", route => route.request().url().startsWith("https://docs.example.test/large")
+    ? route.fulfill({ contentType: "text/html", body: "<p>Isolated module help</p>" }) : route.abort());
   await page.setContent('<div id="root"></div>');
   const css = await Promise.all(["components/action-editor/action-editor-theme.css", "components/action-editor/action-editor.css", "components/action-editor/program-editor-toolbox.css"].map(file => readFile(file, "utf8")));
   await page.addStyleTag({ content: css.join("\n") + "\nbody{margin:0;font-family:system-ui;background:var(--ad-bg-canvas);color:var(--ad-fg-primary)}#root{height:100vh;}" });
@@ -116,6 +117,15 @@ test("large parameter tabs keep one editor, file owner and one document confirma
     assert.equal(await full.innerText(), "// kept inline draft");
     const bounds = await row(page, "C# source").locator(".expression-editor").boundingBox();
     assert.ok(bounds && bounds.width > 650 && bounds.height >= 270, JSON.stringify(bounds));
+    await popup(page).getByRole("button", { name: "模块帮助", exact: true }).click();
+    await page.getByRole("dialog", { name: /^模块帮助/ }).waitFor();
+    await page.getByRole("button", { name: "关闭模块帮助", exact: true }).click();
+    assert.equal(await row(page, "C# source").getByRole("textbox").evaluate(node => node === (window as any).fixture.codeNode), true);
+    assert.equal(await row(page, "C# source").getByRole("textbox").innerText(), "// kept inline draft");
+    await tab(page, "C# source").focus(); await page.keyboard.press("ArrowRight");
+    assert.equal(await tab(page, "JSON body").getAttribute("aria-selected"), "true");
+    await page.keyboard.press("ArrowLeft");
+    assert.equal(await tab(page, "C# source").getAttribute("aria-selected"), "true");
     await tab(page, "C# source").focus(); await page.keyboard.press("End");
     assert.equal(await tab(page, "Bound script").getAttribute("aria-selected"), "true");
     await row(page, "Bound script").getByTitle("点击选择变量或输入值").click();

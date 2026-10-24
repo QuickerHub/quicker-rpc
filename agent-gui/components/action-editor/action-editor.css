@@ -2342,6 +2342,13 @@
   font-weight: 600;
 }
 
+.step-editor-popup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .step-editor-popup-close {
   flex-shrink: 0;
   width: 32px;

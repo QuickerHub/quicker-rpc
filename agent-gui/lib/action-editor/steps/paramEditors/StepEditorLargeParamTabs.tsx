@@ -13,7 +13,7 @@ export function StepEditorLargeParamTabs({ fields, activeKey, onSelect, tabListR
 }): JSX.Element {
   const id = useId();
   const tabs = [{ key: null as string | null, title: "参数" },
-    ...fields.map(field => ({ key: field.key, title: field.name.trim() || field.key }))];
+    ...fields.map(field => ({ key: field.key, title: (field.name ?? "").trim() || field.key }))];
   return <div className="step-editor-large-tabs">
     <div ref={tabListRef} className="step-editor-large-tabs__bar" role="tablist" aria-label="步骤参数分区"
       onKeyDown={event => {

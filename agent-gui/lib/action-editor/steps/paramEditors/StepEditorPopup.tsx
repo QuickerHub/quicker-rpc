@@ -855,11 +855,13 @@ export function StepEditorPopup({
         >
           <header className="step-editor-popup-header">
             <h2 id="step-editor-popup-title">编辑步骤 — {popupHeadingRunner}</h2>
-            {helpLink ? <button type="button" className="step-editor-popup-btn secondary"
-              onClick={() => setHelpOwner({ stepId: step.stepId, catalog: catalogPort, link: helpLink })}>模块帮助</button> : null}
-            <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
-              ×
-            </button>
+            <div className="step-editor-popup-header-actions">
+              {helpLink ? <button type="button" className="step-editor-popup-btn secondary"
+                onClick={() => setHelpOwner({ stepId: step.stepId, catalog: catalogPort, link: helpLink })}>模块帮助</button> : null}
+              <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
+                ×
+              </button>
+            </div>
           </header>
           <div
             className={`step-editor-popup-body${bodyPending ? " step-editor-popup-body--pending" : ""}`}
