@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
 import { build } from "esbuild";
-import { chromium, type Page } from "playwright";
+import { chromium, type Locator, type Page } from "playwright";
 
 // Production workspace/controller, parameter fields and real file hook. Only IO and icon leaves are fixtures.
 const fixture = `
@@ -98,6 +98,14 @@ const popup = (page: Page) => page.locator(".step-editor-popup");
 const row = (page: Page, title: string) => popup(page).locator(".step-param-row").filter({ has: page.getByText(title, { exact: true }) });
 const tab = (page: Page, name: string) => popup(page).getByRole("tab", { name, exact: true });
 
+async function replaceEditorText(field: Locator, value: string) {
+  // Use CodeMirror's real select-all keymap, as the workspace modal DOM tests do.
+  await field.click();
+  await field.press("Control+A");
+  await field.pressSequentially(value);
+  assert.equal(await field.innerText(), value);
+}
+
 test("large parameter tabs keep one editor, file owner and one document confirmation history", { timeout: 60_000 }, async () => {
   const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
   try {
@@ -108,7 +116,7 @@ test("large parameter tabs keep one editor, file owner and one document confirma
     assert.equal(await tab(page, "Toolbar config").count(), 0, "capture toolbar visual editing is not fabricated by the script tab adapter");
     const inline = row(page, "C# source").getByRole("textbox");
     await inline.evaluate(node => { (window as any).fixture.codeNode = node; });
-    await inline.fill("// kept inline draft");
+    await replaceEditorText(inline, "// kept inline draft");
     await popup(page).locator(".step-editor-large-param-preview").filter({ has: page.getByText("C# source", { exact: true }) })
       .getByRole("button", { name: "展开", exact: true }).click();
     await page.getByRole("tabpanel", { name: "C# source", exact: true }).waitFor();
@@ -135,13 +143,13 @@ test("large parameter tabs keep one editor, file owner and one document confirma
     await page.keyboard.press("Home");
     assert.equal(await tab(page, "参数").getAttribute("aria-selected"), "true");
     await tab(page, "JSON params").click();
-    await row(page, "JSON params").getByRole("textbox").fill('{"count":2}');
+    await replaceEditorText(row(page, "JSON params").getByRole("textbox"), '{"count":2}');
     await popup(page).getByRole("button", { name: "取消", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "不保存", exact: true }).click();
     assert.equal(await page.evaluate(() => (window as any).fixture.read("a").content), initial);
 
     await page.locator('[data-step-id="a-large"]').dblclick(); await tab(page, "C# source").click();
-    await row(page, "C# source").getByRole("textbox").fill("// confirmed");
+    await replaceEditorText(row(page, "C# source").getByRole("textbox"), "// confirmed");
     await popup(page).getByRole("button", { name: "确定", exact: true }).click();
     await page.waitForFunction(() => (window as any).fixture.snapshot("a").steps[0].inputParams.code.value === "// confirmed");
     const history = page.locator('[data-program-workspace="a"]').getByRole("toolbar", { name: "文档历史" });
@@ -153,7 +161,7 @@ test("large parameter tabs keep one editor, file owner and one document confirma
     await row(page, "Python file").getByText("print('a original')", { exact: true }).waitFor();
     const fileEditor = row(page, "Python file").getByRole("textbox");
     await fileEditor.evaluate(node => { (window as any).fixture.fileNode = node; });
-    await fileEditor.fill("print('a edited')");
+    await replaceEditorText(fileEditor, "print('a edited')");
     await tab(page, "参数").click();
     assert.equal(await row(page, "Python file").getByRole("textbox").evaluate(node => node === (window as any).fixture.fileNode), true);
     await page.waitForFunction(() => (window as any).fixture.writes.some(w => w.owner === "a" && w.content === "print('a edited')"));
@@ -161,7 +169,7 @@ test("large parameter tabs keep one editor, file owner and one document confirma
     assert.equal(await page.evaluate(() => (window as any).fixture.writes.filter(w => w.owner === "a").length), 1);
     assert.equal(await page.evaluate(() => (window as any).fixture.snapshot("a").steps[0].inputParams.pythoncode.file), "files/a.py");
     assert.equal(await page.evaluate(() => (window as any).fixture.snapshot("a").steps[0].inputParams.pythoncode.value ?? ""), "");
-    await tab(page, "C# source").click(); await row(page, "C# source").getByRole("textbox").fill("// a owned draft");
+    await tab(page, "C# source").click(); await replaceEditorText(row(page, "C# source").getByRole("textbox"), "// a owned draft");
     await page.evaluate(() => (window as any).fixture.switch("b"));
     await page.locator('[data-step-id="b-large"]').dblclick(); await tab(page, "C# source").waitFor();
     assert.equal(await tab(page, "参数").getAttribute("aria-selected"), "true");
@@ -195,7 +203,7 @@ test("large parameter tabs retain selection after typing and reject late schema 
     await page.waitForFunction(() => !!(window as any).fixture.releaseSchema);
     await page.evaluate(() => (window as any).fixture.switch("b"));
     await page.locator('[data-step-id="b-large"]').dblclick(); await tab(page, "JSON body").click();
-    await row(page, "JSON body").getByRole("textbox").fill('{"owner":"b edited"}');
+    await replaceEditorText(row(page, "JSON body").getByRole("textbox"), '{"owner":"b edited"}');
     await page.evaluate(() => (window as any).fixture.releaseSchema());
     await page.waitForFunction(() => (window as any).fixture.schemaReadyA());
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -233,7 +241,7 @@ test("large parameter tab changes preserve the upstream workspace modal blocker"
     // Required upstream API: never substitute a local busy flag if the modal guard has not landed.
     assert.equal(await page.evaluate(() => (window as any).fixture.handles.a.isLiveEditingBlocked()), true);
     await tab(page, "C# source").click();
-    await row(page, "C# source").getByRole("textbox").fill("// protected confirmation draft");
+    await replaceEditorText(row(page, "C# source").getByRole("textbox"), "// protected confirmation draft");
     await tab(page, "JSON params").click();
     assert.equal(await page.evaluate(() => (window as any).fixture.handles.a.isLiveEditingBlocked()), true);
     assert.equal(await page.evaluate(() => (window as any).fixture.read("a").content), initial);
