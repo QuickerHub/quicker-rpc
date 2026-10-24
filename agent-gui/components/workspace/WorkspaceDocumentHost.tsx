@@ -6,6 +6,7 @@ import type { ProgramStepTag } from "@/lib/program-step-tag";
 import { createWorkspaceDocumentPresentation, type WorkspaceDocumentOwner } from "@/lib/workspace-document-instances";
 import { useWorkspaceExplorerEditor, type ExplorerFileTab } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerEditorPane } from "./WorkspaceExplorerEditorPane";
+import { ManualTracePresentationProvider } from "@/lib/action-trace-presentation";
 
 export type WorkspaceDocumentChatPresentation = {
   threadId: string;
@@ -62,11 +63,14 @@ export function WorkspaceDocumentHost({ children }: { children: ReactNode }) {
       const active = outlet?.owner === owner && documentInstances.isCurrent(owner);
       return <div key={owner.instanceId} hidden={!active} inert={!active} data-workspace-document={owner.key}
         style={active ? { display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, flex: "1 1 auto" } : undefined}>
+        <ManualTracePresentationProvider threadId={outlet?.chat.threadId} cwd={owner.cwd} active={active}
+          projectDirectory={/^(\.quicker\/actions\/[^/]+)\/(?:info|data)\.json$/i.exec(owner.path.replace(/\\/g, "/"))?.[1]}>
         <WorkspaceExplorerEditorPane active={active} showDoc={false} activeTab={tab} showEditorSkeleton={Boolean(tab.loading && !tab.content)} cwd={owner.cwd}
           onSaveWorkspaceFile={(path, content) => path === owner.path ? saveDocumentFile(owner, content) : Promise.resolve({ ok: false, error: "文件实例路径不匹配" })}
           onSaveDocument={(request) => saveDocumentProgram(owner, request)}
           onRefreshTree={() => { void refreshDocumentFile(owner); }} onActionProjectSynced={() => refreshDocumentFile(owner)}
           onPinStepToChat={(tag) => pinStep(owner, tag)} />
+        </ManualTracePresentationProvider>
       </div>;
     }), container)}
   </WorkspaceDocumentHostContext.Provider>;

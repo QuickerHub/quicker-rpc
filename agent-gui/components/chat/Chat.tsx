@@ -124,6 +124,7 @@ import {
 } from "./ChatComposerFooter";
 import { ChatMessageArticle } from "./ChatMessageArticle";
 import { TurnActionLinkCard } from "./TurnActionLinkCard";
+import { ManualTracePresentationProvider } from "@/lib/action-trace-presentation";
 import {
   fetchLlmOptions,
   hasConfiguredLlmOption,
@@ -1112,6 +1113,7 @@ function ChatPanel({
 
   return (
     <ChatToolActionsProvider addToolOutput={addToolOutput}>
+    <ManualTracePresentationProvider threadId={threadId} cwd={workingDirectory} active={visible}>
     <AgentConversationFrame
       frameRef={appMainRef}
       mainBodyRef={appMainBodyRef}
@@ -1258,6 +1260,7 @@ function ChatPanel({
       dock={visible ? <WorkspaceExplorerPanel chatPresentation={workspaceChatPresentation} /> : null}
     />
     {exportDialog}
+    </ManualTracePresentationProvider>
     </ChatToolActionsProvider>
   );
 }
