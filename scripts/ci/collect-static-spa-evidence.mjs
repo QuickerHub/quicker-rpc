@@ -1,10 +1,15 @@
-import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, writeFileSync } from "node:fs";
+import { closeSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createWindowsPackageMetadataInspector } from "../../agent-gui/scripts/runtime-package-metadata.mjs";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const totalLimit = 32 * 1024 * 1024, pngLimit = 5 * 1024 * 1024, fileLimit = 32;
+const fingerprint = (info) => [info.ino, info.mode, info.nlink, info.size, info.mtimeNs, info.ctimeNs, info.birthtimeNs].map(String).join(":");
+const sameSnapshot = (left, right) => (left.dev === right.dev
+  // Some Windows path stats omit the device id while handle stats include it.
+  || process.platform === "win32" && (left.dev === 0n || right.dev === 0n))
+  && fingerprint(left) === fingerprint(right);
 
 /** Failure evidence only. Never descend into app, workspace, profile or DB trees. */
 export function collectStaticSpaEvidence({ repositoryDirectory = repository,
@@ -22,7 +27,7 @@ export function collectStaticSpaEvidence({ repositoryDirectory = repository,
       catch (error) { if (error.code !== "ENOENT") throw error; }
     }
     try {
-      const info = lstatSync(path);
+      const info = lstatSync(path, { bigint: true });
       if (info.isSymbolicLink() || (directory ? !info.isDirectory() : !info.isFile())) throw new Error(`Invalid SPA evidence entry: ${path}`);
       return info;
     } catch (error) { if (error.code === "ENOENT") return; throw error; }
@@ -33,15 +38,55 @@ export function collectStaticSpaEvidence({ repositoryDirectory = repository,
     writeFileSync(join(output, name), bytes, { flag: "wx" });
     report.files.push({ name, bytes: bytes.length }); report.totalBytes += bytes.length;
   }
+  function readBounded(source, name, info, limit, tail = false) {
+    const fd = openSync(source, "r");
+    try {
+      // A path can change after inspection. Recheck the opened handle before
+      // reading bytes, then allocate only the approved bounded snapshot size.
+      const opened = fstatSync(fd, { bigint: true });
+      if (!opened.isFile() || !sameSnapshot(opened, info)) { omit(name, "source changed after inspection"); return null; }
+      const size = Number(opened.size);
+      if (!Number.isSafeInteger(size)) { omit(name, "unsupported source size"); return null; }
+      const data = Buffer.alloc(Math.min(size, limit)), start = tail ? Math.max(0, size - data.length) : 0;
+      let offset = 0;
+      while (offset < data.length) {
+        const read = readSync(fd, data, offset, data.length - offset, start + offset);
+        if (!read) break;
+        offset += read;
+      }
+      const after = fstatSync(fd, { bigint: true });
+      if (offset !== data.length || !after.isFile() || !sameSnapshot(after, opened)) { omit(name, "source changed during read"); return null; }
+      return data;
+    } finally { closeSync(fd); }
+  }
   function textTail(source, name, limit) {
     const info = inspect(source);
     if (!info) return;
-    const fd = openSync(source, "r");
-    try {
-      const data = Buffer.alloc(Math.min(info.size, limit));
-      const read = readSync(fd, data, 0, data.length, Math.max(0, info.size - data.length));
-      save(name, data.subarray(0, read));
-    } finally { closeSync(fd); }
+    const data = readBounded(source, name, info, limit, true);
+    if (data !== null) save(name, data);
+  }
+  function phaseTimeline(source, name) {
+    const info = inspect(source), limit = 16 * 1024;
+    if (!info) return;
+    if (info.size > limit) { omit(name, "phase size limit"); return; }
+    const data = readBounded(source, name, info, limit);
+    if (data === null) return;
+    let value;
+    try { value = JSON.parse(data.toString("utf8")); }
+    catch { omit(name, "invalid phase timeline"); return; }
+    if (!value || typeof value !== "object" || Array.isArray(value)
+      || value.format !== "static-spa-phase-timeline" || value.version !== 1 || !Array.isArray(value.phases)
+      || value.phases.some((entry) => !entry || typeof entry !== "object" || Array.isArray(entry)
+        || typeof entry.phase !== "string" || !/^[A-Za-z][A-Za-z0-9_-]{0,95}$/.test(entry.phase)
+        || typeof entry.elapsedMs !== "number" || !Number.isFinite(entry.elapsedMs))) {
+      omit(name, "invalid phase timeline"); return;
+    }
+    // This one generated JSON has an explicit schema. Never forward other
+    // properties, request bodies, profiles or arbitrary JSON diagnostics.
+    const sanitized = Buffer.from(JSON.stringify({ format: value.format, version: value.version,
+      phases: value.phases.map(({ phase, elapsedMs }) => ({ phase, elapsedMs })) }) + "\n");
+    if (sanitized.length > limit) { omit(name, "phase size limit"); return; }
+    save(name, sanitized);
   }
   try {
     inspect(temporary, true); inspect(bucket, true); inspect(output, true);
@@ -51,14 +96,16 @@ export function collectStaticSpaEvidence({ repositoryDirectory = repository,
     const fixtures = readdirSync(temporary).filter((name) => /^static-runtime-integration-[A-Za-z0-9_-]+$/.test(name)).sort();
     for (const name of fixtures) {
       const fixture = join(temporary, name); inspect(fixture, true);
+      phaseTimeline(join(fixture, "phase-timeline.json"), `${name}-phase-timeline.json`);
       for (const leaf of ["primary-failure.txt", "failure-dom.txt", "service-stderr.log"])
         textTail(join(fixture, leaf), `${name}-${leaf}`, 64 * 1024);
       for (const leaf of readdirSync(fixture).filter((value) => /^[A-Za-z0-9_-]+\.png$/.test(value)).sort()) {
         const source = join(fixture, leaf), info = inspect(source);
         if (!info) continue;
         if (info.size > pngLimit) { omit(`${name}-${leaf}`, "PNG size limit"); continue; }
-        if (report.files.length >= fileLimit || report.totalBytes + info.size > totalLimit) { omit(`${name}-${leaf}`, "artifact budget"); continue; }
-        save(`${name}-${leaf}`, readFileSync(source));
+        if (report.files.length >= fileLimit || report.totalBytes + Number(info.size) > totalLimit) { omit(`${name}-${leaf}`, "artifact budget"); continue; }
+        const data = readBounded(source, `${name}-${leaf}`, info, pngLimit);
+        if (data !== null) save(`${name}-${leaf}`, data);
       }
     }
     inspect(output, true);

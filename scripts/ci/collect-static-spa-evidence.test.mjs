@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import fs from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -15,6 +17,11 @@ function fixture(t) {
   return { root, bucket, generated, output: join(bucket, "artifacts") };
 }
 const collect = (root) => collectStaticSpaEvidence({ repositoryDirectory: root, inspectMetadata() {} });
+function mockFs(t, method, implementation) {
+  const mock = t.mock.method(fs, method, implementation);
+  syncBuiltinESMExports();
+  t.after(() => { mock.mock.restore(); syncBuiltinESMExports(); });
+}
 
 test("only root PNGs and bounded diagnostic tails enter artifacts", (t) => {
   const f = fixture(t);
@@ -49,10 +56,94 @@ test("a linked root screenshot cannot make the collector read another fixture tr
   assert.equal(existsSync(join(f.output, "static-runtime-integration-fixture-failure.png")), false);
 });
 
+test("a PNG growing from 1 byte to 6 MiB after inspection is omitted before any payload read", (t) => {
+  const f = fixture(t), source = join(f.generated, "failure.png");
+  writeFileSync(source, "x");
+  const actualLstat = fs.lstatSync, actualRead = fs.readSync;
+  let grew = false, readBytes = 0;
+  mockFs(t, "lstatSync", (path, ...args) => {
+    const info = actualLstat(path, ...args);
+    if (path === source && !grew) { grew = true; writeFileSync(source, Buffer.alloc(6 * 1024 * 1024)); }
+    return info;
+  });
+  mockFs(t, "readSync", (...args) => { const read = actualRead(...args); readBytes += read; return read; });
+  const report = collect(f.root);
+  assert.equal(grew, true); assert.equal(readBytes, 0);
+  assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 1);
+  assert.match(report.omitted[0].reason, /source changed/);
+  assert.equal(existsSync(join(f.output, "static-runtime-integration-fixture-failure.png")), false);
+});
+
+test("growth during fd reading cannot increase the buffer or upload a changed PNG", (t) => {
+  const f = fixture(t), source = join(f.generated, "failure.png");
+  writeFileSync(source, "x");
+  const actualRead = fs.readSync;
+  let grew = false, requestedBytes = 0, bufferBytes = 0;
+  mockFs(t, "readSync", (...args) => {
+    if (!grew) { grew = true; writeFileSync(source, Buffer.alloc(6 * 1024 * 1024)); }
+    bufferBytes = Math.max(bufferBytes, args[1].length); requestedBytes += args[3];
+    return actualRead(...args);
+  });
+  const report = collect(f.root);
+  assert.equal(grew, true); assert.equal(bufferBytes, 1); assert.equal(requestedBytes, 1);
+  assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 1);
+  assert.match(report.omitted[0].reason, /source changed during read/);
+});
+
+test("an inspected PNG replaced by a same-size file is omitted before reading the new inode", (t) => {
+  const f = fixture(t), source = join(f.generated, "failure.png");
+  writeFileSync(source, "x");
+  const actualLstat = fs.lstatSync, actualRead = fs.readSync;
+  let replaced = false, readBytes = 0;
+  mockFs(t, "lstatSync", (path, ...args) => {
+    const info = actualLstat(path, ...args);
+    if (path === source && !replaced) { replaced = true; renameSync(source, source + ".old"); writeFileSync(source, "y"); }
+    return info;
+  });
+  mockFs(t, "readSync", (...args) => { const read = actualRead(...args); readBytes += read; return read; });
+  const report = collect(f.root);
+  assert.equal(replaced, true); assert.equal(readBytes, 0);
+  assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 1);
+  assert.match(report.omitted[0].reason, /source changed/);
+});
+
+test("the one phase timeline JSON is byte-bounded and rewritten to its exact diagnostic schema", (t) => {
+  const f = fixture(t), source = join(f.generated, "phase-timeline.json");
+  writeFileSync(source, JSON.stringify({ format: "static-spa-phase-timeline", version: 1,
+    phases: [{ phase: "build-start", elapsedMs: 1, model: "must-not-upload" }], profile: "must-not-upload" }));
+  writeFileSync(join(f.generated, "other.json"), JSON.stringify({ model: "must-not-read" }));
+  const actualOpen = fs.openSync, opened = [];
+  mockFs(t, "openSync", (path, ...args) => { if (args[0] === "r") opened.push(path); return actualOpen(path, ...args); });
+  const report = collect(f.root), target = join(f.output, "static-runtime-integration-fixture-phase-timeline.json");
+  assert.deepEqual(opened, [source], "The approved phase timeline is the only JSON source opened");
+  assert.equal(report.files.length, 1);
+  assert.deepEqual(JSON.parse(readFileSync(target, "utf8")), { format: "static-spa-phase-timeline", version: 1,
+    phases: [{ phase: "build-start", elapsedMs: 1 }] });
+  assert.ok(readFileSync(target).length <= 16 * 1024);
+  assert.equal(readFileSync(target, "utf8").includes("must-not-upload"), false);
+});
+
+test("oversized and invalid phase timelines are omitted without forwarding arbitrary JSON", (t) => {
+  const actualRead = fs.readSync;
+  let readBytes = 0;
+  mockFs(t, "readSync", (...args) => { const read = actualRead(...args); readBytes += read; return read; });
+  for (const content of [" ".repeat(16 * 1024 + 1), JSON.stringify({ format: "static-spa-phase-timeline", version: 1,
+    phases: [{ phase: "build-start", elapsedMs: "not-a-number" }] })]) {
+    const f = fixture(t);
+    writeFileSync(join(f.generated, "phase-timeline.json"), content);
+    const beforeRead = readBytes;
+    const report = collect(f.root);
+    if (content.length > 16 * 1024) assert.equal(readBytes, beforeRead, "An oversized phase timeline is omitted before payload reads");
+    assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 1);
+    assert.match(report.omitted[0].reason, /phase/);
+    assert.equal(existsSync(join(f.output, "static-runtime-integration-fixture-phase-timeline.json")), false);
+  }
+});
+
 test("the Windows Tee pipeline preserves a failing native command exit code", { skip: process.platform !== "win32" }, (t) => {
   const f = fixture(t), log = join(f.bucket, "pipeline.log");
   const result = spawnSync("pwsh", ["-NoProfile", "-Command",
-    `& $env:SPA_CI_TEST_NODE -e "console.error('generated failure'); process.exit(7)" 2>&1 | Tee-Object -FilePath $env:SPA_CI_TEST_LOG\nexit $LASTEXITCODE`],
+    `$ErrorActionPreference = 'Stop'\n& $env:SPA_CI_TEST_NODE -e "console.error('generated failure'); process.exit(7)" 2>&1 | Tee-Object -FilePath $env:SPA_CI_TEST_LOG\nexit $LASTEXITCODE`],
   { env: { ...process.env, SPA_CI_TEST_NODE: process.execPath, SPA_CI_TEST_LOG: log }, windowsHide: true, encoding: "utf8", timeout: 10_000 });
   assert.equal(result.status, 7, result.stderr);
   assert.match(readFileSync(log, "utf8"), /generated failure/);

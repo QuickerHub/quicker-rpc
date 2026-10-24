@@ -79,8 +79,10 @@ Windows job 还用小型合成包运行生产 NSIS 模板的两遍真实 `/WX` �
 整个 `.tmp`。Node 网络 guard 和页面请求拦截均保留，它们不构成 OS 网络沙箱。
 
 独立的 `Static SPA (Windows Edge)` job 复用同一预装 Edge preflight，然后在独立进程原样
-执行 `pnpm test:static-runtime`。标准入口的 60 秒文件预算、测试内 240 秒限制及 5 秒自然
-退出断言均保留；不将这条真实 loopback 集成塞入无网络门禁。服务 child 原有的本轮端口
+执行 `pnpm test:static-runtime`。文件 worker 给定 300 秒，完整包含原测试内既定的 240 秒
+case 限制及 5 秒自然退出检查；原 60 秒外层会在慢机器尚未进入 UI 时截断合法流程。
+测试会持久记录构建、验证、服务、UI/SDK 和清理的阶段耗时；case deadline、自然退出与
+业务断言均不放宽。不将这条真实 loopback 集成塞入无网络门禁。服务 child 原有的本轮端口
 fetch allowlist、页面 origin 拦截和生成 profile 继续负责隔离；preflight 的全 TCP 拒绝 guard
 只存在于 preflight 进程，不通过 `NODE_OPTIONS` 传给 SPA 测试。
 该测试沿用原构建器、staging/verifier、SDK loop 和 fake HTTP/model；后续原测试文件扩展
