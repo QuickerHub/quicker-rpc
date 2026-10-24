@@ -219,7 +219,7 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 |---|---|---|
 | 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | Node、Console/serve/MCP 与 V1/V2 后端读取路径已合入，移除永久目录与结果复用；跨 turn/同 turn 更新、先空后有、移除模块、定义变化、精确控制值及失败回归通过。173 待安装和真实重验 |
 | Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | Agent 模块结果已带 SchemaJson.knowledge，区分 runtime-definition、bundled-adapter 和 unknown，保留原生 HelpLink；内置引用另标 bundled-fallback 与包版本/索引指纹。原 schema 数值/日期文本保持不变；UI 投影尚未附此 metadata |
-| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。UI 目录/详情/弹窗消费者与 MCP 分页/schema 完整传递正在独立切片中实现；旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
+| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。Agent 超限投影保留原有 knowledge，省略的 schema 内容不能用参数名摘要代替；UI 目录/详情/弹窗与 MCP 分页/schema 完整传递继续独立迁移。旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
 | codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 实际 codec 实现身份、guide 来源及网站本地 corpus 指纹/抓取时间分别迁移；公开网站 corpus 不替代当前模块 schema，也不把本地读取时间当在线更新时间 |
 
 固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，

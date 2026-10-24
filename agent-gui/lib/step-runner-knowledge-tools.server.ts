@@ -36,6 +36,9 @@ export function createStepRunnerKnowledgeTools(run: KnowledgeRunner = nativeRunn
       description:
         "Read the current Agent-only compressed StepRunner schema before workspace_program step edits; do not guess inputs. "
         + "Fetch again when the connected host or module may have changed; old messages are not current schema. "
+        + "Read knowledge.source and its host/session: runtime-definition is observed native knowledge; bundled-adapter and unknown do not prove native support. "
+        + "A schema revision is a content fingerprint, not a freshness check or write permission. Prefer nativeHelpLink for the current module; bundledReference is supplemental. "
+        + "If schemaJsonOmitted is true, the remaining provenance/parameter names are incomplete; do not infer missing editing rules. "
         + "Write short wire key/inputs/outputs (never stepKey). "
         + "Var bind: \"paramKey.var\":\"varKey\"; interpolation: $$…{varKey}…; file: paramKey.file. NOT get-ui.",
       inputSchema: z.object({

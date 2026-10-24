@@ -151,6 +151,10 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
 `runtime-definition`、`bundled-adapter` 和 `unknown` 是不同来源，均不等同于写权限；
 缺少来源的旧插件结果保持 unknown，不用客户端时间补成原生读取证明。
 
+Agent 输出因预算省略旧格式 `schemaJson` 时，继续保留实际返回的 knowledge 和参数名，
+完整原始输出留在 `displayData` 供查看。该摘要不是编辑合同；不得补造 provenance，或因
+持有来源与指纹就推断被省略的默认值、类型、约束与写权限。
+
 迁移首片先移除按 thread/key 无限复用的模块结果，以及按固定技能组合阻断重新发现的规则。
 后续接 native provenance/fresh reader、统一查询与失效、codec/文档来源和升级场景验收。
 相同模块更新字段、同宿主更新定义、换会话、先空后有、来源不可用及旧查询晚到分别验证。
