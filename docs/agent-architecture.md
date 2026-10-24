@@ -459,6 +459,13 @@ context”。
 | UI 输出 | 原始 tool result / `displayData` | 不受模型视图裁剪影响 |
 | Schema 暴露 | `agent-harness/model-tool-definitions.ts` | 核心/当前 bundle/MCP 保留完整 schema，其余提供发现提示 |
 
+runtime 在最终工具交集、模式门禁与调用策略组合后只解析一次 `TurnPlan`。计划和执行共用
+`agent-tool-mode-guard.ts` 的现有操作限制及显式只读端口事实；`workspace_program` 在 Ask
+可读本地数据，但 diagnostics 仍不可执行。历史反馈要求的步骤若不在最终工具集，或其操作
+被当前模式拒绝，保留未满足要求及 `blockedNextAction` 原因，移除可执行 `nextAction`，
+恢复与验证转为 `ask_user`。runtime snapshot 投影这份计划，不重新从历史选出被拒绝的步骤。
+这不证明未知外部工具的副作用或 wrapper 操作描述已全部统一。
+
 invoke 的持久化事实由纯 `qkrpc-operation-effects.ts` 定义：宿主修改与本地文件持久写
 分别描述。宿主绑定仍只消费前者；HTTP/CLI 的未知收据、transport fallback 和工具重试
 消费两者。`action.open`、`action.extract`、`subprogram.export` 读宿主但会导出文件，

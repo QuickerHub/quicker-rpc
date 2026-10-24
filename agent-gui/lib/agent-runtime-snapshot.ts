@@ -1,10 +1,7 @@
 import type { ActionScopeHint } from "@/lib/action-scope";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatMode } from "@/lib/chat-mode";
-import {
-  chooseRecoveryDecision,
-  type AgentRecoveryDecision,
-} from "@/lib/agent-recovery-policy";
+import type { AgentRecoveryDecision } from "@/lib/agent-recovery-policy";
 import type { AgentTurnState } from "@/lib/agent-turn-state";
 import {
   resolveTurnPlan,
@@ -26,6 +23,7 @@ export function buildAgentRuntimeSnapshot(params: {
   messages: AgentUIMessage[];
   userText: string;
   turnPlan?: TurnPlan;
+  readOnlyExecutorToolIds?: readonly string[];
 }): AgentRuntimeSnapshot {
   const recentToolFeedback = collectRecentToolFeedback(params.messages);
   const turnPlan = params.turnPlan
@@ -35,11 +33,12 @@ export function buildAgentRuntimeSnapshot(params: {
       enabledToolIds: params.enabledToolIds,
       messages: params.messages,
       userText: params.userText,
+      readOnlyExecutorToolIds: params.readOnlyExecutorToolIds,
     });
   return {
     turnState: turnPlan.turnState,
     turnPlan,
-    recoveryDecision: chooseRecoveryDecision(recentToolFeedback),
+    recoveryDecision: turnPlan.recoveryDecision,
     recentToolFeedbackCount: recentToolFeedback.length,
   };
 }

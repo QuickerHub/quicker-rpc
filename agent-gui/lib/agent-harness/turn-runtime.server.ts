@@ -31,7 +31,7 @@ import { applyToolCallPolicies } from "@/lib/agent-tool-policy";
 import { loadConfiguredMcpTools } from "@/lib/agent-mcp/load.server";
 import { restrictComposedTools } from "@/lib/chat-tool-selection";
 import { createTaskToolForParent, TASK_TOOL } from "@/lib/task-tool.server";
-import { applyToolModeGuards } from "@/lib/agent-tool-mode-guard";
+import { applyToolModeGuards, type ReadOnlyToolExecutors } from "@/lib/agent-tool-mode-guard";
 import { executeQkrpcActionGetReadOnly } from "@/lib/qkrpc-action-tool.server";
 import { executeQkrpcSubprogramGetReadOnly } from "@/lib/qkrpc-subprogram-tool.server";
 import { executeWorkspaceProgramReadOnly } from "@/lib/workspace-program-tool.server";
@@ -112,14 +112,6 @@ export async function prepareAgentTurnRuntime(params: {
 }): Promise<PreparedAgentTurnRuntime> {
   const { request, scope, model, modelId, abortSignal } = params;
   abortSignal?.throwIfAborted();
-  const turnPlan = resolveTurnPlan({
-    actionScope: scope.actionScope,
-    chatMode: request.chatMode,
-    enabledToolIds: request.enabledToolIds,
-    messages: request.repairedMessages,
-    userText: request.lastUserText,
-    actionDesigner: request.actionDesigner,
-  });
   const staticTools = selectChatTools({
     chatMode: request.chatMode,
     enabledToolIds: request.enabledToolIds,
@@ -146,11 +138,12 @@ export async function prepareAgentTurnRuntime(params: {
       { ...staticTools, ...mcp.tools } as ToolSet,
       request.slashCommand.overrides.toolAllowlist,
     );
-    const guardedTools = applyToolModeGuards(composedTools, request.chatMode, {
+    const readOnlyExecutors: ReadOnlyToolExecutors = {
       workspace_program: (input) => executeWorkspaceProgramReadOnly(input as Parameters<typeof executeWorkspaceProgramReadOnly>[0]),
       qkrpc_action_get: (input, options) => executeQkrpcActionGetReadOnly(input as Parameters<typeof executeQkrpcActionGetReadOnly>[0], { abortSignal: options.abortSignal }),
       qkrpc_subprogram_get: (input, options) => executeQkrpcSubprogramGetReadOnly(input as Parameters<typeof executeQkrpcSubprogramGetReadOnly>[0], { abortSignal: options.abortSignal }),
-    });
+    };
+    const guardedTools = applyToolModeGuards(composedTools, request.chatMode, readOnlyExecutors);
     let fullTools: ToolSet;
     if (guardedTools[TASK_TOOL]) {
       guardedTools[TASK_TOOL] = createTaskToolForParent(
@@ -162,12 +155,21 @@ export async function prepareAgentTurnRuntime(params: {
       guardedTools,
       mcp.callPolicyOverrides,
     );
+    const enabledRuntimeToolIds = Object.keys(fullTools);
+    const turnPlan = resolveTurnPlan({
+      actionScope: scope.actionScope,
+      chatMode: request.chatMode,
+      enabledToolIds: enabledRuntimeToolIds,
+      readOnlyExecutorToolIds: Object.keys(readOnlyExecutors).filter((id) => typeof readOnlyExecutors[id] === "function"),
+      messages: request.repairedMessages,
+      userText: request.lastUserText,
+      actionDesigner: request.actionDesigner,
+    });
     const fullSchemaToolIds = new Set([
       ...turnPlan.fullSchemaToolIds,
       ...Object.keys(mcp.tools),
     ]);
     const modelTools = slimToolsForModel(fullTools, fullSchemaToolIds);
-    const enabledRuntimeToolIds = Object.keys(fullTools);
     const contextLimit = resolveModelContextLimit(modelId).tokens;
     const compressionBase = {
       abortSignal,

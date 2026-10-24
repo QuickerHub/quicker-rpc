@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
+import { tool, type ToolExecutionOptions } from "ai";
+import { z } from "zod";
 
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { resolveTurnPlan } from "./turn-plan.ts";
 import { formatActionSourceToolResult } from "@/lib/qkrpc-action-source-tool";
+import { applyToolModeGuards } from "@/lib/agent-tool-mode-guard";
+import { buildAgentRuntimeSnapshot } from "@/lib/agent-runtime-snapshot";
+import { isStructuredToolResult } from "@/lib/tool-result";
 
 const emptyScope = {
   pinnedLatest: undefined,
@@ -44,7 +49,7 @@ test("source validation feedback continues through the existing TurnPlan and per
   assert.ok(ask.blockedToolIds.includes("qkrpc_action_save"));
 });
 
-function feedbackMessage(): AgentUIMessage {
+function feedbackMessage(action = "diagnostics"): AgentUIMessage {
   return {
     id: randomUUID(),
     role: "assistant",
@@ -65,7 +70,7 @@ function feedbackMessage(): AgentUIMessage {
                 tool: "workspace_program",
                 reason: "Run diagnostics.",
                 priority: "required",
-                input: { action: "diagnostics" },
+                input: { action },
               },
             ],
           },
@@ -142,4 +147,58 @@ test("resolveTurnPlan promotes required recovery nextAction to required tools", 
   assert.equal(plan.nextAction?.tool, "workspace_program");
   assert.ok(plan.requiredToolIds.includes("workspace_program"));
   assert.equal(plan.verificationPolicy, "diagnostics");
+});
+
+test("recovery planning and final execution share operation constraints without erasing unmet requirements", async () => {
+  const cases = [
+    { mode: "ask", action: "diagnostics", enabled: true, readPort: true, allowed: false },
+    { mode: "agent", action: "diagnostics", enabled: true, readPort: false, allowed: true },
+    { mode: "ask", action: "read_data", enabled: true, readPort: true, allowed: true },
+    { mode: "ask", action: "read_data", enabled: true, readPort: false, allowed: false },
+    { mode: "ask", action: "future_action", enabled: true, readPort: true, allowed: false },
+    { mode: "agent", action: "diagnostics", enabled: false, readPort: false, allowed: false },
+  ] as const;
+  for (const row of cases) {
+    let baseCalls = 0, readCalls = 0;
+    const workspace = tool({ inputSchema: z.object({ action: z.string() }), execute: async ({ action }) => {
+      baseCalls++; return formatLocalToolResult({ action });
+    } });
+    const readOnly = async (input: unknown) => { readCalls++; return formatLocalToolResult({ action: (input as { action: string }).action }); };
+    const definitions = row.enabled ? { workspace_program: workspace } : {};
+    const ports = row.readPort ? { workspace_program: readOnly } : {};
+    const tools = applyToolModeGuards(definitions, row.mode, ports);
+    const messages = [feedbackMessage(row.action)];
+    const original = JSON.stringify(messages);
+    const plan = resolveTurnPlan({
+      actionScope: emptyScope, chatMode: row.mode, enabledToolIds: Object.keys(tools),
+      readOnlyExecutorToolIds: Object.keys(ports), messages, userText: "继续",
+    });
+    assert.ok(plan.requiredToolIds.includes("workspace_program"));
+    if (row.allowed) {
+      assert.equal(plan.nextAction?.input?.action, row.action);
+      assert.equal(plan.blockedNextAction, undefined);
+      assert.equal(plan.blockedToolIds.includes("workspace_program"), false);
+    } else {
+      assert.equal(plan.nextAction, undefined);
+      assert.deepEqual(plan.blockedNextAction?.action.input, { action: row.action });
+      assert.ok(plan.blockedNextAction?.reason);
+      assert.equal(plan.recoveryDecision.kind, "ask_user");
+      assert.equal(plan.verificationPolicy, "ask_user");
+      assert.match(plan.recoveryDecision.kind === "ask_user" ? plan.recoveryDecision.reason : "", /incomplete/);
+    }
+    if (row.enabled) {
+      const result = await tools.workspace_program!.execute!({ action: row.action }, { toolCallId: "plan-parity", messages: [] } as ToolExecutionOptions);
+      assert.ok(isStructuredToolResult(result));
+      assert.equal(result.ok, row.allowed);
+    }
+    assert.equal(baseCalls, row.allowed && row.mode === "agent" ? 1 : 0);
+    assert.equal(readCalls, row.allowed && row.mode === "ask" ? 1 : 0);
+    assert.equal(JSON.stringify(messages), original, "history keeps the original unmet requirement");
+    const snapshot = buildAgentRuntimeSnapshot({
+      actionScope: emptyScope, chatMode: row.mode, enabledToolIds: Object.keys(tools), messages,
+      userText: "different text", turnPlan: plan,
+    });
+    assert.equal(snapshot.turnPlan, plan);
+    assert.equal(snapshot.recoveryDecision, plan.recoveryDecision, "snapshot projects the same decision rather than reselecting feedback");
+  }
 });
