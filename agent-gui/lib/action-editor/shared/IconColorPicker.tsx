@@ -298,6 +298,7 @@ export default function IconColorPicker(props: IconColorPickerProps): JSX.Elemen
                 className="action-meta-editor__input icon-color-picker__hex"
                 value={draftHex}
                 placeholder="#RRGGBB"
+                title="#RGB / #RRGGBB / #AARRGGBB"
                 aria-label="十六进制颜色"
                 spellCheck={false}
                 onChange={(e) => {
@@ -378,7 +379,8 @@ export default function IconColorPicker(props: IconColorPickerProps): JSX.Elemen
         <input
           className="action-meta-editor__input icon-picker-dialog__color-input"
           value={props.value}
-          placeholder="#hex / semantic"
+          placeholder="#RRGGBB"
+          title="#RGB / #RRGGBB / #AARRGGBB"
           aria-label="图标颜色"
           onChange={(e) => commitHex(e.target.value)}
           spellCheck={false}

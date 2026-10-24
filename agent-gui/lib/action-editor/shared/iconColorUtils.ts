@@ -1,4 +1,6 @@
 // Adapted from Quicker.Headless/Web/src/features/shared at 574556d76b0b10bd9a8a7951277435649650fab8.
+import { nativeIconHexToCss } from "@/lib/icon-color";
+
 /**
  * Hex / HSV helpers for the icon color picker (no external color libs).
  */
@@ -183,9 +185,7 @@ export function contrastIconFill(token: string, theme: "dark" | "light"): string
 export function cssPreviewColor(token: string): string | undefined {
   const hex = tryParseHex(token);
   if (hex) {
-    // WPF persists AARRGGBB. CSS conversion is performed exactly once at this display boundary.
-    if (hex.length === 9) return hex.slice(1, 3) === "FF" ? `#${hex.slice(3)}` : `#${hex.slice(3)}${hex.slice(1, 3)}`;
-    return hex;
+    return nativeIconHexToCss(hex);
   }
   const semantic: Record<string, string> = {
     success: "#22c55e",
