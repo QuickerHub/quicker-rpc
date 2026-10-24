@@ -62,6 +62,7 @@ const tests = [
   "lib/step-runner-knowledge-tools.server.test.ts",
   "lib/tool-knowledge-budget.test.ts",
   "lib/action-authoring-docs-freshness.test.ts",
+  "lib/action-authoring-docs-reference.test.ts",
   "lib/quicker-knowledge-tool.server.test.ts",
   "lib/quicker-knowledge/index-provider.server.test.ts",
   "lib/quicker-knowledge/store.server.test.ts",
