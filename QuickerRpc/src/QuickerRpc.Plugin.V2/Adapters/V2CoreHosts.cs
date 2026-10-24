@@ -292,15 +292,45 @@ internal sealed class V2SubProgramHost : IQuickerRpcSubProgramHost
         Task.FromResult(new QuickerRpcActionPublishPreflightResult { Ready = false, Message = V2StubMessage.NotImplemented });
 }
 
-internal sealed class V2StepRunnerHost : IQuickerRpcStepRunnerHost
+internal sealed class V2StepRunnerHost : IQuickerRpcStepRunnerHost, IQuickerRpcStepRunnerInputContractHost
 {
     private readonly V2HeadlessActionProgramService _programs;
     private readonly IV2DesignerSummaryNativePort _summaries;
+    private readonly IV2StepRunnerInputContractNativePort _inputContracts;
 
     public V2StepRunnerHost(V2HeadlessActionProgramService programs) : this(programs, new V2DesignerSummaryNativePort()) { }
 
     internal V2StepRunnerHost(V2HeadlessActionProgramService programs, IV2DesignerSummaryNativePort summaries)
-    { _programs = programs; _summaries = summaries; }
+        : this(programs, summaries, new V2StepRunnerInputContractNativePort()) { }
+
+    internal V2StepRunnerHost(V2HeadlessActionProgramService programs, IV2DesignerSummaryNativePort summaries, IV2StepRunnerInputContractNativePort inputContracts)
+    { _programs = programs; _summaries = summaries; _inputContracts = inputContracts; }
+
+    public bool IsInputContractAvailable => _inputContracts.IsAvailable;
+
+    public async Task<QuickerRpcStepRunnerInputContractResult> GetStepRunnerInputContractAsync(
+        QuickerRpcStepRunnerInputContractRequest request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request is null || string.IsNullOrWhiteSpace(request.StepRunnerKey))
+            return QuickerRpc.Runtime.StepRunnerInputContractBuilder.Failure("INVALID_INPUT_CONTRACT_REQUEST", "A step runner key is required.");
+        try
+        {
+            var available = _inputContracts.IsAvailable;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!available) return QuickerRpc.Runtime.StepRunnerInputContractBuilder.Failure("UNSUPPORTED_HOST", "The selected V2 host has no current native input contract port.");
+            var catalog = await _inputContracts.ReadDefinitionAsync(request.StepRunnerKey.Trim(), cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return QuickerRpc.Runtime.StepRunnerInputContractBuilder.Build(catalog, new()
+            { StepRunnerKey = request.StepRunnerKey.Trim(), ControlFieldValue = request.ControlFieldValue }, "v2");
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return QuickerRpc.Runtime.StepRunnerInputContractBuilder.Failure(error is NotSupportedException ? "UNSUPPORTED_HOST" : "INPUT_CONTRACT_READ_FAILED", error.Message);
+        }
+    }
 
     public Task<QuickerRpcSearchStepRunnersResult> SearchAsync(
         string keyword,
