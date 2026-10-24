@@ -35,6 +35,51 @@ function fixture(t) {
   return { root, parent, manifest, write };
 }
 
+function verifyThroughTsx(root, parent) {
+  const runner = join(parent, "verify-through-tsx.ts"), profile = join(parent, "tsx-profile");
+  mkdirSync(profile);
+  // The standard integration test imports this .mjs verifier through tsx's CJS transform.
+  // A separate .ts entry reproduces that path even when this test itself runs as plain ESM.
+  writeFileSync(runner, `import { verifyStaticRuntime } from ${JSON.stringify(fileURLToPath(new URL("./verify-static-runtime.mjs", import.meta.url)))};
+const target: string = process.argv[2];
+void verifyStaticRuntime(target).then(() => { console.log("verified"); }).catch((error) => { console.error(error.stack ?? String(error)); process.exitCode = 1; });
+`);
+  const child = childProcess.spawnSync(process.execPath, ["--import", "tsx", runner, root], {
+    cwd: resolve(dirname(fileURLToPath(import.meta.url)), ".."), env: createNativeProbeEnvironment(profile),
+    encoding: "utf8", windowsHide: true, timeout: 30000, maxBuffer: 4 * 1024 * 1024,
+  });
+  assert.equal(child.error, undefined, child.error?.message);
+  assert.equal(child.signal, null, child.stderr);
+  return child;
+}
+
+test("tsx TypeScript entry retains real subpath validation without executing providers", (t) => {
+  const { root, parent, manifest, write } = fixture(t);
+  manifest.runtimeImports = [{ specifier: "example/feature", from: "lib", mode: "import" }];
+  write("runtime-manifest.json", JSON.stringify(manifest));
+  write("node_modules/example/package.json", JSON.stringify({ name: "example", exports: { ".": "./index.js", "./feature": "./absent-feature.js" } }));
+  const marker = join(parent, "provider-executed");
+  write("node_modules/example/index.js", `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed'); throw Error('provider executed');`);
+  const child = verifyThroughTsx(root, parent);
+  assert.equal(child.status, 1);
+  assert.match(child.stderr, /Runtime import resolution failed:.*absent-feature\.js/s);
+  assert.doesNotMatch(child.stderr, /__name is not defined/);
+  assert.equal(existsSync(marker), false);
+});
+
+test("tsx TypeScript entry reaches the real native loader and preserves its ABI error", (t) => {
+  const { root, parent, manifest, write } = fixture(t);
+  manifest.runtimePackageRoots.push("better-sqlite3");
+  write("runtime-manifest.json", JSON.stringify(manifest));
+  write("node_modules/better-sqlite3/package.json", JSON.stringify({ name: "better-sqlite3", main: "index.js" }));
+  write("node_modules/better-sqlite3/index.js", "module.exports = require('./invalid.node');");
+  write("node_modules/better-sqlite3/invalid.node", "synthetic invalid native binary");
+  const child = verifyThroughTsx(root, parent);
+  assert.equal(child.status, 1);
+  assert.match(child.stderr, /Native runtime failed:.*invalid\.node/s);
+  assert.doesNotMatch(child.stderr, /__name is not defined|metadata validation must not execute providers/);
+});
+
 test("structure checks entry JS/CSS and does not reject an internal ..assets name", (t) => {
   const { root, write } = fixture(t);
   write("..assets/extra.txt");

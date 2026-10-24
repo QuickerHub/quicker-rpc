@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { verifyRuntimeDependencyGraph } from "./static-runtime-dependency-graph.mjs";
-import { probeStaticRuntimeImports, probeStaticRuntimeNative, STATIC_RUNTIME_NATIVE_CONTEXTS } from "./static-runtime-native-probe.mjs";
+import { STATIC_RUNTIME_NATIVE_CONTEXTS } from "./static-runtime-native-probe.mjs";
 
 const required = ["package.json", "service.mjs", "lib/service-main.mjs", "renderer/index.html", "drizzle/migrations/meta/_journal.json", "docs/skills/quicker-authoring/SKILL.md", "docs/skills/quicker-eval-expression/SKILL.md", "browser-runtime/server.mjs", "terminal-runtime/server.mjs", "lib/qkrpc-bin.mjs", "lib/qkrpc-toolchain-env.mjs"];
 const isOutside = (path) => path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path);
@@ -104,7 +104,9 @@ export async function verifyStaticRuntime(appDirectory, { nodeExecutable = proce
   const profile = mkdtempSync(join(temporary, "static-runtime-probe-"));
   try {
     const env = createNativeProbeEnvironment(profile);
-    const importsSource = `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); try { console.log(JSON.stringify((${probeStaticRuntimeImports.toString()})(process.argv[1], JSON.parse(require('node:fs').readFileSync(0, 'utf8')), require, (name, parent) => import.meta.resolve(name, parent)))); } catch (error) { console.error(error.stack ?? String(error)); process.exitCode = 1; }`;
+    // Load trusted source in plain Node; a parent loader may inject helpers into function.toString().
+    const probeUrl = new URL("./static-runtime-native-probe.mjs", import.meta.url).href;
+    const importsSource = `import { createRequire } from 'node:module'; import { probeStaticRuntimeImports } from ${JSON.stringify(probeUrl)}; const require = createRequire(import.meta.url); try { console.log(JSON.stringify(probeStaticRuntimeImports(process.argv[1], JSON.parse(require('node:fs').readFileSync(0, 'utf8')), require, (name, parent) => import.meta.resolve(name, parent)))); } catch (error) { console.error(error.stack ?? String(error)); process.exitCode = 1; }`;
     const requests = [...(dependencies.importRequests ?? []), ...manifest.runtimeImports.map((entry) => ({ ...entry, from: resolve(root, entry.from) }))];
     const importsResult = spawnSync(nodeExecutable, ["--experimental-import-meta-resolve", "--input-type=module", "-e", importsSource, root], { cwd: root, env, input: JSON.stringify(requests), encoding: "utf8", windowsHide: true, timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
     if (importsResult.error || importsResult.signal || importsResult.status !== 0) throw new Error(`Runtime import resolution failed: ${importsResult.stderr || importsResult.error || importsResult.signal || importsResult.status}`);
@@ -112,7 +114,7 @@ export async function verifyStaticRuntime(appDirectory, { nodeExecutable = proce
     try { importsReport = JSON.parse(importsResult.stdout); } catch { throw new Error("Invalid runtime import resolution report"); }
     if (importsReport.ok !== true || !importsReport.imports?.length) throw new Error("Runtime import resolution returned no file paths");
     for (const entry of importsReport.imports) contained(root, entry.path);
-    const source = `try { console.log(JSON.stringify((${probeStaticRuntimeNative.toString()})(process.argv[1], require, ${JSON.stringify(STATIC_RUNTIME_NATIVE_CONTEXTS)}))); } catch (error) { console.error(error.stack ?? String(error)); process.exitCode = 1; }`;
+    const source = `import(${JSON.stringify(probeUrl)}).then(({ probeStaticRuntimeNative, STATIC_RUNTIME_NATIVE_CONTEXTS }) => { console.log(JSON.stringify(probeStaticRuntimeNative(process.argv[1], require, STATIC_RUNTIME_NATIVE_CONTEXTS))); }).catch((error) => { console.error(error.stack ?? String(error)); process.exitCode = 1; });`;
     const result = spawnSync(nodeExecutable, ["-e", source, root], { cwd: root, env, encoding: "utf8", windowsHide: true, timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
     if (result.error || result.signal || result.status !== 0) throw new Error(`Native runtime failed: ${result.stderr || result.error || result.signal || result.status}`);
     let nativeReport;
