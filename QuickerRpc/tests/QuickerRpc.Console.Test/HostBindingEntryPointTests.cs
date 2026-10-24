@@ -70,7 +70,7 @@ public sealed class HostBindingEntryPointTests
     }
 
     [TestMethod]
-    public async Task Pool_and_catalog_cache_are_isolated_and_keep_destination_after_invalidation()
+    public async Task Pool_and_catalog_reads_are_isolated_and_keep_destination_after_invalidation()
     {
         await using var a = new FakeBindingHost();
         await using var b = new FakeBindingHost("v2");
@@ -78,10 +78,18 @@ public sealed class HostBindingEntryPointTests
         var pa = pool.ForBinding(a.Binding);
         var pb = pool.ForBinding(b.Binding);
         var sessions = await Task.WhenAll(pa.GetSessionAsync(default), pb.GetSessionAsync(default));
-        StepRunnerServeCache.SetSearch(sessions[0].Rpc, "fixture", null, new() { Success = true, Keyword = "A" });
-        Assert.IsFalse(StepRunnerServeCache.TryGetSearch(sessions[1].Rpc, "fixture", null, out _));
-        Assert.IsTrue(StepRunnerServeCache.TryGetSearch(sessions[0].Rpc, "fixture", null, out var cached));
-        Assert.AreEqual("A", cached!.Keyword);
+        Assert.AreEqual(a.SessionId, sessions[0].Binding!.HostSessionId);
+        Assert.AreEqual(b.SessionId, sessions[1].Binding!.HostSessionId);
+        foreach (var host in new[] { a, b, a })
+        {
+            var result = await ServeInvokeDispatcher.InvokeAsync(pool, "step-runner.search", Args(new { query = "fixture" }), 2, default, host.Binding);
+            Assert.IsTrue(result.Ok, result.Message);
+            var data = JsonSerializer.SerializeToElement(result.Data, JsonOptions);
+            Assert.AreEqual(host.Info.Host.Kind, data.GetProperty("payload").GetProperty("keyword").GetString());
+            Assert.AreEqual(host.SessionId, result.HostBinding!.HostSessionId);
+        }
+        Assert.AreEqual(2, a.CatalogSearchReads);
+        Assert.AreEqual(1, b.CatalogSearchReads);
         await pa.InvalidateAsync();
         a.Info.HostInstanceId = "restarted-fixture";
         var error = await Assert.ThrowsExceptionAsync<QuickerRpcClientException>(() => pa.GetSessionAsync(default));

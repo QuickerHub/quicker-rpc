@@ -26,6 +26,12 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public int LegacyReads;
     public int MetadataWrites;
     public int CatalogReads;
+    public int CatalogSearchReads;
+    public int CatalogGetReads;
+    public int CatalogGetUiReads;
+    public Func<string, int?, CancellationToken, Task<QuickerRpcSearchStepRunnersResult>>? SearchCatalog;
+    public Func<string, string?, CancellationToken, Task<QuickerRpcStepRunnerDetailResult>>? GetCatalog;
+    public Func<string, string?, CancellationToken, Task<QuickerRpcStepRunnerDetailResult>>? GetUiCatalog;
     public int InputContractReads;
     public QuickerRpcStepRunnerInputContractRequest? LastInputContractRequest;
     public Func<QuickerRpcStepRunnerInputContractRequest, QuickerRpcStepRunnerInputContractResult>? InputContract;
@@ -137,8 +143,14 @@ public sealed class FakeBindingHost : IAsyncDisposable
             return owner.Apply?.Invoke(id, version)
                 ?? new QuickerRpcApplyXActionResult { Success = true, ActionId = id, EditVersion = (version ?? 7) + 1 };
         }
-        public Task<QuickerRpcSearchStepRunnersResult> SearchStepRunnersAsync(string query, int? maxResults = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new QuickerRpcSearchStepRunnersResult { Success = true, Keyword = owner.Info.Host.Kind });
+        public Task<QuickerRpcSearchStepRunnersResult> SearchStepRunnersAsync(string query, int? maxResults = null, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref owner.CatalogReads);
+            Interlocked.Increment(ref owner.CatalogSearchReads);
+            return owner.SearchCatalog?.Invoke(query, maxResults, cancellationToken)
+                ?? Task.FromResult(new QuickerRpcSearchStepRunnersResult { Success = true, Keyword = owner.Info.Host.Kind });
+        }
         public Task<QuickerRpcSearchStepRunnersResult> ListStepRunnersAsync(int? maxResults = null, CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref owner.CatalogReads);
@@ -147,8 +159,20 @@ public sealed class FakeBindingHost : IAsyncDisposable
         }
         public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerUiDetailAsync(string key, string? controlField = null, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref owner.CatalogReads);
-            return Task.FromResult(new QuickerRpcStepRunnerDetailResult { Success = true,
+            Interlocked.Increment(ref owner.CatalogGetUiReads);
+            return owner.GetUiCatalog?.Invoke(key, controlField, cancellationToken)
+                ?? Task.FromResult(new QuickerRpcStepRunnerDetailResult { Success = true,
+                SchemaJson = "{\"key\":\"sys:fixture\",\"name\":\"" + owner.Info.Host.Kind + "\"}" });
+        }
+        public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(string key, string? controlField = null, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref owner.CatalogReads);
+            Interlocked.Increment(ref owner.CatalogGetReads);
+            return owner.GetCatalog?.Invoke(key, controlField, cancellationToken)
+                ?? Task.FromResult(new QuickerRpcStepRunnerDetailResult { Success = true,
                 SchemaJson = "{\"key\":\"sys:fixture\",\"name\":\"" + owner.Info.Host.Kind + "\"}" });
         }
         public Task<QuickerRpcActionRunResult> RunActionAsync(string id, string? param = null, bool enableDebugging = false, bool waitForComplete = false, CancellationToken cancellationToken = default)
