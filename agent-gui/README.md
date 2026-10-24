@@ -55,9 +55,9 @@ legacy `start` 默认加载完整的 `agent-gui/electron/resources/app`，不直
 资源的原始 `.next/standalone`。它使用 `HOSTNAME`、`PORT` 与 `QUICKER_AGENT_DATA_DIR`，
 不接受静态服务的 CLI 参数；未指定主机时默认 loopback。
 
-当前 shell 的模式元数据与产物的 `runtime-mode.json` 一起约束选择。模式不匹配或静态入口
-缺失时，在服务端口和后端子进程启动前明确失败，不从遗留 `server.js` 或旧静态文件自动回退。
-模式标记不保证产物新鲜度，也不提供事务式升级。
+当前 shell 的模式元数据与产物的 `runtime-mode.json` 一起约束选择。候选目录必须通过模式
+与入口完整性检查，再启动服务端口和后端子进程；禁止跨模式回退。同模式的嵌套目录兼容
+查找仍保留，模式标记不保证产物新鲜度，也不提供事务式升级。
 
 `pnpm test:static-runtime` 使用搬移后的产物、生成资料、fake 模型与独立 Edge，验证 API、
 界面及真实 browser/terminal 子进程。完整资源清单和剩余安装/升级、真实用户资料、宿主业务
