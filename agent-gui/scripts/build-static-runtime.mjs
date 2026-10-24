@@ -112,7 +112,8 @@ async function buildInto(appDirectory, development) {
   writeFileSync(join(appDirectory, "package.json"), JSON.stringify({ private: true, type: "module" }));
   writeFileSync(join(appDirectory, "service.mjs"), `import { dirname, join } from 'node:path';\nimport { fileURLToPath } from 'node:url';\nconst root = dirname(fileURLToPath(import.meta.url));\nprocess.chdir(root);\nprocess.env.AGENT_GUI_ROOT = root;\nif (!process.argv.includes('--renderer-dir')) process.argv.push('--renderer-dir', join(root, 'renderer'));\nawait import('./lib/service-main.mjs');\n`);
   const rendererFiles = Object.keys(client.metafile.outputs).map((file) => relative(renderer, resolve(root, file)).replaceAll("\\", "/")).sort();
-  const report = { format: "quicker-agent-static-runtime", version: 1, routeCount: 72, rendererInputs: clientInputs.length, serviceInputs: Object.keys(backend.metafile.inputs).length, packageCount, runtimePackageRoots: [...packages].sort(), runtimeImports, rendererFiles, next: false };
+  const { agentApiRoutes } = await import("../lib/agent-service/api-routes.generated.ts");
+  const report = { format: "quicker-agent-static-runtime", version: 1, routeCount: agentApiRoutes.length + 1, handlerRouteCount: agentApiRoutes.length, rendererInputs: clientInputs.length, serviceInputs: Object.keys(backend.metafile.inputs).length, packageCount, runtimePackageRoots: [...packages].sort(), runtimeImports, rendererFiles, next: false };
   writeFileSync(join(appDirectory, "runtime-manifest.json"), `${JSON.stringify(report, null, 2)}\n`);
   return report;
 }

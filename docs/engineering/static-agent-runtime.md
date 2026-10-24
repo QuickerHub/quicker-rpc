@@ -9,13 +9,18 @@
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm check:service-routes
-pnpm build:static
-node ../.tmp/static-runtime/app/service.mjs --port 0 --data-dir <absolute-profile-directory>
+pnpm build
+node ./start.mjs --port 0 --data-dir <absolute-profile-directory>
 ```
 
+`pnpm build` 是默认生产入口，先生成知识文档、核对 API manifest、独立执行 TypeScript
+检查，再构建静态 renderer 与 Node service。`pnpm start` 使用同一 `start.mjs`，默认读取
+仓库 `.tmp/static-runtime/app`，在原 Node 进程内启动服务，不另起 Next 或 qkrpc。
+`--app-dir=<directory>` 可选择完整可移动产物；生产启动固定 `NODE_ENV=production`。
+
 静态 renderer 由已安装的 esbuild 编译，无需 Next 或新的构建工具依赖。
-`build:static:dev` 生成带开发检查入口的静态页面。日常 `dev.ps1` / `:3000` HMR 保留，
+低层 `build:static` 与 `build:static:dev` 仍供受控构建，后者生成带开发检查入口的静态页面。
+日常 `dev.ps1` / `pnpm dev` / `:3000` 继续使用 Next HMR，
 静态构建不读取或改写 `.next`。构建只接受仓库内明确输出目录；默认输出在 `.tmp/`。
 每次先生成新目录，再替换已识别的产物，失败保留旧产物；含数据库或 `.local` 的目录拒绝替换。
 renderer 图拒绝 server/DB/Next 模块，backend 图拒绝 Next、`server-only` 和本地 alias 残留。
@@ -26,11 +31,24 @@ renderer 图拒绝 server/DB/Next 模块，backend 图拒绝 Next、`server-only
 单 writer lease；未指定时使用现有系统默认目录。显式 profile 不导入其它用户目录。
 一个服务进程持有一个 runtime，API 和 chat 共享同一 DB owner。
 
+默认 `electron:prepare` 也调用上述生产 builder，再暂存 portable Node、qkrpc、ripgrep
+及原发布配置并验证；不需要先重复运行 `pnpm build`。`electron:prepare:static` 是同一路径
+的显式别名。标准 Electron build、发布与 build preflight 均选择 static；prepare 只暂存
+资源，安装另行执行。发布脚本的 `-SkipAppBuild`（兼容别名 `-SkipNextBuild`）在 static
+下复用已暂存且模式匹配的 app；在 legacy 下省略 Next build，仍从已有 standalone 暂存。
+
+Next 仅保留开发 HMR 和显式生产兼容入口：`pnpm build:legacy-next` →
+`pnpm electron:prepare:legacy-next` → `pnpm start:legacy-next`。最后一步使用完整
+`electron/resources/app`，包含 public/static 资源，不直接启动裸 `.next/standalone`。
+legacy 使用 `HOSTNAME` / `PORT` / `QUICKER_AGENT_DATA_DIR`，空 HOSTNAME 回到 loopback；
+`--port` / `--data-dir` 等 service flags 属于 static。Tauri 仍是显式 legacy 壳。
+
 ## API 与 renderer 清单
 
 路由事实源是 [`api-routes.generated.ts`](../../agent-gui/lib/agent-service/api-routes.generated.ts)。
 生成器读取现有 `app/api/**/route.ts` 的路径和方法；`check:service-routes` 拒绝漂移。
-当前 71 个 API handler 加上 application 的 `/api/chat`，均使用标准 Request/Response。
+API handler 清单加上 application 的 `/api/chat` 均使用标准 Request/Response；构建从
+生成表导出实际路由数量，避免在 manifest 中维护第二份计数。
 不复制 workspace/Designer 的保存实现；P1 后续修改原 handler 即由两个宿主共同消费。
 
 | 领域组 | 原有入口 | Node 适配行为 |
@@ -56,6 +74,7 @@ renderer 图拒绝 server/DB/Next 模块，backend 图拒绝 Next、`server-only
 | 路径（相对 resources） | 用途 |
 |---|---|
 | `app/service.mjs`、`app/lib/service-main.mjs`、`runtime-manifest.json` | bootstrap、唯一业务组合、版本化运行格式 |
+| `app/runtime-mode.json`、shell 的 `quickerAgentRuntimeMode` | 资源与当前 Electron shell 的 static/legacy-next 模式选择 |
 | `app/renderer/` | 静态 React、CSS、public 与 hash 资源 |
 | `app/drizzle/migrations/` | 原数据库迁移与 journal |
 | `app/docs/skills/`、`app/docs/authoring-references/`、`app/lib/agent-defs/bundled/` | 随包知识、reference、commands/agents |
@@ -63,7 +82,12 @@ renderer 图拒绝 server/DB/Next 模块，backend 图拒绝 Next、`server-only
 | `app/node_modules/` | 独立 npm 图，包括 SQLite、pty、WebSocket、Playwright |
 | `node/`、`qkrpc/`、`rg/` | portable Node、完整 CLI runtime 与 ripgrep |
 
-普通静态构建不复制任何 LLM 配置。`electron:prepare:static` 沿用现有显式发布配置与 cipher
+当前 shell 的 package metadata 和资源 mode marker 必须一致。缺 marker 的资源按 static
+校验，缺 manifest、bootstrap、service 或 renderer 时明确失败，不回退残留 `server.js`；
+显式 legacy 则只选择 Next 入口。检查先于桌面命令服务分配端口和 backend child 启动。
+mode 只证明入口选择，不证明产物版本新鲜或 overlay 升级具有事务性。
+
+普通静态构建不复制任何 LLM 配置。默认 `electron:prepare` 沿用现有显式发布配置与 cipher
 pepper 的生成步骤；需要发布的配置由原发布流程提供，不复制用户 DB 或 `.local`。
 可用 `STATIC_RUNTIME_QKRPC_DIR` 指定已离线构建的完整 CLI 目录；不安装或重载它。
 `verify-static-runtime.mjs` 用目标 Node 验证原生 SQLite/pty，以及资源和依赖的可移动性。
@@ -92,7 +116,7 @@ pnpm test:agent-service
 pnpm test:static-runtime
 pnpm check:action-designer
 pnpm electron:check
-pnpm electron:prepare:static
+pnpm electron:prepare
 node scripts/build-electron-installer.mjs --win nsis --publish never --config.directories.output=../.tmp/static-electron-dist
 pwsh -File scripts/Test-QuickerAgentElectronSmoke.ps1 -Action full -DistDir ../.tmp/static-electron-dist
 ```
@@ -162,4 +186,4 @@ NSIS 3.0.4.1 的 `/PPO` 插件查找使用独立 parser 工具副本，来源与
 浏览器单次调用现已把 turn abortSignal 传到独立 request owner 与按 session 串行的原生
 操作尾部，实际自建 Edge/HTTP 取消、排队、迟到结果及原 context/ref 复用另有验证；
 Electron 原生与用户浏览器继续独立验收，不能用服务退出代替。以上门槛完成前，保留
-Next 开发与兼容打包入口；新静态产物本身不含 Next。
+Next 开发与显式 legacy 打包入口；默认生产静态产物本身不含 Next。

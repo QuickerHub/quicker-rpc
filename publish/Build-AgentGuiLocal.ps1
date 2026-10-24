@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Local QuickerAgent frontend build (Next standalone + typecheck).
+# Local QuickerAgent production build (static React/Node + typecheck by default).
 # Prerequisites: Node 20+, pnpm. agent-gui/.npmrc uses hoisted + symlink=false (no Windows Developer Mode required).
 # Full installer: `Publish-QuickerAgent.ps1` also needs NSIS (electron-builder).
 #
@@ -10,11 +10,14 @@
 [CmdletBinding()]
 param(
     [string]$RepoRoot = '',
+    [ValidateSet('static', 'legacy-next')]
+    [string]$RuntimeMode = 'static',
     [switch]$SkipInstall
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'agent-gui-build-mode.ps1')
 
 if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -25,7 +28,7 @@ if (-not (Test-Path -LiteralPath $agentGui)) {
     throw "agent-gui not found: $agentGui"
 }
 
-# Avoid webpack scanning Documents/My Pictures (EPERM).
+# Keep build-time discovery away from the normal user profile.
 if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) {
     $env:USERPROFILE = $env:TEMP
     $env:HOME = $env:TEMP
@@ -43,13 +46,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
     }
 
-    if (Test-Path -LiteralPath '.next') {
-        Remove-Item -LiteralPath '.next' -Recurse -Force
-    }
-
-    Write-Host 'pnpm build (Next standalone)...' -ForegroundColor Cyan
-    pnpm build
-    if ($LASTEXITCODE -ne 0) { throw "pnpm build failed ($LASTEXITCODE)" }
+    Invoke-QuickerAgentSourceBuild -RuntimeMode $RuntimeMode
 
     Write-Host 'agent-gui production build OK.' -ForegroundColor Green
 }

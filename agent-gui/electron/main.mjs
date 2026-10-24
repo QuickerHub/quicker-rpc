@@ -1,4 +1,5 @@
 import { resolveRuntimeEntry } from "./runtime-entry.mjs";
+import { readShellRuntimeMode } from "./runtime-mode.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Notification } from "./electron-api.mjs";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -404,17 +405,23 @@ function handleDesktopWindow(event, action) {
   }
 }
 
-async function bootProduction() {
-  const resourceRoot = resolveResourceRoot(app);
+function resolveProductionRuntime() {
+  const runtimeMode = readShellRuntimeMode(join(electronRoot, ".."));
+  const resourceRoot = resolveResourceRoot(app, { runtimeMode });
   const appDir = appRuntimeDir(resourceRoot);
   const nodeExe = bundledNodeExe(resourceRoot);
   const qkrpcDir = bundledQkrpcDir(resourceRoot);
+  return { runtimeMode, resourceRoot, appDir, nodeExe, qkrpcDir };
+}
+
+async function bootProduction(runtime) {
+  const { runtimeMode, resourceRoot, appDir, nodeExe, qkrpcDir } = runtime;
 
   writeBootLog(
     `boot paths packaged=${app.isPackaged} resourceRoot=${resourceRoot} nodeExe=${nodeExe} qkrpcDir=${qkrpcDir}`,
   );
 
-  const serverJs = resolveRuntimeEntry(appDir).path;
+  const serverJs = resolveRuntimeEntry(appDir, { mode: runtimeMode }).path;
   const waitMs = process.argv.includes("--updated") ? 20_000 : 8_000;
   if (!existsSync(nodeExe)) {
     writeBootLog(`waiting for bundled node (${waitMs}ms): ${nodeExe}`);
@@ -436,6 +443,7 @@ async function bootProduction() {
     appDir,
     nodeExe,
     qkrpcDir,
+    runtimeMode,
     smoke,
   });
   writeBootLog(`boot ok uiUrl=${uiUrl}`);
@@ -451,6 +459,8 @@ async function main() {
     app.setPath("userData", userData);
   }
   writeBootLog("main entered");
+  // Reject missing/mismatched production artifacts before desktop services allocate ports.
+  const productionRuntime = isDev() ? null : resolveProductionRuntime();
   if (!ensureSingleInstance()) {
     writeBootLog("single-instance lock not acquired; exiting");
     return;
@@ -472,7 +482,7 @@ async function main() {
 
   try {
     writeBootLog(`startup isDev=${isDev()} packaged=${app.isPackaged} argv=${process.argv.join(" ")}`);
-    const loadUrl = isDev() ? getUiBaseUrl(true) : await bootProduction();
+    const loadUrl = isDev() ? getUiBaseUrl(true) : await bootProduction(productionRuntime);
     // QUICKER_AGENT_SMOKE_MAIN_V1: never load an unverified existing HTTP listener.
     if (smoke) await waitForSmokeApproval(smoke);
     writeBootLog(`loadUrl=${loadUrl}`);

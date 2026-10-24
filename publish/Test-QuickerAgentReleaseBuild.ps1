@@ -11,7 +11,10 @@ param(
     [string]$RepoRoot = '',
     [switch]$FastOnly,
     [switch]$BuildOnly,
-    [switch]$SkipNextBuild,
+    [ValidateSet('static', 'legacy-next')]
+    [string]$RuntimeMode = 'static',
+    [Alias('SkipNextBuild')]
+    [switch]$SkipAppBuild,
     [switch]$SkipQkrpcBuild
 )
 
@@ -37,7 +40,8 @@ if ($FastOnly) {
 if ($BuildOnly) {
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Preflight-QuickerAgentBuild.ps1') `
         -RepoRoot $RepoRoot `
-        -SkipNextBuild:$SkipNextBuild `
+        -RuntimeMode $RuntimeMode `
+        -SkipAppBuild:$SkipAppBuild `
         -SkipQkrpcBuild:$SkipQkrpcBuild
     if ($LASTEXITCODE -ne 0) {
         throw "Build preflight failed with exit code $LASTEXITCODE"
@@ -46,7 +50,7 @@ if ($BuildOnly) {
 }
 
 $agentScript = Join-Path $PSScriptRoot 'Publish-QuickerAgent.ps1'
-& pwsh -NoProfile -File $agentScript -RepoRoot $RepoRoot -SkipQkrpcBuild -PreflightOnly -SkipNextBuild:$SkipNextBuild
+& pwsh -NoProfile -File $agentScript -RepoRoot $RepoRoot -SkipQkrpcBuild -PreflightOnly -RuntimeMode $RuntimeMode -SkipAppBuild:$SkipAppBuild
 if ($LASTEXITCODE -ne 0) {
     throw "Test-QuickerAgentReleaseBuild failed with exit code $LASTEXITCODE"
 }

@@ -2,24 +2,28 @@
 
 > 嵌套 [AGENTS.md](../AGENTS.md)（距编辑文件最近者优先）。热更新、`build.ps1 -t`、qkrpc 连通、无头编辑、正式发布见父文档。
 
-Next.js + Vercel AI SDK；`qkrpc serve`（9477）或 CLI 子进程。系统提示：`lib/instructions.ts`；Launcher 单独；Skills：`lib/agent-skills/`、`docs/skills/`；预加载 `quicker-authoring`。
+默认生产为静态 React renderer + 独立 Node Agent service + 薄 Electron 壳，复用单一 Vercel AI SDK loop；Next 保留开发 HMR 与显式 legacy 生产入口。通过 `qkrpc serve`（9477）或 CLI 子进程访问宿主。系统提示：`lib/instructions.ts`；Launcher 单独；Skills：`lib/agent-skills/`、`docs/skills/`；预加载 `quicker-authoring`。
 
 修改功能前先查 [产品任务路由](../docs/agents/README.md)，只读 [产品能力与规划](../docs/product/README.md) 中对应功能域。
 
 ## Dev & build
 
-- 启动（仓库根）：`pwsh ./dev.ps1` → `:3000`；`-Electron`（默认）/ `-Tauri`（legacy）。勿同时占 `:3000`；切壳清 `.next`。
-- **改本目录 UI**：dev server + HMR；**禁** `pnpm build`、**禁** 根目录 `build.ps1 -t`。
+- 开发启动（仓库根）：`pwsh ./dev.ps1` → `:3000` HMR；桌面用 `-Electron`，Tauri 为显式 legacy。勿同时占 `:3000`；开发切壳仍由脚本处理 `.next`。
+- **改本目录 UI**：使用 dev server + HMR 和前端检查，不以生产构建代替日常 UI 验收；**禁**为 UI 改动运行根目录 `build.ps1 -t`。只有生产构建/打包任务才运行下述生产入口。
 - pnpm / Node 20+；LLM key：`llm-*-config.json`（gitignore）→ skill `quicker-agent-llm-apikey-config`。
 - qkrpc 连不上：见父文档；**禁** `shell_exec` 探活（`lib/instructions.ts`、`lib/shell-policy.ts`）。
 
-## 静态 React / Node 受控入口
+## 默认生产与显式 legacy
 
-- `pnpm build:static` / `build:static:dev` 只构建独立 `.tmp` 产物，不改 `.next`；用显式 data-dir 和临时端口。
+- `pnpm build` 默认生成文档、核对 API manifest、独立 TypeScript 检查，再构建静态 React/Node 到仓库 `.tmp/static-runtime/app`；不改 `.next`。
+- `pnpm start` 默认在原 Node 进程加载该产物，固定生产模式，转发 `--port` / `--data-dir` 等服务参数；不在启动前先拉起 Next/qkrpc。验收用显式 data-dir 与临时端口。
+- `pnpm electron:prepare` / `electron:build` 和 `publish/Publish-QuickerAgent.ps1` / build preflight 默认静态。`build:static` / `build:static:dev` 是底层/开发检查入口；`electron:prepare:static` 兼容入口保留。
+- Next 生产只通过 `build:legacy-next`、`electron:prepare:legacy-next`、`electron:build:legacy-next`、`start:legacy-next` 或发布脚本的 `-RuntimeMode legacy-next` 显式选择。legacy start 读取完整 `electron/resources/app`，不能直接运行缺少 public/static 资源的 `.next/standalone`。
+- `SkipAppBuild`（别名 `SkipNextBuild`）不切换模式：静态复用已 staged 且预检通过的 app；legacy 只省略 Next build，prepare 仍从已有 `.next/standalone` 重新 staging。
+- 当前 shell 模式与资源 `runtime-mode.json` 不匹配、静态 manifest/入口缺件时，先报诊断再停止；不得隐式改用遗留 Next server，也不得把模式标记当作产物版本/完整升级证明。
 - `pnpm check:service-routes` 防止 API manifest 漂移；handler 仍是 `app/api/` 的单一实现。
 - `pnpm test:static-runtime` 使用生成资料、fake HTTP、独立 Edge 和真实本次 browser/terminal child，包含开发态 frontend check。
-- `electron:prepare:static` / 静态打包是显式入口；未完成安装/升级和完整宿主流程前不删除兼容 Next。
-- 资源/生命周期/验证边界见 [静态运行目录](../docs/engineering/static-agent-runtime.md)。
+- 默认入口切换不表示安装/升级、真实旧资料、全局快捷键或完整宿主流程均已验收。资源/生命周期/验证边界见 [静态运行目录](../docs/engineering/static-agent-runtime.md)。
 
 ## Frontend check（改 UI 后必做 — Agent 自动执行）
 

@@ -327,11 +327,10 @@ function spawnQkrpc(qkrpcDir, host, port) {
   return child;
 }
 
-function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwned = false) {
-  const entry = resolveRuntimeEntry(appDir);
+function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwned = false, entry = resolveRuntimeEntry(appDir)) {
   const serverJs = entry.path;
   if (!existsSync(serverJs)) {
-    throw new Error(`server.js not found: ${serverJs}`);
+    throw new Error(`Agent runtime entry not found: ${serverJs}`);
   }
   const child = spawn(nodeExe, entry.kind === "static" ? [serverJs, "--host", host, "--port", String(port)] : [serverJs], {
     cwd: appDir,
@@ -378,6 +377,7 @@ export async function startProductionBackends(runtime) {
 
 async function startOwnedBackends(runtime, signal) {
   signal.throwIfAborted();
+  const entry = resolveRuntimeEntry(runtime.appDir, { mode: runtime.runtimeMode });
   const host = "127.0.0.1";
   if (runtime.smoke) {
     smokeRpcGuard = await startSmokeRpcGuard();
@@ -388,7 +388,7 @@ async function startOwnedBackends(runtime, signal) {
       QKRPC_HTTP_URL: `http://${host}:${smokeRpcGuard.port}`, QKRPC_TRANSPORT: "http",
       HOME: process.env.HOME, AGENT_GUI_ROOT: process.env.AGENT_GUI_ROOT,
       AGENT_GUI_DEFAULT_CWD: process.env.AGENT_GUI_DEFAULT_CWD,
-    }, true);
+    }, true, entry);
     await waitForChildSpawn(child, "isolated smoke node", signal);
     signal.throwIfAborted();
     writeSmokeHandshake(runtime.smoke, { uiPort, uiPid: child.pid, rpcPort: smokeRpcGuard.port, rpcPid: process.pid });
@@ -409,7 +409,7 @@ async function startOwnedBackends(runtime, signal) {
   }
 
   signal.throwIfAborted();
-  const nodeChild = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, nodeEnv);
+  const nodeChild = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, nodeEnv, false, entry);
   await waitForChildSpawn(nodeChild, "node", signal);
   const uiOk = await httpProbe(host, uiPort, "/", "status200", 60_000, signal);
   if (!uiOk) throw new Error(`timeout waiting for UI http://${host}:${uiPort}/`);

@@ -164,7 +164,7 @@ QuickerAgent / 脚本 / MCP Agent
 | `QuickerRpc.Console` | `qkrpc.exe`（net10.0） |
 | `QuickerRpc.AgentModel` | XAction 压缩 / patch、StepRunner、内置指南 |
 | `QuickerRpc.Test` / `QuickerRpc.Plugin.Test` | 活进程集成测试 / 离线反射测试 |
-| `agent-gui/` | QuickerAgent（Next.js + Electron 桌面壳） |
+| `agent-gui/` | QuickerAgent（静态 React + 独立 Node service + Electron；Next 用于开发 HMR 与显式 legacy） |
 | `quicker-agent-web/` | 下载落地页（[alinko.top](https://alinko.top) / EdgeOne Pages） |
 | `docs/` | 人类文档与 Skill 源码 |
 | `publish/` | 构建脚本、changelog、发布资产 |
@@ -189,6 +189,8 @@ dotnet build QuickerRpc.Plugin -p:QuickerDllPath="D:\path\to\Quicker\bin\x64\Deb
 ```
 
 **QuickerAgent 前端**（Node 20+、pnpm）：`pwsh ./dev.ps1` — 见 [agent-gui/README.md](agent-gui/README.md)、[docs/dev-supervisor-design.md](docs/dev-supervisor-design.md)。改 UI 时不要跑 `build.ps1 -t`（HMR 即可）。
+
+**QuickerAgent 生产入口**：在 `agent-gui/` 执行 `pnpm build`、`pnpm start`，默认使用静态 React 与独立 Node；`pnpm electron:prepare` 也构建并暂存同一运行目录。Next 生产兼容需显式使用 `build:legacy-next` / `electron:prepare:legacy-next` / `start:legacy-next`，命令与资源边界见 [静态运行目录](docs/engineering/static-agent-runtime.md)。
 
 **测试**（需 Quicker + 已加载插件）：
 
