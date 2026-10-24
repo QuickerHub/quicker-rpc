@@ -79,7 +79,7 @@ jobs:
       - name: TypeScript and explicit offline Agent checks
         working-directory: agent-gui
         run: node scripts/check-agent-offline.mjs
-      - name: Build and verify relocated production static runtime
+      - name: Build through the default production entry and verify relocated runtime
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         timeout-minutes: 5
         shell: pwsh

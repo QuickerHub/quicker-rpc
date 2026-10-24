@@ -62,6 +62,14 @@ Ubuntu 安装后用锁定的 node-gyp 9.4.1 重编译实际 node-pty 1.1.0，确
 及平台所需的原生伴随文件（如 macOS 的 spawn-helper）照常复制。辅助目录及其父级不能借此作为链接，保留文件的其它越界链接、
 指入辅助目录的别名和声明入口仍会被拒绝，不放宽包内容边界。
 
+两平台的 closure 门禁通过与 `pnpm build` 相同的
+`build-agent-production.mjs` / `buildAgentProductionRuntime` 默认生产入口，执行文档、
+API manifest 和 TypeScript 检查后只构建一次。产物物理搬移前后必须实际存在普通文件
+`runtime-mode.json`，格式与版本有效、模式为 `static`，且最终 native 验证后其 SHA-256
+仍相同；缺文件时运行时 reader 的兼容默认值不能充当 marker 证据。mode 文件先走元数据
+检查，再有界读取；receipt 记录生产入口和 marker 的模式/schema/hash，原 source、链接、
+精确 Node 原生导入验证与只上传 receipt/failure.log 的边界保持。
+
 Agent 门禁直接执行已有 `agent-gui/scripts/check-agent-offline.mjs`，包含
 `tsc --noEmit --incremental false` 和显式隔离测试。测试 worker 并发限制为 4，保留
 15 秒文件超时，避免按宿主 CPU 数量启动大量冷 tsx worker。
