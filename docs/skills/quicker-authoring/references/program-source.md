@@ -5,6 +5,27 @@ V2 actions use Quicker's native MCP. Creating actions, metadata changes, and
 global subprograms retain their existing commands. Compatibility `.quicker` JSON
 projects continue to use `workspace_program`; do not mix their layout with this bundle.
 
+## Discover codec and guide provenance
+
+`qkrpc guide get --topic program-source --json` returns the local `codec` descriptor
+and bundled document `provenance`. The existing HTTP `guide.get` and MCP `docs get`
+responses carry the same observations without connecting to or starting Quicker.
+
+- `codec.formats.inputs` is the same supported-format list used by Decode;
+  `formats.output` identifies the YAML format produced by Encode. Legacy omitted
+  schema handling is declared separately. Unknown nonempty schema IDs are rejected.
+- `codec.source` identifies the loaded AgentModel implementation, including its
+  assembly metadata and module ID. Wire format, descriptor shape and implementation
+  version are distinct. `descriptorRevision` hashes the descriptor body, not source
+  code or a current native definition; an upstream port comment is not a host version.
+- `provenance.source.kind=bundled-fallback` identifies embedded guidance.
+  `indexRevision` fingerprints the delivered guide/schema resources and
+  `contentRevision` fingerprints this returned Markdown/schema projection.
+- `codec.nativeSource` remains unknown. Local codec support, bundle hashes and
+  successful snapshot roundtrips do not grant native read/write capability.
+  Use the current bound host's source capabilities and actual operation result;
+  do not infer support from a Quicker version or fill missing metadata from old text.
+
 ## Open → edit → dry-run → save
 
 ```text
@@ -22,7 +43,9 @@ qkrpc_action_save({ dir: ".tmp/quicker/edit-action", dryRun: false })
   `program.source.yaml` with `Read`; edit YAML/resources with `StrReplace` or `Write`.
   These file tools protect `quicker.source.json` and `.qkrpc/baseline.json` from writes.
   A dedicated YAML editor or second project workspace is not needed.
-- Open reads the running V1 action and writes a source bundle. V2 is rejected.
+- Open reads the bound action and writes a source bundle only when the host actually
+  provides source reading. This remains the default workflow for existing V1 actions;
+  a local codec descriptor does not establish V2 source availability.
 - Dry-run is offline: decode, compile, file checks, and codec roundtrip; it writes
   neither the live action nor the bundle's saved baseline. It does not prove the action runs successfully.
 - Save repeats validation, checks the stored `editVersion`, and writes to the

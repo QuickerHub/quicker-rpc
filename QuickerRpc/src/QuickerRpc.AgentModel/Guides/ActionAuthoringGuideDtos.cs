@@ -13,6 +13,10 @@ public sealed class GetActionAuthoringDocResult
     public string? Markdown { get; set; }
     /// <summary>Machine-readable schema when topic is action-data-schema.</summary>
     public JsonNode? Schema { get; set; }
+    /// <summary>Local codec self-description for the program-source guide; never a native capability claim.</summary>
+    public JsonNode? Codec { get; set; }
+    /// <summary>Bundled document origin and content fingerprints. Absent on unsuccessful lookups.</summary>
+    public JsonNode? Provenance { get; set; }
     public List<string>? AvailableTopics { get; set; }
     public List<string>? AvailableReferences { get; set; }
 }

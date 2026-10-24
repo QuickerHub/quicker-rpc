@@ -217,7 +217,7 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 | 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | 已接现有 native search/get，每次重新读取；跨 turn/同 turn 更新、limit、精确控制值和读取失败回归已通过。后端旧缓存与来源标识继续迁移，不宣称已证明全部原生 freshness |
 | Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | 实现中；不新增平行存储或 Agent loop，不按 Quicker 版本硬编码字段 |
 | 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 待接消费者与升级回归；旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
-| codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 待统一路由与刷新；公开网站 corpus 不替代当前模块 schema |
+| codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 本地 guide 查询已提供实际 codec 格式/实现 descriptor 与 bundled 文档内容指纹；原生能力保持 unknown。Node 与统一路由/刷新继续接入，公开网站 corpus 不替代当前模块 schema |
 
 固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，
 不能用 knowledge 获取成功或反编译字段映射替代真实保存语义。
