@@ -19,8 +19,8 @@ import catalog from'@/lib/action-editor/data/step-runners-ui-catalog.json';
 const target='abcdefab-cdef-4abc-8def-abcdefabcdef';
 const state=window.fixture={requests:[],unexpected:[],schemaMode:'ok',pending:[],active:true,doc:'a'};
 const run=mapAgentSchemaToStepRunnerItem(catalog.schemas['sys:runAction']);
-const basic=StepRunnerItem.fromPartial({key:'fixture',name:'Fixture step',inputParamDefs:[{key:'text',name:'Existing parameter',varType:0,variableMode:1,allowInput:true}]});
-const source=id=>JSON.stringify({steps:[{stepId:id+'-one',stepRunnerKey:'fixture',note:'first',inputParams:{text:'original'},futureStep:'KEEP_BIG_INT'},{stepId:id+'-two',stepRunnerKey:'fixture',note:'second'}],variables:[],subPrograms:[{id:'child',kind:1,name:'Child',steps:[],variables:[],subPrograms:[]}],futureRoot:'KEEP_DECIMAL'}).replace('"KEEP_BIG_INT"','9223372036854775807').replace('"KEEP_DECIMAL"','0.1234567890123456789012345');
+const basic=StepRunnerItem.fromPartial({key:'sys:fixture',name:'Fixture step',inputParamDefs:[{key:'text',name:'Existing parameter',varType:0,variableMode:1,allowInput:true}]});
+const source=id=>JSON.stringify({steps:[{stepId:id+'-one',stepRunnerKey:'sys:fixture',note:'first',inputParams:{text:'original'},futureStep:'KEEP_BIG_INT'},{stepId:id+'-two',stepRunnerKey:'sys:fixture',note:'second'}],variables:[],subPrograms:[{id:'child',kind:1,name:'Child',steps:[],variables:[],subPrograms:[]}],futureRoot:'KEEP_DECIMAL'}).replace('"KEEP_BIG_INT"','9223372036854775807').replace('"KEEP_DECIMAL"','0.1234567890123456789012345');
 const scope=(doc,owner)=>({cwd:'C:/fixture-only',projectDirectory:'.quicker/actions/'+doc,expectedProjectBinding:{schemaVersion:1,kind:'action',actionId:target,hostBinding:{hostInstanceId:owner,hostSessionId:(owner==='a'?'a':'b').repeat(32),endpoint:'QuickerRpc_User_'+'A'.repeat(24)+'_'+(owner==='a'?'a':'b').repeat(32),protocolVersion:1,schemaVersion:1,hostKind:'v1',quickerVersion:'fake-only',capabilities:{'resource.action.page.read':true}}}});
 window.fetch=async(input,init)=>{
  const url=String(input),body=init?.body?JSON.parse(init.body):{};
@@ -31,7 +31,7 @@ window.fetch=async(input,init)=>{
  if(url==='/api/step-runner/summaries')return Response.json({ok:true,items:[]});
  if(url==='/api/subprogram/list')return Response.json({ok:true,items:[]});
  if(url==='/api/step-runner/get'){
-  if(body.key==='fixture')return Response.json({ok:true,item:basic});
+  if(body.key==='sys:fixture')return Response.json({ok:true,item:basic});
   if(body.key==='sys:runAction'){
    if(state.schemaMode==='fail')return Response.json({ok:false,error:'fixture bound schema unavailable',code:'UNAVAILABLE'},{status:503});
    const result=Response.json({ok:true,item:run});
@@ -39,7 +39,7 @@ window.fetch=async(input,init)=>{
    return result;
   }
  }
- state.unexpected.push(url);throw Error('Unexpected host operation: '+url);
+ state.unexpected.push({url,body});throw Error('Unexpected host operation: '+url);
 };
 const sessions=Object.fromEntries(['a','b'].map(id=>[id,createProgramDocumentSession({content:source(id),identity:{documentKey:id,projectBinding:null}})]));
 const controllers=Object.fromEntries(['a','b'].map(id=>[id,createProgramDocumentEditorController(sessions[id],{isCurrent:()=>state.doc===id&&state.active,onChange:result=>{if(!result.ok)throw Error(result.error);state.redraw?.(x=>x+1);}})]));
@@ -110,6 +110,12 @@ test("action resources use the real popup/controller, drop slots, undo and owner
       await page.evaluate((theme) => document.documentElement.dataset.theme=theme, theme);
       await page.screenshot({ path: "../.tmp/action-resource-popup-" + theme + ".png" });
     }
+    await page.setViewportSize({ width: 380, height: 760 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const confirmBounds = await popup(page).getByRole("button", { name: "确定", exact: true }).boundingBox();
+    assert.ok(confirmBounds && confirmBounds.y >= 0 && confirmBounds.y + confirmBounds.height <= 760);
+    await page.screenshot({ path: "../.tmp/action-resource-popup-narrow.png" });
+    await page.setViewportSize({ width: 1200, height: 900 });
     await popup(page).getByRole("button", { name: "确定", exact: true }).click();
     await page.waitForFunction(() => (window as any).fixture.snapshot().steps.length === 3);
     const inserted = await page.evaluate(() => (window as any).fixture.snapshot());
@@ -158,7 +164,8 @@ test("action resources use the real popup/controller, drop slots, undo and owner
     await existing.locator("textarea,input,[contenteditable=true]").first().fill("keep pending parameter draft");
     await page.evaluate(() => { const f=(window as any).fixture;f.schemaMode="ok";f.pending.splice(0).forEach((done: any)=>done()); });
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    assert.equal(await existing.locator("textarea,input,[contenteditable=true]").first().inputValue(), "keep pending parameter draft");
+    assert.equal(await existing.locator("textarea,input,[contenteditable=true]").first().evaluate((field) =>
+      field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement ? field.value : field.textContent), "keep pending parameter draft");
     await popup(page).getByRole("button", { name: "确定", exact: true }).click();
     assert.equal(await page.evaluate(() => (window as any).fixture.snapshot().steps.length), 2);
     assert.equal(await page.evaluate(() => (window as any).fixture.snapshot().steps[0].inputParams.text.value), "keep pending parameter draft");
