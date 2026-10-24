@@ -65,6 +65,11 @@ Windows job 还用小型合成包运行生产 NSIS 模板的两遍真实 `/WX` �
 迟到结果及首次全局使用时的持久缓存行为都有检查。真实组件/StepList/portal/Workspace 的
 多 owner 与 legacy 组合另用 `designerFaGeometry.browser.test.ts`，不进入无浏览器二进制的 CI。
 
+`pnpm check:action-designer` 是显式 Edge 入口，顺序运行 XProgramEditor、APDE 和工作台
+文档 Host 的真实组件回归。完整 APDE 文件的正常执行已超过一分钟，文件 worker 给定
+300 秒总预算；各用例内的 45/60 秒限制和服务自然退出的 5 秒门槛继续保留。
+该入口不会使用真实 Quicker、模型或用户资料，也不加入无 Edge 的离线流水线。
+
 Runtime 测试显式设置 `IncludeV2HostTests=false`，移除 Plugin.V2 引用以及
 composition、catalog、宿主 probe、实际编译 source 与 Designer 原语测试文件。
 `DesignerUnsupportedTests` 保留在该门禁，验证可选端口缺失与预取消。独立的 V2

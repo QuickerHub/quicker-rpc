@@ -336,7 +336,7 @@ test("resource action opens reuse dirty file instances and do not let late expor
     assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 0, "opening resources never saves either document");
     for (const type of ["keys", "unknown"]) {
       await resource().getByRole("option", { name: `Target ${type}` }).click();
-      await resource().getByText("当前仅支持打开组合动作（XAction）；其它或未知类型保留只读摘要。").waitFor();
+      await resource().getByText("仅组合动作（XAction）支持在工作区打开。").waitFor();
       assert.equal(await resource().getByRole("button", { name: "在工作区打开" }).count(), 0);
       assert.equal(await page.evaluate(() => (window as any).fixture.resourceOpens.length), 5, `${type} selection never dispatches an action open`);
     }
