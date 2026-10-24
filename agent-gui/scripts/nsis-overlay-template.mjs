@@ -82,6 +82,9 @@ export function createPinnedNsisLayout(inputs) {
     || hash(inputs.uninstaller) !== PINNED_NSIS_HASHES.uninstaller)
     throw new Error("NSIS layout template mismatch; review the layout adapter");
   let assisted = normalize(inputs.assistedInstaller), multiUser = normalize(inputs.multiUser);
+  const unusedDirectoryHelper = "    !include StrContains.nsh\n\n";
+  exactlyOnce(assisted, unusedDirectoryHelper, "obsolete directory helper");
+  assisted = assisted.replace(unusedDirectoryHelper, "");
   const pre = assisted.match(/    Function instFilesPre\n[^]*?    FunctionEnd/)?.[0];
   if (!pre) throw new Error("NSIS final-directory callback missing");
   exactlyOnce(assisted, pre, "directory callback");

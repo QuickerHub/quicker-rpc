@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { createPinnedNsisOverlay, installPinnedNsisOverlayAdapter } from "./nsis-overlay-template.mjs";
+import { createPinnedNsisOverlay, createPinnedNsisLayout, installPinnedNsisOverlayAdapter } from "./nsis-overlay-template.mjs";
 
 const require = createRequire(import.meta.url), directory = dirname(require.resolve("app-builder-lib/package.json"));
 const input = { builderVersion: JSON.parse(readFileSync(join(directory, "package.json"), "utf8")).version,
@@ -49,4 +49,13 @@ test("adapter delegates both original final-script passes without bypassing sign
   assert.ok(calls.every(([owner]) => owner === target));
   await assert.rejects(target.computeFinalScript(input.mainTemplate + "\n; changed", true, []));
   adapter.restore(); assert.equal(Target.prototype.computeFinalScript, original);
+});
+test("final-directory layout removes the obsolete StrContains function which fails real NSIS /WX", () => {
+  const layout = createPinnedNsisLayout({ ...input,
+    assistedInstaller: readFileSync(join(directory, "templates/nsis/assistedInstaller.nsh"), "utf8"),
+    multiUser: readFileSync(join(directory, "templates/nsis/multiUser.nsh"), "utf8"),
+    uninstaller: readFileSync(join(directory, "templates/nsis/uninstaller.nsh"), "utf8"),
+  });
+  assert.doesNotMatch(layout.files.assisted, /!include StrContains\.nsh/);
+  assert.doesNotMatch(layout.files.assisted.match(/Function instFilesPre[^]*?FunctionEnd/)?.[0] ?? "", /StrCpy|StrContains/);
 });
