@@ -1099,7 +1099,7 @@ function Get-QuickerRpcVersionBaseline {
                 'HEAD:version.json', 'HEAD~1:version.json',
                 'origin/main:version.json', 'origin/master:version.json'
             )) {
-            $raw = git show "${ref}" 2>$null
+            $raw = (git show "${ref}" 2>$null) -join "`n"
             if ([string]::IsNullOrWhiteSpace($raw)) {
                 continue
             }
