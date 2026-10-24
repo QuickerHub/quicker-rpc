@@ -74,6 +74,9 @@ Node service 为 browser/terminal 分配独立端口和 owner，状态写入选�
 只回收实际登记并保有 child handle 的进程。正常退出通过 IPC，父 IPC 断连也触发停止；
 Windows fallback 不阻塞观察 exit 的 event loop。清理失败保留 owner 并报错。后台发布配置刷新同样由服务持有，停止时取消并等待所有刷新，
 再关闭数据库；晚到的响应不能重开存储。
+Explorer 的 workspace watch 同样归当前 runtime：停止时关闭其 watcher、清除 debounce/idle
+timer，并等待尚未结束的树读取，晚回调不能重新发布或调度。正常 SSE 退订仍保留原有
+30 秒 idle 缓存；另一个 runtime owner 和 Next 兼容入口的缓存各自独立，不随之释放。
 Electron 重复退出/升级调用等待同一个 shutdown Promise，先排空 Node，再清理所属 qkrpc；
 复用的外部 qkrpc 不属于这个 shell。
 
