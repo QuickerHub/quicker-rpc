@@ -347,6 +347,10 @@ test("shared FA picker applies an icon-only appearance transaction with real sco
     await picker.getByRole("button", { name: "使用此图标", exact: true }).click();
     await picker.waitFor({ state: "detached" });
     assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "fa:Light_a__2:#80112233");
+    await page.waitForFunction(() => document.querySelector('[aria-label="图标预览"] svg path')?.getAttribute("d") === "M0 0H20V20H0Z");
+    const appliedFill = await page.getByLabel("图标预览", { exact: true }).locator("svg path").evaluate((element) => getComputedStyle(element).fill);
+    assert.match(appliedFill, /^rgba\(17, 34, 51, /, "the applied appearance keeps the same native alpha color after the picker closes");
+    assert.ok(Math.abs(Number(appliedFill.split(",").at(-1)!.replace(")", "")) - 128 / 255) < .002);
     await page.evaluate(() => { const f = (window as any).fixture; f.resolveDocumentPending(0, { ok: true }); f.documentMode = "success"; });
     await waitSaveEnabled(page);
     assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "fa:Light_a__2:#80112233", "an older save cannot acknowledge the picker draft");
