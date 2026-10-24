@@ -12,6 +12,7 @@ import {
 } from "./stepParamCreateVariable";
 import { actionVariableRowKey } from "../../variables/actionVariableUi";
 import { StepOutputParamField } from "./StepOutputParamField";
+import { ensureErrorMessageOutputParam } from "./ensureErrorMessageOutputParam";
 import { augmentStepRunnerItemForSubProgramEdit } from "../subProgramStepRunnerAugment";
 import {
   SUBPROGRAM_STEP_RUNNER_KEY,
@@ -324,10 +325,10 @@ export function StepEditorPopup({
     if (!hydratedRunnerItem) {
       return undefined;
     }
-    if (!step || (step.stepRunnerKey ?? "").trim() !== SUBPROGRAM_STEP_RUNNER_KEY) {
-      return hydratedRunnerItem;
-    }
-    return augmentStepRunnerItemForSubProgramEdit(hydratedRunnerItem, subProgramVariablesForAugment) ?? hydratedRunnerItem;
+    const base = step && (step.stepRunnerKey ?? "").trim() === SUBPROGRAM_STEP_RUNNER_KEY
+      ? augmentStepRunnerItemForSubProgramEdit(hydratedRunnerItem, subProgramVariablesForAugment) ?? hydratedRunnerItem
+      : hydratedRunnerItem;
+    return ensureErrorMessageOutputParam(base);
   }, [hydratedRunnerItem, step, subProgramVariablesForAugment]);
 
   const [draft, setDraft] = useState<ActionStep | null>(null);
