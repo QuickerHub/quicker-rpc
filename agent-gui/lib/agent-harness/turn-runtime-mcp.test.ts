@@ -9,6 +9,7 @@ import type { PreparedAgentTurnRuntime } from "./turn-runtime.server";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ToolExecutionOptions } from "ai";
 import { formatLocalToolResult, isStructuredToolResult } from "@/lib/tool-result";
+import type { LiveProgramDocumentSelection } from "@/lib/live-program-document";
 
 type Probe = { loads: number; connections: number; disposals: number;
   plans: Array<{ enabledToolIds: readonly string[]; readOnlyExecutorToolIds?: readonly string[] }>;
@@ -81,13 +82,14 @@ function fixture() {
   });
   const prepare = (options: {
     mode?: ChatMode; allowlist?: string[]; titleTest?: boolean; benchMode?: boolean; abortSignal?: AbortSignal;
-    enabledToolIds?: string[]; messages?: AgentUIMessage[];
+    enabledToolIds?: string[]; messages?: AgentUIMessage[]; liveProgramDocument?: LiveProgramDocumentSelection;
   } = {}): Promise<PreparedAgentTurnRuntime> => {
     const request = {
       chatMode: options.mode ?? "agent", enabledToolIds: options.enabledToolIds ?? ["Read"],
       titleTest: options.titleTest ?? false, benchMode: options.benchMode ?? false,
       slashCommand: { overrides: { toolAllowlist: options.allowlist } }, body: {},
       messagesForModel: [], repairedMessages: options.messages ?? [], lastUserText: "hello", cwd: "fixture-only",
+      liveProgramDocument: options.liveProgramDocument,
     };
     return module.exports.prepareAgentTurnRuntime({
       request, scope: { actionScope: { pinnedLatestAll: [] } },
@@ -96,6 +98,30 @@ function fixture() {
   };
   return { probe, prepare };
 }
+
+test("the actual live runtime prompt and client definition describe input edits while Ask remains read-only", async () => {
+  for (const mode of ["agent", "ask"] as const) {
+    const run = fixture();
+    const selection: LiveProgramDocumentSelection = { state: "ready", scope: {
+      version: 1, scopeId: "original-live-scope", threadId: "thread", userMessageId: "manual", cwd: "fixture-only",
+      mode: mode === "ask" ? "read" : "edit", target: {
+        owner: { key: "owner", instanceId: 1, cwd: "fixture-only", tabId: "data", path: ".quicker/actions/fixture/data.json" },
+        sessionId: "original-session", identity: { documentKey: "original-live-document", projectBinding: null },
+      },
+    } };
+    const runtime = await run.prepare({ mode, enabledToolIds: ["workspace_program", "Read"], liveProgramDocument: selection });
+    try {
+      const system = runtime.buildSystemForPreparedContext({});
+      const description = runtime.tools.workspace_program?.description ?? "";
+      assert.equal(run.probe.loads, 0); assert.equal(runtime.tools.workspace_program?.execute, undefined);
+      assert.match(system, /original-live-document/); assert.match(system, /original-live-scope/);
+      assert.match(system, /stepSchemaFor/); assert.match(description, /stepSchemaFor/);
+      assert.doesNotMatch(system, /only changes a uniquely identified step's note/);
+      if (mode === "agent") { assert.match(system, /edit_step_inputs_live/); assert.match(description, /edit_step_inputs_live/); }
+      else { assert.match(system, /read-only/); assert.doesNotMatch(system, /edit_step_inputs_live/); }
+    } finally { await runtime.dispose(); }
+  }
+});
 
 test("an explicit empty command selection acquires no MCP client in Agent or Ask", async () => {
   for (const mode of ["agent", "ask"] as const) {

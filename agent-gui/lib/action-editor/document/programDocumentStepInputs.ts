@@ -1,5 +1,6 @@
 import { compactWireInputParam, expandWireInputParams, parseWireParamKey } from "../../input-param-wire";
-import { collectRawSubPrograms, isSubProgramRecord, readStepInputsForRunner, type SubProgramRecord } from "./programDocumentSubProgramModel";
+import { parseLosslessJson } from "../shared/losslessJson";
+import { findUniqueOwnedProgramDocumentStep, isSubProgramRecord, readStepInputsForRunner, type SubProgramRecord } from "./programDocumentSubProgramModel";
 import type { ProgramDocumentEditResult, ProgramDocumentIdentity, ProgramDocumentSession } from "./programDocumentSession";
 
 export const MAX_STEP_INPUT_CHANGES = 32;
@@ -25,34 +26,12 @@ function member(record: SubProgramRecord, name: keyof typeof aliases): string | 
   return keys[0];
 }
 
-function rows(record: SubProgramRecord, key: string): SubProgramRecord[] {
-  const value = record[key];
-  if (value === undefined) return [];
-  if (!Array.isArray(value) || value.some((row) => !isSubProgramRecord(row))) throw new Error(`Invalid ${key} collection`);
-  return value as SubProgramRecord[];
-}
-
-function findUniqueStep(body: SubProgramRecord, stepId: string): SubProgramRecord {
-  const matches: { step: SubProgramRecord; owned: boolean }[] = [];
-  const visit = (steps: SubProgramRecord[], owned: boolean): void => {
-    for (const step of steps) {
-      if (step.stepId === stepId) matches.push({ step, owned });
-      visit(rows(step, "ifSteps"), owned);
-      visit(rows(step, "elseSteps"), owned);
-    }
-  };
-  visit(rows(body, "steps"), true);
-  // Foreign caches count for ambiguity, but never become owned editing surfaces.
-  for (const entry of collectRawSubPrograms(body)) visit(rows(entry.row, "steps"), entry.owned);
-  if (matches.length !== 1 || !matches[0]!.owned) throw new Error("The selected step is missing, ambiguous or not owned by this document");
-  const step = matches[0]!.step;
-  if (Object.keys(step).filter((key) => key.toLowerCase() === "stepid").length !== 1) throw new Error("The selected step has ambiguous identity aliases");
-  return step;
-}
-
 type PreparedInput = { key: string; value: string; previousValue: string; legacy?: { record: SubProgramRecord; field: string } };
+function inputContributors(inputs: SubProgramRecord, key: string): string[] {
+  return Object.keys(inputs).filter((candidate) => parseWireParamKey(candidate).baseKey.trim().toLowerCase() === key.toLowerCase());
+}
 function prepareInput(inputs: SubProgramRecord, key: string, value: string): PreparedInput {
-  const contributors = Object.keys(inputs).filter((candidate) => parseWireParamKey(candidate).baseKey.trim().toLowerCase() === key.toLowerCase());
+  const contributors = inputContributors(inputs, key);
   if (contributors.length !== 1 || contributors[0] !== key || !Object.hasOwn(inputs, key)) {
     throw new Error(`Input parameter ${key} is missing or has binding/case aliases`);
   }
@@ -81,6 +60,28 @@ function prepareInput(inputs: SubProgramRecord, key: string, value: string): Pre
   return { key, value, previousValue: decoded.value, ...(legacy ? { legacy } : {}) };
 }
 
+export type ProgramDocumentStepInputValue = Readonly<{ kind: "missing" } | {
+  kind: "value"; value: string;
+} | { kind: "unavailable"; reason: string }>;
+
+/** Physical values only: dynamic prefixes and native edit policies need a separate proof. */
+export function inspectProgramDocumentStepInputs(content: string, stepId: string, expectedRunnerKey: string) {
+  const body: unknown = parseLosslessJson(content);
+  if (!isSubProgramRecord(body)) throw new Error("The program document root is not an object");
+  const step = findUniqueOwnedProgramDocumentStep(body, stepId);
+  const inputs = readStepInputsForRunner(step, expectedRunnerKey);
+  if (!inputs) throw new Error("The selected step runner or input map is unavailable");
+  return Object.freeze({
+    readValue(key: string): ProgramDocumentStepInputValue {
+      if (!key || key !== key.trim() || parseWireParamKey(key).kind !== "value")
+        return Object.freeze({ kind: "unavailable", reason: "An exact input value key is required" });
+      if (inputContributors(inputs, key).length === 0) return Object.freeze({ kind: "missing" });
+      try { return Object.freeze({ kind: "value", value: prepareInput(inputs, key, "").previousValue }); }
+      catch (error) { return Object.freeze({ kind: "unavailable", reason: error instanceof Error ? error.message : String(error) }); }
+    },
+  });
+}
+
 /** One raw Session transaction; neither a schema authority nor a file-writing port. */
 export function applyProgramDocumentStepInputs(session: ProgramDocumentSession, request: ProgramDocumentStepInputsRequest): ProgramDocumentEditResult {
   const invalid = (error: string): ProgramDocumentEditResult => ({ ok: false, code: "invalid_document", error, state: session.getState() });
@@ -101,7 +102,7 @@ export function applyProgramDocumentStepInputs(session: ProgramDocumentSession, 
     if (payloadBytes > MAX_STEP_INPUT_PAYLOAD_BYTES) return invalid("The step-input transaction exceeds its payload limit");
   }
   return session.transact({ expectedRevision: request.expectedRevision, expectedIdentity: request.expectedIdentity, source: "agent", update(body) {
-    const step = findUniqueStep(body, request.stepId);
+    const step = findUniqueOwnedProgramDocumentStep(body, request.stepId);
     const inputs = readStepInputsForRunner(step, request.expectedRunnerKey);
     if (!inputs) throw new Error("The selected step runner or native input map does not match the schema proof");
     // Complete every check before touching even the disposable transaction draft.

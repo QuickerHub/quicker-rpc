@@ -30,6 +30,10 @@ import {
 } from "@/lib/action-editor/shared/designerHostGrpcApi";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../actionStepSerialization";
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
+import { StepEditorParamSection } from "./StepEditorParamSection";
+import { shouldExpandAdvancedParamSection } from "./stepEditorAdvancedSection";
+import { ModuleHelpPreviewPopup } from "./ModuleHelpPreviewPopup";
+import { moduleHelpLink } from "./moduleHelpLink";
 import {
   buildStepEditorDraft,
   draftParamsFingerprint,
@@ -187,6 +191,8 @@ export function StepEditorPopup({
   /** Last successfully fetched `runnerKey\\0controlLiteral` (controlLiteral empty = base schema). */
   const loadedSchemaKeyRef = useRef("");
   const catalogPort = useDesignerCatalogPort();
+  const [helpOwner, setHelpOwner] = useState<{ stepId: string; catalog: typeof catalogPort; link: string } | null>(null);
+  const closeHelp = useCallback(() => setHelpOwner(null), []);
   const catalogOwnerRef = useRef(catalogPort);
   const schemaFetchSeqRef = useRef(0);
   const hydratedRunnerRef = useRef(hydratedRunnerItem);
@@ -332,9 +338,15 @@ export function StepEditorPopup({
   }, [hydratedRunnerItem, step, subProgramVariablesForAugment]);
 
   const [draft, setDraft] = useState<ActionStep | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showGeneral, setShowGeneral] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState<boolean | undefined>(undefined);
+  const [showOutputs, setShowOutputs] = useState(true);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [schemaLoadIssue, setSchemaLoadIssue] = useState<string | undefined>(undefined);
+  const helpLink = moduleHelpLink(editorRunnerItem);
+  const helpPreviewOpen = !!helpOwner && active && open && !!step && helpOwner.stepId === step.stepId
+    && helpOwner.catalog === catalogPort && helpOwner.link === helpLink;
+  useEffect(() => { setHelpOwner(null); }, [active, open, step?.stepId, catalogPort, helpLink]);
   if (catalogOwnerRef.current !== catalogPort) {
     catalogOwnerRef.current = catalogPort;
     schemaFetchSeqRef.current += 1;
@@ -344,6 +356,9 @@ export function StepEditorPopup({
     setGlobalIoVariables(undefined);
     setGlobalIoDisplayName("");
     setGlobalIoError(undefined);
+    setShowGeneral(true);
+    setShowAdvanced(undefined);
+    setShowOutputs(true);
   }
 
   const bootstrapDraft = useMemo((): ActionStep | null => {
@@ -375,7 +390,9 @@ export function StepEditorPopup({
     if (stepFp !== prevStepFp) {
       draftSyncRef.current = { stepFp, runnerFp };
       setDraft(buildStepEditorDraft(step, editorRunnerItem));
-      setShowAdvanced(false);
+      setShowGeneral(true);
+      setShowAdvanced(undefined);
+      setShowOutputs(true);
       setDiscardDialogOpen(false);
       return;
     }
@@ -528,6 +545,8 @@ export function StepEditorPopup({
   const advancedOutDefs = useMemo(() => visibleOutputDefs.filter((d) => d.isAdvanced), [visibleOutputDefs]);
   const hasAnyParams = basicDefs.length > 0 || basicOutDefs.length > 0 || advancedDefs.length > 0 || advancedOutDefs.length > 0;
   const hasAdvancedSection = advancedDefs.length > 0 || advancedOutDefs.length > 0;
+  const advancedExpanded = showAdvanced ?? shouldExpandAdvancedParamSection(advancedDefs.length + advancedOutDefs.length);
+  const useGeneralSection = basicDefs.length > 0 && (hasAdvancedSection || basicOutDefs.length > 0);
 
   const waitingGlobalSubProgramIo =
     subProgramIoFetchTarget != null && (loadingGlobalSubProgramIo || globalIoVariables === undefined);
@@ -627,6 +646,7 @@ export function StepEditorPopup({
 
   /** Cancel / × / Escape: confirm discard when there are unsaved edits. */
   const requestClose = useCallback((): void => {
+    if (helpPreviewOpen) return;
     if (discardDialogOpen || createVariableRequest) {
       return;
     }
@@ -638,7 +658,7 @@ export function StepEditorPopup({
       return;
     }
     setDiscardDialogOpen(true);
-  }, [createVariableRequest, discardDialogOpen, isDirty, onClose]);
+  }, [createVariableRequest, discardDialogOpen, isDirty, onClose, helpPreviewOpen]);
 
   /** Backdrop click: same as requestClose. */
   const requestBackdropClose = useCallback((): void => {
@@ -651,6 +671,7 @@ export function StepEditorPopup({
       return;
     }
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (helpPreviewOpen) return;
       if (event.key === "Escape") {
         if (document.querySelector(".text-tool-dialog-backdrop")) {
           return;
@@ -688,7 +709,7 @@ export function StepEditorPopup({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose, canApply]);
+  }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose, canApply, helpPreviewOpen]);
 
   if (!active || !open || !step) {
     return null;
@@ -697,6 +718,19 @@ export function StepEditorPopup({
   const waitingRunnerSchema = loadingRunnerSchema && (hydratedRunnerItem?.inputParamDefs?.length ?? 0) === 0;
   const bodyPending = effectiveDraft == null || waitingGlobalSubProgramIo || waitingRunnerSchema;
   const loadingMessage = waitingGlobalSubProgramIo ? "正在加载子程序参数…" : "正在加载步骤参数…";
+
+  const renderInputFields = (fields: StepRunnerInputParamDef[], prefix: string) => fields.map(def => {
+    const key = def.key;
+    return <StepInputParamRow key={`${prefix}-${key}`} def={def} paramKey={key} variables={variables}
+      param={ensureParamValue(def, effectiveDraft!.inputParams[key])} workspaceContext={workspaceContext}
+      prefetchedFileContents={prefetchedFileContents} setParam={setParam}
+      onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />;
+  });
+  const renderOutputFields = (fields: StepRunnerOutputParamDef[], prefix: string) => fields.map(def => (
+    <StepOutputParamField key={`${prefix}-${def.key}`} def={def} variables={variables}
+      value={effectiveDraft!.outputParams[def.key] ?? ""} onChange={next => setOutputParam(def.key, next)}
+      onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />
+  ));
 
   const body = bodyPending ? (
     <StepEditorPopupBodySkeleton message={loadingMessage} />
@@ -713,90 +747,24 @@ export function StepEditorPopup({
             </p>
           ) : (
             <>
-              {basicDefs.map((def) => {
-                const key = def.key;
-                const cur = effectiveDraft!.inputParams[key];
-                const param = ensureParamValue(def, cur);
-                return (
-                  <StepInputParamRow
-                    key={`in-${key}`}
-                    def={def}
-                    paramKey={key}
-                    variables={variables}
-                    param={param}
-                    workspaceContext={workspaceContext}
-                    prefetchedFileContents={prefetchedFileContents}
-                    setParam={setParam}
-                    onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
-                  />
-                );
-              })}
-              {basicOutDefs.length > 0 ? (
-                <>
-                  <div className="step-editor-popup-section-title">输出变量</div>
-                  {basicOutDefs.map((def) => {
-                    const key = def.key;
-                    return (
-                      <StepOutputParamField
-                        key={`out-${key}`}
-                        def={def}
-                        variables={variables}
-                        value={effectiveDraft!.outputParams[key] ?? ""}
-                        onChange={(next) => setOutputParam(key, next)}
-                        onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
-                      />
-                    );
-                  })}
-                </>
-              ) : null}
+              {useGeneralSection ? (
+                <StepEditorParamSection title="常规" expanded={showGeneral} onToggle={() => setShowGeneral(v => !v)}>
+                  {renderInputFields(basicDefs, "in")}
+                </StepEditorParamSection>
+              ) : renderInputFields(basicDefs, "in")}
               {hasAdvancedSection ? (
-                <div className="step-editor-popup-advanced">
-                  <button type="button" className="step-editor-popup-advanced-toggle" onClick={() => setShowAdvanced((v) => !v)}>
-                    {showAdvanced
-                      ? "隐藏高级参数"
-                      : `高级参数 (${advancedDefs.length + advancedOutDefs.length})`}
-                  </button>
-                  {showAdvanced ? (
-                    <>
-                      {advancedDefs.map((def) => {
-                        const key = def.key;
-                        const cur = effectiveDraft!.inputParams[key];
-                        const param = ensureParamValue(def, cur);
-                        return (
-                          <StepInputParamRow
-                            key={`in-adv-${key}`}
-                            def={def}
-                            paramKey={key}
-                            variables={variables}
-                            param={param}
-                            workspaceContext={workspaceContext}
-                            prefetchedFileContents={prefetchedFileContents}
-                            setParam={setParam}
-                            onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
-                          />
-                        );
-                      })}
-                      {advancedOutDefs.length > 0 ? (
-                        <>
-                          <div className="step-editor-popup-section-title">输出变量（高级）</div>
-                          {advancedOutDefs.map((def) => {
-                            const key = def.key;
-                            return (
-                              <StepOutputParamField
-                                key={`out-adv-${key}`}
-                                def={def}
-                                variables={variables}
-                                value={effectiveDraft!.outputParams[key] ?? ""}
-                                onChange={(next) => setOutputParam(key, next)}
-                                onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
-                              />
-                            );
-                          })}
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-                </div>
+                <StepEditorParamSection title="高级" expanded={advancedExpanded} onToggle={() => setShowAdvanced(!advancedExpanded)}>
+                  {renderInputFields(advancedDefs, "in-adv")}
+                  {advancedOutDefs.length > 0 ? <>
+                    <div className="step-editor-popup-section-title">输出变量（高级）</div>
+                    {renderOutputFields(advancedOutDefs, "out-adv")}
+                  </> : null}
+                </StepEditorParamSection>
+              ) : null}
+              {basicOutDefs.length > 0 ? (
+                <StepEditorParamSection title="输出到变量" expanded={showOutputs} onToggle={() => setShowOutputs(v => !v)}>
+                  {renderOutputFields(basicOutDefs, "out")}
+                </StepEditorParamSection>
               ) : null}
             </>
           )}
@@ -808,6 +776,7 @@ export function StepEditorPopup({
     <>
       <div
         className="step-editor-popup-backdrop"
+        inert={helpPreviewOpen}
         data-program-keyboard-owner={keyboardOwnerId}
         role="presentation"
         onMouseDown={(event) => {
@@ -825,6 +794,8 @@ export function StepEditorPopup({
         >
           <header className="step-editor-popup-header">
             <h2 id="step-editor-popup-title">编辑步骤 — {popupHeadingRunner}</h2>
+            {helpLink ? <button type="button" className="step-editor-popup-btn secondary"
+              onClick={() => setHelpOwner({ stepId: step.stepId, catalog: catalogPort, link: helpLink })}>模块帮助</button> : null}
             <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
               ×
             </button>
@@ -851,6 +822,8 @@ export function StepEditorPopup({
           </footer>
         </div>
       </div>
+      {helpPreviewOpen ? <ModuleHelpPreviewPopup helpLink={helpLink} title={`模块帮助 — ${popupHeadingRunner}`}
+        keyboardOwnerId={keyboardOwnerId} onClose={closeHelp} /> : null}
       {createVariableRequest ? (
         <StepCreateVariableDialog
           open

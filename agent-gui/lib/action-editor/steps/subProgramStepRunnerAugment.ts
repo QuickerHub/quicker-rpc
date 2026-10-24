@@ -104,9 +104,9 @@ export function augmentStepRunnerItemForSubProgramEdit(
     dynOutputs.push(actionVariableToSubProgramStepOutputDef(v));
   }
 
-  return StepRunnerItem.fromPartial({
+  return {
     ...base,
     inputParamDefs: [...dynInputs, ...filteredBaseInputs],
     outputParamDefs: [...baseOutputs, ...dynOutputs]
-  });
+  };
 }

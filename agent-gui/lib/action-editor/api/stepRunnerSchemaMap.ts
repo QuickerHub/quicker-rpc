@@ -491,6 +491,7 @@ export function mapAgentSchemaToStepRunnerItem(schema: Record<string, unknown>) 
 
   return {
     key: readString(schema, "stepRunnerKey", "StepRunnerKey", "key", "Key"),
+    helpLink: readString(schema, "helpLink", "HelpLink"),
     name: readString(schema, "name", "Name"),
     description: readString(schema, "description", "Description"),
     icon: readString(schema, "icon", "Icon"),

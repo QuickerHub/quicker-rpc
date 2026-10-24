@@ -280,6 +280,7 @@ export type StepListEditorProps = {
   readProgramPresent?: () => XProgramPresent;
   flushProgramEdits?: () => void;
   registerDraftFlusher?: (flush: () => void) => () => void;
+  registerLiveEditingBlocker?: (isBlocked: () => boolean) => () => void;
 };
 
 export default function StepListEditor({
@@ -302,6 +303,7 @@ export default function StepListEditor({
   readProgramPresent,
   flushProgramEdits,
   registerDraftFlusher,
+  registerLiveEditingBlocker,
 }: StepListEditorProps): JSX.Element {
   const catalogPort = useDesignerCatalogPort();
   const catalogContext = useDesignerCatalogContext();
@@ -338,7 +340,14 @@ export default function StepListEditor({
   useEffect(() => {
     seedStepRunnerDetailCache(runnerSchemaByCacheKey, catalogPort);
   }, [runnerSchemaByCacheKey, catalogPort]);
-  const [editorTargetId, setEditorTargetId] = useState<string | null>(null);
+  const [editorTargetId, setEditorTargetIdState] = useState<string | null>(null);
+  const editorTargetIdRef = useRef<string | null>(null);
+  // The owner changes before React commits, so a live callback in the same event cannot miss the modal.
+  const setEditorTargetId = useCallback((next: string | null | ((current: string | null) => string | null)) => {
+    const value = typeof next === "function" ? next(editorTargetIdRef.current) : next;
+    editorTargetIdRef.current = value;
+    setEditorTargetIdState(value);
+  }, []);
   /** Toolbox drag: edit before insert; cleared on cancel or after confirm. */
   const [pendingToolboxInsert, setPendingToolboxInsert] = useState<PendingToolboxInsert | null>(null);
   useLayoutEffect(() => {
@@ -355,7 +364,6 @@ export default function StepListEditor({
     insertGeneration.current += 1;
     setQuickInsertState(next);
   }, []);
-  const editorTargetIdRef = useRef<string | null>(null);
   const quickInsertActiveRef = useRef(false);
   /** Backend GetSummary per stepId, scoped to step body fingerprint (avoids cross-tab / stale merge). */
   const [summariesByStepId, setSummariesByStepId] = useState<
@@ -553,9 +561,7 @@ export default function StepListEditor({
     }
   }, [globalSubProgramLabelsById, sharedSubProgramLabelsById, catalogContext]);
 
-  useLayoutEffect(() => {
-    editorTargetIdRef.current = editorTargetId;
-  }, [editorTargetId]);
+  useLayoutEffect(() => registerLiveEditingBlocker?.(() => editorTargetIdRef.current !== null), [registerLiveEditingBlocker]);
 
   useLayoutEffect(() => {
     quickInsertActiveRef.current = quickInsert != null;

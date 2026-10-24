@@ -174,6 +174,10 @@ public sealed class AgentOutputParamSchema
 
 public sealed class StepRunnerAgentSchema
 {
+    /// <summary>UI-only native documentation URL; the Agent compressor omits it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HelpLink { get; set; }
+
     public string StepRunnerKey { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
