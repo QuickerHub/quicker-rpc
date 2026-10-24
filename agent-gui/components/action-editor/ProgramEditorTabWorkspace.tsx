@@ -391,7 +391,7 @@ function ProgramEditorTabWorkspaceBody({
             control={controller.getSurface(surface)} keyboardOwnerId={keyboardOwnerId}
             editorTabId={surface} active={visible && !modalOpen} programDocumentKey={`${documentKey}#${surface}`} programSurface="subProgram"
             workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-            registerToolboxInsert={insertionHandlers.get(surface)} resourceCallOrigin={resourceCallOrigin} />
+            onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get(surface)} resourceCallOrigin={resourceCallOrigin} />
         </div>;
       })}
       </div>
