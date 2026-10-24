@@ -60,6 +60,14 @@ test("production resource entry isolates owners, requires snapshot paging and pr
     await page.getByRole("tab", { name: "动作", exact: true }).click();
     const action = page.getByRole("region", { name: "动作目录", exact: true });
     await action.getByRole("option").first().waitFor(); assert.equal(await action.getByRole("option").count(), 100);
+    assert.equal(await action.locator('[role="option"][tabindex="0"]').count(), 1, "the resource list has one tab stop");
+    await action.getByRole("option").first().focus(); await page.keyboard.press("ArrowDown");
+    assert.equal(await action.getByRole("option").nth(1).evaluate((element) => element === document.activeElement), true);
+    assert.equal(await action.getByRole("option").nth(1).getAttribute("aria-selected"), "true");
+    assert.equal(await action.locator('[role="option"][tabindex="0"]').count(), 1);
+    await page.keyboard.press("Tab");
+    assert.equal(await action.getByRole("button", { name: "加载更多" }).evaluate((element) => element === document.activeElement), true,
+      "Tab leaves the list without traversing every resource");
     await action.getByRole("option").first().click(); await action.getByText("9223372036854775807", { exact: true }).waitFor();
     await page.evaluate(() => { (window as any).fixture.failMore = true; });
     await action.getByRole("button", { name: "加载更多" }).click(); await action.getByRole("alert").waitFor();

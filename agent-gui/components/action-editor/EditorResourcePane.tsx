@@ -94,7 +94,8 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
       <p className="designer-resource-status" role="status">{visible?.loading ? "正在加载…" : page ? `${page.items.length} / ${page.totalCount}` : "未载入"}
         {page && !visible?.valid ? " · 旧结果已过期" : ""}</p>
       <div className="designer-resource-list" role="listbox" aria-label="资源列表" aria-busy={visible?.loading ?? false}>
-        {page?.items.map((item) => <button key={item.id} type="button" role="option" aria-selected={selectedId === item.id}
+        {page?.items.map((item, index) => <button key={item.id} type="button" role="option" aria-selected={selectedId === item.id}
+          tabIndex={selectedId === item.id || (!selected && index === 0) ? 0 : -1}
           title={item.description || item.title || item.id} onClick={() => setSelectedId(item.id)} onKeyDown={(event) => {
             const buttons = [...event.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>('[role="option"]')], index = buttons.indexOf(event.currentTarget);
             const next = event.key === "ArrowDown" ? Math.min(buttons.length - 1, index + 1) : event.key === "ArrowUp" ? Math.max(0, index - 1)
