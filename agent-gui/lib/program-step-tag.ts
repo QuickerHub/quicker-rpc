@@ -86,7 +86,7 @@ export function programStepDisplayTitle(input: {
   const note = input.note?.trim();
   const shortNote =
     note && note.length > 24 ? `${note.slice(0, 21)}…` : note;
-  const pathLabel = `steps/${input.nodePath.replace(/\//g, "/")}`;
+  const pathLabel = input.nodePath.startsWith("subPrograms/") ? input.nodePath : `steps/${input.nodePath}`;
   if (shortNote) {
     return `${runner} · ${shortNote}`;
   }

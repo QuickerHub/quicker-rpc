@@ -30,9 +30,7 @@ import {
 } from "@/lib/action-project-data-parse";
 import { resolveActionIdFromProject } from "@/lib/action-project-id";
 import { chatComposerActionsRef } from "@/lib/chat-composer-bridge";
-import { resolveNodePath } from "@/lib/action-editor/program/resolveNodePath";
-import { computeProgramStepDiskSlice } from "@/lib/action-editor/program/stepDiskSlice";
-import { findStepById } from "@/lib/action-editor/steps/stepTreeOps";
+import { resolveProgramDocumentStepPin } from "@/lib/action-editor/program/programDocumentStepPin";
 import {
   createProgramStepTag,
   type ProgramStepTarget,
@@ -730,25 +728,12 @@ export function ActionProjectDataEditor({
 
   const handlePinStepToChat = useCallback(
     (stepId: string) => {
-      if (!active || !session) return;
+      if (!active || !session || sessionRef.current !== session || session.isClosed()) return;
       workspaceRef.current?.flushPendingEdits();
-      const snapshot = session.readSnapshot();
-      const steps = snapshot.steps;
-      const nodePath = resolveNodePath(steps, stepId);
-      if (!nodePath) {
-        setPinStepFeedback("无法定位步骤在 data.json 中的路径");
-        return;
-      }
-      const step = findStepById(steps, stepId);
-      if (!step) {
-        setPinStepFeedback("未找到选中的步骤");
-        return;
-      }
-
-      const wireText = serializeProgramDocumentSnapshot(session.getState().content, snapshot);
-      const sliceResult = computeProgramStepDiskSlice(wireText, nodePath);
-      if (!sliceResult.ok) {
-        setPinStepFeedback(sliceResult.error);
+      if (sessionRef.current !== session || session.isClosed()) return;
+      const result = resolveProgramDocumentStepPin(session.getState().content, stepId);
+      if (!result.ok) {
+        setPinStepFeedback(result.error);
         return;
       }
 
@@ -757,14 +742,14 @@ export function ActionProjectDataEditor({
         programId: programPinMeta.programId,
         subProgramId: programPinMeta.subProgramId,
         dataJsonPath: programPinMeta.dataJsonPath,
-        nodePath,
-        stepRunnerKey: step.stepRunnerKey ?? "",
-        note: step.note,
-        designerStepId: step.stepId,
-        content: sliceResult.slice.content,
-        contentHash: sliceResult.slice.contentHash,
-        startLine: sliceResult.slice.startLine,
-        endLine: sliceResult.slice.endLine,
+        nodePath: result.slice.nodePath,
+        stepRunnerKey: result.stepRunnerKey,
+        note: result.note,
+        designerStepId: result.stepId,
+        content: result.slice.content,
+        contentHash: result.slice.contentHash,
+        startLine: result.slice.startLine,
+        endLine: result.slice.endLine,
       });
       if (onPinStepToChat) onPinStepToChat(tag);
       else {
