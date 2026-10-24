@@ -6,6 +6,8 @@ import { createProgramDocumentSubProgram, deleteProgramDocumentSubProgram, prepa
 import type { ActionSubProgram } from "../types/common";
 import type { ActionProgramSnapshot } from "./assembleActionProgramSnapshot";
 import { cloneXProgramPresent, type XProgramPresent } from "./xProgramHistory";
+import { findUniqueOwnedProgramDocumentStep, isSubProgramRecord } from "../document/programDocumentSubProgramModel";
+import { parseLosslessJson } from "../shared/losslessJson";
 
 export type XProgramEditorControl = {
   getPresent(): XProgramPresent;
@@ -47,6 +49,13 @@ export function createProgramDocumentEditorController(
     applyAgentStepNote(input: { expectedRevision: number; expectedIdentity: ProgramDocumentIdentity; stepId: string; note: string }): ProgramDocumentEditResult {
       const reject = (error: string): ProgramDocumentEditResult => ({ ok: false, code: "identity_conflict", error, state: session.getState() });
       if (!options.isCurrent()) return reject("The original program document is no longer current.");
+      try {
+        const body: unknown = parseLosslessJson(session.getState().content);
+        if (!isSubProgramRecord(body)) return reject("The program document root is not an object.");
+        findUniqueOwnedProgramDocumentStep(body, input.stepId);
+      } catch (error) {
+        return reject(error instanceof Error ? error.message : String(error));
+      }
       const snapshot = session.readSnapshot();
       let matches = 0;
       const steps = (rows: typeof snapshot.steps): void => { for (const step of rows) {
