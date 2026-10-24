@@ -116,6 +116,47 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
 包含 Node HTTP 与其他服务端框架；[Electron 进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)
 明确区分 main、renderer 与 Node 能力。这些说明技术可行性，不证明本项目已完成迁移。
 
+<a id="knowledge-acquisition"></a>
+### Knowledge 获取与更新
+
+用户于 2026-10-24 明确：核心是可更新的 knowledge 获取架构，不能把某个 Quicker
+版本的字段、模块或反编译结果固化成长期知识。Agent 与 Designer 复用同一来源，按用途
+取得压缩 schema 或 UI 投影；知识内容不授予工具权限，也不代替写入前的原生校验。
+
+```text
+已连接宿主 / MCP 自描述 / 当前 codec
+  → provider：能力发现、实际读取、来源与内容指纹
+    → knowledge 目录与查询：按来源、身份、格式及 revision 核验
+      → Agent schema / Designer UI / 文档与示例投影
+```
+
+- **发现**：按当前连接的 capability、工具/schema 和格式声明选 provider；版本是来源标识，
+  不用版本号分支猜字段。原生定义、MCP tools/list、codec 合同、公开文档和内置指南有各自来源。
+- **原生事实**：模块键、输入输出、控制值与链接从当前宿主读取。缺失或新格式明确 unknown，
+  不把内置示例、旧消息、UI schema 或某次二进制探针当作当前事实。
+- **来源与格式**：保留 host/session、宿主及 adapter 版本、schema 格式与内容指纹、读取时间。
+  内容指纹标识已读取的内容；它本身不能证明 provider 此刻仍提供同一版本。
+- **更新**：重连、目标/session、capability、schema revision 或 MCP 工具目录变化使旧结果失效。
+  只有重新核验 provider revision 后才能复用缓存；没有该入口时重新读取。对话 ID、模块名或
+  TTL 单独都不能证明新鲜。迟到结果不能替换新 owner 的知识，也不能撤销已确认的失败。
+- **回退**：codec 文档来自本工具实际支持的格式，内置指南明确包版本及指纹；网站正文保留
+  URL/抓取时间。回退与当前原生定义冲突时保留冲突并查询来源，不静默覆盖或补造支持。
+- **消费**：保持单一 AI SDK loop、现有工具预算与权限。Agent 使用压缩 schema；Designer
+  使用 UI 投影；实时输入写入仍重新取得私有原生契约，不能凭 knowledge 缓存扩大可写范围。
+
+首个后端增量沿用 `step-runner get` 的 `SchemaJson.knowledge`，避免新增平行工具/存储：
+`schemaVersion=1`；`source` 描述 provider、来源 kind、host/adapter 及会话；`schema` 描述
+格式与 `sha256:` 内容 revision；`requestedControlFieldValue` 区分 null（未提供）和空值；
+另保留 `retrievedAt`、`nativeHelpLink` 及标为 bundled-fallback 的指南引用。
+`runtime-definition`、`bundled-adapter` 和 `unknown` 是不同来源，均不等同于写权限；
+缺少来源的旧插件结果保持 unknown，不用客户端时间补成原生读取证明。
+
+迁移首片先移除按 thread/key 无限复用的模块结果，以及按固定技能组合阻断重新发现的规则。
+后续接 native provenance/fresh reader、统一查询与失效、codec/文档来源和升级场景验收。
+相同模块更新字段、同宿主更新定义、换会话、先空后有、来源不可用及旧查询晚到分别验证。
+实施状态统一维护在[产品计划](product/README.md#refactor-execution-plan)，不以移除一层缓存
+或定义一个 provider 接口作为整项完成。
+
 ### 统一宿主与动作编辑边界
 
 已确认目标是同一 RPC 支持 V1/V2，优先复用 Quicker 新动作设计器，再研究通信效率。

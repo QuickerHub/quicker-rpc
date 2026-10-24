@@ -205,6 +205,23 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 移至开发依赖，继续服务 HMR 与显式 `legacy-next` 构建/暂存/启动。删除该兼容分支仍受上述
 完整验收门槛约束，不把默认入口切换记作 A4 完成。见 [运行清单](../engineering/static-agent-runtime.md)。
 
+#### Knowledge 获取：当前优先项
+
+用户于 2026-10-24 明确核心是 knowledge 获取架构：宿主更新后应重新发现知识，不能把
+固定版本的字段、模块清单或二进制探针写成长期规则。此项纳入 A0/R1，先于扩大动作写入；
+保留既有 Agent/Designer 迁移，不以静态指南或版本分支补齐未知能力。
+目标与来源边界见[知识获取架构](../agent-architecture.md#knowledge-acquisition)。
+
+| 切片 | 交付与验收 | 当前状态 |
+|---|---|---|
+| 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | 已接现有 native search/get，每次重新读取；跨 turn/同 turn 更新、limit、精确控制值和读取失败回归已通过。后端旧缓存与来源标识继续迁移，不宣称已证明全部原生 freshness |
+| Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | 实现中；不新增平行存储或 Agent loop，不按 Quicker 版本硬编码字段 |
+| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 待接消费者与升级回归；旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
+| codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 待统一路由与刷新；公开网站 corpus 不替代当前模块 schema |
+
+固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，
+不能用 knowledge 获取成功或反编译字段映射替代真实保存语义。
+
 #### 统一 RPC 与动作设计器：当前主线
 
 用户已明确新的产品目标：同一 RPC 自动识别 Quicker V1/V2，Agent 与动作设计器共用
