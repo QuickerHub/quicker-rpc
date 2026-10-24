@@ -1,8 +1,9 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire, isBuiltin } from "node:module";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findRuntimePackage as findPackage, isRuntimePackageMissing } from "./static-runtime-dependency-graph.mjs";
+import { stageRuntimePackages } from "./stage-runtime-packages.mjs";
+export { stageRuntimePackages } from "./stage-runtime-packages.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -14,31 +15,6 @@ const marker = { name: "node-server-marker", setup(compiler) {
   compiler.onResolve({ filter: /^@iconify\/icons-mdi\// }, (args) => ({ path: require.resolve(args.path) }));
 } };
 const packageName = (specifier) => specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
-
-/** Copy the resolved production graph, preserving version conflicts without dev dependencies. */
-export function stageRuntimePackages(names, appDirectory, sourceRoot = root) {
-  const installed = new Map();
-  function stage(name, from, parent = appDirectory) {
-    const source = realpathSync(findPackage(name, from));
-    const top = join(appDirectory, "node_modules", name);
-    if (installed.get(top) === source) return;
-    const target = installed.has(top) ? join(parent, "node_modules", name) : top;
-    if (installed.get(target) === source) return;
-    if (installed.has(target)) throw new Error(`Runtime package collision: ${target}`);
-    installed.set(target, source);
-    mkdirSync(dirname(target), { recursive: true });
-    cpSync(source, target, { recursive: true, dereference: true,
-      filter: (path) => path === source || basename(path) !== "node_modules" });
-    const manifest = JSON.parse(readFileSync(join(source, "package.json"), "utf8"));
-    for (const dependency of Object.keys(manifest.dependencies ?? {})) stage(dependency, source, target);
-    for (const dependency of Object.keys(manifest.optionalDependencies ?? {})) {
-      try { findPackage(dependency, source); } catch (error) { if (isRuntimePackageMissing(error)) continue; throw error; }
-      stage(dependency, source, target);
-    }
-  }
-  for (const name of names) stage(name, sourceRoot);
-  return installed.size;
-}
 
 export async function buildStaticRuntime({ outputDirectory = resolve(root, "../.tmp/static-runtime/app"), development = false, allowOutput = false } = {}) {
   const target = resolve(outputDirectory);
