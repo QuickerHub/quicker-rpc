@@ -125,6 +125,7 @@ qkrpc action run --id <guid> --trace --json   # MCP: qkrpc_action_debug
 ## Code conventions
 
 - **范围**：最小正确 diff；不扩写无关代码；匹配周边命名与风格。
+- **Knowledge（用户于 2026-10-24 明确）**：从当前连接发现 capability、schema、codec 和文档来源；宿主更新后重新获取，不把固定 Quicker 版本的字段表或探针当长期知识。缓存须有来源、身份、格式和可重新核验的 revision；未知来源保持 unknown，内置指南标明回退。知识不授予写权限。边界见 [知识获取架构](docs/agent-architecture.md#knowledge-acquisition)。
 - **注释**：英文；只解释非显而易见逻辑。
 - **Commit**（用户要求提交时）：`<type>(<scope>): <subject>`，例如 `fix(plugin): reconnect pipe after reload`。
 - **测试**：仅在有意义的场景添加；改 Plugin 后跑相关 `QuickerRpc.Test` 过滤器。

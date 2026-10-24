@@ -59,7 +59,7 @@ const tests = [
   "lib/terminal-runtime-endpoint.test.ts",
   "lib/program-turn-context.test.ts",
   "lib/qkrpc-connectivity-gate.test.ts",
-  "lib/step-runner-search-guard.test.ts",
+  "lib/step-runner-knowledge-tools.server.test.ts",
   "lib/agent-harness/stream-loop.test.ts",
   "lib/agent-harness/turn-message-preparation.test.ts",
   "lib/agent-harness/turn-selection.test.ts",
