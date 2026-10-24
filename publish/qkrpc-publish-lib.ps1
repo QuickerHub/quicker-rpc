@@ -1318,7 +1318,7 @@ function New-QkrpcReleaseNotesBody {
         '',
         '### Install QuickerAgent (desktop UI)',
         '',
-        "Download [**$agentAsset**]($agentLatest) (or pinned: $agentPinned). Bundles Next.js UI, portable Node, and qkrpc; still requires Quicker + plugin and `llm-config.json`.",
+        "Download [**$agentAsset**]($agentLatest) (or pinned: $agentPinned). Bundles the static React UI, Node Agent service, portable Node, and qkrpc; still requires Quicker + the appropriate V1/V2 RPC plugin and model configuration.",
         '',
         '### Verify',
         '',

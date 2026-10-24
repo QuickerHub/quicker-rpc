@@ -70,8 +70,7 @@ jobs:
           . ./publish/qkrpc-publish-lib.ps1
           $versionFile = Resolve-QuickerRpcVersionJsonPath -MonorepoRoot $PWD
           $json = Get-Content $versionFile -Raw | ConvertFrom-Json
-          $full = [string]$json.QuickerRpc
-          if ([string]::IsNullOrWhiteSpace($full)) { throw 'version.json missing QuickerRpc' }
+          $full = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $json
           "full=$full" >> $env:GITHUB_OUTPUT
 
   build-cli:
