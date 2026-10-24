@@ -85,12 +85,18 @@ function XProgramEditorInner({
   const editorRootRef = useRef<HTMLDivElement>(null);
   const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, present } = useXProgramEditorHistory(initialPresent, control);
   const draftFlushers = useRef(new Set<() => void>());
+  const liveEditingBlockers = useRef(new Set<() => boolean>());
   const registerDraftFlusher = useCallback((flush: () => void) => {
     draftFlushers.current.add(flush);
     return () => { draftFlushers.current.delete(flush); };
   }, []);
+  const registerLiveEditingBlocker = useCallback((isBlocked: () => boolean) => {
+    liveEditingBlockers.current.add(isBlocked);
+    return () => { liveEditingBlockers.current.delete(isBlocked); };
+  }, []);
   const handle = useMemo<XProgramEditorHandle>(() => ({ ...stateHandle,
     flushPendingEdits: () => { for (const flush of draftFlushers.current) flush(); },
+    isLiveEditingBlocked: () => [...liveEditingBlockers.current].some((isBlocked) => isBlocked()),
   }), [stateHandle]);
   const bridge = useActiveXProgramBridgeOptional();
   const registerEditor = bridge?.registerEditor;
@@ -247,6 +253,7 @@ function XProgramEditorInner({
             onCommitSteps={commitSteps}
             variables={present.variables}
             registerDraftFlusher={registerDraftFlusher}
+            registerLiveEditingBlocker={registerLiveEditingBlocker}
             programSurface={programSurface}
             programDocumentKey={programDocumentKey}
             onCommitProgram={(present) =>

@@ -129,9 +129,11 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     transport: chatTransport,
     experimental_throttle: 100,
     sendAutomaticallyWhen: (input) => !(liveTurn.getBody() && liveTurn.isStopped()) && lastAssistantMessageIsCompleteWithClientResponses(input),
-    onToolCall: ({ toolCall }) => {
+    onToolCall: async ({ toolCall }) => {
       if (toolCall.toolName !== "workspace_program" || !liveTurn.getBody() || liveTurn.isStopped()) return;
-      const output = liveTurn.execute(toolCall.toolCallId, toolCall.input);
+      const generation = liveTurn.getGeneration();
+      const output = await liveTurn.executeAsync(toolCall.toolCallId, toolCall.input);
+      if (liveTurn.getGeneration() !== generation || liveTurn.isStopped()) return;
       // The SDK is processing this stream. Awaiting its automatic continuation
       // here would wait on the same stream callback; record first, publish once.
       void addLiveToolOutputRef.current?.({ tool: "workspace_program", toolCallId: toolCall.toolCallId, output }).catch(() => {

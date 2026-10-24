@@ -29,6 +29,31 @@ export function collectRawSubPrograms(program: SubProgramRecord, owned = true, p
   });
 }
 
+/** Current raw ownership/identity only; no input map or schema is required. */
+export function findUniqueOwnedProgramDocumentStep(body: SubProgramRecord, stepId: string): SubProgramRecord {
+  const rows = (record: SubProgramRecord, key: string): SubProgramRecord[] => {
+    const value = record[key];
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.some((row) => !isSubProgramRecord(row))) throw new Error(`Invalid ${key} collection`);
+    return value as SubProgramRecord[];
+  };
+  const matches: { step: SubProgramRecord; owned: boolean }[] = [];
+  const visit = (steps: SubProgramRecord[], owned: boolean): void => {
+    for (const step of steps) {
+      if (step.stepId === stepId) matches.push({ step, owned });
+      visit(rows(step, "ifSteps"), owned);
+      visit(rows(step, "elseSteps"), owned);
+    }
+  };
+  visit(rows(body, "steps"), true);
+  // Foreign caches count for ambiguity, but never become owned editing surfaces.
+  for (const entry of collectRawSubPrograms(body)) visit(rows(entry.row, "steps"), entry.owned);
+  if (matches.length !== 1 || !matches[0]!.owned) throw new Error("The selected step is missing, ambiguous or not owned by this document");
+  const step = matches[0]!.step;
+  if (Object.keys(step).filter((key) => key.toLowerCase() === "stepid").length !== 1) throw new Error("The selected step has ambiguous identity aliases");
+  return step;
+}
+
 /** The same accepted aliases and ambiguity boundary as the existing properties transaction. */
 export function readStepInputsForRunner(step: SubProgramRecord, runner: string): SubProgramRecord | undefined {
   const present = (keys: string[]) => keys.filter((key) => step[key] !== null && step[key] !== undefined

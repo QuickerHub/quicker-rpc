@@ -5,6 +5,9 @@ import { createProgramDocumentSession } from "./action-editor/document/programDo
 import { createProgramDocumentEditorController } from "./action-editor/program/programDocumentEditorController";
 import { createProgramDocumentLiveEndpoint } from "./action-editor/program/liveProgramDocumentEndpoint";
 import { workspaceDocumentKey } from "./workspace-document-instances";
+import { parseActionProjectBinding } from "./action-project-binding";
+import { applyProgramDocumentStepInputs } from "./action-editor/document/programDocumentStepInputs";
+import { readStepRunnerInputContract, STEP_RUNNER_INPUT_CONTRACT_CAPABILITY, type StepRunnerInputContract } from "./step-runner-input-contract";
 import type { LiveProgramDocumentEndpoint, LiveProgramDocumentPin, LiveProgramDocumentReceipt, LiveProgramDocumentScope } from "./live-program-document";
 
 const content = '{"steps":[{"stepId":"one","stepRunnerKey":"future:one","note":"original","future":9223372036854775807}],"variables":[],"subPrograms":[{"id":"child","name":"Child","steps":[{"stepId":"nested","stepRunnerKey":"future:two","note":"nested"}],"variables":[],"subPrograms":[]}],"future":1e999}';
@@ -201,4 +204,258 @@ test("closed original owner/session and a full-read payload limit fail without a
   const selected = limited.captureForManualSend({ pins: [pin as LiveProgramDocumentPin], mode: "read", userMessageId: "manual", threadId: "chat-a", cwd: fresh.owner.cwd });
   assert.equal(selected.state, "ready"); if (selected.state !== "ready") return;
   failed(limited.execute(selected.scope, { scopeId: selected.scope.scopeId, operationId: "read", input: { action: "read_live" } }), "LIVE_DOCUMENT_TOO_LARGE");
+});
+
+// Real Session/raw transaction fixture for asynchronous native metadata; no host or model is used.
+function inputFixture(inputs: Record<string, unknown> = { text: "before", empty: "", mode3: "old", choice: "first" }, supported = true) {
+  let sequence = 0, current = true, busy = false, writes = 0;
+  const owner = { cwd: "C:/fixture", path: ".quicker/actions/input/data.json", tabId: "file:input", instanceId: 1, key: workspaceDocumentKey("C:/fixture", "file:input") };
+  const binding = parseActionProjectBinding({ schemaVersion: 1, kind: "action", actionId: "11111111-1111-4111-8111-111111111111",
+    hostBinding: { hostInstanceId: "fixture", hostSessionId: "a".repeat(32), endpoint: `QuickerRpc_User_${"C".repeat(24)}_${"a".repeat(32)}`,
+      protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fixture", capabilities: { [STEP_RUNNER_INPUT_CONTRACT_CAPABILITY]: supported } } }, "11111111-1111-4111-8111-111111111111");
+  const source = `{"steps":[{"stepId":"one","stepRunnerKey":"sys:fixture","note":"original","inputParams":${JSON.stringify(inputs)}},{"stepId":"two","stepRunnerKey":"sys:fixture","inputParams":{"text":"other"}}],"variables":[],"subPrograms":[],"opaque":9223372036854775807}`;
+  const session = createProgramDocumentSession({ content: source, identity: { documentKey: "input-document", projectBinding: binding } });
+  const controller = createProgramDocumentEditorController(session, { isCurrent: () => current, onChange() {} });
+  const base = createProgramDocumentLiveEndpoint({ owner, sessionId: "input-session", session, controller, isCurrent: () => current && !busy, flushPendingEdits() {} });
+  const calls: { input: { stepRunnerKey: string; controlFieldValue?: string }; signal?: AbortSignal }[] = [];
+  let metadata = async (_input: { stepRunnerKey: string; controlFieldValue?: string }, _signal?: AbortSignal) => inputSchema();
+  const endpoint: LiveProgramDocumentEndpoint = { ...base,
+    readInputContract(input, signal) { calls.push({ input, signal }); return metadata(input, signal); },
+    setStepInputs(input) {
+      writes++; const before = session.getState().revision, result = applyProgramDocumentStepInputs(session, input);
+      return result.ok ? { ok: true, changed: result.changed, revisionBefore: before, revisionAfter: result.state.revision, dirty: result.state.dirty } : result;
+    },
+  };
+  const registry = createLiveProgramDocumentRegistry({ isOwnerCurrent: (candidate) => current && candidate === owner, createId: () => `input-${++sequence}` });
+  let release = registry.register(owner, endpoint);
+  const capture = (threadId = "chat-a", mode: "read" | "edit" = "edit") => {
+    const pin = registry.pin(owner, `input-tag-${++sequence}`, "one", threadId);
+    assert.equal("ok" in pin, false);
+    const selected = registry.captureForManualSend({ pins: [pin as LiveProgramDocumentPin], threadId, userMessageId: `manual-${++sequence}`, cwd: owner.cwd, mode });
+    assert.equal(selected.state, "ready"); if (selected.state !== "ready") throw Error("scope"); return selected.scope;
+  };
+  const command = (scope: LiveProgramDocumentScope, operationId = "schema", stepSchemaFor = "one") =>
+    ({ scopeId: scope.scopeId, operationId, input: { action: "read_live" as const, stepSchemaFor } });
+  const schema = async (scope: LiveProgramDocumentScope, operationId = "schema") => {
+    const result = await registry.executeAsync(scope, command(scope, operationId));
+    assert.equal(result.ok, true, JSON.stringify(result)); if (!result.ok || result.action !== "read_live") throw Error("schema read"); return result;
+  };
+  const edit = (scope: LiveProgramDocumentScope, proof: { operationId: string; revision: number }, changes = [{ key: "text", value: "after" }], operationId = "edit") =>
+    registry.execute(scope, { scopeId: scope.scopeId, operationId, input: { action: "edit_step_inputs_live", readOperationId: proof.operationId, expectedRevision: proof.revision, stepId: "one", changes } });
+  return { registry, session, controller, endpoint, owner, calls, capture, command, schema, edit,
+    writes: () => writes, metadata(fn: typeof metadata) { metadata = fn; }, busy(value: boolean) { busy = value; },
+    release: () => release(), replace(value: LiveProgramDocumentEndpoint) { release = registry.register(owner, value); },
+    draft() { const next = controller.getSurface("main").getPresent(); next.steps[0]!.note = "human"; controller.getSurface("main").commit(next); } };
+}
+function inputSchema(patch: Record<string, unknown> = {}): StepRunnerInputContract {
+  const row = (key: string, extra = {}) => ({ key, policyKnown: true, varType: 0, variableMode: 0, allowInput: false, isControlField: false,
+    visibilityResolved: true, visible: true, literalPolicy: "allowed", literalValueRestriction: "none", blockedReason: null, options: [], ...extra });
+  return readStepRunnerInputContract({ version: 1, source: "runtime-definition", hostKind: "v1", stepRunnerKey: "sys:fixture",
+    controlFieldKey: null, appliedControlFieldValue: null, visibilityResolved: true, reservedBindings: ["file", "varKey", ".file", ".var"],
+    inputs: [row("text"), row("empty"), row("mode3", { variableMode: 3, literalPolicy: "existing-nonempty-literal-only" }),
+      row("choice", { literalValueRestriction: "options", options: ["first", "next"] })], ...patch }, { hostKind: "v1", stepRunnerKey: "sys:fixture" });
+}
+function deferredInput<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; }
+const inputTick = () => new Promise<void>((done) => setImmediate(done));
+
+test("schema-backed input editing commits on the actual Session synchronously and undoes one whole batch", async () => {
+  const f = inputFixture(), scope = f.capture(), proof = await f.schema(scope);
+  assert.deepEqual(proof.stepInputSchema?.editableInputKeys, ["text", "empty", "mode3", "choice"]);
+  assert.equal(f.calls.length, 1);
+  const command = { scopeId: scope.scopeId, operationId: "batch", input: { action: "edit_step_inputs_live" as const, readOperationId: proof.operationId,
+    expectedRevision: proof.revision, stepId: "one", changes: [{ key: "text", value: "after" }, { key: "mode3", value: "" }, { key: "choice", value: "next" }] } };
+  const resultPromise = f.registry.executeAsync(scope, command);
+  assert.equal(f.session.getState().revision, 1, "mutation and receipt commit before the promise is returned");
+  const receipt = await resultPromise; assert.equal(receipt.ok, true); assert.equal(f.calls.length, 1);
+  assert.match(f.session.getState().content, /9223372036854775807/); assert.equal(f.session.getState().lastChangeSource, "agent");
+  f.registry.revokeScope(scope.scopeId, "stopped after apply");
+  assert.deepEqual(f.registry.execute(scope, command, { isCancelled: () => true }), receipt); assert.equal(f.writes(), 1);
+  f.controller.undo(); assert.equal(f.session.readSnapshot().steps[0]!.inputParams.text.value, "before");
+  assert.equal(f.session.readSnapshot().steps[0]!.inputParams.mode3.value, "old");
+});
+
+test("private schema proof cannot be forged from a plain read receipt or caller-mutated metadata", async () => {
+  const f = inputFixture(), scope = f.capture();
+  const plain = f.registry.execute(scope, { scopeId: scope.scopeId, operationId: "plain", input: { action: "read_live" } });
+  assert.equal(plain.ok, true); if (!plain.ok || plain.action !== "read_live") return;
+  failed(f.edit(scope, plain, undefined, "no-schema"), "LIVE_INPUT_SCHEMA_REQUIRED");
+  const proof = await f.schema(scope);
+  (proof.stepInputSchema!.editableInputKeys as string[]).push("invented");
+  failed(f.edit(scope, proof, [{ key: "invented", value: "bad" }]), "LIVE_STEP_INPUT_UNSUPPORTED");
+  assert.equal(f.writes(), 0);
+});
+
+test("only this turn's pinned step can request metadata or input mutation, and Ask stays read-only", async () => {
+  const f = inputFixture(), scope = f.capture();
+  failed(await f.registry.executeAsync(scope, f.command(scope, "other", "two")), "LIVE_STEP_NOT_GRANTED");
+  assert.equal(f.calls.length, 0);
+  const readonly = f.capture("chat-b", "read"), proof = await f.schema(readonly);
+  failed(f.edit(readonly, proof), "tool_mode_denied"); assert.equal(f.writes(), 0);
+});
+
+test("native control uses actual raw value and requests the exact same key again, including empty literals", async () => {
+  for (const control of ["custom", ""]) {
+    const f = inputFixture({ text: "before", operation: control }), scope = f.capture();
+    f.metadata(async (input) => inputSchema({ controlFieldKey: "operation", appliedControlFieldValue: input.controlFieldValue ?? "native-default" }));
+    await f.schema(scope);
+    assert.deepEqual(f.calls.map((call) => call.input), [{ stepRunnerKey: "sys:fixture" }, { stepRunnerKey: "sys:fixture", controlFieldValue: control }]);
+  }
+  const missing = inputFixture(), scope = missing.capture();
+  missing.metadata(async () => inputSchema({ controlFieldKey: "operation", appliedControlFieldValue: "native-default" }));
+  assert.equal((await missing.schema(scope)).ok, true); assert.equal(missing.calls.length, 1);
+});
+
+test("bound opaque dynamic or unproven control cannot borrow a native default", async () => {
+  for (const value of ["@var:operation", "@file:operation", "$=1", "＄=1", "a\u200db", { value: false }]) {
+    const f = inputFixture({ text: "before", operation: value }), scope = f.capture();
+    f.metadata(async () => inputSchema({ controlFieldKey: "operation", appliedControlFieldValue: "native-default" }));
+    failed(await f.registry.executeAsync(scope, f.command(scope)), "LIVE_INPUT_CONTROL_UNAVAILABLE");
+    assert.equal(f.calls.length, 1); assert.equal(f.writes(), 0);
+  }
+  const f = inputFixture(), scope = f.capture();
+  f.metadata(async () => inputSchema({ controlFieldKey: "operation", appliedControlFieldValue: null, visibilityResolved: false }));
+  failed(await f.registry.executeAsync(scope, f.command(scope)), "LIVE_INPUT_CONTROL_UNAVAILABLE");
+});
+
+test("same operation coalesces observers, payload conflicts fail, and one observer abort does not stop another", async () => {
+  const f = inputFixture(), scope = f.capture(), reply = deferredInput<StepRunnerInputContract>();
+  f.metadata(async () => reply.promise);
+  const abort = new AbortController(), command = f.command(scope);
+  const first = f.registry.executeAsync(scope, command, { abortSignal: abort.signal });
+  const second = f.registry.executeAsync(scope, command);
+  await inputTick(); assert.equal(f.calls.length, 1);
+  failed(await f.registry.executeAsync(scope, f.command(scope, "schema", "two")), "LIVE_OPERATION_CONFLICT");
+  abort.abort(); failed(await first, "REQUEST_ABORTED"); assert.equal(f.calls[0].signal?.aborted, false);
+  reply.resolve(inputSchema()); const complete = await second; assert.equal(complete.ok, true);
+  assert.deepEqual(await f.registry.executeAsync(scope, command), complete); assert.equal(f.calls.length, 1);
+});
+
+test("last observer abort and scope revocation cancel pending metadata promptly; late results mint no proof", async () => {
+  for (const how of ["last", "revoke", "new-manual", "endpoint", "dispose"] as const) {
+    const f = inputFixture(), scope = f.capture(), reply = deferredInput<StepRunnerInputContract>(), abort = new AbortController();
+    f.metadata(async () => reply.promise);
+    const command = f.command(scope), pending = f.registry.executeAsync(scope, command, { abortSignal: abort.signal });
+    await inputTick();
+    if (how === "last") abort.abort();
+    else if (how === "revoke") f.registry.revokeScope(scope.scopeId, "stop");
+    else if (how === "new-manual") f.capture();
+    else if (how === "endpoint") f.release();
+    else f.registry.dispose();
+    const receipt = await pending; assert.equal(receipt.ok, false, how); assert.equal(f.calls[0].signal?.aborted, true, how);
+    reply.resolve(inputSchema()); await inputTick();
+    assert.deepEqual(await f.registry.executeAsync(scope, command), receipt, how); assert.equal(f.writes(), 0);
+  }
+});
+
+test("revision full identity busy and malformed schema changes while awaiting metadata never authorize edits", async () => {
+  for (const how of ["revision", "busy", "identity", "malformed"] as const) {
+    const f = inputFixture(), scope = f.capture(), reply = deferredInput<StepRunnerInputContract>();
+    f.metadata(async () => reply.promise);
+    const pending = f.registry.executeAsync(scope, f.command(scope));
+    await inputTick();
+    if (how === "revision") f.draft();
+    if (how === "busy") f.busy(true);
+    if (how === "identity") f.replace({ ...f.endpoint, getTarget: () => ({ ...f.endpoint.getTarget()!, sessionId: "new-session" }) });
+    reply.resolve(how === "malformed" ? { ...inputSchema(), source: "ui" } as unknown as StepRunnerInputContract : inputSchema());
+    assert.equal((await pending).ok, false, how); assert.equal(f.writes(), 0);
+  }
+});
+
+test("two concurrent scopes retain separate metadata cancellation and read proof ownership", async () => {
+  const f = inputFixture(), a = f.capture("chat-a"), b = f.capture("chat-b"), replies = [deferredInput<StepRunnerInputContract>(), deferredInput<StepRunnerInputContract>()];
+  f.metadata(async () => replies[f.calls.length - 1].promise);
+  const first = f.registry.executeAsync(a, f.command(a, "a")), second = f.registry.executeAsync(b, f.command(b, "b"));
+  await inputTick(); f.registry.revokeScope(a.scopeId, "only chat-a stopped");
+  assert.equal((await first).ok, false); assert.equal(f.calls[0].signal?.aborted, true); assert.equal(f.calls[1].signal?.aborted, false);
+  replies[0].resolve(inputSchema()); replies[1].resolve(inputSchema());
+  const proof = await second; assert.equal(proof.ok, true);
+  failed(f.edit(b, { operationId: "a", revision: 0 }), "LIVE_READ_REQUIRED"); assert.equal(f.writes(), 0);
+});
+
+test("metadata decomposition consumes one operation budget and replay never repeats a native read", async () => {
+  const f = inputFixture({ text: "before", operation: "custom" }), scope = f.capture();
+  f.metadata(async (input) => inputSchema({ controlFieldKey: "operation", appliedControlFieldValue: input.controlFieldValue ?? "native-default" }));
+  for (let i = 0; i < 3; i++) {
+    const command = f.command(scope, `schema-${i}`), result = await f.registry.executeAsync(scope, command);
+    assert.equal(result.ok, true); assert.deepEqual(await f.registry.executeAsync(scope, command), result);
+  }
+  assert.equal(f.calls.length, 6);
+  failed(await f.registry.executeAsync(scope, f.command(scope, "fourth")), "tool_call_limit"); assert.equal(f.calls.length, 6);
+});
+
+test("input batch failure is atomic, stale reads cannot write, and possible post-commit failure is never replayed", async () => {
+  const f = inputFixture(), scope = f.capture(), proof = await f.schema(scope);
+  failed(f.edit(scope, proof, [{ key: "text", value: "next" }, { key: "choice", value: "unknown" }], "atomic"), "LIVE_STEP_INPUT_UNSUPPORTED");
+  assert.equal(f.writes(), 0); assert.equal(f.session.getState().revision, 0);
+  f.draft(); failed(f.edit(scope, proof), "revision_conflict"); assert.equal(f.writes(), 0);
+  const next = inputFixture(); let writes = 0;
+  next.replace({ ...next.endpoint, setStepInputs(input) { writes++; next.endpoint.setStepInputs!(input); throw Error("lost input commit acknowledgement"); } });
+  const owned = next.capture(), read = await next.schema(owned), result = failed(next.edit(owned, read), "LIVE_RESULT_UNKNOWN");
+  assert.equal(result.application, "unknown"); assert.deepEqual(next.edit(owned, read), result); assert.equal(writes, 1);
+});
+
+test("poll-style cancellation while native metadata settles preserves the same failed receipt on replay", async () => {
+  const f = inputFixture(), scope = f.capture(), reply = deferredInput<StepRunnerInputContract>();
+  let stopped = false; f.metadata(async () => reply.promise);
+  const command = f.command(scope), pending = f.registry.executeAsync(scope, command, { isCancelled: () => stopped });
+  await inputTick(); stopped = true; reply.resolve(inputSchema());
+  const receipt = failed(await pending, "REQUEST_ABORTED");
+  assert.deepEqual(await f.registry.executeAsync(scope, command), receipt); assert.equal(f.writes(), 0);
+});
+
+test("input receipts survive cancellation raised inside the real synchronous transaction", async () => {
+  const f = inputFixture(); let stopped = false, calls = 0;
+  f.replace({ ...f.endpoint, setStepInputs(input) {
+    calls++; const result = f.endpoint.setStepInputs!(input); stopped = true; f.registry.revokeScope(scope.scopeId, "stop inside commit"); return result;
+  } });
+  const scope = f.capture(), proof = await f.schema(scope), command = { scopeId: scope.scopeId, operationId: "sync-input", input: {
+    action: "edit_step_inputs_live" as const, readOperationId: proof.operationId, expectedRevision: proof.revision, stepId: "one", changes: [{ key: "text", value: "committed" }],
+  } };
+  const receipt = f.registry.execute(scope, command, { isCancelled: () => stopped });
+  assert.equal(stopped, true); assert.equal(receipt.ok, true); assert.equal(calls, 1);
+  assert.deepEqual(await f.registry.executeAsync(scope, command, { isCancelled: () => true }), receipt);
+  assert.equal(f.session.readSnapshot().steps[0]!.inputParams.text.value, "committed");
+});
+
+test("input metadata needs an actual declared port but the same endpoint still supports the original note workflow", async () => {
+  for (const how of ["port", "capability"] as const) {
+    const f = inputFixture(undefined, how !== "capability");
+    if (how === "port") f.replace({ ...f.endpoint, readInputContract: undefined });
+    const scope = f.capture();
+    failed(await f.registry.executeAsync(scope, f.command(scope)), "LIVE_INPUT_CONTRACT_UNAVAILABLE"); assert.equal(f.calls.length, 0);
+    const proof = f.registry.execute(scope, { scopeId: scope.scopeId, operationId: "note-read", input: { action: "read_live" } });
+    assert.equal(proof.ok, true); if (!proof.ok || proof.action !== "read_live") return;
+    assert.equal(f.registry.execute(scope, { scopeId: scope.scopeId, operationId: "note-edit", input: { action: "edit_live",
+      readOperationId: proof.operationId, expectedRevision: proof.revision, stepId: "one", note: "still supported" } }).ok, true);
+  }
+});
+
+test("a second control response cannot retarget the native control key or apply a different raw value", async () => {
+  for (const patch of [{ controlFieldKey: "other", appliedControlFieldValue: "custom" }, { controlFieldKey: "operation", appliedControlFieldValue: "changed" }]) {
+    const f = inputFixture({ text: "before", operation: "custom" }), scope = f.capture();
+    f.metadata(async () => inputSchema(f.calls.length === 1 ? { controlFieldKey: "operation", appliedControlFieldValue: "native-default" } : patch));
+    failed(await f.registry.executeAsync(scope, f.command(scope)), "LIVE_INPUT_CONTROL_UNAVAILABLE"); assert.equal(f.calls.length, 2);
+  }
+});
+
+test("a synchronous burst reserves at most 128 operation slots before scheduling any metadata jobs", async () => {
+  const f = inputFixture(), scope = f.capture(), held = deferredInput<StepRunnerInputContract>();
+  f.metadata(async () => held.promise);
+  const commands = Array.from({ length: 160 }, (_, index) => f.command(scope, `burst-${index}`));
+  const pending = commands.map((command) => f.registry.executeAsync(scope, command));
+  failed(await pending[128], "LIVE_OPERATION_LIMIT");
+  await inputTick();
+  assert.ok(f.calls.length > 0, "accepted early operations still reach the metadata port; the burst cannot invalidate all reserved slots");
+  assert.ok(f.calls.length <= 128);
+  f.registry.revokeScope(scope.scopeId, "cancel accepted burst");
+  const receipts = await Promise.all(pending);
+  for (let index = 0; index < 128; index++)
+    assert.deepEqual(await f.registry.executeAsync(scope, commands[index]), receipts[index]);
+  for (let index = 128; index < 160; index++) {
+    failed(receipts[index], "LIVE_OPERATION_LIMIT");
+    const changed = f.command(scope, `burst-${index}`, "two");
+    failed(await f.registry.executeAsync(scope, changed), "LIVE_OPERATION_LIMIT");
+  }
+  held.resolve(inputSchema()); await inputTick();
+  assert.equal(f.writes(), 0);
 });
