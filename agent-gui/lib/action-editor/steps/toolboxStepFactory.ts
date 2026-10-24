@@ -9,9 +9,11 @@ export type ToolboxDragPayload = {
   icon?: string;
   controlFieldValue?: string;
   inputPresets?: Record<string, string>;
+  /** WPF action resource drops use the selected action title as the initial step note. */
+  stepNote?: string;
   /** When stepRunnerKey is sys:subprogram, pre-filled subProgram input (same as quick-insert). */
   subProgramIdentifier?: string;
-  resourceCall?: ResourceCallOrigin & Readonly<{ resourceId: string; callIdentifier: string }>;
+  resourceCall?: ResourceCallOrigin & Readonly<{ resourceId: string; callIdentifier: string; kind?: "action" | "global_subprogram" }>;
 };
 
 function resolveControlFieldParamKey(runnerItem: StepRunnerItem | undefined): string | undefined {
@@ -57,7 +59,7 @@ export function buildStepFromRunner(
     outputParams: {},
     ifSteps: [],
     elseSteps: [],
-    note: "",
+    note: payload.stepNote ?? "",
     disabled: false,
     collapsed: false,
     delayMs: payload.stepRunnerKey === "delay" ? 500 : 0,

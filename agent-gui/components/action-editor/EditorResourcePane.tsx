@@ -96,7 +96,7 @@ function ResourceExplorer({ active, kind, resourceCallOrigin, onInsertAtEnd }: {
   };
   const selected = page?.items.find((item) => item.id === selectedId);
   const canInsert = active && visible?.valid && !visible.loading && onInsertAtEnd && resourceCallOrigin?.catalogKey === port?.key
-    && port?.resourceCallInsertAvailable;
+    && port?.canInsertResourceCall(kind);
   const insertionPayload = (item: NonNullable<typeof selected>) => canInsert && resourceCallOrigin ? buildResourceCallPayload(kind, item, resourceCallOrigin) : null;
   const selectedOpenKey = port && selected && navigation
     ? JSON.stringify([navigation.owner.key, navigation.owner.instanceId, port.key, selected.id]) : "";
@@ -161,10 +161,10 @@ function ResourceExplorer({ active, kind, resourceCallOrigin, onInsertAtEnd }: {
           : <p role="alert">{selectedOpen.result.error} {selectedOpen.result.projectDirectory ?? ""}
             {selectedOpen.result.localPersistence !== "none" ? " 已保留本地结果；核对只读取原目录，不重新导出。" : ""}</p> : null}
         {blockedBy ? <p role="alert">本次未派发导出。请先核对前置请求的本地结果：{blockedBy.projectDirectory ?? blockedBy.requestId}。</p> : null}
-        {kind === "global_subprogram" ? insertionPayload(selected) ? <>
+        {insertionPayload(selected) ? <>
           <button type="button" onClick={() => { const payload = insertionPayload(selected); if (payload) void onInsertAtEnd?.(payload); }}>插入调用步骤</button>
           <p>确认调用参数后插入当前程序；也可拖到步骤列表。</p>
-        </> : <p>当前资源缺少可用的调用标识或绑定目标，无法插入调用步骤。</p> : null}
+        </> : <p>当前资源缺少可用的调用标识或绑定目标，无法插入调用步骤。</p>}
         </dd></dl> : null}
     </>}
   </section>;

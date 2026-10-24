@@ -83,8 +83,12 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
     key, remoteEnabled, documentBound,
     workspaceCwd: context?.cwd,
     get resourceCallInsertAvailable(): boolean {
+      return this.canInsertResourceCall("global_subprogram");
+    },
+    /** A local gesture needs a bound catalog; the exact call runner UI schema is verified before insertion. */
+    canInsertResourceCall(kind: "action" | "global_subprogram"): boolean {
       return !closed && documentBound && context?.expectedProjectBinding?.hostBinding.hostKind === "v1"
-        && context.expectedProjectBinding.hostBinding.capabilities["resource.globalSubprogram.page.read"] === true;
+        && context.expectedProjectBinding.hostBinding.capabilities[kind === "action" ? "resource.action.page.read" : "resource.globalSubprogram.page.read"] === true;
     },
     get resourceActionOpenAvailable(): boolean {
       return !closed && documentBound && Boolean(context?.cwd) && context?.expectedProjectBinding?.hostBinding.hostKind === "v1"

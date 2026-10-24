@@ -217,7 +217,7 @@ type BranchType = "if" | "else" | "root";
 type PendingToolboxInsert = {
   dropIndicator: DropIndicator;
   step: ActionStep;
-  resourceCall?: { generation: number; origin: ResourceCallOrigin; resourceId: string; variablesBefore: ActionVariable[]; variablesDraft?: ActionVariable[] };
+  resourceCall?: { generation: number; origin: ResourceCallOrigin; resourceId: string; kind: "action" | "global_subprogram"; variablesBefore: ActionVariable[]; variablesDraft?: ActionVariable[] };
 };
 
 type QuickInsertSession = {
@@ -963,6 +963,7 @@ export default function StepListEditor({
   }, [popupStep, runnerLookup]);
 
   const openStepEditor = (stepId: string): void => {
+    insertGeneration.current += 1;
     flushCompactSync();
     setPendingToolboxInsert(null);
     setQuickInsert(null);
@@ -971,6 +972,7 @@ export default function StepListEditor({
   };
 
   const closeStepEditor = (): void => {
+    insertGeneration.current += 1;
     setEditorTargetId(null);
     setPendingToolboxInsert(null);
     setQuickInsert(null);
@@ -979,7 +981,7 @@ export default function StepListEditor({
 
   const openToolboxInsert = useCallback(async (payload: ToolboxDragPayload, target: DropIndicator): Promise<void> => {
     if (!activeRef.current) return;
-    if (payload.resourceCall && (!catalogPort?.resourceCallInsertAvailable || !resourceCallMatchesOrigin(payload, resourceCallOrigin) || resourceCallOrigin?.documentKey !== programDocumentKey
+    if (payload.resourceCall && (!catalogPort?.canInsertResourceCall(payload.resourceCall.kind ?? "global_subprogram") || !resourceCallMatchesOrigin(payload, resourceCallOrigin) || resourceCallOrigin?.documentKey !== programDocumentKey
       || resourceCallOrigin?.catalogKey !== catalogPort?.key)) {
       notifyClipboard?.("资源调用来自其它文档、编辑面或已过期目标，未插入步骤。", "error"); return;
     }
@@ -991,7 +993,7 @@ export default function StepListEditor({
       const step = await prepareToolboxStep(payload, runnerItems, () => stepIdManagerRef.current.nextId(), (key, control) => fetchStepRunnerDetailItem(key, control, undefined, catalogPort));
       if (!activeRef.current || generation !== insertGeneration.current) return;
       setPendingToolboxInsert({ dropIndicator: target, step, ...(payload.resourceCall && resourceCallOrigin ? {
-        resourceCall: { generation, origin: resourceCallOrigin, resourceId: payload.resourceCall.resourceId,
+        resourceCall: { generation, origin: resourceCallOrigin, resourceId: payload.resourceCall.resourceId, kind: payload.resourceCall.kind ?? "global_subprogram",
           variablesBefore: structuredClone((readProgramPresent?.() ?? { variables }).variables) },
       } : {}) });
       setEditorTargetId(step.stepId);
@@ -1015,7 +1017,7 @@ export default function StepListEditor({
 
   const applyStepEditor = (next: ActionStep): boolean => {
     const resource = pendingToolboxInsert?.resourceCall;
-    if (resource && (!activeRef.current || !catalogPort?.resourceCallInsertAvailable || resource.generation !== insertGeneration.current || resource.origin !== resourceCallOrigin
+    if (resource && (!activeRef.current || !catalogPort?.canInsertResourceCall(resource.kind) || resource.generation !== insertGeneration.current || resource.origin !== resourceCallOrigin
       || resource.origin.documentKey !== programDocumentKey || resource.origin.catalogKey !== catalogPort?.key)) return false;
     if (resource && flushProgramEdits) flushSync(flushProgramEdits);
     flushCompactSync();
@@ -2072,7 +2074,7 @@ export default function StepListEditor({
         step={popupStep}
         variables={pendingToolboxInsert?.resourceCall?.variablesDraft ?? variables}
         requireResolvedParameters={Boolean(pendingToolboxInsert?.resourceCall)}
-        resourceSubProgramId={pendingToolboxInsert?.resourceCall?.resourceId}
+        resourceSubProgramId={pendingToolboxInsert?.resourceCall?.kind === "global_subprogram" ? pendingToolboxInsert.resourceCall.resourceId : undefined}
         subPrograms={subPrograms}
         designerHostBaseUrl={backendBaseUrl}
         workspaceContext={workspaceContext}
