@@ -672,6 +672,7 @@ export function ActionProjectDataEditor({
       isCurrent: () => sessionRef.current === session && liveAvailability.current.session === session && liveAvailability.current.available
         && !(liveSyncBusy.current?.key === syncOwnerRef.current.key && liveSyncBusy.current.busy),
       flushPendingEdits: () => workspaceRef.current?.flushPendingEdits(),
+      isLiveEditingBlocked: () => workspaceRef.current?.isLiveEditingBlocked() ?? true,
     });
     return liveDocuments.register(liveOwner, endpoint);
   }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, catalogPort]);
