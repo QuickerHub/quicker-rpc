@@ -1,3 +1,4 @@
+import { asSchema, type FlexibleSchema } from "ai";
 import {
   ALL_QKRPC_TOOL_IDS,
   QKRPC_TOOL_REGISTRY,
@@ -19,16 +20,18 @@ export type ListToolsToolInput = {
   bundleId?: ToolBundleId;
 };
 
-function readToolDefinition(tool: unknown): {
+async function readToolDefinition(tool: unknown): Promise<{
   description?: string;
   inputSchema?: unknown;
-} {
+}> {
   if (!tool || typeof tool !== "object") return {};
   const record = tool as Record<string, unknown>;
   return {
     description:
       typeof record.description === "string" ? record.description : undefined,
-    inputSchema: record.inputSchema,
+    inputSchema: record.inputSchema === undefined
+      ? undefined
+      : await asSchema(record.inputSchema as FlexibleSchema<unknown>).jsonSchema,
   };
 }
 
@@ -58,7 +61,7 @@ async function readToolSchemas(toolIds: readonly string[]) {
   for (const toolId of toolIds) {
     const definition = quickerTools[toolId as keyof typeof quickerTools];
     if (!definition) continue;
-    const { description, inputSchema } = readToolDefinition(definition);
+    const { description, inputSchema } = await readToolDefinition(definition);
     const meta = QKRPC_TOOL_REGISTRY.find((item) => item.id === toolId);
     tools.push({
       toolId,
@@ -170,7 +173,7 @@ export async function executeListToolsTool(
         );
       }
 
-      const { description, inputSchema } = readToolDefinition(definition);
+      const { description, inputSchema } = await readToolDefinition(definition);
       const meta = QKRPC_TOOL_REGISTRY.find((item) => item.id === toolId);
       return formatLocalToolResult({
         action: "list-tools-get",

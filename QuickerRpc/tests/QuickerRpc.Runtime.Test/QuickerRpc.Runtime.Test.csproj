@@ -39,6 +39,7 @@
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2SourceStorage.cs" Link="OfflineV2\QuickerV2SourceStorage.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Services\V2ActionProgramSourceService.cs" Link="OfflineV2\V2ActionProgramSourceService.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V1\Services\NativeActionProgramSourceBody.cs" Link="OfflineV2\NativeActionProgramSourceBody.cs" />
+    <Compile Include="..\..\src\QuickerRpc.Plugin.V1\Services\StepRunnerKnowledgeProvider.cs" Link="OfflineV2\StepRunnerKnowledgeProvider.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Quicker.ExpressionEngine" Condition="Exists('..\..\..\..\quicker-host\net10\Quicker.ExpressionEngine.dll')">

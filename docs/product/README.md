@@ -128,6 +128,7 @@ schema 等待可取消，迟到结果不进入新轮；未确认编辑弹窗返�
 - Skill 通过 `skill_load` 按名称和 offset 渐进加载；不把全部正文塞入初始 prompt。
 - `task` 子代理使用允许工具列表且不递归暴露自身。
 - 外部 MCP 从 user/workspace `mcp.json` 加载，server 必须显式 enabled；工具 namespaced、可 allowlist/审批/限流，并在 turn 结束关闭连接。配置入口暂按实验性管理。
+- MCP 工具定义每 turn 有界读取全部页；循环 cursor、重复定义或超限使该来源本轮不可用，保留原权限与关闭流程。内部来源记录保留实际上报版本，未知为 `null`，不按产品版本缓存或授予能力。`list_tools` 的 get/bundle 输出规范 JSON Schema；统一 knowledge HTTP 入口和持久缓存尚未新增。
 
 验证使用 LLM、agent-defs/skills/task 和外部 MCP 对应测试。资源边界见 [用户数据与安装资源](../agent-gui-plugin-storage.md)。
 
@@ -156,14 +157,17 @@ V1 已页读 467 个动作、336 个全局子程序，错误快照拒绝，未�
 
 V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。外部接入见 [MCP/CLI 集成](../agent-mcp-integration.md)。
 
-2026-10-24 用户已提供局域网 V2 设备。实际 Quicker 2.3.20 与 171 插件已启动，私有
-172 候选 CLI 已通过专属 endpoint 连接；同一 CLI 也已识别本机 V1。远端提权 token 的
+2026-10-24 用户已提供局域网 V2 设备，确认为官方安装版 Quicker 2.3.20。172 插件与
+同源私有 CLI 已部署并通过专属 endpoint 连接；同一 CLI 也已识别本机 V1。远端提权 token 的
 默认 Owner 为 Administrators，管道仍由实际用户拥有；修复后用户管道握手成功，另一
 owner 的管道在任何 RPC 字节发送前被拒绝。这是连接验收，双宿主动作写回仍未完成。
 
-当前 V2 发布版的私有类型已变化，171 的模块 UI 查询返回失败，source read/write 与
-input-contract capability 仍关闭。正在迁移到已加载的公开原生接口，并逐项重新验收；
-离线 fake 仓储与旧开发源码不替代该发布版的条件写入、Designer 保护及部分保存验证。
+172 已通过当前公开原生 owner 取得三个模块的 UI 与 Agent schema，共六次读取成功。
+input-contract capability 虽已声明，四次真实调用均因共享依赖解析冲突返回 MissingMethod，
+本轮仅部分通过。主线已修复 V2 私有依赖隔离与启动期间 Stop 的 owner 释放；173 是下一
+测试 revision，尚待安装和真实重验。source read/write 继续关闭。离线 fake 仓储与旧开发
+源码不替代该发布版的条件写入、Designer 保护及部分保存验证；不把版本固定的反编译字段
+映射接入生产知识 provider。
 不启动尚未证明隔离的本机 V2 评测进程，不运行业务动作来代替编辑链验收。
 
 
@@ -214,10 +218,10 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 
 | 切片 | 交付与验收 | 当前状态 |
 |---|---|---|
-| 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | 已接现有 native search/get，每次重新读取；跨 turn/同 turn 更新、limit、精确控制值和读取失败回归已通过。后端旧缓存与来源标识继续迁移，不宣称已证明全部原生 freshness |
-| Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | 实现中；不新增平行存储或 Agent loop，不按 Quicker 版本硬编码字段 |
-| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 待接消费者与升级回归；旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
-| codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 待统一路由与刷新；公开网站 corpus 不替代当前模块 schema |
+| 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | Node、Console/serve/MCP 与 V1/V2 后端读取路径已合入，移除永久目录与结果复用；跨 turn/同 turn 更新、先空后有、移除模块、定义变化、精确控制值及失败回归通过。173 待安装和真实重验 |
+| Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | Agent 模块结果已带 SchemaJson.knowledge，区分 runtime-definition、bundled-adapter 和 unknown，保留原生 HelpLink；内置引用另标 bundled-fallback 与包版本/索引指纹。原 schema 数值/日期文本保持不变；UI 投影尚未附此 metadata |
+| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。Agent 超限投影保留原有 knowledge，省略的 schema 内容不能用参数名摘要代替；UI 目录/详情/弹窗与 MCP 分页/schema 完整传递继续独立迁移。旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
+| codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 实际 codec 实现身份、guide 来源及网站本地 corpus 指纹/抓取时间分别迁移；公开网站 corpus 不替代当前模块 schema，也不把本地读取时间当在线更新时间 |
 
 固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，
 不能用 knowledge 获取成功或反编译字段映射替代真实保存语义。

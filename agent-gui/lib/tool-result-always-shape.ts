@@ -84,20 +84,26 @@ export function shapeStepRunnerSearchResult(
   };
 }
 
-function extractInputParamKeys(schemaJson: string): string[] | undefined {
+function extractStepRunnerSchemaSummary(schemaJson: string): {
+  inputParamKeys?: string[];
+  knowledge?: Record<string, unknown>;
+} {
   try {
     const parsed = JSON.parse(schemaJson) as Record<string, unknown>;
-    const inputs = parsed.inputParams ?? parsed.InputParams;
-    if (!Array.isArray(inputs)) return undefined;
+    const inputs = parsed.inputs ?? parsed.inputParams ?? parsed.InputParams;
     const keys: string[] = [];
-    for (const item of inputs) {
+    for (const item of Array.isArray(inputs) ? inputs : []) {
       const row = readRecord(item);
       const key = row ? readString(row.key) ?? readString(row.Key) : undefined;
       if (key) keys.push(key);
     }
-    return keys.length > 0 ? keys : undefined;
+    const knowledge = readRecord(parsed.knowledge);
+    return {
+      ...(keys.length > 0 ? { inputParamKeys: keys } : {}),
+      ...(knowledge ? { knowledge } : {}),
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -112,13 +118,14 @@ export function shapeStepRunnerGetResult(
   const schemaJson = readString(payload.schemaJson) ?? readString(payload.SchemaJson);
   if (!schemaJson || schemaJson.length <= STEP_RUNNER_GET_SCHEMA_SOFT_CHARS) return result;
 
-  const inputParamKeys = extractInputParamKeys(schemaJson);
+  const summary = extractStepRunnerSchemaSummary(schemaJson);
   const nextPayload: Record<string, unknown> = {
     ...payload,
     schemaJsonOmitted: true,
     schemaJsonChars: schemaJson.length,
-    ...(inputParamKeys ? { inputParamKeys } : {}),
-    readHint: "Full schema omitted from agent payload — repeat qkrpc_step_runner_get or use displayData in UI.",
+    ...summary,
+    readHint: "Schema content omitted by the result budget; provenance and parameter names are not an editing contract. "
+      + "Select an exact controlField from the current catalog when relevant; do not guess or edit until the full schema is available.",
   };
   delete nextPayload.schemaJson;
   delete nextPayload.SchemaJson;

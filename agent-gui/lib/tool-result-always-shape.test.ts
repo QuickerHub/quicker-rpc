@@ -93,3 +93,42 @@ test("formatToolResultForAgent compresses large step_runner_get schema by defaul
     else process.env.TOOL_RESULT_AGENT_VIEW_COMPRESSION = prev;
   }
 });
+
+test("large schema shaping preserves the observed knowledge owner and exact control intent", () => {
+  const knowledge = {
+    schemaVersion: 1,
+    source: { provider: "qkrpc.step-runner", kind: "runtime-definition", hostSessionId: "current-owner" },
+    schema: { format: "qkrpc.agent-step-runner.v1", revision: "sha256:" + "a".repeat(64) },
+    requestedControlFieldValue: " MixedCase ",
+    nativeHelpLink: "https://example.test/current-module",
+    bundledReference: { source: "bundled-fallback", bundleVersion: "fixture", indexRevision: "unknown" },
+  };
+  for (const property of ["schemaJson", "SchemaJson"]) {
+    const schemaJson = JSON.stringify({
+      stepRunnerKey: "fixture:current", inputs: [{ key: "currentInput", valueType: "Text" }],
+      knowledge, note: "z".repeat(8_000),
+    });
+    const result = formatToolResultForAgent("qkrpc_step_runner_get", { key: "fixture:current" },
+      formatLocalToolResult({ payload: { success: true, [property]: schemaJson } }));
+    assert.ok(isStructuredToolResult(result));
+    const payload = (result.data as { payload: Record<string, unknown> }).payload;
+    assert.equal(payload.schemaJsonOmitted, true);
+    assert.deepEqual(payload.knowledge, knowledge);
+    assert.deepEqual(payload.inputParamKeys, ["currentInput"]);
+    assert.equal(payload[property], undefined);
+    assert.match(String(payload.readHint), /not an editing contract/i);
+    assert.equal(((result.displayData as { payload: Record<string, unknown> }).payload)[property], schemaJson);
+  }
+});
+
+test("large legacy schemas without provenance do not gain fabricated knowledge metadata", () => {
+  const result = formatToolResultForAgent("qkrpc_step_runner_get", { key: "fixture:old" },
+    formatLocalToolResult({ payload: { success: true, schemaJson: JSON.stringify({
+      StepRunnerKey: "fixture:old", inputParams: [{ key: "legacyInput" }], note: "z".repeat(8_000),
+    }) } }));
+  assert.ok(isStructuredToolResult(result));
+  const payload = (result.data as { payload: Record<string, unknown> }).payload;
+  assert.equal(payload.schemaJsonOmitted, true);
+  assert.deepEqual(payload.inputParamKeys, ["legacyInput"]);
+  assert.equal(Object.hasOwn(payload, "knowledge"), false);
+});

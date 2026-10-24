@@ -1,4 +1,5 @@
 using System.Reflection;
+using Newtonsoft.Json.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
@@ -60,7 +61,10 @@ public sealed class StepRunnerInputContractRpcTests
 
         var legacy = await service.GetStepRunnerDetailAsync("sys:fixture");
         Assert.IsTrue(legacy.Success);
-        Assert.AreEqual(LegacySchema, legacy.SchemaJson);
+        var legacySchema = JObject.Parse(legacy.SchemaJson!);
+        Assert.AreEqual("unknown", legacySchema["knowledge"]!["source"]!.Value<string>("kind"));
+        legacySchema.Remove("knowledge");
+        Assert.AreEqual(LegacySchema, legacySchema.ToString(Newtonsoft.Json.Formatting.None));
         Assert.AreEqual(1, scheduler.UiCalls);
         Assert.AreEqual(1, port.DetailReads);
         Assert.AreEqual(0, port.ContractReads);
