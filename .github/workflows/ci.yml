@@ -67,6 +67,10 @@ jobs:
         with:
           path: .tmp/nsis-compile-cache
           key: nsis-compile-${{ runner.os }}-builder-25.1.8-nsis-3.0.4.1-resources-3.4.1-${{ hashFiles('agent-gui/pnpm-lock.yaml', 'scripts/ci/check-nsis-template-compile.mjs') }}
+      - name: Shell watch response cleanup and natural service exit
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: agent-gui
+        run: node --conditions=react-server --import tsx --test --test-timeout=15000 service/shell-watch.integration.test.ts
       - name: Compile installer helper and verify pure ownership policy
         if: ${{ !cancelled() && steps.install.outcome == 'success' && runner.os == 'Windows' }}
         shell: pwsh

@@ -138,6 +138,7 @@ const tests = [
   "browser-runtime/runtime-cancellation.test.mjs",
   "browser-runtime/page-script-invocation.test.mjs",
   "lib/shell-runner-cancellation.test.ts",
+  "app/api/shell/watch/route.test.ts",
   "lib/context-compression-reactive.test.ts",
   "lib/context-compression.integration.test.ts",
   "lib/db/client.test.ts",
