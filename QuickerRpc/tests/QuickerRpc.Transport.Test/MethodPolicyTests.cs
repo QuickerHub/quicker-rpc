@@ -23,6 +23,7 @@ public sealed class MethodPolicyTests
             "SearchSettingsAsync", "ListSettingsAsync", "GetSettingAsync", "ListSettingsPagesAsync", "ListSettingsDirectLinksAsync",
             "ResolveSettingsIntentAsync", "ResolveLauncherIntentAsync", "ListTriggersAsync", "ListTriggerEventTypesAsync",
             "GetSearchIndexStatusAsync", "GetActionDesignerContextAsync",
+            "GetActionResourceCatalogPageAsync", "GetGlobalSubProgramResourceCatalogPageAsync",
         };
         var actual = typeof(IQuickerRpcService).GetMethods().Select(method => method.Name).Where(QuickerRpcMethodPolicy.IsReadOnly).ToArray();
         CollectionAssert.AreEquivalent(expected, actual);
@@ -48,4 +49,13 @@ public sealed class MethodPolicyTests
     public void Icon_page_requires_its_independent_read_capability() => Assert.AreEqual(
         QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead,
         QuickerRpcMethodPolicy.Capability(nameof(IQuickerRpcService.SearchFontAwesomeIconsPageAsync)));
+
+    [DataTestMethod]
+    [DataRow("GetActionResourceCatalogPageAsync", "resource.action.page.read")]
+    [DataRow("GetGlobalSubProgramResourceCatalogPageAsync", "resource.globalSubprogram.page.read")]
+    public void Resource_pages_require_their_independent_read_capability(string method, string capability)
+    {
+        Assert.IsTrue(QuickerRpcMethodPolicy.IsReadOnly(method));
+        Assert.AreEqual(capability, QuickerRpcMethodPolicy.Capability(method));
+    }
 }
