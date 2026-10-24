@@ -62,6 +62,17 @@ QuickerRpc.Plugin.V2
 宿主版本和插件会话，再部署已核验的产物并使用专属测试动作；设备启动不代表任何
 qkrpc capability 已经验证。逐项结果继续进入本计划的动作读写与重启矩阵。
 
+首轮已在局域网 Quicker 2.3.20（release-v2 `623c38be`）启动 171 插件，并用私有
+172 候选 CLI 验证实际 V2 发现、会话绑定和只读 health；同一候选也识别本机 V1。
+提权 Windows 客户端改为核验实际管道 owner 与有效用户 SID，用户 owner 的管道成功
+握手，外部 Administrators owner 的管道在发送任何 RPC 字节前被拒绝。服务器的受保护
+用户 DACL 不变；现有 Quicker 和 MCP 进程保留。该候选尚未替换日常安装。
+
+171 在该发布版的 source read/write 与 input-contract capability 均为 false，两个模块
+UI 查询也实际失败。发布版私有 DI/存储实现名称与当前开发源码不符；已取得并校验实际
+加载 DLL 的元数据，后续 adapter 优先使用稳定公开接口。只读目录、原生输入契约和
+source 读写分别验证，不能由健康连接、公开方法名或离线 DTO 推定写入能力已具备。
+
 Debug Eval profile 隔离账号正文，不等于隔离完整进程。现有启动路径仍共享 WebView
 目录、MCP Home/config、日志及发现文件，也可触发浏览器注册、全局输入 hooks、IPC
 和第三方监听；仅隐藏 Shell 或设置 Eval DataRoot 不能满足自有测试实例的边界。
