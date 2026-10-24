@@ -227,6 +227,12 @@ handle 读取所有编辑内容，关闭子程序页签或切源码不会丢弃�
 保存票据。保存只推进对应票据的基线，晚回执不会把其后的草稿标成已保存；外部文件
 变更会保留本地草稿并阻止覆盖。纯 controller 已有 Agent 事务入口，但实际 Agent 工具
 尚未接入打开的 UI session。当前磁盘会话没有伪造宿主身份。
+
+运行时依赖边界由 `scripts/check-designer-document-dependencies.mjs` 检查：递归编译所有
+文档生产入口的传递依赖，不执行产物，拒绝 UI/server 模块与资源、framework directive 及未经允许的
+外部运行时依赖。纯 protobuf wire 是当前显式例外；type-only 引用由编译器擦除。该检查
+不审计动态计算的导入、全局 API 或外部包内部，不能代替事务和真实集成验收。
+
 纯文档 session 现在持有有界的完整正文/可编辑属性历史，`transactDocument` 将递归子程序、
 正文和已支持的三项属性作为一笔同步事务。undo/redo 核验当前完整身份与 revision，产生新
 revision；只恢复正文原文和可编辑属性，不回退宿主版本、来源绑定或未知 metadata 字段。
