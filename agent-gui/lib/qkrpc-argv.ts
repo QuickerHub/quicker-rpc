@@ -81,7 +81,7 @@ function parseJsonFlag(
 
 export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
   const filtered = argv.filter((a) => a !== "--json");
-  const literalContract = argv[0] === "step-runner" && argv[1] === "input-contract";
+  const literalContract = argv[0] === "step-runner" && ["input-contract", "get", "get-ui"].includes(argv[1]);
   const { positional, flags } = parseFlags(filtered, literalContract ? new Set(["key", "control-field", "control-field-json"]) : undefined);
 
   if (positional.length === 0) return null;

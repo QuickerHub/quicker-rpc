@@ -208,11 +208,11 @@ async function fetchStepRunnerDetailItemOnce(
 ): Promise<StepRunnerItem | null> {
   const params = new URLSearchParams();
   params.set("key", key);
-  if (controlField) {
+  if (controlField !== undefined) {
     params.set("controlField", controlField);
   }
   const data = port
-    ? await port.request<{ item: Record<string, unknown> }>("/api/step-runner/get", { key, ...(controlField ? { controlField } : {}) }, signal)
+    ? await port.request<{ item: Record<string, unknown> }>("/api/step-runner/get", { key, ...(controlField === undefined ? {} : { controlField }) }, signal)
     : await fetchJson<{ item: Record<string, unknown> }>(`/api/step-runner/get?${params.toString()}`, { signal });
   const item = data.item;
   if (!item) return null;
@@ -232,9 +232,9 @@ export async function fetchStepRunnerDetailItem(
   signal?.throwIfAborted();
   if (port) {
     if (!port.remoteEnabled) return null;
-    const control = (controlField ?? "").trim();
-    return port.shared(`detail\0${key.trim()}\0${control}`, async (ownedSignal) => {
-      const item = await fetchStepRunnerDetailItemOnce(key, control || undefined, ownedSignal, port);
+    const requestKey = JSON.stringify([key.trim(), controlField ?? null]);
+    return port.shared(`detail\0${requestKey}`, async (ownedSignal) => {
+      const item = await fetchStepRunnerDetailItemOnce(key, controlField, ownedSignal, port);
       ownedSignal.throwIfAborted();
       return item;
     }, signal);

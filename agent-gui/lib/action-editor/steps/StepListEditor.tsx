@@ -415,7 +415,7 @@ export default function StepListEditor({
   const stepSchemaRequestsKey = useMemo(
     () =>
       collectStepRunnerSchemaRequestsFromSteps(steps)
-        .map((r) => `${r.key}\0${r.controlLiteral ?? ""}`)
+        .map((r) => JSON.stringify([r.key, r.controlLiteral ?? null]))
         .sort()
         .join("\u0002"),
     [steps],

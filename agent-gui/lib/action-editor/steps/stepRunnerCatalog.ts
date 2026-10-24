@@ -121,7 +121,7 @@ export async function hydrateMissingStepRunnerItems(
   // Deduplicate within this read only; never carry native facts into a later read.
   const reads = new Map<string, Promise<StepRunnerItem | null>>();
   const readDetail = (key: string, control?: string) => {
-    const requestKey = `${key}\0${control ?? ""}`;
+    const requestKey = JSON.stringify([key, control ?? null]);
     let request = reads.get(requestKey);
     if (!request) { request = fetchStepRunnerDetailItem(key, control, signal, options?.catalogPort); reads.set(requestKey, request); }
     return request;
@@ -130,9 +130,9 @@ export async function hydrateMissingStepRunnerItems(
   await Promise.all(
     requests.map(async (req) => {
       const canonicalKey = resolveCanonicalStepRunnerKey(req.key, items);
-      const cacheKey = req.controlLiteral
-        ? `${canonicalKey}\0${req.controlLiteral}`
-        : canonicalKey;
+      const cacheKey = req.controlLiteral === undefined
+        ? canonicalKey
+        : `${canonicalKey}\0${req.controlLiteral}`;
       const hasCachedDefs = (nextSchemas[cacheKey]?.inputParamDefs?.length ?? 0) > 0;
       try {
         const detail = await readDetail(canonicalKey, req.controlLiteral);
