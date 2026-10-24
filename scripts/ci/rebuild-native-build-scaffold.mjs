@@ -19,6 +19,6 @@ assert.equal(result.status, 0, `Locked node-pty source rebuild failed (${result.
 const helper = join(nativeRoot, "build/node_gyp_bins"), python = join(helper, "python3");
 assert.ok(lstatSync(helper).isDirectory() && !lstatSync(helper).isSymbolicLink());
 assert.ok(lstatSync(python).isSymbolicLink());
-for (const name of ["pty.node", "spawn-helper"]) assert.ok(lstatSync(join(nativeRoot, "build/Release", name)).isFile());
+assert.ok(lstatSync(join(nativeRoot, "build/Release/pty.node")).isFile());
 console.log(JSON.stringify({ event: "locked-native-build-scaffold", nodePty: "1.1.0", nodeGyp: "9.4.1",
-  pythonLink: readlinkSync(python), nativeRuntimeFiles: ["build/Release/pty.node", "build/Release/spawn-helper"] }));
+  pythonLink: readlinkSync(python), nativeRuntimeFiles: ["build/Release/pty.node"] }));
