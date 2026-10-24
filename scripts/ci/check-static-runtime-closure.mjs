@@ -1,7 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { lstat, mkdir, mkdtemp, realpath, rename, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, mkdtemp, open, realpath, rename, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { RUNTIME_MODE_FILE } from "../../agent-gui/electron/runtime-mode.mjs";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const metadataScript = join(repository, "agent-gui/scripts/Assert-NsisFixturePaths.ps1");
@@ -47,8 +49,42 @@ async function ownedDirectory(parent, name, inspectPaths) {
   return checkDirectory(path, inspectPaths);
 }
 
-const productionBuild = async (options) => (await import("../../agent-gui/scripts/build-static-runtime.mjs")).buildStaticRuntime(options);
+const productionEntry = "agent-gui/scripts/build-agent-production.mjs";
+const productionBuild = async (options) => (await import("../../agent-gui/scripts/build-agent-production.mjs")).buildAgentProductionRuntime(options);
 const productionVerify = async (path, options) => (await import("../../agent-gui/scripts/verify-static-runtime.mjs")).verifyStaticRuntime(path, options);
+const snapshot = (info) => [info.ino, info.mode, info.nlink, info.size, info.mtimeNs, info.ctimeNs, info.birthtimeNs].map(String).join(":");
+const sameSnapshot = (left, right) => snapshot(left) === snapshot(right)
+  && (left.dev === right.dev || process.platform === "win32" && (left.dev === 0n || right.dev === 0n));
+
+async function inspectModeMarker(app, inspectPaths) {
+  const file = join(app, RUNTIME_MODE_FILE);
+  await inspectAncestors(file, inspectPaths);
+  const before = await lstat(file, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink()) throw new Error(`Runtime mode marker is not a regular file: ${file}`);
+  const handle = await open(file, "r");
+  let bytes;
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || !sameSnapshot(opened, before)) throw new Error(`Runtime mode marker changed before read: ${file}`);
+    if (opened.size > 4096n) throw new Error(`Runtime mode marker exceeds size limit: ${file}`);
+    bytes = Buffer.alloc(Number(opened.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    if (offset !== bytes.length || !sameSnapshot(after, opened)) throw new Error(`Runtime mode marker changed during read: ${file}`);
+  } finally { await handle.close(); }
+  let marker;
+  try { marker = JSON.parse(bytes.toString("utf8")); }
+  catch { throw new Error(`Invalid runtime mode marker JSON: ${file}`); }
+  if (marker?.format !== "quicker-agent-runtime-mode" || marker.version !== 1 || marker.mode !== "static")
+    throw new Error(`Expected a version 1 static runtime mode marker: ${file}`);
+  return { file: RUNTIME_MODE_FILE, format: marker.format, version: marker.version, mode: marker.mode,
+    sha256: createHash("sha256").update(bytes).digest("hex") };
+}
 
 /** Build once, physically relocate, then verify without starting product entrypoints. */
 export async function checkStaticRuntimeClosure({ repositoryDirectory = repository, build = productionBuild, verify = productionVerify, inspectPaths = inspectWindowsMetadata } = {}) {
@@ -64,7 +100,8 @@ export async function checkStaticRuntimeClosure({ repositoryDirectory = reposito
   if (!difference.startsWith("run-") || isAbsolute(difference) || dirname(run) !== output) throw new Error("Invalid static closure run directory");
   const builtApp = join(run, "built-app"), relocatedApp = join(run, "relocated-app");
   const receipt = { format: "quicker-agent-static-runtime-closure", version: 1, ok: false, phase: "build",
-    run, builtApp, relocatedApp, production: true, nodeExecutable: process.execPath, nodeVersion: process.version,
+    run, builtApp, relocatedApp, production: true, buildEntry: build === productionBuild ? productionEntry : "injected-build-port",
+    nodeExecutable: process.execPath, nodeVersion: process.version,
     verificationMode: "dependency/native import only; no service, Electron, browser or PTY startup" };
   const save = async () => { receipt.elapsedMs = Date.now() - started; await checkDirectory(run, inspectPaths); await writeJson(join(run, "receipt.json"), receipt); };
   try {
@@ -74,6 +111,7 @@ export async function checkStaticRuntimeClosure({ repositoryDirectory = reposito
       throw new Error("Production builder returned a different artifact directory");
     }
     await checkDirectory(builtApp, inspectPaths);
+    receipt.runtimeMode = await inspectModeMarker(builtApp, inspectPaths);
     receipt.phase = "relocate";
     await inspectAncestors(relocatedApp, inspectPaths);
     await rename(builtApp, relocatedApp);
@@ -81,6 +119,10 @@ export async function checkStaticRuntimeClosure({ repositoryDirectory = reposito
     receipt.phase = "verify";
     receipt.verification = await verify(relocatedApp, { nodeExecutable: process.execPath, desktop: false });
     if (receipt.verification?.ok !== true) throw new Error("Static runtime verifier did not approve the relocated artifact");
+    const finalMode = await inspectModeMarker(relocatedApp, inspectPaths);
+    if (finalMode.sha256 !== receipt.runtimeMode.sha256) throw new Error("Runtime mode marker changed after relocation or verification");
+    receipt.runtimeMode = finalMode;
+    receipt.runtimeModePreserved = true;
     receipt.ok = true;
     receipt.phase = "complete";
     await save();
