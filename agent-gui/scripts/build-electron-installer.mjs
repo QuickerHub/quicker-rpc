@@ -73,8 +73,9 @@ export async function runElectronInstaller(argv, dependencies = {}) {
     assistedInstaller: await readFile(join(builderRoot, "templates/nsis/assistedInstaller.nsh"), "utf8"),
     multiUser: await readFile(join(builderRoot, "templates/nsis/multiUser.nsh"), "utf8"),
     uninstaller: await readFile(join(builderRoot, "templates/nsis/uninstaller.nsh"), "utf8"),
+    installUtilities: await readFile(join(builderRoot, "templates/nsis/include/installUtil.nsh"), "utf8"),
     generatedSectionPath: join(temporary, "installSection.nsh"), generatedAssistedPath: join(temporary, "assistedInstaller.nsh"),
-    generatedMultiUserPath: join(temporary, "multiUser.nsh"), generatedUninstallerPath: join(temporary, "uninstaller.nsh") };
+    generatedMultiUserPath: join(temporary, "multiUser.nsh"), generatedUninstallerPath: join(temporary, "uninstaller.nsh"), generatedInstallUtilitiesPath: join(temporary, "installUtil.nsh") };
   const loaded = dependencies.Target && dependencies.api ? dependencies : loadInstallerBuildApi();
   const Target = dependencies.Target ?? loaded.Target;
   const adapter = (dependencies.installAdapter ?? installPinnedNsisOverlayAdapter)(Target, input);
@@ -83,6 +84,7 @@ export async function runElectronInstaller(argv, dependencies = {}) {
     await writeFile(input.generatedAssistedPath, adapter.generatedLayout.assisted);
     await writeFile(input.generatedMultiUserPath, adapter.generatedLayout.multiUser);
     await writeFile(input.generatedUninstallerPath, adapter.generatedLayout.uninstaller);
+    await writeFile(input.generatedInstallUtilitiesPath, adapter.generatedInstallUtilities);
     await (dependencies.compileHelper ?? buildInstallerOwnershipHelper)(project);
     const api = dependencies.api ?? loaded.api;
     const afterPack = dependencies.afterPack ?? (await import(pathToFileURL(join(project, pkg.build.afterPack)).href)).default;

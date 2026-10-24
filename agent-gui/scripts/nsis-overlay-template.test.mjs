@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { createPinnedNsisOverlay, createPinnedNsisLayout, installPinnedNsisOverlayAdapter } from "./nsis-overlay-template.mjs";
+import { createPinnedNsisOverlay, createPinnedNsisLayout, createPinnedNsisInstallUtilities, installPinnedNsisOverlayAdapter } from "./nsis-overlay-template.mjs";
 
 const require = createRequire(import.meta.url), directory = dirname(require.resolve("app-builder-lib/package.json"));
 const input = { builderVersion: JSON.parse(readFileSync(join(directory, "package.json"), "utf8")).version,
@@ -58,4 +58,19 @@ test("final-directory layout removes the obsolete StrContains function which fai
   });
   assert.doesNotMatch(layout.files.assisted, /!include StrContains\.nsh/);
   assert.doesNotMatch(layout.files.assisted.match(/Function instFilesPre[^]*?FunctionEnd/)?.[0] ?? "", /StrCpy|StrContains/);
+});
+test("verified overlay utility copy preserves live file/shortcut macros and removes unreachable legacy execution functions", () => {
+  const installUtilities = readFileSync(join(directory, "templates/nsis/include/installUtil.nsh"), "utf8");
+  const source = createPinnedNsisInstallUtilities({ builderVersion: input.builderVersion, installUtilities });
+  for (const name of ["moveFile", "copyFile", "setIsTryToKeepShortcuts"]) {
+    const pattern = new RegExp(`!macro ${name}(?: [^\\n]+)?\\n[^]*?!macroend`, "m");
+    assert.equal(source.match(pattern)?.[0], installUtilities.replaceAll("\r\n", "\n").match(pattern)?.[0]);
+  }
+  assert.match(source, /Var \/GLOBAL isTryToKeepShortcuts/);
+  assert.doesNotMatch(source, /Function |ExecWait|GetInQuotes|GetFileParent|uninstallOldVersion|handleUninstallResult|readReg/);
+  for (const changed of [{ builderVersion: "25.1.9" }, { installUtilities: installUtilities + "\n; drift" }]) assert.throws(() => createPinnedNsisInstallUtilities({ builderVersion: input.builderVersion, installUtilities, ...changed }));
+  const complete = { ...input, installUtilities, generatedInstallUtilitiesPath: "D:/repo/.tmp/nsis-utilities/installUtil.nsh" };
+  const result = createPinnedNsisOverlay(complete);
+  assert.equal(result.generatedInstallUtilities, source);
+  assert.ok(result.replaceFinalScript(input.mainTemplate).includes('!include "D:\\repo\\.tmp\\nsis-utilities\\installUtil.nsh"'));
 });

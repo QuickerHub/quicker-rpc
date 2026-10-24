@@ -95,6 +95,7 @@ export function installIsolatedNsisFixtureAdapter(Target, inputs, fixture) {
   const stubDirectory = literalTemporaryPath(fixture.stubDirectory), payloadPath = literalTemporaryPath(fixture.generatedPayloadIncludePath);
   for (const name of ["generatedSectionPath", "generatedAssistedPath", "generatedMultiUserPath", "generatedUninstallerPath"])
     literalTemporaryPath(inputs[name]);
+  if (inputs.installUtilities !== undefined) literalTemporaryPath(inputs.generatedInstallUtilitiesPath);
   const generatedCustomInclude = createIsolatedCustomInclude(fixture.customIncludeSource, directory);
   const generatedPayloadInclude = isolatePayload(fixture.payloadIncludeSource, cacheDirectory);
   if (typeof inputs.assistedInstaller !== "string") throw new Error("NSIS fixture requires the complete pinned layout");
@@ -109,7 +110,7 @@ export function installIsolatedNsisFixtureAdapter(Target, inputs, fixture) {
     const original = prototype.computeFinalScript;
     async function wrapped(...args) { return isolateMain(await original.apply(this, args), directory, stubDirectory); }
     prototype.computeFinalScript = wrapped;
-    return Object.freeze({ generatedSection, generatedLayout, generatedCustomInclude, generatedPayloadInclude, restore() {
+    return Object.freeze({ generatedSection, generatedLayout, generatedInstallUtilities: base.generatedInstallUtilities, generatedCustomInclude, generatedPayloadInclude, restore() {
       if (prototype.computeFinalScript !== wrapped) throw new Error("NSIS fixture adapter ownership changed");
       prototype.computeFinalScript = original; base.restore();
     } });
