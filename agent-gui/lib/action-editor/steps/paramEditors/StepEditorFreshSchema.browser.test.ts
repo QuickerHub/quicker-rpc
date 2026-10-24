@@ -14,14 +14,14 @@ import{createDesignerCatalogPort}from'@/lib/action-editor/catalog/designerCatalo
 import{createProgramDocumentSession}from'@/lib/action-editor/document/programDocumentSession';
 import{createProgramDocumentEditorController}from'@/lib/action-editor/program/programDocumentEditorController';
 import{mapAgentSchemaToStepRunnerItem}from'@/lib/action-editor/api/stepRunnerSchemaMap';
-const state=window.fixture={requests:[],unexpected:[],generation:{a:'Old',b:'B'},defer:false,fail:false,pending:[],withFile:!!window.withFileFixture,withTools:!!window.withToolsFixture,advanced:false,files:{a:'original file',b:'b original file'},writes:[],holdFileDebounce:false,heldTimers:new Map(),nextTimer:0};
+const state=window.fixture={requests:[],unexpected:[],generation:{a:'Old',b:'B'},defer:false,fail:false,pending:[],withFile:!!window.withFileFixture,withTools:!!window.withToolsFixture,withKeyboard:false,fileHero:false,advanced:false,files:{a:'original file',b:'b original file'},writes:[],holdFileDebounce:false,heldTimers:new Map(),nextTimer:0};
 const nativeSetTimeout=window.setTimeout.bind(window),nativeClearTimeout=window.clearTimeout.bind(window);
 window.setTimeout=(callback,delay,...args)=>{if(state.holdFileDebounce&&delay===450){const id=--state.nextTimer;state.heldTimers.set(id,()=>callback(...args));return id;}return nativeSetTimeout(callback,delay,...args);};
 window.clearTimeout=id=>{if(!state.heldTimers.delete(id))nativeClearTimeout(id);};
 state.flushFileWrites=()=>{const callbacks=[...state.heldTimers.values()];state.heldTimers.clear();for(const callback of callbacks)callback();};
 const ids={a:'abcdefab-cdef-4abc-8def-abcdefabcdef',b:'bbcdefab-cdef-4abc-8def-abcdefabcdef'};
-const runner=(label,full,advanced=state.advanced)=>mapAgentSchemaToStepRunnerItem({stepRunnerKey:'fixture:current',name:label+' module',helpLink:'https://docs.example.test/'+label,
- inputs:full?[{key:'text',title:label+' text',valueType:'Text',variableMode:1,defaultValue:label+' default',textTools:state.withTools?'EditInCodeWindow':undefined},...(state.withFile?[{key:'script',title:'Script file',valueType:'Text',variableMode:0,isMultiLine:true,isAdvanced:advanced}]:[])]:[],outputs:[]});
+const runner=(label,full,advanced=state.advanced,fileHero=state.fileHero)=>mapAgentSchemaToStepRunnerItem({stepRunnerKey:'fixture:current',name:label+' module',helpLink:'https://docs.example.test/'+label,
+ inputs:full?[{key:'text',title:label+' text',valueType:'Text',variableMode:1,defaultValue:label+' default',textTools:state.withTools?'EditInCodeWindow':undefined},...(state.withFile?[{key:'payload',title:'Script file',valueType:'Text',variableMode:0,isMultiLine:true,isAdvanced:advanced,defaultHighlightType:fileHero?'json':undefined}]:[]),...(state.withKeyboard?[{key:'hotkey',title:'Advanced keyboard',valueType:'Keyboard',variableMode:0,isAdvanced:true}]:[])]:[],outputs:[]});
 window.fetch=async(input,init)=>{
  const url=String(input),body=JSON.parse(String(init?.body||'{}'));state.requests.push({url,body});
  if(url.startsWith('/api/workspace')){
@@ -36,17 +36,17 @@ window.fetch=async(input,init)=>{
  if(!owner)throw Error('No unbound request');
  if(url==='/api/step-runner/list')return Response.json({ok:true,items:[runner(state.generation[owner],false)]});
  if(url==='/api/step-runner/get'){
-  const label=state.generation[owner],fail=state.fail,advanced=state.advanced;
+  const label=state.generation[owner],fail=state.fail,advanced=state.advanced,fileHero=state.fileHero;
   if(state.defer&&owner==='a')await new Promise(resolve=>state.pending.push(resolve));
   if(fail)return new Response(JSON.stringify({ok:false,code:'CATALOG_REQUEST_FAILED',error:'fresh provider unavailable'}),{status:503});
-  return Response.json({ok:true,item:runner(label,true,advanced),source:'live'});
+  return Response.json({ok:true,item:runner(label,true,advanced,fileHero),source:'live'});
  }
  if(url==='/api/step-runner/summaries'||url==='/api/subprogram/list')return Response.json({ok:true,items:[]});
  state.unexpected.push({url,body});throw Error('Unexpected '+url);
 };
 const sessions={},controllers={},ports={},workspaces={};
 for(const owner of ['a','b']){
- const source=JSON.stringify({steps:[{stepId:owner+'-one',stepRunnerKey:'fixture:current',inputParams:{text:{value:'original'},...(state.withFile?{script:{file:'files/script.txt'}}:{})}}],variables:[],subPrograms:[],future:'KEEP_INT64'}).replace('"KEEP_INT64"','9223372036854775807');
+ const source=JSON.stringify({steps:[{stepId:owner+'-one',stepRunnerKey:'fixture:current',inputParams:{text:{value:'original'},...(state.withFile?{payload:{file:'files/script.txt'}}:{})}}],variables:[],subPrograms:[],future:'KEEP_INT64'}).replace('"KEEP_INT64"','9223372036854775807');
  sessions[owner]=createProgramDocumentSession({content:source,identity:{documentKey:owner,projectBinding:null}});
  controllers[owner]=createProgramDocumentEditorController(sessions[owner],{isCurrent:()=>true,onChange:r=>{if(!r.ok)throw Error(r.error);state.redraw?.(x=>x+1);}});
  workspaces[owner]={cwd:'C:/fixture-only',projectDir:'C:/fixture-only/.quicker/actions/'+owner};
@@ -185,6 +185,78 @@ test("fresh grouping changes retain the external file editor and its pending sin
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: "../.tmp/fresh-fields-narrow.png" });
     await finish(page, errors);
+  } finally { await browser.close(); }
+});
+
+test("fresh native layout moves one pending file owner through preview, full tab and advanced grouping", { timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await openFixture(true, true);
+  try {
+    const initial = await page.evaluate(() => (window as any).fixture.read("a").content);
+    const fileField = () => popup(page).locator(".step-param-row").filter({ has: page.getByText("Script file", { exact: true }) }).getByRole("textbox");
+    await page.waitForFunction(() => [...document.querySelectorAll('.step-editor-popup [role="textbox"]')].some(node=>node.textContent==='original file'));
+    await fileField().evaluate(node => { (window as any).fixture.fileNode=node; });
+    await page.evaluate(() => (window as any).fixture.switch("b"));
+    await popup(page).waitFor({state:"hidden"});
+    await page.locator('[data-program-workspace="b"]').waitFor({state:"visible"});
+    await page.evaluate(() => { const f=(window as any).fixture; f.fileHero=true; f.defer=true; f.holdFileDebounce=true; f.switch("a"); });
+    await page.waitForFunction(() => (window as any).fixture.pending.length>0);
+    await type(fileField(), "one pending file owner across native layouts");
+    assert.equal(await page.evaluate(() => (window as any).fixture.heldTimers.size), 1);
+    await page.evaluate(() => { const f=(window as any).fixture; f.defer=false; f.release(); });
+    const fileTab = () => popup(page).getByRole("tab", {name:"Script file",exact:true});
+    await fileTab().waitFor();
+    assert.equal(await fileField().evaluate(node => node===(window as any).fixture.fileNode), true);
+    await fileTab().click();
+    assert.equal(await fileField().evaluate(node => node===(window as any).fixture.fileNode), true);
+    assert.equal(await fileField().innerText(), "one pending file owner across native layouts");
+    await page.evaluate(() => (window as any).fixture.switch("b"));
+    await popup(page).waitFor({state:"hidden"});
+    await page.locator('[data-program-workspace="b"]').waitFor({state:"visible"});
+    await page.evaluate(() => { const f=(window as any).fixture; f.fileHero=false; f.advanced=true; f.generation.a="Regrouped"; f.defer=true; f.switch("a"); });
+    await page.waitForFunction(() => (window as any).fixture.pending.length>0);
+    assert.equal(await confirm(page).isDisabled(), true);
+    await page.evaluate(() => { const f=(window as any).fixture; f.defer=false; f.release(); });
+    await popup(page).getByText("Regrouped text", {exact:true}).waitFor();
+    assert.equal(await fileTab().count(), 0);
+    const advanced=popup(page).getByRole("region", {name:"高级",exact:true});
+    if(await advanced.getByRole("button", {name:"高级",exact:true}).getAttribute("aria-expanded")==="false")
+      await advanced.getByRole("button", {name:"高级",exact:true}).click();
+    assert.equal(await fileField().evaluate(node => node===(window as any).fixture.fileNode), true);
+    assert.equal(await fileField().innerText(), "one pending file owner across native layouts");
+    assert.equal(await page.evaluate(() => (window as any).fixture.heldTimers.size), 1);
+    await page.evaluate(() => (window as any).fixture.flushFileWrites());
+    await page.waitForFunction(() => (window as any).fixture.writes.length===1);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.writes.map((x:any)=>({owner:x.owner,content:x.content}))), [{owner:"a",content:"one pending file owner across native layouts"}]);
+    assert.equal(await page.evaluate(() => (window as any).fixture.read("a").content), initial);
+    assert.equal(await page.evaluate(() => (window as any).fixture.snapshot("a").steps[0].inputParams.payload.file), "files/script.txt");
+    await finish(page, errors);
+  } finally { await browser.close(); }
+});
+
+test("collapsing an owned parameter section stops its retained keyboard capture", { timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await openFixture(false, true);
+  try {
+    const initial=await page.evaluate(() => (window as any).fixture.read("a").content);
+    await page.evaluate(() => (window as any).fixture.switch("b"));
+    await popup(page).waitFor({state:"hidden"});
+    await page.locator('[data-program-workspace="b"]').waitFor({state:"visible"});
+    await page.evaluate(() => { const f=(window as any).fixture; f.withKeyboard=true; f.generation.a="Keyboard"; f.switch("a"); });
+    await popup(page).getByText("Keyboard text", {exact:true}).waitFor();
+    const advanced=popup(page).getByRole("region", {name:"高级",exact:true});
+    const header=advanced.getByRole("button", {name:"高级",exact:true});
+    if(await header.getAttribute("aria-expanded")==="false") await header.click();
+    const keyboard=()=>advanced.locator(".step-param-row").filter({has:page.getByText("Advanced keyboard",{exact:true})});
+    const original=await keyboard().locator(".keyboard-param-keys-label").getAttribute("title");
+    await keyboard().getByRole("button", {name:"录制",exact:true}).click();
+    await keyboard().getByRole("button", {name:"记录中…",exact:true}).waitFor();
+    await header.click();
+    const text=popup(page).locator(".step-param-row").filter({has:page.getByText("Keyboard text",{exact:true})}).getByRole("textbox");
+    await type(text,"visible field remains independent");
+    await header.click();
+    await keyboard().getByRole("button", {name:"录制",exact:true}).waitFor();
+    assert.equal(await keyboard().locator(".keyboard-param-keys-label").getAttribute("title"),original);
+    assert.equal(await page.evaluate(() => (window as any).fixture.read("a").content),initial);
+    await finish(page,errors);
   } finally { await browser.close(); }
 });
 

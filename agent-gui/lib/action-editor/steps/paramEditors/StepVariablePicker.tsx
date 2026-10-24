@@ -127,7 +127,7 @@ export function StepVariablePicker({
     if (!inputActive || !pickerOpen) {
       return;
     }
-    const onPointerDown = (event: PointerEvent): void => {
+    const onPointerDown = (event: Event): void => {
       const root = pickerRef.current;
       const popupRoot = pickerPopupRef.current;
       const target = event.target;
@@ -145,7 +145,11 @@ export function StepVariablePicker({
       }
     };
     document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("focusin", onPointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("focusin", onPointerDown, true);
+    };
   }, [pickerOpen, activateLabelRef, inputActive]);
 
   useEffect(() => {

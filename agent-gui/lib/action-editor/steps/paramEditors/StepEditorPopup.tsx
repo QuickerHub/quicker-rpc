@@ -34,6 +34,9 @@ import { StepEditorParamSection } from "./StepEditorParamSection";
 import { shouldExpandAdvancedParamSection } from "./stepEditorAdvancedSection";
 import { ModuleHelpPreviewPopup } from "./ModuleHelpPreviewPopup";
 import { moduleHelpLink } from "./moduleHelpLink";
+import { StepEditorLargeParamTabs } from "./StepEditorLargeParamTabs";
+import { buildLargeParamLayout, isStepParamScriptHero, reconcileLargeParamTab, stepLargeParamLanguageBadge,
+  SCRIPT_HERO_MAX_MULTILINE_HEIGHT, SCRIPT_HERO_MIN_MULTILINE_HEIGHT } from "./stepLargeParamLayout";
 import {
   buildStepEditorDraft,
   draftParamsFingerprint,
@@ -108,6 +111,7 @@ function mergeGlobalSubProgramIoVariableRows(resp: {
 }
 
 type StepInputParamRowProps = {
+  largeEditor?: boolean;
   def: StepRunnerInputParamDef;
   variables: ActionVariable[];
   param: ReturnType<typeof ensureParamValue>;
@@ -119,6 +123,7 @@ type StepInputParamRowProps = {
 };
 
 const StepInputParamRow = memo(function StepInputParamRow({
+  largeEditor,
   def,
   variables,
   param,
@@ -146,11 +151,14 @@ const StepInputParamRow = memo(function StepInputParamRow({
       onChange={onChange}
       workspace={workspaceContext}
       prefetchedFileContents={prefetchedFileContents}
+      minMultilineHeight={largeEditor ? SCRIPT_HERO_MIN_MULTILINE_HEIGHT : undefined}
+      maxMultilineHeight={largeEditor === undefined ? undefined : largeEditor ? SCRIPT_HERO_MAX_MULTILINE_HEIGHT : 96}
       onRequestCreateVariable={onRequestCreateVariable ? handleCreateVariable : undefined}
     />
   );
 }, (prev, next) =>
   prev.def === next.def
+  && prev.largeEditor === next.largeEditor
   && prev.paramKey === next.paramKey
   && prev.variables === next.variables
   && prev.workspaceContext === next.workspaceContext
@@ -336,6 +344,23 @@ export function StepEditorPopup({
   const [showGeneral, setShowGeneral] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState<boolean | undefined>(undefined);
   const [showOutputs, setShowOutputs] = useState(true);
+  const [activeLargeParamKey, setActiveLargeParamKey] = useState<string | null>(null);
+  const largeTabListRef = useRef<HTMLDivElement | null>(null);
+  const [previewSlots, setPreviewSlots] = useState<Map<string, HTMLDivElement>>(() => new Map());
+  const [fullSlots, setFullSlots] = useState<Map<string, HTMLDivElement>>(() => new Map());
+  const registerPreviewSlot = useCallback<InputSlotRegistration>((key, node, previous) => {
+    setPreviewSlots(current => {
+      if (node ? current.get(key) === node : current.get(key) !== previous) return current;
+      const next = new Map(current); if (node) next.set(key, node); else next.delete(key); return next;
+    });
+  }, []);
+  const registerFullSlot = useCallback<InputSlotRegistration>((key, node, previous) => {
+    setFullSlots(current => {
+      if (node ? current.get(key) === node : current.get(key) !== previous) return current;
+      const next = new Map(current); if (node) next.set(key, node); else next.delete(key); return next;
+    });
+  }, []);
+  useEffect(() => { setActiveLargeParamKey(null); }, [open, step?.stepId, step?.stepRunnerKey, catalogPort]);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [schemaLoadIssue, setSchemaLoadIssue] = useState<string | undefined>(undefined);
   const inputOwnerEpoch = useRef(0);
@@ -354,6 +379,7 @@ export function StepEditorPopup({
   useEffect(() => { setHelpOwner(null); }, [active, open, step?.stepId, catalogPort, helpLink]);
   if (catalogOwnerRef.current !== catalogPort) {
     inputOwnerEpoch.current += 1;
+    setActiveLargeParamKey(null);
     catalogOwnerRef.current = catalogPort;
     schemaFetchSeqRef.current += 1;
     setHydratedRunnerItem(runnerItem);
@@ -524,8 +550,12 @@ export function StepEditorPopup({
   const advancedOutDefs = useMemo(() => visibleOutputDefs.filter((d) => d.isAdvanced), [visibleOutputDefs]);
   const hasAnyParams = basicDefs.length > 0 || basicOutDefs.length > 0 || advancedDefs.length > 0 || advancedOutDefs.length > 0;
   const hasAdvancedSection = advancedDefs.length > 0 || advancedOutDefs.length > 0;
-  const advancedExpanded = showAdvanced ?? shouldExpandAdvancedParamSection(advancedDefs.length + advancedOutDefs.length);
-  const useGeneralSection = basicDefs.length > 0 && (hasAdvancedSection || basicOutDefs.length > 0);
+  const largeLayout = useMemo(() => buildLargeParamLayout(visibleInputDefs, visibleOutputDefs), [visibleInputDefs, visibleOutputDefs]);
+  const largeFields = largeLayout.tabs;
+  const selectedLargeParamKey = reconcileLargeParamTab(activeLargeParamKey, visibleInputDefs);
+  useEffect(() => { setActiveLargeParamKey(current => reconcileLargeParamTab(current, visibleInputDefs)); }, [visibleInputDefs]);
+  const advancedExpanded = showAdvanced ?? shouldExpandAdvancedParamSection(largeLayout.advancedFullRowCount);
+  const useGeneralSection = basicDefs.length > 0 && (hasAdvancedSection || basicOutDefs.length > 0 || largeFields.length > 0);
 
   const waitingGlobalSubProgramIo =
     subProgramIoFetchTarget != null && (loadingGlobalSubProgramIo || globalIoVariables === undefined);
@@ -701,23 +731,48 @@ export function StepEditorPopup({
 
   const inputEditors = visibleInputDefs.map(def => {
     const key = def.key;
-    return <StepEditorInputOwner key={`${inputOwnerEpoch.current}:${step.stepId}:${step.stepRunnerKey}:${key}`} target={inputSlots.get(key)}>
-      <StepInputParamRow def={def} paramKey={key} variables={variables}
-      param={ensureParamValue(def, effectiveDraft!.inputParams[key])} workspaceContext={workspaceContext}
-      prefetchedFileContents={prefetchedFileContents} setParam={setParam}
-      onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />
+    const large = isStepParamScriptHero(def);
+    const expanded = large && selectedLargeParamKey === key;
+    const configFieldVisible = selectedLargeParamKey === null
+      && (def.isAdvanced ? advancedExpanded : !useGeneralSection || showGeneral);
+    const target = large
+      ? expanded ? fullSlots.get(key) : previewSlots.get(key) ?? fullSlots.get(key)
+      : inputSlots.get(key);
+    return <StepEditorInputOwner key={`${inputOwnerEpoch.current}:${step.stepId}:${step.stepRunnerKey}:${key}`} target={target}
+      className={large ? `step-editor-large-editor${expanded ? " step-editor-large-editor--full" : ""}` : undefined}>
+      <StepEditorInputActivity.Provider value={active && !bodyPending && (expanded || configFieldVisible)}>
+        <StepInputParamRow largeEditor={large ? expanded : undefined} def={def} paramKey={key} variables={variables}
+          param={ensureParamValue(def, effectiveDraft!.inputParams[key])} workspaceContext={workspaceContext}
+          prefetchedFileContents={prefetchedFileContents} setParam={setParam}
+          onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />
+      </StepEditorInputActivity.Provider>
     </StepEditorInputOwner>;
   });
-  const renderInputFields = (fields: StepRunnerInputParamDef[], prefix: string) => fields.map(def => (
-    <StepEditorInputSlot key={`${prefix}-${def.key}`} paramKey={def.key} register={registerInputSlot} />
-  ));
+  const renderInputFields = (fields: StepRunnerInputParamDef[], prefix: string) => fields.map(def => {
+    const key = def.key;
+    if (isStepParamScriptHero(def)) {
+      return <div key={`large-slot:${key}`} className="step-editor-large-param-preview">
+        <div className="step-editor-large-param-preview__toolbar">
+          {stepLargeParamLanguageBadge(def) ? <span className="step-editor-large-param-preview__language">{stepLargeParamLanguageBadge(def)}</span> : null}
+          <button type="button" className="step-editor-popup-btn secondary" title="展开到专页编辑"
+            onClick={() => {
+              setActiveLargeParamKey(key);
+              Array.from(largeTabListRef.current?.querySelectorAll<HTMLButtonElement>('[data-large-param-tab]') ?? [])
+                .find(button => button.dataset.largeParamTab === key)?.focus();
+            }}>展开</button>
+        </div>
+        <StepEditorInputSlot paramKey={key} register={registerPreviewSlot} />
+      </div>;
+    }
+    return <StepEditorInputSlot key={`${prefix}-${key}`} paramKey={key} register={registerInputSlot} />;
+  });
   const renderOutputFields = (fields: StepRunnerOutputParamDef[], prefix: string) => fields.map(def => (
     <StepOutputParamField key={`${prefix}-${def.key}`} def={def} variables={variables}
       value={effectiveDraft!.outputParams[def.key] ?? ""} onChange={next => setOutputParam(def.key, next)}
       onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />
   ));
 
-  const body = bodyPending ? (
+  const configBody = bodyPending ? (
     <StepEditorPopupBodySkeleton message={loadingMessage} />
   ) : (
       <>
@@ -759,6 +814,12 @@ export function StepEditorPopup({
       </>
     );
 
+  const body = !bodyPending && largeFields.length > 0 ?
+    <StepEditorLargeParamTabs key={`${step.stepId}:${inputOwnerEpoch.current}`} fields={largeFields}
+      activeKey={selectedLargeParamKey} onSelect={setActiveLargeParamKey} tabListRef={largeTabListRef}
+      configPanel={configBody} renderEditor={field => <StepEditorInputSlot paramKey={field.key} register={registerFullSlot} />} />
+    : configBody;
+
   return <StepEditorInputActivity.Provider value={active}>{inputEditors}{active ? createPortal(
     <>
       <div
@@ -773,7 +834,7 @@ export function StepEditorPopup({
         }}
       >
         <div
-          className="step-editor-popup"
+          className={`step-editor-popup${largeFields.length > 0 ? " step-editor-popup--large-params" : ""}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="step-editor-popup-title"
@@ -781,11 +842,13 @@ export function StepEditorPopup({
         >
           <header className="step-editor-popup-header">
             <h2 id="step-editor-popup-title">编辑步骤 — {popupHeadingRunner}</h2>
+            <div className="step-editor-popup-header-actions">
               {helpLink ? <button type="button" className="step-editor-popup-btn secondary" disabled={!schemaCurrent}
-              onClick={() => setHelpOwner({ stepId: step.stepId, catalog: catalogPort, link: helpLink })}>模块帮助</button> : null}
-            <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
-              ×
-            </button>
+                onClick={() => setHelpOwner({ stepId: step.stepId, catalog: catalogPort, link: helpLink })}>模块帮助</button> : null}
+              <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
+                ×
+              </button>
+            </div>
           </header>
           <div
             className={`step-editor-popup-body${bodyPending ? " step-editor-popup-body--pending" : ""}`}

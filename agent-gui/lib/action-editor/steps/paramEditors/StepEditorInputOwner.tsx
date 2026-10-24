@@ -36,12 +36,13 @@ export function StepEditorInputSlot({ paramKey, register }: { paramKey: string; 
 }
 
 /** Layout changes move the field's DOM host, preserving its draft and pending file write. */
-export function StepEditorInputOwner({ target, children }: { target?: HTMLDivElement; children: ReactNode }) {
+export function StepEditorInputOwner({ target, className, children }: { target?: HTMLDivElement; className?: string; children: ReactNode }) {
   const [container] = useState(() => typeof document === "undefined" ? null : document.createElement("div"));
   useLayoutEffect(() => {
     if (!container) return;
+    container.className = className ?? "";
     target?.appendChild(container);
     return () => { container.remove(); };
-  }, [container, target]);
+  }, [container, target, className]);
   return container ? createPortal(children, container) : null;
 }

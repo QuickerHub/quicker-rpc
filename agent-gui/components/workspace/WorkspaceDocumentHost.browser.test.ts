@@ -460,6 +460,8 @@ test("resource action opens reuse dirty file instances and do not let late expor
     assert.equal(await note(page).inputValue(), "B unsaved");
 
     await page.evaluate(() => { const f = (window as any).fixture; f.openMode = 'defer'; f.open(f.file); });
+    // openFile schedules presentation; the retained previous document can still be visible in this turn.
+    await page.waitForFunction(() => document.querySelector<HTMLInputElement>('[data-workspace-document]:not([hidden]) .step-form-note-input')?.value === "A unsaved");
     await page.locator('[data-workspace-document]:visible').getByRole("tab", { name: "动作", exact: true }).click();
     await resource().getByRole("option", { name: "Target C" }).click();
     await resource().getByRole("button", { name: "在工作区打开" }).click();
@@ -477,6 +479,7 @@ test("resource action opens reuse dirty file instances and do not let late expor
     assert.equal(await page.evaluate(() => (window as any).fixture.exportCount), 1, "confirmed export recovery never dispatches another export");
 
     await page.evaluate(() => { const f = (window as any).fixture; f.openMode = 'unknown'; f.open(f.file); });
+    await page.waitForFunction(() => document.querySelector<HTMLInputElement>('[data-workspace-document]:not([hidden]) .step-form-note-input')?.value === "A unsaved");
     await page.locator('[data-workspace-document]:visible').getByRole("tab", { name: "动作", exact: true }).click();
     await resource().getByRole("option", { name: "Target D" }).click();
     await resource().getByRole("button", { name: "在工作区打开" }).click();

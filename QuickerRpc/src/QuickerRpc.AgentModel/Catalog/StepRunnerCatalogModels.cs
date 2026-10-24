@@ -75,6 +75,9 @@ public sealed class StepRunnerInputParamDef
 
     public bool IsMultiLine { get; set; }
 
+    /// <summary>Optional native UI language hint; omitted from compressed Agent input schemas.</summary>
+    public string? DefaultHighlightType { get; set; }
+
     public bool IsAdvanced { get; set; }
 
     public bool AllowInput { get; set; }

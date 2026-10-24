@@ -46,6 +46,8 @@ export type StepInputParamFieldProps = {
   workspace?: ActionProjectWorkspaceContext;
   prefetchedFileContents?: StepSummaryFileContents;
   onRequestCreateVariable?: (request: StepParamCreateVariableRequest) => void;
+  minMultilineHeight?: number;
+  maxMultilineHeight?: number;
 };
 
 const ENABLE_EXPRESSION_EDITOR = true;
@@ -120,6 +122,8 @@ function StepInputParamFieldInner({
   workspace,
   prefetchedFileContents,
   onRequestCreateVariable,
+  minMultilineHeight,
+  maxMultilineHeight = STEP_PARAM_SCRIPT_MAX_HEIGHT,
 }: StepInputParamFieldProps): JSX.Element {
   const inputActive = useStepEditorInputActive();
   const boolInputId = useId();
@@ -215,7 +219,7 @@ function StepInputParamFieldInner({
     };
     updateEnumRect();
     const onLayoutChanged = (): void => updateEnumRect();
-    const onPointerDown = (event: PointerEvent): void => {
+    const onPointerDown = (event: Event): void => {
       const target = event.target;
       const input = enumInputRef.current;
       const popup = enumPopupRef.current;
@@ -233,10 +237,12 @@ function StepInputParamFieldInner({
     window.addEventListener("resize", onLayoutChanged);
     window.addEventListener("scroll", onLayoutChanged, true);
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("focusin", onPointerDown, true);
     return () => {
       window.removeEventListener("resize", onLayoutChanged);
       window.removeEventListener("scroll", onLayoutChanged, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("focusin", onPointerDown, true);
     };
   }, [enumOpen, inputActive]);
 
@@ -513,6 +519,8 @@ function StepInputParamFieldInner({
             param={param}
             onChange={onChange}
             multiline={multilineVarOrValue}
+            minMultilineHeight={minMultilineHeight}
+            maxMultilineHeight={maxMultilineHeight}
             workspace={workspace}
             prefetchedFileContents={prefetchedFileContents}
             openPopupRef={openFieldPopupRef}
@@ -585,7 +593,8 @@ function StepInputParamFieldInner({
         className="step-param-expression-editor"
         placeholder={def.defaultValue || ""}
         multiline={multiline}
-        maxMultilineHeight={STEP_PARAM_SCRIPT_MAX_HEIGHT}
+        maxMultilineHeight={maxMultilineHeight}
+        minMultilineHeight={minMultilineHeight}
         prefetchedFileContents={prefetchedFileContents}
       />
     </div>
@@ -640,6 +649,8 @@ function stepInputParamFieldPropsEqual(
     && prev.prefetchedFileContents === next.prefetchedFileContents
     && prev.onChange === next.onChange
     && prev.onRequestCreateVariable === next.onRequestCreateVariable
+    && prev.minMultilineHeight === next.minMultilineHeight
+    && prev.maxMultilineHeight === next.maxMultilineHeight
     && (prev.param.varKey ?? "") === (next.param.varKey ?? "")
     && (prev.param.value ?? "") === (next.param.value ?? "")
     && (prev.param.file ?? "") === (next.param.file ?? "")

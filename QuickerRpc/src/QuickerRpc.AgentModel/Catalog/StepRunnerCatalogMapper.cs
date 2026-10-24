@@ -661,6 +661,7 @@ public static class StepRunnerCatalogMapper
             Required = p.IsRequired,
             VariableMode = p.VariableMode,
             IsMultiLine = p.IsMultiLine,
+            DefaultHighlightType = TrimToNull(p.DefaultHighlightType),
             IsAdvanced = p.IsAdvanced,
             AllowInput = p.AllowInput,
             TextTools = TrimToNull(p.TextTools),

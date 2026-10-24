@@ -46,6 +46,7 @@ export type ExternalParamFileExpressionEditorProps = {
   placeholder?: string;
   multiline?: boolean;
   maxMultilineHeight?: number;
+  minMultilineHeight?: number;
   onValueModeInput?: () => void;
   /** When true, file badge renders outside the VarOrValue shell (parent handles layout). */
   omitBadge?: boolean;
@@ -63,6 +64,7 @@ export function ExternalParamFileExpressionEditor({
   placeholder = "",
   multiline = false,
   maxMultilineHeight,
+  minMultilineHeight,
   onValueModeInput,
   omitBadge = false,
   fileState,
@@ -87,6 +89,7 @@ export function ExternalParamFileExpressionEditor({
         placeholder={externalFile.loading ? "正在读取外部文件…" : placeholder}
         multiline={multiline}
         maxMultilineHeight={maxMultilineHeight}
+        minMultilineHeight={minMultilineHeight}
         onChange={(value) => {
           onValueModeInput?.();
           externalFile.onEditorChange(value);
