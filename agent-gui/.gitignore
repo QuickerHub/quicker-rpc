@@ -36,6 +36,7 @@ src-tauri/gen/
 electron/resources/
 electron/shell-app/
 electron/dist/
+electron/build/installer-helper.exe
 
 # ad-hoc debug log captures (manual stdout/stderr redirects during local dev)
 verify-*.txt

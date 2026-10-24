@@ -25,7 +25,7 @@
     "electron:installer-assets": "node scripts/generate-electron-installer-assets.mjs",
     "electron:icons": "node scripts/generate-app-icons.mjs",
     "electron:icons:sync": "node scripts/generate-electron-installer-assets.mjs --regen",
-    "electron:build": "pnpm electron:prepare && electron-builder --win nsis && node scripts/verify-electron-asar.mjs",
+    "electron:build": "pnpm electron:prepare && node scripts/build-electron-installer.mjs --win nsis && node scripts/verify-electron-asar.mjs",
     "electron:verify-bundle": "node scripts/verify-desktop-bundle.mjs --resources-dir electron/resources --label electron-staged",
     "electron:check": "node scripts/electron-check.mjs",
     "test:electron-smoke": "pwsh -NoProfile -File ./scripts/Test-QuickerAgentElectronSmoke.ps1 -Action verify",

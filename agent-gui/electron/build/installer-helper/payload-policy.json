@@ -1,0 +1,7 @@
+{
+  "directories": ["resources", "locales"],
+  "cloudDirectories": ["onedrive*", "dropbox", "icloud*"],
+  "files": ["quicker-agent.exe", "uninstall quicker-agent.exe", "uninstallericon.ico", "chrome_100_percent.pak", "chrome_200_percent.pak", "resources.pak", "icudtl.dat", "v8_context_snapshot.bin", "snapshot_blob.bin", "vk_swiftshader_icd.json"],
+  "extensions": [".dll"],
+  "patterns": ["^licenses?(?:[._-][a-z0-9._-]+)?$"]
+}

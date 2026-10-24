@@ -17,16 +17,45 @@
   StrCpy $isForceCurrentInstall "1"
 !macroend
 
-!macro _KillImage IMAGE
-  nsExec::ExecToLog 'taskkill /F /IM "${IMAGE}" /T'
+; Final-directory process/identity gate shared by installer and uninstaller.
+; The pinned build adapter keeps the default $LOCALAPPDATA\QuickerAgent layout,
+; respects an existing location or /D, and never executes a previous uninstaller.
+!macro QA_RunOwnership MODE
+  !ifndef QA_VERIFIED_OVERLAY_BUILD
+    !error "Use scripts/build-electron-installer.mjs; raw NSIS builds may execute an unsafe old uninstaller."
+  !endif
+  !if "${QA_VERIFIED_OVERLAY_BUILD}" != "25.1.8-v1"
+    !error "Unknown NSIS overlay adapter revision."
+  !endif
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=qa-installer-helper.exe "${BUILD_RESOURCES_DIR}\installer-helper.exe"
+  nsExec::ExecToLog /TIMEOUT=15000 '"$PLUGINSDIR\qa-installer-helper.exe" --mode "${MODE}" --directory "$INSTDIR" --install-key "${INSTALL_REGISTRY_KEY}" --uninstall-key "${UNINSTALL_REGISTRY_KEY}" --product "${PRODUCT_NAME}" --executable "${APP_EXECUTABLE_FILENAME}"'
   Pop $0
+  ${If} $0 != 0
+    DetailPrint "Installation ownership or process shutdown could not be verified. No old uninstaller was executed."
+    SetErrorLevel 2
+    Abort "请先退出目标目录中的 QuickerAgent；安装身份、目录或进程无法核验时不会继续覆盖文件。"
+  ${EndIf}
+  SetOutPath "$INSTDIR"
 !macroend
 
-!macro StopQuickerAgentInstallTree
-  DetailPrint "Stopping QuickerAgent / bundled backends before install..."
-  !insertmacro _KillImage "quicker-agent.exe"
-  !insertmacro _KillImage "QuickerAgent.exe"
-  Sleep 1500
+!macro customCheckAppRunning
+  !ifndef BUILD_UNINSTALLER
+    ${If} $installMode != "CurrentUser"
+      SetErrorLevel 2
+      Abort "当前安装器只支持已核验的当前用户安装。"
+    ${EndIf}
+  !endif
+  !insertmacro QA_RunOwnership "close"
+!macroend
+
+!macro QA_VerifyOverlayInstall ROOT_KEY
+  ${If} "${ROOT_KEY}" != "SHELL_CONTEXT"
+    SetErrorLevel 2
+    Abort "不自动迁移其它用户范围的安装。"
+  ${EndIf}
+  !insertmacro QA_RunOwnership "verify"
 !macroend
 
 !ifndef BUILD_UNINSTALLER
@@ -39,17 +68,6 @@ Var QA_CB_StartMenu
 !macro InitQuickerAgentShortcutChoices
   StrCpy $QA_WantDesktopShortcut "1"
   StrCpy $QA_WantStartMenuShortcut "1"
-!macroend
-
-!macro NormalizeQuickerAgentInstallDir
-  ; electron-builder may append \${APP_FILENAME} under the chosen folder — keep flat layout.
-  StrCpy $R9 "${APP_FILENAME}"
-  StrLen $R8 $R9
-  IntOp $R1 $R8 + 1
-  StrCpy $R5 $INSTDIR $R1 -$R1
-  StrCpy $R6 "\${APP_FILENAME}"
-  StrCmp $R5 $R6 0 +2
-  StrCpy $INSTDIR $INSTDIR -$R1
 !macroend
 
 Function QuickerAgentShortcutsPageCreate
@@ -79,8 +97,6 @@ Function QuickerAgentShortcutsPageCreate
 FunctionEnd
 
 Function QuickerAgentShortcutsPageLeave
-  !insertmacro NormalizeQuickerAgentInstallDir
-
   ${NSD_GetState} $QA_CB_Desktop $0
   ${If} $0 == ${BST_CHECKED}
     StrCpy $QA_WantDesktopShortcut "1"
@@ -124,9 +140,6 @@ FunctionEnd
     !insertmacro RemoveQuickerAgentStartMenuShortcut
   ${EndIf}
 
-  ; Legacy Tauri start-menu folder (QuickerAgentTest era).
-  Delete "$SMPROGRAMS\QuickerAgent\QuickerAgent.lnk"
-  RMDir "$SMPROGRAMS\QuickerAgent"
   System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
 !macroend
 !endif
@@ -156,26 +169,15 @@ FunctionEnd
 !macro RemoveQuickerAgentShortcuts
   Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
   !insertmacro RemoveQuickerAgentStartMenuShortcut
-  Delete "$SMPROGRAMS\QuickerAgent\QuickerAgent.lnk"
-  RMDir "$SMPROGRAMS\QuickerAgent"
 !macroend
 
 !macro customInit
-  ; Default install dir — same as Tauri NSIS (currentUser mode).
-  StrCpy $INSTDIR "$LOCALAPPDATA\QuickerAgent"
   !ifndef BUILD_UNINSTALLER
   !insertmacro InitQuickerAgentShortcutChoices
-  ; Never reuse prior shortcut choices from registry (user re-selects each run).
-  DeleteRegValue SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "KeepShortcuts"
-  ; Stale Tauri uninstall entry (points at QuickerAgentTest).
-  DeleteRegKey SHELL_CONTEXT "Software\Microsoft\Windows\CurrentVersion\Uninstall\QuickerAgent"
   !endif
-  !insertmacro StopQuickerAgentInstallTree
 !macroend
 
 !macro customInstall
-  ; Legacy Electron trial builds used QuickerAgent.exe in Programs\QuickerAgent.
-  Delete "$INSTDIR\QuickerAgent.exe"
   !insertmacro ApplyQuickerAgentShortcutChoices
 !macroend
 
@@ -187,6 +189,5 @@ FunctionEnd
 !macroend
 
 !macro customUnInstall
-  !insertmacro StopQuickerAgentInstallTree
   !insertmacro RemoveQuickerAgentShortcuts
 !macroend
