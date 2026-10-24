@@ -156,14 +156,17 @@ V1 已页读 467 个动作、336 个全局子程序，错误快照拒绝，未�
 
 V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。外部接入见 [MCP/CLI 集成](../agent-mcp-integration.md)。
 
-2026-10-24 用户已提供局域网 V2 设备。实际 Quicker 2.3.20 与 171 插件已启动，私有
-172 候选 CLI 已通过专属 endpoint 连接；同一 CLI 也已识别本机 V1。远端提权 token 的
+2026-10-24 用户已提供局域网 V2 设备，确认为官方安装版 Quicker 2.3.20。172 插件与
+同源私有 CLI 已部署并通过专属 endpoint 连接；同一 CLI 也已识别本机 V1。远端提权 token 的
 默认 Owner 为 Administrators，管道仍由实际用户拥有；修复后用户管道握手成功，另一
 owner 的管道在任何 RPC 字节发送前被拒绝。这是连接验收，双宿主动作写回仍未完成。
 
-当前 V2 发布版的私有类型已变化，171 的模块 UI 查询返回失败，source read/write 与
-input-contract capability 仍关闭。正在迁移到已加载的公开原生接口，并逐项重新验收；
-离线 fake 仓储与旧开发源码不替代该发布版的条件写入、Designer 保护及部分保存验证。
+172 已通过当前公开原生 owner 取得三个模块的 UI 与 Agent schema，共六次读取成功。
+input-contract capability 虽已声明，四次真实调用均因共享依赖解析冲突返回 MissingMethod，
+本轮仅部分通过。主线已修复 V2 私有依赖隔离与启动期间 Stop 的 owner 释放；173 是下一
+测试 revision，尚待安装和真实重验。source read/write 继续关闭。离线 fake 仓储与旧开发
+源码不替代该发布版的条件写入、Designer 保护及部分保存验证；不把版本固定的反编译字段
+映射接入生产知识 provider。
 不启动尚未证明隔离的本机 V2 评测进程，不运行业务动作来代替编辑链验收。
 
 
