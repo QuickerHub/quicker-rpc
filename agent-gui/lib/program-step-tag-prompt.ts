@@ -31,8 +31,8 @@ export function formatProgramStepTagPrompt(tag: ProgramStepTag, liveDocument = f
   const body = (liveDocument ? [
     "【实时设计器步骤范围 — 此标签是添加时的快照，先读取当前文档】",
     "编辑协议：使用 workspace_program read_live 获取当前未保存正文和 revision。",
-    `仅可对本次真实标签授权的 designer-step-id (${tag.designerStepId ?? "不可用"}) 使用 edit_live 修改备注。`,
-    "edit_live 需要该 read_live 的实际 toolCallId、返回 revision 和本轮 scopeId；修改进入原文档撤销历史，保持未保存。",
+    `仅可操作本次真实标签授权的 designer-step-id (${tag.designerStepId ?? "不可用"})；支持的操作与权限以本轮 workspace_program 工具定义为准。`,
+    "备注使用 edit_live，普通输入还需先读取原生契约；所有修改均需实际读取的 toolCallId、返回 revision 和本轮 scopeId，进入原文档撤销历史并保持未保存。",
     "目标不可用或发生冲突时保留失败，不改磁盘文件、不导出或切换其它动作。",
     "以下为添加标签时的只读上下文；当前内容以 read_live 为准。",
     "", "```json", tag.content, "```",

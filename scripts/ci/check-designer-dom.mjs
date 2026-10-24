@@ -40,6 +40,9 @@ async function installedEdge(agentRoot) {
   finally { await browser.close(); }
 }
 
+// Other hosted browser gates share this readiness check, not the DOM registry.
+export { installedEdge as probeHostedEdge };
+
 function existingSuite(agentRoot, env, output) {
   hostedWindowsOnly();
   return new Promise((resolveResult, reject) => {

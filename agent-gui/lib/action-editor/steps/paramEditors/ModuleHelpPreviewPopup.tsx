@@ -14,6 +14,7 @@ export function ModuleHelpPreviewPopup({ helpLink, title, keyboardOwnerId, onClo
   const dialogRef = useRef<HTMLDialogElement>(null);
   const externalRef = useRef<HTMLButtonElement>(null), frameRef = useRef<HTMLIFrameElement>(null);
   const [loading, setLoading] = useState(true);
+  const [dialogReady, setDialogReady] = useState(false);
   const safe = safeModuleHelpUrl(helpLink);
   const src = withDocsEmbedQuery(safe);
   useEffect(() => {
@@ -21,6 +22,8 @@ export function ModuleHelpPreviewPopup({ helpLink, title, keyboardOwnerId, onClo
     const dialog = dialogRef.current;
     dialog?.showModal();
     closeRef.current?.focus();
+    // Create the browsing context only after native modal activation and initial focus.
+    setDialogReady(true);
     return () => {
       dialog?.close();
       // Hidden documents keep their nodes; never steal focus back into an inactive owner.
@@ -46,10 +49,10 @@ export function ModuleHelpPreviewPopup({ helpLink, title, keyboardOwnerId, onClo
         <div className="module-help-preview__body">
           {loading ? <div className="module-help-preview__loading" aria-live="polite">加载中…</div> : null}
           {/* Keep an opaque origin: native HelpLink may point at this app, where scripts plus same-origin could remove the sandbox. */}
-          <iframe ref={frameRef} className="module-help-preview__frame" title={title} src={src}
+          {dialogReady ? <iframe ref={frameRef} className="module-help-preview__frame" title={title} src={src}
             sandbox="allow-scripts"
             referrerPolicy="strict-origin-when-cross-origin"
-            onLoad={() => setLoading(false)} />
+            onLoad={() => setLoading(false)} /> : null}
         </div>
         <span className="module-help-preview__focus-boundary" tabIndex={0} onFocus={() => externalRef.current?.focus()} />
       </div>

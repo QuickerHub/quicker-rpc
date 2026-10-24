@@ -96,8 +96,13 @@ qkrpc action run --id <guid> [--param <text>] --trace --json
 | 命令 / 工具 | 谁用 |
 |-------------|------|
 | `step-runner search` / `qkrpc_step_runner_search` | Agent：定 `key`、`controlField` |
-| `step-runner get` / `qkrpc_step_runner_get` | **Agent 唯一**：压缩 schema、`inputs` 键名 |
+| `step-runner get` / `qkrpc_step_runner_get` | Agent：压缩 schema、`inputs` 键名与模块说明 |
+| `step-runner input-contract` / `qkrpc_step_runner_input_contract` | 已绑定宿主的原生输入模式、可见性与值限制；只读且不启动宿主，未知事实不得补权限 |
 | `step-runner get-ui` | **仅 action-editor UI**；Agent **禁止** |
+
+主设计器明确授权的 live scope 修改普通输入时，先用 `read_live(stepSchemaFor)` 取得本轮
+私有原生契约与 revision，再 `edit_step_inputs_live`；不另写磁盘或宿主。未确认编辑弹窗
+期间返回 busy，不自动提交或清空人工草稿。边界以 [AUTHOR](docs/product/README.md#p-author) 为准。
 
 **禁止**：未 `step-runner get` 就猜 `inputs`（wire：`key`/`inputs`/`outputs`；`paramKey` / `paramKey.file` / `paramKey.var`；禁止 `stepKey`）；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标；patch 写与目录 Default 相同的普通参数。**禁止** `action publish`/`action update` 发布全局子程序（用 `subprogram publish`/`update`）。表达式优先 **quicker-eval-expression** skill / `sys:evalexpression`；兜底见 `guide get --topic implementation-fallback`。领域专题（form-spec、图标、右键）仍在 docs，勿凭记忆编 formDef。
 

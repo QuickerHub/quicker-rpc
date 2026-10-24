@@ -12,12 +12,20 @@
 | Generated knowledge | Ubuntu / Node 22 | CLI 指南和分发 skill 与知识源一致；不安装依赖 |
 | Offline Agent | Ubuntu 和 Windows / Node 22 / pnpm 10.18.3 | 冻结锁文件安装、TypeScript、显式离线检查、工具/eval/编写/trace 回归、Electron 模块静态检查 |
 | Designer DOM | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 真实无头 Edge、现有设计器组件与工作台 DOM 回归；生成 fixture、网络 guard、独立临时 profile |
+| Static SPA | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 完整构建、搬移、原生验证与 React + 独立 Node 服务；原有 generated fixture、fake model、工作台编辑与自然退出 |
 | Host-independent .NET | Windows / `global.json` SDK | Runtime/Transport 全目标框架构建；Console、Transport、fake-host Runtime 单测；保留 TRX |
 
 安装使用 `pnpm install --frozen-lockfile`，缓存仅包含 pnpm store，不跨平台复用
 `node_modules`。保留原生模块构建，因为 SQLite fixture 需要 `better-sqlite3`；仅跳过
 Electron 和 Playwright 二进制下载。Node 22 跟随维护补丁，依赖图由现有锁文件固定。
 .NET 使用现有中央包版本；目前没有 NuGet lock 文件，不能声称其传递依赖已锁定。
+
+Ubuntu 安装后用锁定的 node-gyp 9.4.1 重编译实际 node-pty 1.1.0，确认保留的
+`build/node_gyp_bins/python3` 构建链接与 Release 原生模块同时存在，
+再执行既有生产构建、物理搬移与验证。这样 pnpm 缓存不能掩盖源码构建的目录形态。
+运行目录仅排除包根下物理目录 `build/node_gyp_bins`；Release、Debug、prebuilds
+及平台所需的原生伴随文件（如 macOS 的 spawn-helper）照常复制。辅助目录及其父级不能借此作为链接，保留文件的其它越界链接、
+指入辅助目录的别名和声明入口仍会被拒绝，不放宽包内容边界。
 
 Agent 门禁直接执行已有 `agent-gui/scripts/check-agent-offline.mjs`，包含
 `tsc --noEmit --incremental false` 和显式隔离测试。测试 worker 并发限制为 4，保留
@@ -77,6 +85,19 @@ Windows job 还用小型合成包运行生产 NSIS 模板的两遍真实 `/WX` �
 失败仅上传生成的 PNG 白名单、收据和最后 256 KiB 诊断；不上传 profile、trace、依赖或
 整个 `.tmp`。Node 网络 guard 和页面请求拦截均保留，它们不构成 OS 网络沙箱。
 
+独立的 `Static SPA (Windows Edge)` job 复用同一预装 Edge preflight，然后在独立进程原样
+执行 `pnpm test:static-runtime`。文件 worker 给定 300 秒，完整包含原测试内既定的 240 秒
+case 限制及 5 秒自然退出检查；原 60 秒外层会在慢机器尚未进入 UI 时截断合法流程。
+测试会持久记录构建、验证、服务、UI/SDK 和清理的阶段耗时；case deadline、自然退出与
+业务断言均不放宽。不将这条真实 loopback 集成塞入无网络门禁。服务 child 原有的本轮端口
+fetch allowlist、页面 origin 拦截和生成 profile 继续负责隔离；preflight 的全 TCP 拒绝 guard
+只存在于 preflight 进程，不通过 `NODE_OPTIONS` 传给 SPA 测试。
+该测试沿用原构建器、staging/verifier、SDK loop 和 fake HTTP/model；后续原测试文件扩展
+会自动纳入，不另复制 Agent 或用手写流程代替。失败只收顶层 PNG 和有限诊断：日志尾部
+各至多 256 KiB、fixture 错误各至多 64 KiB，内容文件最多 32 个/32 MiB，另存限长清单；不上传 profile/DB、
+workspace、完整 app、依赖或原始模型请求。收集器是
+[`collect-static-spa-evidence.mjs`](../../scripts/ci/collect-static-spa-evidence.mjs)。
+
 Runtime 测试显式设置 `IncludeV2HostTests=false`，移除 Plugin.V2 引用以及
 composition、catalog、宿主 probe、实际编译 source 与 Designer 原语测试文件。
 `DesignerUnsupportedTests` 保留在该门禁，验证可选端口缺失与预取消。独立的 V2
@@ -109,5 +130,5 @@ pwsh -NoProfile -File scripts/ci/Test-OfflineDotNet.ps1
 只要安装成功，扩展回归也会在显式离线检查失败后运行并报告结果，原失败仍然阻断 job。
 `.NET` job 即使失败也上传已有 `.tmp/ci-results/**/*.trx`，保留 7 天。
 仓库管理员可把 `Generated knowledge`、两个 `Offline Agent (...)` 和
-`Host-independent .NET`、`Designer DOM (Windows Edge)` 配成 required checks。工作流文件本身不修改分支保护；
+`Host-independent .NET`、`Designer DOM (Windows Edge)`、`Static SPA (Windows Edge)` 配成 required checks。工作流文件本身不修改分支保护；
 原工作流名称的 required checks 需要相应替换。
