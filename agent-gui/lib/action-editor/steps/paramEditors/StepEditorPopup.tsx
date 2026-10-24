@@ -29,6 +29,7 @@ import {
 } from "@/lib/action-editor/shared/designerHostGrpcApi";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../actionStepSerialization";
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
+import { StepEditorInputOwner, StepEditorInputSlot, type InputSlotRegistration } from "./StepEditorInputOwner";
 import { StepEditorParamSection } from "./StepEditorParamSection";
 import { shouldExpandAdvancedParamSection } from "./stepEditorAdvancedSection";
 import { ModuleHelpPreviewPopup } from "./ModuleHelpPreviewPopup";
@@ -337,11 +338,22 @@ export function StepEditorPopup({
   const [showOutputs, setShowOutputs] = useState(true);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [schemaLoadIssue, setSchemaLoadIssue] = useState<string | undefined>(undefined);
+  const inputOwnerEpoch = useRef(0);
+  const [inputSlots, setInputSlots] = useState<Map<string, HTMLDivElement>>(() => new Map());
+  const registerInputSlot = useCallback<InputSlotRegistration>((key, node, previous) => {
+    setInputSlots(current => {
+      if (node ? current.get(key) === node : current.get(key) !== previous) return current;
+      const next = new Map(current);
+      if (node) next.set(key, node); else next.delete(key);
+      return next;
+    });
+  }, []);
   const helpLink = moduleHelpLink(editorRunnerItem);
   const helpPreviewOpen = !!helpOwner && active && open && !!step && helpOwner.stepId === step.stepId
     && helpOwner.catalog === catalogPort && helpOwner.link === helpLink;
   useEffect(() => { setHelpOwner(null); }, [active, open, step?.stepId, catalogPort, helpLink]);
   if (catalogOwnerRef.current !== catalogPort) {
+    inputOwnerEpoch.current += 1;
     catalogOwnerRef.current = catalogPort;
     schemaFetchSeqRef.current += 1;
     setHydratedRunnerItem(runnerItem);
@@ -679,7 +691,7 @@ export function StepEditorPopup({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose, canApply, helpPreviewOpen]);
 
-  if (!active || !open || !step) {
+  if (!open || !step) {
     return null;
   }
 
@@ -687,13 +699,18 @@ export function StepEditorPopup({
   const bodyPending = effectiveDraft == null || waitingGlobalSubProgramIo || waitingRunnerSchema;
   const loadingMessage = waitingGlobalSubProgramIo ? "正在加载子程序参数…" : "正在加载步骤参数…";
 
-  const renderInputFields = (fields: StepRunnerInputParamDef[], prefix: string) => fields.map(def => {
+  const inputEditors = visibleInputDefs.map(def => {
     const key = def.key;
-    return <StepInputParamRow key={`${prefix}-${key}`} def={def} paramKey={key} variables={variables}
+    return <StepEditorInputOwner key={`${inputOwnerEpoch.current}:${step.stepId}:${step.stepRunnerKey}:${key}`} target={inputSlots.get(key)}>
+      <StepInputParamRow def={def} paramKey={key} variables={variables}
       param={ensureParamValue(def, effectiveDraft!.inputParams[key])} workspaceContext={workspaceContext}
       prefetchedFileContents={prefetchedFileContents} setParam={setParam}
-      onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />;
+      onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />
+    </StepEditorInputOwner>;
   });
+  const renderInputFields = (fields: StepRunnerInputParamDef[], prefix: string) => fields.map(def => (
+    <StepEditorInputSlot key={`${prefix}-${def.key}`} paramKey={def.key} register={registerInputSlot} />
+  ));
   const renderOutputFields = (fields: StepRunnerOutputParamDef[], prefix: string) => fields.map(def => (
     <StepOutputParamField key={`${prefix}-${def.key}`} def={def} variables={variables}
       value={effectiveDraft!.outputParams[def.key] ?? ""} onChange={next => setOutputParam(def.key, next)}
@@ -742,7 +759,8 @@ export function StepEditorPopup({
       </>
     );
 
-  return createPortal(
+  if (!active) return <>{inputEditors}</>;
+  return <>{inputEditors}{createPortal(
     <>
       <div
         className="step-editor-popup-backdrop"
@@ -818,5 +836,5 @@ export function StepEditorPopup({
       ) : null}
     </>,
     document.body
-  );
+  )}</>;
 }

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
 import { build } from "esbuild";
 import { chromium, type Locator, type Page } from "playwright";
 
-// Real workspace, document controller and popup. Only bound native reads and icons are fixtures.
+// Real workspace/controller/popup and file hook; native IO, icons and the file debounce clock are fixtures.
 const fixture = `
 import React,{useState}from'react';import{createRoot}from'react-dom/client';
 import{ProgramEditorTabWorkspace}from'@/components/action-editor/ProgramEditorTabWorkspace';
@@ -14,33 +14,46 @@ import{createDesignerCatalogPort}from'@/lib/action-editor/catalog/designerCatalo
 import{createProgramDocumentSession}from'@/lib/action-editor/document/programDocumentSession';
 import{createProgramDocumentEditorController}from'@/lib/action-editor/program/programDocumentEditorController';
 import{mapAgentSchemaToStepRunnerItem}from'@/lib/action-editor/api/stepRunnerSchemaMap';
-const state=window.fixture={requests:[],unexpected:[],generation:{a:'Old',b:'B'},defer:false,fail:false,pending:[]};
+const state=window.fixture={requests:[],unexpected:[],generation:{a:'Old',b:'B'},defer:false,fail:false,pending:[],withFile:!!window.withFileFixture,advanced:false,files:{a:'original file',b:'b original file'},writes:[],holdFileDebounce:false,heldTimers:new Map(),nextTimer:0};
+const nativeSetTimeout=window.setTimeout.bind(window),nativeClearTimeout=window.clearTimeout.bind(window);
+window.setTimeout=(callback,delay,...args)=>{if(state.holdFileDebounce&&delay===450){const id=--state.nextTimer;state.heldTimers.set(id,()=>callback(...args));return id;}return nativeSetTimeout(callback,delay,...args);};
+window.clearTimeout=id=>{if(!state.heldTimers.delete(id))nativeClearTimeout(id);};
+state.flushFileWrites=()=>{const callbacks=[...state.heldTimers.values()];state.heldTimers.clear();for(const callback of callbacks)callback();};
 const ids={a:'abcdefab-cdef-4abc-8def-abcdefabcdef',b:'bbcdefab-cdef-4abc-8def-abcdefabcdef'};
-const runner=(label,full)=>mapAgentSchemaToStepRunnerItem({stepRunnerKey:'fixture:current',name:label+' module',helpLink:'https://docs.example.test/'+label,
- inputs:full?[{key:'text',title:label+' text',valueType:'Text',variableMode:1,defaultValue:label+' default'}]:[],outputs:[]});
+const runner=(label,full,advanced=state.advanced)=>mapAgentSchemaToStepRunnerItem({stepRunnerKey:'fixture:current',name:label+' module',helpLink:'https://docs.example.test/'+label,
+ inputs:full?[{key:'text',title:label+' text',valueType:'Text',variableMode:1,defaultValue:label+' default'},...(state.withFile?[{key:'script',title:'Script file',valueType:'Text',variableMode:0,isMultiLine:true,isAdvanced:advanced}]:[])]:[],outputs:[]});
 window.fetch=async(input,init)=>{
  const url=String(input),body=JSON.parse(String(init?.body||'{}'));state.requests.push({url,body});
+ if(url.startsWith('/api/workspace')){
+  const query=new URL(url,'https://fixture.test').searchParams,path=String(body.path||query.get('path')||'').split(String.fromCharCode(92)).join('/');
+  const owner=path.includes('/actions/a/')?'a':path.includes('/actions/b/')?'b':null;
+  if(!owner||!path.endsWith('/files/script.txt'))throw Error('Unexpected file '+path);
+  if((body.op||query.get('op'))==='read')return Response.json({ok:true,path,content:state.files[owner],truncated:false});
+  if(body.op==='write'){state.writes.push({owner,path,content:body.content});state.files[owner]=body.content;return Response.json({ok:true,path});}
+  throw Error('Unexpected workspace operation');
+ }
  const owner=Object.keys(ids).find(k=>ids[k]===body.catalogContext?.expectedProjectBinding?.actionId);
  if(!owner)throw Error('No unbound request');
  if(url==='/api/step-runner/list')return Response.json({ok:true,items:[runner(state.generation[owner],false)]});
  if(url==='/api/step-runner/get'){
-  const label=state.generation[owner],fail=state.fail;
+  const label=state.generation[owner],fail=state.fail,advanced=state.advanced;
   if(state.defer&&owner==='a')await new Promise(resolve=>state.pending.push(resolve));
   if(fail)return new Response(JSON.stringify({ok:false,code:'CATALOG_REQUEST_FAILED',error:'fresh provider unavailable'}),{status:503});
-  return Response.json({ok:true,item:runner(label,true),source:'live'});
+  return Response.json({ok:true,item:runner(label,true,advanced),source:'live'});
  }
  if(url==='/api/step-runner/summaries'||url==='/api/subprogram/list')return Response.json({ok:true,items:[]});
  state.unexpected.push({url,body});throw Error('Unexpected '+url);
 };
-const sessions={},controllers={},ports={};
+const sessions={},controllers={},ports={},workspaces={};
 for(const owner of ['a','b']){
- const source=JSON.stringify({steps:[{stepId:owner+'-one',stepRunnerKey:'fixture:current',inputParams:{text:{value:'original'}}}],variables:[],subPrograms:[],future:'KEEP_INT64'}).replace('"KEEP_INT64"','9223372036854775807');
+ const source=JSON.stringify({steps:[{stepId:owner+'-one',stepRunnerKey:'fixture:current',inputParams:{text:{value:'original'},...(state.withFile?{script:{file:'files/script.txt'}}:{})}}],variables:[],subPrograms:[],future:'KEEP_INT64'}).replace('"KEEP_INT64"','9223372036854775807');
  sessions[owner]=createProgramDocumentSession({content:source,identity:{documentKey:owner,projectBinding:null}});
  controllers[owner]=createProgramDocumentEditorController(sessions[owner],{isCurrent:()=>true,onChange:r=>{if(!r.ok)throw Error(r.error);state.redraw?.(x=>x+1);}});
+ workspaces[owner]={cwd:'C:/fixture-only',projectDir:'C:/fixture-only/.quicker/actions/'+owner};
  ports[owner]=createDesignerCatalogPort({cwd:'C:/fixture-only',projectDirectory:'.quicker/actions/'+owner,expectedProjectBinding:{schemaVersion:1,kind:'action',actionId:ids[owner],hostBinding:{hostInstanceId:'fresh-'+owner,hostSessionId:owner.repeat(32),endpoint:'QuickerRpc_User_'+'A'.repeat(24)+'_'+owner.repeat(32),protocolVersion:1,schemaVersion:1,hostKind:'v1',quickerVersion:'unchanged',capabilities:{}}}});
 }
 state.read=owner=>sessions[owner].getState();state.snapshot=owner=>controllers[owner].getSnapshot();state.release=()=>{const pending=state.pending.splice(0);for(const resolve of pending)resolve();};
-function App(){const[,redraw]=useState(0),[active,setActive]=useState('a');state.redraw=redraw;state.switch=setActive;return <>{['a','b'].map(owner=><section key={owner} style={{display:active===owner?'block':'none'}}><ProgramEditorTabWorkspace documentKey={owner} controller={controllers[owner]} catalogPort={ports[owner]} active={active===owner}/></section>)}</>;}
+function App(){const[,redraw]=useState(0),[active,setActive]=useState('a');state.redraw=redraw;state.switch=setActive;return <>{['a','b'].map(owner=><section key={owner} style={{display:active===owner?'block':'none'}}><ProgramEditorTabWorkspace documentKey={owner} controller={controllers[owner]} catalogPort={ports[owner]} workspaceContext={workspaces[owner]} active={active===owner}/></section>)}</>;}
 const root=createRoot(document.getElementById('root'));root.render(<App/>);state.dispose=()=>{root.unmount();Object.values(ports).forEach(p=>p.dispose());};
 `;
 
@@ -56,7 +69,7 @@ async function compileFixture() {
       builder.onLoad({ filter: /.*/, namespace: "fixture-icon" }, () => ({ contents: "export function IconControl(){return null}", loader: "js" }));
     } }] });
 }
-async function openFixture() {
+async function openFixture(withFile = false, keepOpen = false) {
   const result = await compileFixture();
   assert.ok(Object.keys(result.metafile!.inputs).every(file => !/(?:^|\/)lib\/(?:db\/|qkrpc\.ts|llm-config)/.test(file.replaceAll("\\", "/"))));
   const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
@@ -67,12 +80,15 @@ async function openFixture() {
     await page.route("**/*", route => route.abort()); await page.setContent('<div id="root"></div>');
     const css = await Promise.all(["components/action-editor/action-editor-theme.css", "components/action-editor/action-editor.css", "components/action-editor/program-editor-toolbox.css"].map(file => readFile(file, "utf8")));
     await page.addStyleTag({ content: css.join("\n") + "\nbody{margin:0;font-family:system-ui}#root{height:100vh;}" });
+    await page.evaluate(flag => { (window as any).withFileFixture=flag; }, withFile);
     await page.addScriptTag({ content: result.outputFiles[0].text });
     await page.locator('[data-step-id="a-one"]').dblclick();
     await popup(page).getByText("Old text", { exact: true }).waitFor();
     await page.waitForFunction(() => !(document.querySelector('.step-editor-popup-btn.primary') as HTMLButtonElement)?.disabled);
-    await popup(page).getByRole("button", { name: "取消", exact: true }).click();
-    await popup(page).waitFor({ state: "hidden" });
+    if (!keepOpen) {
+      await popup(page).getByRole("button", { name: "取消", exact: true }).click();
+      await popup(page).waitFor({ state: "hidden" });
+    }
     return { browser, page, errors };
   } catch (error) { await browser.close(); throw error; }
 }
@@ -87,11 +103,13 @@ async function finish(page: Page, errors: string[]) {
 }
 
 test("fresh native schema replaces populated definitions without replacing the human draft or document history", { timeout: 60_000 }, async () => {
-  const { browser, page, errors } = await openFixture();
+  const { browser, page, errors } = await openFixture(false, true);
   try {
     const initial = await page.evaluate(() => (window as any).fixture.read("a").content);
-    await page.evaluate(() => { const f=(window as any).fixture; f.defer=true; f.generation.a="Current"; });
-    await page.locator('[data-step-id="a-one"]').dblclick();
+    await page.evaluate(() => (window as any).fixture.switch("b"));
+    await popup(page).waitFor({ state: "hidden" });
+    await page.locator('[data-program-workspace="b"]').waitFor({ state: "visible" });
+    await page.evaluate(() => { const f=(window as any).fixture; f.defer=true; f.generation.a="Current"; f.switch("a"); });
     await page.waitForFunction(() => (window as any).fixture.pending.length > 0);
     assert.equal(await confirm(page).isDisabled(), true);
     const field = popup(page).getByRole("textbox");
@@ -114,23 +132,58 @@ test("fresh native schema replaces populated definitions without replacing the h
 });
 
 test("a failed fresh popup read reports failure instead of confirming previous successful definitions", { timeout: 60_000 }, async () => {
-  const { browser, page, errors } = await openFixture();
+  const { browser, page, errors } = await openFixture(false, true);
   try {
     const initial = await page.evaluate(() => (window as any).fixture.read("a").content);
-    await page.evaluate(() => { (window as any).fixture.fail=true; });
-    await page.locator('[data-step-id="a-one"]').dblclick();
-    await popup(page).getByRole("alert").filter({ hasText: "fresh provider unavailable" }).waitFor();
-    assert.equal(await confirm(page).isDisabled(), true);
     await type(popup(page).getByRole("textbox"), "kept on failure");
     await page.evaluate(() => (window as any).fixture.switch("b"));
     await popup(page).waitFor({ state: "hidden" });
     await page.locator('[data-program-workspace="b"]').waitFor({ state: "visible" });
-    await page.evaluate(() => (window as any).fixture.switch("a"));
+    await page.evaluate(() => { const f=(window as any).fixture; f.fail=true; f.switch("a"); });
+    await popup(page).getByRole("alert").filter({ hasText: "fresh provider unavailable" }).waitFor();
     assert.equal(await popup(page).getByRole("textbox").innerText(), "kept on failure");
     assert.equal(await confirm(page).isDisabled(), true);
     await popup(page).getByRole("button", { name: "取消", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "不保存", exact: true }).click();
     assert.equal(await page.evaluate(() => (window as any).fixture.read("a").content), initial);
+    await finish(page, errors);
+  } finally { await browser.close(); }
+});
+
+test("fresh grouping changes retain the external file editor and its pending single write", { timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await openFixture(true, true);
+  try {
+    const initial = await page.evaluate(() => (window as any).fixture.read("a").content);
+    const fileField = () => popup(page).locator(".step-param-row").filter({ has: page.getByText("Script file", { exact: true }) }).getByRole("textbox");
+    await page.waitForFunction(() => [...document.querySelectorAll('.step-editor-popup [role="textbox"]')].some(node=>node.textContent==='original file'));
+    await page.evaluate(() => (window as any).fixture.switch("b"));
+    await popup(page).waitFor({ state: "hidden" });
+    await page.locator('[data-program-workspace="b"]').waitFor({ state: "visible" });
+    await page.evaluate(() => { const f=(window as any).fixture; f.defer=true; f.advanced=true; f.generation.a="Grouped"; f.holdFileDebounce=true; f.switch("a"); });
+    await page.waitForFunction(() => (window as any).fixture.pending.length > 0);
+    await fileField().evaluate(node => { (window as any).fixture.fileNode=node; });
+    await type(fileField(), "pending external file draft");
+    assert.equal(await page.evaluate(() => (window as any).fixture.heldTimers.size), 1);
+    await page.evaluate(() => { const f=(window as any).fixture; f.defer=false; f.release(); });
+    await popup(page).getByText("Grouped text", { exact: true }).waitFor();
+    const advanced = popup(page).getByRole("region", { name: "高级", exact: true });
+    if (await advanced.getByRole("button", { name: "高级", exact: true }).getAttribute("aria-expanded") === "false")
+      await advanced.getByRole("button", { name: "高级", exact: true }).click();
+    assert.equal(await fileField().evaluate(node => node===(window as any).fixture.fileNode), true);
+    assert.equal(await fileField().innerText(), "pending external file draft");
+    assert.equal(await page.evaluate(() => (window as any).fixture.heldTimers.size), 1, "layout changes must not cancel the actual file hook's pending callback");
+    await page.evaluate(() => (window as any).fixture.flushFileWrites());
+    await page.waitForFunction(() => (window as any).fixture.writes.length===1);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.writes.map((x:any)=>({owner:x.owner,content:x.content}))), [{owner:"a",content:"pending external file draft"}]);
+    assert.equal(await page.evaluate(() => (window as any).fixture.read("a").content), initial);
+    await mkdir("../.tmp", { recursive: true });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(value => { document.documentElement.dataset.theme=value; }, theme);
+      await page.screenshot({ path: "../.tmp/fresh-fields-"+theme+".png" });
+    }
+    await page.setViewportSize({ width: 380, height: 760 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: "../.tmp/fresh-fields-narrow.png" });
     await finish(page, errors);
   } finally { await browser.close(); }
 });
