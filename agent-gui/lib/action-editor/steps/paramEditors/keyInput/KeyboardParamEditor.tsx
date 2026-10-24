@@ -102,6 +102,7 @@ export function KeyboardParamEditor({
         const { startElectronKeyInputCapture } = await import("./keyInputElectronCapture");
         if (disposed) return;
         stopElectron = await startElectronKeyInputCapture((event, phase) => {
+          if (disposed) return;
           if (phase === "keydown") {
             handleCaptureKeyDown(event);
             return;
