@@ -218,6 +218,7 @@ async function executeDocsToolInner(
             section: sectionResult.section,
             title: sectionResult.title,
             snippet: sectionResult.snippet,
+            knowledge: sectionResult.knowledge,
             hint: DOCS_SEARCH_HINT,
           });
         }
@@ -247,6 +248,7 @@ async function executeDocsToolInner(
           reference: result.doc.reference,
           title: result.doc.title,
           snippet: buildSearchSnippet(result.doc.markdown, [], undefined),
+          knowledge: result.doc.knowledge,
           hint: DOCS_SEARCH_HINT,
         });
       }
@@ -275,7 +277,10 @@ async function executeDocsToolInner(
         description: result.doc.description,
         markdown: result.doc.markdown,
         ...(result.doc.schema ? { schema: result.doc.schema } : {}),
-        hint: "Full topic markdown/schema. Prefer docs get for known topic ids.",
+        knowledge: result.doc.knowledge,
+        hint: result.doc.knowledge?.schema?.status === "unavailable"
+          ? "Local schema unavailable; markdown only. Local guides do not prove current native module support."
+          : "Full local topic markdown/schema. Prefer docs get for known topic ids.",
       });
     }
     default: {
@@ -294,7 +299,8 @@ export const DOCS_TOOL_DEF = tool({
     "Quicker action authoring guides (indexed).",
     DOCS_AGENT_ROUTING_HINT,
     "search(query, scope?, limit?) → items[].snippet when topic id is unknown.",
-    "get(topic) → full topic (workflow guide or schema e.g. action-data-schema returns schema + markdown).",
+    "get(topic) → full local topic; schema topics include schema only when the local JSON resource is available.",
+    "Missing/invalid local schema is explicitly unavailable; this tool does not fill it from host, MCP or network.",
     "index() → topic catalog by layer.",
     "scope: references (step-modules) | workflows | all.",
     "NOT qkrpc_action_query, NOT web_search.",

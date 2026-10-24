@@ -1,5 +1,13 @@
 /** Client-safe types and helpers (no Node.js fs). */
 
+/** Local guide content is not proof of a connected host's schema or capability. */
+export type ActionAuthoringDocKnowledge = {
+  source: { kind: "local-guide"; native: false; version: "unknown" };
+  content: { format: "markdown"; scope: "loaded-markdown"; revision: string };
+  retrievedAt: string;
+  schema?: { status: "available" | "unavailable"; source: "local-file" | "unknown"; revision: string };
+};
+
 export type ActionAuthoringReferenceMeta = {
   id: string;
   title: string;
@@ -13,6 +21,7 @@ export type ActionAuthoringTopicMeta = {
   charCount: number;
   layer?: string;
   references?: ActionAuthoringReferenceMeta[];
+  knowledge?: ActionAuthoringDocKnowledge;
 };
 
 export type ActionAuthoringDoc = {
@@ -23,6 +32,7 @@ export type ActionAuthoringDoc = {
   /** Machine-readable schema when topic is action-data-schema, form-spec, … */
   schema?: Record<string, unknown>;
   reference?: string;
+  knowledge?: ActionAuthoringDocKnowledge;
 };
 
 export type ActionAuthoringSearchItem = {
@@ -38,6 +48,7 @@ export type ActionAuthoringSearchItem = {
   section?: string;
   /** MiniSearch relevance score; omitted when query is empty. */
   score?: number;
+  knowledge?: ActionAuthoringDocKnowledge;
 };
 
 /** docs search scope filter (default all). */

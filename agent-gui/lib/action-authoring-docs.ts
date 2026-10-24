@@ -1,9 +1,11 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type ActionAuthoringDoc,
+  type ActionAuthoringDocKnowledge,
   type ActionAuthoringReferenceMeta,
   type ActionAuthoringSearchItem,
   type ActionAuthoringTopicMeta,
@@ -25,7 +27,6 @@ import {
 } from "@/lib/agent-skills";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
-import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 import {
   buildAuthoringDocsSearchIndex,
   buildSearchExcerpt,
@@ -33,7 +34,6 @@ import {
   joinSearchAliases,
   searchAuthoringDocRows,
   splitSearchPatterns,
-  type AuthoringDocsSearchIndex,
 } from "@/lib/action-authoring-docs-search";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 import type { DocsSearchScope } from "@/lib/action-authoring-docs.shared";
@@ -102,58 +102,22 @@ type TopicsManifest = {
   referenceCatalog?: Record<string, ReferenceCatalogEntry[]>;
 };
 
-let cachedRows: TopicRow[] | null = null;
-let cachedSearchIndex: AuthoringDocsSearchIndex | null = null;
-let cachedRoot: string | null = null;
-let cachedSkillsMtimeMs = 0;
+let cachedPromptRoot: string | null = null;
 let cachedPromptBlock: { content: string; mtimeMs: number } | null = null;
+
+function contentRevision(content: string): string {
+  return `sha256:${createHash("sha256").update(content).digest("hex")}`;
+}
+
+function localKnowledge(markdown: string): ActionAuthoringDocKnowledge {
+  return { source: { kind: "local-guide", native: false, version: "unknown" },
+    content: { format: "markdown", scope: "loaded-markdown", revision: contentRevision(markdown) },
+    retrievedAt: new Date().toISOString() };
+}
 
 /** @deprecated Use compactSkillBody from agent-skills */
 function compactMarkdownBody(markdown: string): string {
   return compactSkillBody(markdown);
-}
-
-async function skillsTreeMtimeMs(root: string): Promise<number> {
-  let max = 0;
-  const candidates = [
-    join(root, "SKILL.md"),
-    join(root, "topics.json"),
-    join(root, "prompt-tier0.md"),
-  ];
-  for (const filePath of candidates) {
-    try {
-      max = Math.max(max, (await stat(filePath)).mtimeMs);
-    } catch {
-      // ignore
-    }
-  }
-
-  const refDir = join(root, "references");
-  max = Math.max(max, await referencesTreeMtimeMs(refDir));
-
-  const standaloneRefRoot = authoringReferencesRoot();
-  if (standaloneRefRoot) {
-    max = Math.max(max, await referencesTreeMtimeMs(standaloneRefRoot));
-  }
-
-  // Legacy per-topic skill dirs
-  let entries;
-  try {
-    entries = await readdir(root, { withFileTypes: true });
-  } catch {
-    return max;
-  }
-  for (const ent of entries) {
-    if (!ent.isDirectory() || ent.name === "references") continue;
-    const skillPath = join(root, ent.name, "SKILL.md");
-    try {
-      max = Math.max(max, (await stat(skillPath)).mtimeMs);
-    } catch {
-      // ignore
-    }
-  }
-
-  return max;
 }
 
 function skillsRoot(): string {
@@ -176,63 +140,31 @@ const SCHEMA_TOPIC_FILES: Record<string, string> = {
   "form-spec": "docs/action-authoring-src/schemas/form-spec-schema.json",
 };
 
-function readSchemaFromGuidePayload(parsed: unknown): Record<string, unknown> | null {
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return null;
-  }
-  const schema = (parsed as { schema?: unknown }).schema;
-  if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
-    return null;
-  }
-  return schema as Record<string, unknown>;
-}
-
-async function loadTopicSchema(topic: string): Promise<Record<string, unknown> | null> {
+async function loadTopicSchema(topic: string): Promise<{
+  schema?: Record<string, unknown>; knowledge: NonNullable<ActionAuthoringDocKnowledge["schema"]>;
+} | null> {
   const key = normalizeTopic(topic);
   const rel = SCHEMA_TOPIC_FILES[key];
   if (!rel) return null;
 
-  const repo = resolveQuickerRpcRepoRoot();
-  if (repo) {
+  const root = resolveQuickerRpcRepoRoot() ?? resolveAgentGuiRoot();
+  if (root) {
     try {
-      const raw = await readFile(join(repo, rel), "utf8");
-      return JSON.parse(raw) as Record<string, unknown>;
+      const raw = await readFile(join(root, rel), "utf8");
+      const schema: unknown = JSON.parse(raw);
+      if (schema && typeof schema === "object" && !Array.isArray(schema)) {
+        return { schema: schema as Record<string, unknown>, knowledge: { status: "available", source: "local-file", revision: contentRevision(raw) } };
+      }
     } catch {
-      // fall through to serve
+      // A local snapshot never changes provider or starts a host to fill missing resources.
     }
   }
-
-  const http = await invokeQkrpcHttp(
-    { op: "guide.get", args: { topic: key } },
-    { timeoutMs: 15_000 },
-  );
-  if (!http?.ok) return null;
-  return readSchemaFromGuidePayload(http.parsed);
+  return { knowledge: { status: "unavailable", source: "unknown", revision: "unknown" } };
 }
 
 function normalizeTopic(topic: string): string {
   const key = topic.trim().replace(/\/+$/, "").toLowerCase();
   return TOPIC_ALIASES[key] ?? key;
-}
-
-async function referencesTreeMtimeMs(dir: string): Promise<number> {
-  let max = 0;
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return 0;
-  }
-  for (const ent of entries) {
-    const full = join(dir, ent.name);
-    if (ent.isDirectory()) {
-      max = Math.max(max, await referencesTreeMtimeMs(full));
-      continue;
-    }
-    if (!ent.name.endsWith(".md")) continue;
-    max = Math.max(max, (await stat(full)).mtimeMs);
-  }
-  return max;
 }
 
 function referencesForTopic(
@@ -307,9 +239,9 @@ async function readTopicMarkdown(
   }
 }
 
-async function loadUnifiedSkillTopics(root: string): Promise<TopicRow[]> {
+async function loadUnifiedSkillTopics(root: string): Promise<TopicRow[] | null> {
   const manifest = (await loadTopicsManifest(root)) as TopicsManifest | null;
-  if (!manifest?.topics?.length) return [];
+  if (!Array.isArray(manifest?.topics)) return null;
 
   const rows: TopicRow[] = [];
   for (const meta of manifest.topics) {
@@ -419,37 +351,22 @@ async function loadLegacyFlatTopics(root: string): Promise<TopicRow[]> {
 
 async function loadAllTopics(): Promise<TopicRow[]> {
   const root = skillsRoot();
-  const skillsMtime = await skillsTreeMtimeMs(root);
-  if (
-    cachedRows
-    && cachedRoot === root
-    && cachedSkillsMtimeMs === skillsMtime
-  ) {
-    return cachedRows;
-  }
 
   let rows = await loadUnifiedSkillTopics(root);
-  if (rows.length === 0) {
+  if (rows === null) {
     rows = await loadLegacyPerTopicSkills(root);
-  }
-  if (rows.length === 0) {
-    rows = await loadLegacyFlatTopics(legacyDocsRoot());
+    if (rows.length === 0) {
+      rows = await loadLegacyFlatTopics(legacyDocsRoot());
+    }
   }
 
-  cachedRows = rows;
-  cachedSearchIndex = buildAuthoringDocsSearchIndex(rows);
-  cachedRoot = root;
-  cachedSkillsMtimeMs = skillsMtime;
-  return rows;
+  // One current, request-local snapshot; maximum timestamps cannot certify file identity/content.
+  return rows.map(row => ({ ...row, knowledge: localKnowledge(row.markdown) }));
 }
 
-async function loadAuthoringDocsSearchIndex(): Promise<AuthoringDocsSearchIndex> {
-  const rows = await loadAllTopics();
-  if (cachedSearchIndex) {
-    return cachedSearchIndex;
-  }
-  cachedSearchIndex = buildAuthoringDocsSearchIndex(rows);
-  return cachedSearchIndex;
+async function isDeclaredTopic(topic: string): Promise<boolean> {
+  const manifest = await loadTopicsManifest(skillsRoot());
+  return Array.isArray(manifest?.topics) && manifest.topics.some(row => row.topic.toLowerCase() === topic);
 }
 
 export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
@@ -473,7 +390,7 @@ export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
   if (
     cachedPromptBlock
     && cachedPromptBlock.mtimeMs === mtimeMs
-    && cachedRoot === root
+    && cachedPromptRoot === root
   ) {
     return cachedPromptBlock.content;
   }
@@ -484,7 +401,7 @@ export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
     },
   });
   cachedPromptBlock = { content, mtimeMs };
-  cachedRoot = root;
+  cachedPromptRoot = root;
   return content;
 }
 
@@ -553,7 +470,7 @@ async function tryLoadOnDemandSkillReference(
   refKey: string,
 ): Promise<(ActionAuthoringDoc & { reference: string }) | null> {
   const cwd = getRequestCwd();
-  const skill = await loadSkillInstructions(skillName, cwd);
+  const skill = await loadSkillInstructions(skillName, cwd, { fresh: true });
   if (!skill?.body) {
     return null;
   }
@@ -571,6 +488,7 @@ async function tryLoadOnDemandSkillReference(
       description: skill.description,
       markdown,
       reference: refKey,
+      knowledge: localKnowledge(markdown),
     };
   } catch {
     return null;
@@ -654,12 +572,13 @@ export async function getActionAuthoringReference(
     (r) => r.topic.toLowerCase() === key && !r.reference,
   );
   if (!match) {
-    const onDemandRef = await tryLoadOnDemandSkillReference(key, refKey);
+    const declared = await isDeclaredTopic(key);
+    const onDemandRef = declared ? null : await tryLoadOnDemandSkillReference(key, refKey);
     if (onDemandRef) {
       return { ok: true, doc: onDemandRef };
     }
 
-    const skill = await loadSkillInstructions(key);
+    const skill = declared ? null : await loadSkillInstructions(key, undefined, { fresh: true });
     if (skill?.body) {
       const availableReferences = await listOnDemandSkillReferences(key);
       return {
@@ -691,6 +610,7 @@ export async function getActionAuthoringReference(
         description: refRow.description,
         markdown: refRow.markdown,
         reference: refRow.reference!,
+        knowledge: refRow.knowledge,
       },
     };
   }
@@ -732,6 +652,7 @@ export async function getActionAuthoringReference(
   } catch {
     const legacyFlat = join(root, "references", `${refFileName}.md`);
     try {
+      if (catalogEntry?.path) throw new Error("Declared reference is unavailable");
       markdown = compactMarkdownBody(await readFile(legacyFlat, "utf8"));
     } catch {
       const availableReferences = await listActionAuthoringReferences(
@@ -755,6 +676,7 @@ export async function getActionAuthoringReference(
       description: match.description,
       markdown,
       reference: catalogEntry?.id ?? refFileName,
+      knowledge: localKnowledge(markdown),
     },
   };
 }
@@ -765,13 +687,14 @@ export async function listActionAuthoringTopics(): Promise<
   const rows = await loadAllTopics();
   const topics = rows
     .filter((r) => !r.reference)
-    .map(({ topic, title, description, layer, charCount, references }) => ({
+    .map(({ topic, title, description, layer, charCount, references, knowledge }) => ({
       topic,
       title,
       description,
       layer,
       charCount,
       references,
+      knowledge,
     }));
   return sortTopicsByLayer(topics);
 }
@@ -788,6 +711,7 @@ export async function getActionAuthoringSectionSnippet(
       section: string;
       title: string;
       snippet: string;
+      knowledge?: ActionAuthoringDocKnowledge;
     }
   | {
       ok: false;
@@ -828,6 +752,7 @@ export async function getActionAuthoringSectionSnippet(
       section: sectionHeading,
       title: result.doc.title,
       snippet,
+      knowledge: result.doc.knowledge,
     };
   }
 
@@ -855,6 +780,7 @@ export async function getActionAuthoringSectionSnippet(
     section: sectionHeading,
     title: result.doc.title,
     snippet,
+    knowledge: result.doc.knowledge,
   };
 }
 
@@ -878,7 +804,7 @@ export async function getActionAuthoringDoc(
     (r) => r.topic.toLowerCase() === key && !r.reference,
   );
   if (!match) {
-    const skill = await loadSkillInstructions(key, getRequestCwd());
+    const skill = await isDeclaredTopic(key) ? null : await loadSkillInstructions(key, getRequestCwd(), { fresh: true });
     if (skill?.body) {
       return {
         ok: true,
@@ -887,6 +813,7 @@ export async function getActionAuthoringDoc(
           title: skill.parsed.name.replace(/-/g, " ") || skill.name,
           description: skill.description,
           markdown: skill.body,
+          knowledge: localKnowledge(skill.body),
         },
       };
     }
@@ -898,7 +825,7 @@ export async function getActionAuthoringDoc(
     };
   }
 
-  const schema = await loadTopicSchema(match.topic);
+  const localSchema = await loadTopicSchema(match.topic);
   return {
     ok: true,
     doc: {
@@ -906,7 +833,8 @@ export async function getActionAuthoringDoc(
       title: match.title,
       description: match.description,
       markdown: match.markdown,
-      ...(schema ? { schema } : {}),
+      knowledge: { ...match.knowledge!, ...(localSchema ? { schema: localSchema.knowledge } : {}) },
+      ...(localSchema?.schema ? { schema: localSchema.schema } : {}),
     },
   };
 }
@@ -937,7 +865,7 @@ export async function searchActionAuthoringDocs(
   const scope = options?.scope ?? null;
   const patterns = splitSearchPatterns(keyword ?? "");
   const rows = await loadAllTopics();
-  const searchIndex = await loadAuthoringDocsSearchIndex();
+  const searchIndex = buildAuthoringDocsSearchIndex(rows);
   const availableTopics = [
     ...new Set(rows.map((r) => r.topic)),
   ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
@@ -963,6 +891,7 @@ export async function searchActionAuthoringDocs(
       ),
       snippet: buildSearchSnippet(row.markdown, patterns, sectionHeading),
       reference: row.reference,
+      knowledge: row.knowledge,
       ...(sectionHeading ? { section: sectionHeading } : {}),
       ...(patterns.length > 0 ? { score } : {}),
     }),
