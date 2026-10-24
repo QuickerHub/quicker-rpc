@@ -30,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\NativeActionProgramSourceBody.cs" Link="Shared\NativeActionProgramSourceBody.cs" />
+    <Compile Include="..\QuickerRpc.Plugin.V1\Services\StepRunnerKnowledgeProvider.cs" Link="Shared\StepRunnerKnowledgeProvider.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionLibrarySearchService.cs" Link="Shared\ActionLibrarySearchService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\CodeSyntaxCheckService.cs" Link="Shared\CodeSyntaxCheckService.cs" />
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ExpressionEvalBinding.cs" Link="Shared\ExpressionEvalBinding.cs" />
@@ -56,9 +57,6 @@
     <Compile Include="..\QuickerRpc.Plugin.V1\Services\ActionDocHttpClient.cs" Link="Shared\ActionDocHttpClient.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Costura.Fody">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
     <!-- Microsoft.Extensions.* + Newtonsoft.Json: Quicker.Sdk host references, not bundled. -->
     <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
@@ -66,6 +64,7 @@
     <InternalsVisibleTo Include="QuickerRpc.Runtime.Test" />
   </ItemGroup>
   <Import Project="$(RepoRoot)..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
+  <Import Project="$(RepoRoot)..\build\EmbedV2Dependencies.targets" />
   <!-- QuickerRpc_Run loads QuickerRpc.Plugin.{version}.dll (not QuickerRpc.Plugin.V2). -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <AssemblyName>QuickerRpc.Plugin.$(Version)</AssemblyName>

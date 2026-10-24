@@ -19,26 +19,14 @@ namespace QuickerRpc.Plugin;
 /// <summary>Starts the named-pipe RPC server inside Quicker (V2 net10 host).</summary>
 public static partial class Launcher
 {
-    private static readonly object LockObject = new();
-    private static readonly Lazy<IHost> HostLazy = new(
-        CreateHostForQuickerPlugin,
-        LazyThreadSafetyMode.ExecutionAndPublication);
-
-    private static IHost? _host;
-    private static QuickerRpcServerHost? _serverHost;
-    private static LauncherStatus _status = LauncherStatus.NotStarted;
+    private static readonly V2LauncherLifetime Lifetime = new(CreateStartupOwner, () =>
+    {
+        PluginV2DiagnosticLog.Write("QuickerRpc V2 launcher Started");
+        TryLaunchQuickerAgentIfRequested();
+    });
     private static volatile bool _launchQuickerAgentAfterStart;
 
-    public static LauncherStatus Status
-    {
-        get
-        {
-            lock (LockObject)
-            {
-                return _status;
-            }
-        }
-    }
+    public static LauncherStatus Status => Lifetime.Status;
 
     /// <summary>
     /// Same entry as Plugin.V1: <c>Launcher.Start(_context)</c> from QuickerRpc_Run / QExpr.
@@ -86,147 +74,74 @@ public static partial class Launcher
             PluginV2DiagnosticLog.Write("Plugin version " + GetPluginVersion());
         }
 
-        lock (LockObject)
+        if (!Lifetime.TryStart(out var startup))
         {
-            if (_status == LauncherStatus.Started)
-            {
-                PluginV2DiagnosticLog.Write("Start skipped: already Started");
-                TryLaunchQuickerAgentIfRequested();
-                return;
-            }
-
-            if (_status == LauncherStatus.Starting)
-            {
-                PluginV2DiagnosticLog.Write("Start skipped: already Starting");
-                return;
-            }
-
-            if (_status == LauncherStatus.Stopped)
-            {
-                PluginV2DiagnosticLog.Write("Start skipped: Stopped");
-                return;
-            }
-
-            _status = LauncherStatus.Starting;
+            var status = Lifetime.Status;
+            PluginV2DiagnosticLog.Write("Start skipped: " + status);
+            if (status == LauncherStatus.Started) TryLaunchQuickerAgentIfRequested();
+            return;
         }
 
         PluginV2DiagnosticLog.Write("Start queued on thread pool");
-        _ = Task.Run(StartCoreAsync).ContinueWith(
-            static task =>
-            {
-                if (task.IsFaulted && task.Exception is not null)
-                {
-                    PluginV2DiagnosticLog.Write(
-                        "StartCoreAsync faulted (unobserved)",
-                        task.Exception.GetBaseException());
-                }
-            },
+        _ = startup.ContinueWith(
+            static task => PluginV2DiagnosticLog.Write(
+                "StartCoreAsync failed", task.Exception!.GetBaseException()),
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);
     }
 
-    private static async Task StartCoreAsync()
+    private static LauncherStartupOwner CreateStartupOwner()
     {
-        try
-        {
-            PluginV2DiagnosticLog.Write("StartCoreAsync begin");
-            var external = QuickerV2ExternalHostResolver.TryResolve();
-
-            if (external is not null)
+        IHost? host = null;
+        QuickerRpcServerHost? serverHost = null;
+        ILoggerFactory? loggerFactory = null;
+        return new LauncherStartupOwner(
+            async cancellationToken =>
             {
-                PluginV2DiagnosticLog.Write("Using external Quicker V2 host from AppState DI");
-                var host = CreateHostWithExternalQuickerHost(external);
-                PluginV2DiagnosticLog.Write("Host built; starting RPC server host");
-                await StartRpcServerFromHostAsync(host).ConfigureAwait(false);
-                lock (LockObject)
+                PluginV2DiagnosticLog.Write("StartCoreAsync begin");
+                var external = QuickerV2ExternalHostResolver.TryResolve();
+                if (external is not null)
                 {
-                    if (_status != LauncherStatus.Starting)
-                    {
-                        return;
-                    }
-
-                    _host = host;
-                    _status = LauncherStatus.Started;
+                    PluginV2DiagnosticLog.Write("Using external Quicker V2 host from AppState DI");
+                    host = CreateHostWithExternalQuickerHost(external);
+                    await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+                    PluginV2DiagnosticLog.Write("Resolving QuickerRpcServerHost from DI host");
+                    serverHost = host.Services.GetRequiredService<QuickerRpcServerHost>();
                 }
-            }
-            else
+                else
+                {
+                    await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+                    loggerFactory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Information));
+                    PluginV2DiagnosticLog.Write("Creating QuickerRpcServerHost (manual stack)");
+                    serverHost = PluginV2BootstrapStack.CreateServerHost(loggerFactory);
+                }
+
+                await serverHost.StartAsync(cancellationToken).ConfigureAwait(false);
+            },
+            async () =>
             {
-                PluginV2DiagnosticLog.Write("Building manual bootstrap RPC stack (reflection adapters)");
-                await StartRpcServerManualAsync().ConfigureAwait(false);
-                lock (LockObject)
+                try
                 {
-                    if (_status != LauncherStatus.Starting)
-                    {
-                        return;
-                    }
-
-                    _status = LauncherStatus.Started;
+                    if (serverHost is not null)
+                        await serverHost.StopAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-            }
-
-            PluginV2DiagnosticLog.Write("QuickerRpc V2 launcher Started");
-            TryLaunchQuickerAgentIfRequested();
-        }
-        catch (Exception ex)
-        {
-            lock (LockObject)
+                finally
+                {
+                    if (host is not null) await host.StopAsync().ConfigureAwait(false);
+                }
+            },
+            () =>
             {
-                if (_status == LauncherStatus.Starting)
-                {
-                    _status = LauncherStatus.NotStarted;
-                }
-            }
-
-            PluginV2DiagnosticLog.Write("StartCoreAsync failed", ex);
-            throw;
-        }
+                try { host?.Dispose(); }
+                finally { loggerFactory?.Dispose(); }
+            });
     }
 
-    private static async Task StartRpcServerManualAsync()
+    public static Task StopAsync()
     {
-        await Task.Delay(250, CancellationToken.None).ConfigureAwait(false);
-
-        var loggerFactory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Information));
-        PluginV2DiagnosticLog.Write("Creating QuickerRpcServerHost (manual stack)");
-        var serverHost = PluginV2BootstrapStack.CreateServerHost(loggerFactory);
-        PluginV2DiagnosticLog.Write("Calling QuickerRpcServerHost.StartAsync");
-        await serverHost.StartAsync(CancellationToken.None).ConfigureAwait(false);
-        _serverHost = serverHost;
-    }
-
-    private static async Task StartRpcServerFromHostAsync(IHost host)
-    {
-        await Task.Delay(250, CancellationToken.None).ConfigureAwait(false);
-        PluginV2DiagnosticLog.Write("Resolving QuickerRpcServerHost from DI host");
-        var serverHost = host.Services.GetRequiredService<QuickerRpcServerHost>();
-        await serverHost.StartAsync(CancellationToken.None).ConfigureAwait(false);
-        _serverHost = serverHost;
-    }
-
-    public static async Task StopAsync()
-    {
-        IHost? host;
-        QuickerRpcServerHost? serverHost;
-        lock (LockObject)
-        {
-            host = _host ?? (HostLazy.IsValueCreated ? HostLazy.Value : null);
-            serverHost = _serverHost;
-            _host = null;
-            _serverHost = null;
-            _status = LauncherStatus.Stopped;
-        }
-
-        if (serverHost is not null)
-        {
-            await serverHost.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-
-        if (host is not null)
-        {
-            await host.StopAsync().ConfigureAwait(false);
-            host.Dispose();
-        }
+        _launchQuickerAgentAfterStart = false;
+        return Lifetime.StopAsync();
     }
 
     private static void TryLaunchQuickerAgentIfRequested()
@@ -264,12 +179,4 @@ public static partial class Launcher
             })
             .Build();
     }
-}
-
-public enum LauncherStatus
-{
-    NotStarted,
-    Starting,
-    Started,
-    Stopped,
 }

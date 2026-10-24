@@ -1123,16 +1123,18 @@ public sealed partial class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
-    public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
+    public async Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
         string stepRunnerKey,
         string? controlFieldValue = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        return InvokeOnDispatcherAsync(
+        var result = await InvokeOnDispatcherAsync(
             () => _host.StepRunners.GetDetailAsync(stepRunnerKey, controlFieldValue, cancellationToken),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return AddStepRunnerKnowledgeOwner(result, stepRunnerKey, controlFieldValue);
     }
 
     public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerUiDetailAsync(

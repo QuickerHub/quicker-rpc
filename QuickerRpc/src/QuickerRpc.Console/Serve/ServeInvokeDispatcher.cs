@@ -2127,13 +2127,8 @@ internal static class ServeInvokeDispatcher
 
         var limit = ServeJsonArgs.GetInt(args, "limit");
         var trimmedQuery = query.Trim();
-        if (StepRunnerServeCache.TryGetSearch(rpc, trimmedQuery, limit, out var cached) && cached is not null)
-        {
-            return Ok(new { ok = cached.Success, action = "step-runner-search", payload = cached });
-        }
-
+        // A bound session does not prove its module definitions are unchanged.
         var response = await rpc.SearchStepRunnersAsync(trimmedQuery, limit, token).ConfigureAwait(false);
-        StepRunnerServeCache.SetSearch(rpc, trimmedQuery, limit, response);
         return Ok(new { ok = response.Success, action = "step-runner-search", payload = response });
     }
 
@@ -2150,41 +2145,14 @@ internal static class ServeInvokeDispatcher
         }
 
         var trimmedKey = key.Trim();
-        var controlField = ServeJsonArgs.GetString(args, "controlField");
+        if (args.TryGetProperty("controlField", out var control) && control.ValueKind is not JsonValueKind.String and not JsonValueKind.Null)
+            return Fail("INVALID_CONTROL_VALUE", "args.controlField must be a string or null.");
+        // Only null means no explicit control value; string literals remain exact.
+        var controlField = control.ValueKind == JsonValueKind.String ? control.GetString() : null;
         var action = forAgent ? "step-runner-get" : "step-runner-get-ui";
-        if (forAgent)
-        {
-            if (StepRunnerServeCache.TryGetAgentDetail(rpc, trimmedKey, controlField, out var cached) && cached is not null)
-            {
-                return Ok(new
-                {
-                    ok = cached.Success,
-                    action,
-                    payload = HeadlessCliResponses.ToStepRunnerDetailPayload(cached),
-                });
-            }
-        }
-        else if (StepRunnerServeCache.TryGetUiDetail(rpc, trimmedKey, controlField, out var cachedUi) && cachedUi is not null)
-        {
-            return Ok(new
-            {
-                ok = cachedUi.Success,
-                action,
-                payload = HeadlessCliResponses.ToStepRunnerDetailPayload(cachedUi),
-            });
-        }
-
         var response = forAgent
             ? await rpc.GetStepRunnerDetailAsync(trimmedKey, controlField, token).ConfigureAwait(false)
             : await rpc.GetStepRunnerUiDetailAsync(trimmedKey, controlField, token).ConfigureAwait(false);
-        if (forAgent)
-        {
-            StepRunnerServeCache.SetAgentDetail(rpc, trimmedKey, controlField, response);
-        }
-        else
-        {
-            StepRunnerServeCache.SetUiDetail(rpc, trimmedKey, controlField, response);
-        }
 
         return Ok(new
         {
