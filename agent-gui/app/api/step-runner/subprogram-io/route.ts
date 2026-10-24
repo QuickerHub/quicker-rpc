@@ -88,7 +88,7 @@ async function get(kind: string, id: string, request: DesignerCatalogRequest) {
   }
 
   const result = await runQkrpc(
-    ["subprogram", "get", "--id", normalizedId, "--return-mode", "full", "--json"],
+    ["subprogram", "get", "--id", normalizedId, "--return-mode", "full", "--json", "--no-bootstrap"],
     { timeoutMs: 60_000, ...request.rpcOptions },
   );
   requireDesignerCatalogResult(result, request);
@@ -104,6 +104,8 @@ async function get(kind: string, id: string, request: DesignerCatalogRequest) {
   if (!program) {
     return notFoundResponse(normalizedId, "未找到子程序");
   }
+  if (request.bound && !Array.isArray(program.variables ?? program.Variables))
+    return Response.json({ ok: false, code: "INVALID_SUBPROGRAM_IO", error: "The bound host did not return a complete variable schema." }, { status: 503 });
 
   const name = readString(program, "name", "Name", "title", "Title") || normalizedId;
   const { inputs, outputs } = mapSubprogramCompressedVariables(

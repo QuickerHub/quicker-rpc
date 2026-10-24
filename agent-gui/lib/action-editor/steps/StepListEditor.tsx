@@ -100,7 +100,8 @@ import {
   type StepSummaryFileContents,
 } from "./stepSummaryFileRefs";
 import { resolveStepRowIconSpec, type SubProgramStepListLabel } from "./stepRowIconSpec";
-import type { ToolboxDragPayload } from "./toolboxStepFactory";
+import type { ResourceCallOrigin, ToolboxDragPayload } from "./toolboxStepFactory";
+import { resourceCallMatchesOrigin } from "../catalog/resourceCallInsertion";
 import { StepIdManager } from "./stepIdManager";
 import type { RegisterToolboxInsert } from "../toolbox/toolboxInsertionRegistry";
 import { prepareToolboxStep } from "../toolbox/prepareToolboxStep";
@@ -216,6 +217,7 @@ type BranchType = "if" | "else" | "root";
 type PendingToolboxInsert = {
   dropIndicator: DropIndicator;
   step: ActionStep;
+  resourceCall?: { generation: number; origin: ResourceCallOrigin; resourceId: string; variablesBefore: ActionVariable[]; variablesDraft?: ActionVariable[] };
 };
 
 type QuickInsertSession = {
@@ -274,6 +276,9 @@ export type StepListEditorProps = {
   programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
   registerToolboxInsert?: RegisterToolboxInsert;
+  resourceCallOrigin?: ResourceCallOrigin;
+  readProgramPresent?: () => XProgramPresent;
+  flushProgramEdits?: () => void;
   registerDraftFlusher?: (flush: () => void) => () => void;
 };
 
@@ -293,6 +298,9 @@ export default function StepListEditor({
   programDocumentKey,
   onPinStepToChat,
   registerToolboxInsert,
+  resourceCallOrigin,
+  readProgramPresent,
+  flushProgramEdits,
   registerDraftFlusher,
 }: StepListEditorProps): JSX.Element {
   const catalogPort = useDesignerCatalogPort();
@@ -300,7 +308,7 @@ export default function StepListEditor({
   const activeRef = useRef(active);
   activeRef.current = active;
   const insertGeneration = useRef(0);
-  useLayoutEffect(() => () => { insertGeneration.current += 1; }, [active, catalogPort]);
+  useLayoutEffect(() => () => { insertGeneration.current += 1; }, [active, catalogPort, programDocumentKey, resourceCallOrigin]);
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
   const catalogOwnerRef = useRef(catalogPort);
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
@@ -333,6 +341,13 @@ export default function StepListEditor({
   const [editorTargetId, setEditorTargetId] = useState<string | null>(null);
   /** Toolbox drag: edit before insert; cleared on cancel or after confirm. */
   const [pendingToolboxInsert, setPendingToolboxInsert] = useState<PendingToolboxInsert | null>(null);
+  useLayoutEffect(() => {
+    const pending = pendingToolboxInsert?.resourceCall;
+    if (pending && (!active || pending.generation !== insertGeneration.current || pending.origin !== resourceCallOrigin)) {
+      setEditorTargetId((current) => current === pendingToolboxInsert.step.stepId ? null : current);
+      setPendingToolboxInsert(null);
+    }
+  }, [active, resourceCallOrigin, catalogPort, programDocumentKey, pendingToolboxInsert]);
   /** Inline search insert at a list slot (mutually exclusive with step param popup). */
   const [quickInsert, setQuickInsert] = useState<QuickInsertSession | null>(null);
   const editorTargetIdRef = useRef<string | null>(null);
@@ -964,20 +979,28 @@ export default function StepListEditor({
 
   const openToolboxInsert = useCallback(async (payload: ToolboxDragPayload, target: DropIndicator): Promise<void> => {
     if (!activeRef.current) return;
+    if (payload.resourceCall && (!catalogPort?.resourceCallInsertAvailable || !resourceCallMatchesOrigin(payload, resourceCallOrigin) || resourceCallOrigin?.documentKey !== programDocumentKey
+      || resourceCallOrigin?.catalogKey !== catalogPort?.key)) {
+      notifyClipboard?.("资源调用来自其它文档、编辑面或已过期目标，未插入步骤。", "error"); return;
+    }
+    if (payload.resourceCall && flushProgramEdits) flushSync(flushProgramEdits);
     flushCompactSync();
     setQuickInsert(null);
     const generation = ++insertGeneration.current;
     try {
       const step = await prepareToolboxStep(payload, runnerItems, () => stepIdManagerRef.current.nextId(), (key, control) => fetchStepRunnerDetailItem(key, control, undefined, catalogPort));
       if (!activeRef.current || generation !== insertGeneration.current) return;
-      setPendingToolboxInsert({ dropIndicator: target, step });
+      setPendingToolboxInsert({ dropIndicator: target, step, ...(payload.resourceCall && resourceCallOrigin ? {
+        resourceCall: { generation, origin: resourceCallOrigin, resourceId: payload.resourceCall.resourceId,
+          variablesBefore: structuredClone((readProgramPresent?.() ?? { variables }).variables) },
+      } : {}) });
       setEditorTargetId(step.stepId);
     } catch (error) {
       if (activeRef.current && generation === insertGeneration.current) {
         notifyClipboard?.(error instanceof Error ? error.message : String(error), "error");
       }
     }
-  }, [flushCompactSync, runnerItems, notifyClipboard, catalogPort]);
+  }, [flushCompactSync, runnerItems, notifyClipboard, catalogPort, resourceCallOrigin, programDocumentKey, readProgramPresent, variables, flushProgramEdits]);
 
   useEffect(() => {
     if (!active || !registerToolboxInsert) return;
@@ -991,17 +1014,26 @@ export default function StepListEditor({
   }, [openToolboxInsert, quickInsert]);
 
   const applyStepEditor = (next: ActionStep): boolean => {
+    const resource = pendingToolboxInsert?.resourceCall;
+    if (resource && (!activeRef.current || !catalogPort?.resourceCallInsertAvailable || resource.generation !== insertGeneration.current || resource.origin !== resourceCallOrigin
+      || resource.origin.documentKey !== programDocumentKey || resource.origin.catalogKey !== catalogPort?.key)) return false;
+    if (resource && flushProgramEdits) flushSync(flushProgramEdits);
     flushCompactSync();
     if (!next.stepId) return false;
     const compactNext = compactActionStepParams(next, popupRunnerItem);
     const pending = pendingToolboxInsert;
     if (pending && pending.step.stepId === compactNext.stepId) {
-      const nextSteps = structuredClone(steps);
+      const current = resource ? readProgramPresent?.() ?? { steps, variables } : { steps, variables };
+      if (resource?.variablesDraft && JSON.stringify(current.variables) !== JSON.stringify(resource.variablesBefore)) {
+        notifyClipboard?.("当前变量已经改变，调用参数草稿尚未应用。请重新核对。", "error"); return false;
+      }
+      const nextSteps = structuredClone(current.steps);
       const toInsert = structuredClone(compactNext);
       if (!insertStepAtDropIndicator(nextSteps, toInsert, pending.dropIndicator)) {
         return false;
       }
-      onCommitSteps(nextSteps);
+      if (resource && onCommitProgram) onCommitProgram({ steps: nextSteps, variables: resource.variablesDraft ?? current.variables });
+      else onCommitSteps(nextSteps);
       setPendingToolboxInsert(null);
       setEditorTargetId(null);
       setSingleSelection(compactNext.stepId);
@@ -2038,7 +2070,9 @@ export default function StepListEditor({
         keyboardOwnerId={keyboardOwnerId}
         open={editorTargetId != null && popupStep != null}
         step={popupStep}
-        variables={variables}
+        variables={pendingToolboxInsert?.resourceCall?.variablesDraft ?? variables}
+        requireResolvedParameters={Boolean(pendingToolboxInsert?.resourceCall)}
+        resourceSubProgramId={pendingToolboxInsert?.resourceCall?.resourceId}
         subPrograms={subPrograms}
         designerHostBaseUrl={backendBaseUrl}
         workspaceContext={workspaceContext}
@@ -2050,6 +2084,13 @@ export default function StepListEditor({
         onCommitVariables={
           onCommitProgram
             ? (updater) => {
+                if (pendingToolboxInsert?.resourceCall) {
+                  setPendingToolboxInsert((pending) => {
+                    if (!pending?.resourceCall) return pending;
+                    const current = pending.resourceCall.variablesDraft ?? pending.resourceCall.variablesBefore;
+                    return { ...pending, resourceCall: { ...pending.resourceCall, variablesDraft: typeof updater === "function" ? updater(current) : updater } };
+                  }); return;
+                }
                 const nextVariables =
                   typeof updater === "function" ? updater(variables) : updater;
                 onCommitProgram({ steps, variables: nextVariables });

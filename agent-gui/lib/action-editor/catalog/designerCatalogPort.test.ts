@@ -24,6 +24,18 @@ const runner = (id: string) => StepRunnerItem.fromPartial({ key: "sys:catalog-fi
 const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; }
 
+test("resource call insertion requires a live bound V1 runtime subprogram catalog and grants no operation by itself", () => {
+  let requests = 0;
+  const fetcher: typeof fetch = async () => { requests++; throw Error("Eligibility is not a schema or body read"); };
+  const valid = context("a"); valid.expectedProjectBinding!.hostBinding.capabilities["resource.globalSubprogram.page.read"] = true;
+  const port = createDesignerCatalogPort(valid, fetcher); assert.equal(port.resourceCallInsertAvailable, true);
+  port.dispose(); assert.equal(port.resourceCallInsertAvailable, false);
+  for (const scope of [undefined, null, context("a"), { ...valid, expectedProjectBinding: null },
+    { ...valid, expectedProjectBinding: { ...valid.expectedProjectBinding!, hostBinding: { ...valid.expectedProjectBinding!.hostBinding, hostKind: "v2" as const } } }])
+    assert.equal(createDesignerCatalogPort(scope, fetcher).resourceCallInsertAvailable, false);
+  assert.equal(requests, 0);
+});
+
 test("all catalog ports send the exact document target and adjacent schemas/caches stay isolated", async () => {
   const requests: Array<{ path: string; body: any; method?: string }> = [];
   const fetcher: typeof fetch = async (path, init) => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mock, test } from "node:test";
@@ -121,6 +121,25 @@ test("two concurrent documents request the same runner from their exact hosts ac
     const invoke: Invoke = JSON.parse(String(init?.body)); calls.push(invoke);
     await Promise.resolve();
     return Response.json({ ok: true, data: catalogReply(invoke) });
+  });
+});
+
+test("bound global IO reads stay raw and reject missing variable facts without creating a local subprogram project", async () => {
+  let malformed = false, calls = 0;
+  await fixture(async ({ root, scope }) => {
+    const before = await readdir(join(root, ".quicker"));
+    const route = routes.find((entry) => entry.name === "io")!;
+    const response = await io(request(route, scope(a))); assert.equal(response.status, 200);
+    const value = await response.json(); assert.equal(value.found, true); assert.deepEqual(value.inputs, []); assert.deepEqual(value.outputs, []);
+    malformed = true;
+    const failed = await io(request(route, scope(a))); assert.equal(failed.status, 503); assert.equal((await failed.json()).code, "INVALID_SUBPROGRAM_IO");
+    assert.deepEqual(await readdir(join(root, ".quicker")), before); assert.equal(calls, 2);
+    assert.equal(await readFile(join(scope(a).cwd!, scope(a).projectDirectory, "data.json"), "utf8"), '{"steps":[],"opaque":9223372036854775807}');
+  }, async (_url, init) => {
+    calls++; const invoke: Invoke = JSON.parse(String(init?.body));
+    assert.equal(invoke.op, "subprogram.get"); assert.deepEqual(invoke.args, { id: "fixture", returnMode: "full" });
+    assert.deepEqual(invoke.hostBinding, a.hostBinding);
+    return Response.json({ ok: true, data: { name: "fixture", ...(malformed ? {} : { variables: [] }) } });
   });
 });
 

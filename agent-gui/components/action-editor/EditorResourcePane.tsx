@@ -10,10 +10,14 @@ import { appendDesignerResourcePage, fetchDesignerResourcePage, RESOURCE_PAGE_CA
 import { useImeSafeDebouncedQuery } from "@/lib/action-editor/shared/useImeSafeDebouncedQuery";
 import { useWorkspaceDocumentNavigation } from "@/lib/workspace-document-navigation";
 import type { DesignerResourceActionOpenResult } from "@/lib/designer-resource-action-open";
+import { buildResourceCallPayload } from "@/lib/action-editor/catalog/resourceCallInsertion";
+import type { ResourceCallOrigin } from "@/lib/action-editor/steps/toolboxStepFactory";
+import type { ToolboxInsertHandler } from "@/lib/action-editor/toolbox/toolboxInsertionRegistry";
 
 const tabs = [{ id: "modules", label: "模块" }, { id: "action", label: "动作" }, { id: "global_subprogram", label: "子程序" }] as const;
 type Tab = typeof tabs[number]["id"];
-export function EditorResourcePane({ active, modules }: { active: boolean; modules: (active: boolean) => ReactNode }) {
+type ResourceInsertionProps = { resourceCallOrigin?: ResourceCallOrigin; onInsertAtEnd?: ToolboxInsertHandler };
+export function EditorResourcePane({ active, modules, ...insertion }: { active: boolean; modules: (active: boolean) => ReactNode } & ResourceInsertionProps) {
   const [tab, setTab] = useState<Tab>("modules");
   const id = useId();
   return <>
@@ -33,14 +37,14 @@ export function EditorResourcePane({ active, modules }: { active: boolean; modul
     </div>
     {tabs.filter((item) => item.id !== "modules").map((item) => <div key={item.id} className="designer-resource-panel" role="tabpanel"
       aria-labelledby={`${id}-${item.id}`} id={`${id}-${item.id}-panel`} hidden={tab !== item.id}>
-      <ResourceExplorer active={active && tab === item.id} kind={item.id as DesignerResourceKind} />
+      <ResourceExplorer active={active && tab === item.id} kind={item.id as DesignerResourceKind} {...insertion} />
     </div>)}
   </>;
 }
 
 type View = { owner: DesignerCatalogPort; query: string; page?: DesignerResourcePage; valid: boolean; loading: boolean; error?: string };
 type OpenRequest = { port: DesignerCatalogPort; actionId: string; requestId: string; pending: boolean; result?: DesignerResourceActionOpenResult; presented?: boolean };
-function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerResourceKind }) {
+function ResourceExplorer({ active, kind, resourceCallOrigin, onInsertAtEnd }: { active: boolean; kind: DesignerResourceKind } & ResourceInsertionProps) {
   const port = useDesignerCatalogPort(), search = useImeSafeDebouncedQuery(220);
   const navigation = useWorkspaceDocumentNavigation();
   const opens = useRef(new Map<string, OpenRequest>());
@@ -91,6 +95,9 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
     }
   };
   const selected = page?.items.find((item) => item.id === selectedId);
+  const canInsert = active && visible?.valid && !visible.loading && onInsertAtEnd && resourceCallOrigin?.catalogKey === port?.key
+    && port?.resourceCallInsertAvailable;
+  const insertionPayload = (item: NonNullable<typeof selected>) => canInsert && resourceCallOrigin ? buildResourceCallPayload(kind, item, resourceCallOrigin) : null;
   const selectedOpenKey = port && selected && navigation
     ? JSON.stringify([navigation.owner.key, navigation.owner.instanceId, port.key, selected.id]) : "";
   const selectedOpen = opens.current.get(selectedOpenKey);
@@ -124,6 +131,13 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
         {page && !visible?.valid ? " · 旧结果已过期" : ""}</p>
       <div className="designer-resource-list" role="listbox" aria-label="资源列表" aria-busy={visible?.loading ?? false}>
         {page?.items.map((item, index) => <button key={item.id} type="button" role="option" aria-selected={selectedId === item.id}
+          draggable={Boolean(insertionPayload(item))} onDragStart={(event) => {
+            const payload = insertionPayload(item);
+            if (!payload) { event.preventDefault(); return; }
+            event.dataTransfer.effectAllowed = "copy";
+            event.dataTransfer.setData("application/x-quicker-toolbox-step", JSON.stringify(payload));
+            event.dataTransfer.setData("text/plain", payload.name ?? item.id);
+          }}
           tabIndex={selectedId === item.id || (!selected && index === 0) ? 0 : -1}
           title={item.description || item.title || item.id} onClick={() => setSelectedId(item.id)} onKeyDown={(event) => {
             const buttons = [...event.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>('[role="option"]')], index = buttons.indexOf(event.currentTarget);
@@ -147,6 +161,10 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
           : <p role="alert">{selectedOpen.result.error} {selectedOpen.result.projectDirectory ?? ""}
             {selectedOpen.result.localPersistence !== "none" ? " 已保留本地结果；核对只读取原目录，不重新导出。" : ""}</p> : null}
         {blockedBy ? <p role="alert">本次未派发导出。请先核对前置请求的本地结果：{blockedBy.projectDirectory ?? blockedBy.requestId}。</p> : null}
+        {kind === "global_subprogram" ? insertionPayload(selected) ? <>
+          <button type="button" onClick={() => { const payload = insertionPayload(selected); if (payload) void onInsertAtEnd?.(payload); }}>插入调用步骤</button>
+          <p>确认调用参数后插入当前程序；也可拖到步骤列表。</p>
+        </> : <p>当前资源缺少可用的调用标识或绑定目标，无法插入调用步骤。</p> : null}
         </dd></dl> : null}
     </>}
   </section>;

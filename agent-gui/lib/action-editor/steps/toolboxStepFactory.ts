@@ -1,6 +1,8 @@
 import type { ActionStep, ActionStepParam } from "@/lib/action-editor/types/common";
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 
+/** A resource gesture belongs to one visible document surface and complete catalog target. */
+export type ResourceCallOrigin = Readonly<{ documentKey: string; catalogKey: string; ownerId: string }>;
 export type ToolboxDragPayload = {
   stepRunnerKey: string;
   name?: string;
@@ -9,6 +11,7 @@ export type ToolboxDragPayload = {
   inputPresets?: Record<string, string>;
   /** When stepRunnerKey is sys:subprogram, pre-filled subProgram input (same as quick-insert). */
   subProgramIdentifier?: string;
+  resourceCall?: ResourceCallOrigin & Readonly<{ resourceId: string; callIdentifier: string }>;
 };
 
 function resolveControlFieldParamKey(runnerItem: StepRunnerItem | undefined): string | undefined {

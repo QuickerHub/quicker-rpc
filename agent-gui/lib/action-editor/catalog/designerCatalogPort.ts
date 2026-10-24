@@ -82,6 +82,10 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
   return {
     key, remoteEnabled, documentBound,
     workspaceCwd: context?.cwd,
+    get resourceCallInsertAvailable(): boolean {
+      return !closed && documentBound && context?.expectedProjectBinding?.hostBinding.hostKind === "v1"
+        && context.expectedProjectBinding.hostBinding.capabilities["resource.globalSubprogram.page.read"] === true;
+    },
     get resourceActionOpenAvailable(): boolean {
       return !closed && documentBound && Boolean(context?.cwd) && context?.expectedProjectBinding?.hostBinding.hostKind === "v1"
         && context.expectedProjectBinding.hostBinding.capabilities[DESIGNER_RESOURCE_ACTION_OPEN_CAPABILITY] === true;

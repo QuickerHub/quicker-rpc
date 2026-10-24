@@ -1,6 +1,6 @@
 "use client";
 
-import { DesignerCatalogProvider } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
+import { DesignerCatalogProvider, useDesignerCatalogPort } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
 import type { DesignerCatalogPort } from "@/lib/action-editor/catalog/designerCatalogPort";
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode } from "react";
@@ -102,6 +102,7 @@ function ProgramEditorTabWorkspaceBody({
   onPinStepToChat, metadataPanel, activeTabId, onSelectTab,
 }: ProgramEditorTabWorkspaceProps & { activeTabId: string; onSelectTab: (id: string) => void }): JSX.Element {
   const bridge = useActiveXProgramBridge();
+  const catalogPort = useDesignerCatalogPort();
   const insertionRegistry = useRef(createToolboxInsertionRegistry());
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [visitedTabs, setVisitedTabs] = useState<string[]>([]);
@@ -118,6 +119,10 @@ function ProgramEditorTabWorkspaceBody({
   const payload = controller.getSnapshot();
   const workspaceRootRef = useRef<HTMLDivElement>(null);
   const keyboardOwnerId = useId();
+  const resourceEpoch = useRef(0);
+  const resourceCallOrigin = useMemo(() => ({ documentKey: activeTabId === "main" ? documentKey : `${documentKey}#${activeTabId}`,
+    catalogKey: catalogPort?.key ?? "", ownerId: `${keyboardOwnerId}:${++resourceEpoch.current}` }),
+  [documentKey, activeTabId, catalogPort, controller, active, modalOpen, keyboardOwnerId]);
   const available = useMemo(() => collectInternalTabs(payload.subPrograms), [payload.subPrograms]);
   const duplicateIds = available.some((tab) => !tab.row.id.trim())
     || new Set(available.map((tab) => tab.surface)).size !== available.length;
@@ -158,8 +163,9 @@ function ProgramEditorTabWorkspaceBody({
   [available]);
   const requestToolboxInsert = useCallback((payload: Parameters<typeof insertionRegistry.current.request>[1]) => {
     if (!active || modalOpen || activeTabId === "metadata") return Promise.resolve();
+    if (payload.resourceCall) flushPendingEdits();
     return insertionRegistry.current.request(activeTabId, payload);
-  }, [active, activeTabId, modalOpen]);
+  }, [active, activeTabId, modalOpen, flushPendingEdits]);
   const subPrograms = useMemo(
     () => mergeSubProgramsForStepEditor(payload.subPrograms, globalSubPrograms),
     [payload.subPrograms, globalSubPrograms],
@@ -344,7 +350,8 @@ function ProgramEditorTabWorkspaceBody({
       {lifecycleError ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">{lifecycleError}</p> : null}
       <div className="program-editor-catalog-layout">
       <aside className="program-editor-catalog" hidden={metadataVisible}>
-        <EditorResourcePane active={active && !modalOpen && activeTabId !== "metadata"} modules={(visible) =>
+        <EditorResourcePane active={active && !modalOpen && activeTabId !== "metadata"} resourceCallOrigin={resourceCallOrigin}
+          onInsertAtEnd={requestToolboxInsert} modules={(visible) =>
           <TreeActionToolbox active={visible} onInsertAtEnd={requestToolboxInsert} />} />
       </aside>
       <div className="program-editor-documents">
@@ -358,7 +365,7 @@ function ProgramEditorTabWorkspaceBody({
           control={controller.getSurface("main")} keyboardOwnerId={keyboardOwnerId}
           editorTabId="main" active={mainVisible && !modalOpen} programDocumentKey={documentKey} programSurface={mainSurface}
           workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-          onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get("main")} />
+          onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get("main")} resourceCallOrigin={resourceCallOrigin} />
       </div>
       {visitedTabs.map((surface) => {
         const tab = tabsById.get(surface);
@@ -370,7 +377,7 @@ function ProgramEditorTabWorkspaceBody({
             control={controller.getSurface(surface)} keyboardOwnerId={keyboardOwnerId}
             editorTabId={surface} active={visible && !modalOpen} programDocumentKey={`${documentKey}#${surface}`} programSurface="subProgram"
             workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-            registerToolboxInsert={insertionHandlers.get(surface)} />
+            registerToolboxInsert={insertionHandlers.get(surface)} resourceCallOrigin={resourceCallOrigin} />
         </div>;
       })}
       </div>

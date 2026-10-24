@@ -51,6 +51,10 @@ export type StepEditorPopupProps = {
   active?: boolean;
   keyboardOwnerId?: string;
   open: boolean;
+  /** A newly inserted resource call cannot confirm an unresolved or failed parameter schema. */
+  requireResolvedParameters?: boolean;
+  /** The native catalog id supplies IO; the stored callIdentifier remains verbatim in the step. */
+  resourceSubProgramId?: string;
   step: ActionStep | null;
   variables: ActionVariable[];
   /** Action-owned sub program rows (GetAction); used to edit sys:subprogram target like desktop. */
@@ -157,6 +161,8 @@ export function StepEditorPopup({
   active = true,
   keyboardOwnerId,
   open,
+  requireResolvedParameters = false,
+  resourceSubProgramId,
   step,
   variables,
   subPrograms = [],
@@ -219,8 +225,9 @@ export function StepEditorPopup({
   }, [step, subPrograms]);
 
   const subProgramIoFetchTarget = useMemo(
-    () => (step != null ? getSubProgramIoFetchTarget(step, subPrograms) : null),
-    [step, subPrograms]
+    () => resourceSubProgramId ? { kind: "global" as const, subProgramId: resourceSubProgramId }
+      : (step != null ? getSubProgramIoFetchTarget(step, subPrograms) : null),
+    [step, subPrograms, resourceSubProgramId]
   );
 
   const [globalIoVariables, setGlobalIoVariables] = useState<ActionVariable[] | undefined>(undefined);
@@ -606,8 +613,10 @@ export function StepEditorPopup({
     return t ?? runnerTitle;
   }, [effectiveDraft, runnerTitle, subPrograms, globalIoDisplayName, resolvedSubProgramRow]);
 
+  const canApply = effectiveDraft != null && (!requireResolvedParameters || (hydratedRunnerItem != null
+    && !loadingRunnerSchema && !schemaLoadIssue && !waitingGlobalSubProgramIo && !globalIoError));
   const handleApply = (): void => {
-    if (!effectiveDraft) return;
+    if (!canApply || !effectiveDraft) return;
     if (onApply(compactActionStepParams(effectiveDraft, editorRunnerItem)) === false) {
       return;
     }
@@ -665,7 +674,7 @@ export function StepEditorPopup({
         !event.repeat &&
         (event.key === "s" || event.key === "S")
       ) {
-        if (draft == null && effectiveDraft == null) {
+        if (!canApply || (draft == null && effectiveDraft == null)) {
           return;
         }
         event.preventDefault();
@@ -678,7 +687,7 @@ export function StepEditorPopup({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose]);
+  }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose, canApply]);
 
   if (!active || !open || !step) {
     return null;
@@ -834,7 +843,7 @@ export function StepEditorPopup({
               aria-keyshortcuts="Alt+S"
               title="快捷键：Alt+S"
               onClick={handleApply}
-              disabled={effectiveDraft == null}
+              disabled={!canApply}
             >
               确定
             </button>
