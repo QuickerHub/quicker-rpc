@@ -1,18 +1,21 @@
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Threading;
 
 namespace QuickerRpc.Plugin;
 
 /// <summary>
 /// Loads Costura-embedded satellite assemblies from this plugin DLL only.
-/// Quicker V2 may resolve <c>QuickerRpc.*</c> by simple name to an older in-process copy; this handler wins first.
+/// Private release simple names isolate old handlers; this handler serves only its own assembly graph.
 /// </summary>
 internal static class PluginCosturaAssemblyResolve
 {
     private static readonly Assembly PluginAssembly = typeof(PluginCosturaAssemblyResolve).Assembly;
-    private static readonly Version PluginVersion = PluginAssembly.GetName().Version ?? new Version(0, 0, 0, 0);
+    private static readonly object ResourceLock = new();
+    private static readonly Dictionary<string, EmbeddedAssembly?> Resources = new(StringComparer.OrdinalIgnoreCase);
     private static readonly string[] ForcedEmbeddedSatellites =
     [
         "StreamJsonRpc",
@@ -30,7 +33,7 @@ internal static class PluginCosturaAssemblyResolve
             return 0;
         }
 
-        // Register last so .NET 6+ invokes this handler before older Quicker host handlers.
+        // Earlier handlers still run first. Versioned private simple names prevent them claiming this graph.
         AppDomain.CurrentDomain.AssemblyResolve += OnResolve;
         PreloadSatellites();
         return 1;
@@ -61,23 +64,20 @@ internal static class PluginCosturaAssemblyResolve
             return null;
         }
 
-        if (!IsEmbeddedSatellite(requested.Name))
+        if (!IsEmbeddedSatellite(requested.Name) || !OwnsRequester(args.RequestingAssembly))
         {
             return null;
         }
 
-        if (ShouldForceEmbeddedLoad(requested.Name))
-        {
-            return LoadFromEmbeddedResource(requested.Name);
-        }
-
-        var existing = FindLoadedExact(requested);
+        var resource = ReadEmbeddedAssembly(requested.Name);
+        if (resource is null || !SameIdentity(requested, resource.Identity)) return null;
+        var existing = FindLoadedExact(resource);
         if (existing is not null)
         {
             return existing;
         }
 
-        return LoadFromEmbeddedResource(requested.Name);
+        return LoadEmbedded(resource);
     }
 
     private static bool IsEmbeddedSatellite(string simpleName)
@@ -94,20 +94,28 @@ internal static class PluginCosturaAssemblyResolve
             || simpleName.StartsWith("Google.Protobuf", StringComparison.Ordinal);
     }
 
-    private static bool ShouldForceEmbeddedLoad(string simpleName)
+    private static bool OwnsRequester(Assembly? requester)
     {
-        foreach (var prefix in ForcedEmbeddedSatellites)
-        {
-            if (simpleName.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        if (ReferenceEquals(requester, PluginAssembly)) return true;
+        if (requester is null || requester.IsDynamic) return false;
+        var name = requester.GetName();
+        if (name.Name is null || !IsEmbeddedSatellite(name.Name)) return false;
+        var resource = ReadEmbeddedAssembly(name.Name);
+        return resource is not null && MatchesImage(requester, resource);
     }
 
-    private static Assembly? FindLoadedExact(AssemblyName requested)
+    private static bool SameIdentity(AssemblyName left, AssemblyName right) =>
+        string.Equals(left.Name, right.Name, StringComparison.OrdinalIgnoreCase)
+        && left.Version is not null && left.Version == right.Version
+        && string.Equals(left.CultureName ?? "", right.CultureName ?? "", StringComparison.OrdinalIgnoreCase)
+        && left.ContentType == right.ContentType
+        && (left.Flags & AssemblyNameFlags.Retargetable) == (right.Flags & AssemblyNameFlags.Retargetable)
+        && (left.GetPublicKeyToken() ?? []).SequenceEqual(right.GetPublicKeyToken() ?? []);
+
+    private static bool MatchesImage(Assembly assembly, EmbeddedAssembly resource) =>
+        SameIdentity(assembly.GetName(), resource.Identity) && assembly.ManifestModule.ModuleVersionId == resource.Mvid;
+
+    private static Assembly? FindLoadedExact(EmbeddedAssembly resource)
     {
         foreach (var loaded in AppDomain.CurrentDomain.GetAssemblies())
         {
@@ -116,32 +124,52 @@ internal static class PluginCosturaAssemblyResolve
                 continue;
             }
 
-            var loadedName = loaded.GetName();
-            if (!string.Equals(loadedName.Name, requested.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var version = loadedName.Version ?? new Version(0, 0, 0, 0);
-            if (requested.Version is not null
-                && version.Major == requested.Version.Major
-                && version.Minor == requested.Version.Minor
-                && version.Build == requested.Version.Build
-                && version.Revision == requested.Version.Revision)
-            {
-                return loaded;
-            }
-
-            if (requested.Version is null && version == PluginVersion)
-            {
-                return loaded;
-            }
+            if (MatchesImage(loaded, resource)) return loaded;
         }
 
         return null;
     }
 
     private static Assembly? LoadFromEmbeddedResource(string simpleName)
+    {
+        var resource = ReadEmbeddedAssembly(simpleName);
+        return resource is null ? null : LoadEmbedded(resource);
+    }
+
+    private static Assembly? LoadEmbedded(EmbeddedAssembly resource) => resource.Loaded.Value;
+
+    private static Assembly? LoadImage(EmbeddedAssembly resource)
+    {
+        var loaded = FindLoadedExact(resource) ?? Assembly.Load(resource.Bytes);
+        return MatchesImage(loaded, resource) ? loaded : null;
+    }
+
+    private sealed class EmbeddedAssembly
+    {
+        public byte[] Bytes { get; }
+        public AssemblyName Identity { get; }
+        public Guid Mvid { get; }
+        public Lazy<Assembly?> Loaded { get; }
+
+        public EmbeddedAssembly(byte[] bytes, AssemblyName identity, Guid mvid)
+        {
+            Bytes = bytes; Identity = identity; Mvid = mvid;
+            // Concurrent first requests must not publish duplicate no-context type identities.
+            Loaded = new Lazy<Assembly?>(() => LoadImage(this), LazyThreadSafetyMode.ExecutionAndPublication);
+        }
+    }
+
+    private static EmbeddedAssembly? ReadEmbeddedAssembly(string simpleName)
+    {
+        lock (ResourceLock)
+        {
+            if (!Resources.TryGetValue(simpleName, out var resource))
+                Resources[simpleName] = resource = ReadEmbeddedAssemblyCore(simpleName);
+            return resource;
+        }
+    }
+
+    private static EmbeddedAssembly? ReadEmbeddedAssemblyCore(string simpleName)
     {
         var resourceBase = "costura." + simpleName.ToLowerInvariant();
         foreach (var suffix in new[] { ".dll.compressed", ".dll", ".exe.compressed", ".exe" })
@@ -158,7 +186,18 @@ internal static class PluginCosturaAssemblyResolve
                 var bytes = suffix.EndsWith(".compressed", StringComparison.Ordinal)
                     ? Decompress(stream)
                     : ReadAllBytes(stream);
-                return Assembly.Load(bytes);
+                // Validate identity before loading any embedded code. The requester must match this exact image too.
+                using var image = new PEReader(new MemoryStream(bytes, writable: false));
+                var metadata = image.GetMetadataReader();
+                var definition = metadata.GetAssemblyDefinition();
+                var identity = new AssemblyName
+                {
+                    Name = metadata.GetString(definition.Name), Version = definition.Version,
+                    CultureName = metadata.GetString(definition.Culture),
+                };
+                identity.SetPublicKey(metadata.GetBlobBytes(definition.PublicKey));
+                if (!string.Equals(identity.Name, simpleName, StringComparison.OrdinalIgnoreCase)) return null;
+                return new EmbeddedAssembly(bytes, identity, metadata.GetGuid(metadata.GetModuleDefinition().Mvid));
             }
             catch
             {

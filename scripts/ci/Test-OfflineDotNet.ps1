@@ -27,7 +27,7 @@ try {
         Invoke-DotNet -Arguments (@('build', "QuickerRpc/src/$project/$project.csproj") + $common)
     }
 
-    foreach ($project in @('QuickerRpc.Console.Test', 'QuickerRpc.Transport.Test', 'QuickerRpc.Runtime.Test')) {
+    foreach ($project in @('QuickerRpc.Console.Test', 'QuickerRpc.Transport.Test', 'QuickerRpc.Runtime.Test', 'QuickerRpc.PrivateDependency.Test')) {
         $arguments = @('test', "QuickerRpc/tests/$project/$project.csproj") + $common + @(
             '--logger', 'trx', '--results-directory', ".tmp/ci-results/$project"
         )

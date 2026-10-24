@@ -4,6 +4,23 @@
     <ProjectReference>
       <AdditionalProperties Condition="'$(AppendAssemblyVersionFileNameSuffix)' == 'false'">AppendAssemblyVersionFileNameSuffix=false;%(AdditionalProperties)</AdditionalProperties>
       <AdditionalProperties Condition="'$(AppendAssemblyVersionFileNameSuffix)' == 'true'">AppendAssemblyVersionFileNameSuffix=true;%(AdditionalProperties)</AdditionalProperties>
+      <AdditionalProperties Condition="'$(PrivateAssemblyVersionSuffix)' != ''">PrivateAssemblyVersionSuffix=$(PrivateAssemblyVersionSuffix);%(AdditionalProperties)</AdditionalProperties>
     </ProjectReference>
   </ItemDefinitionGroup>
+  <!-- NuGet's recursive restore does not carry ProjectReference.AdditionalProperties.
+       Carry the profile through its project-spec evaluations as well as normal compilation. -->
+  <Target Name="QkrpcSetRestoreDependencyProfile"
+          BeforeTargets="_FilterRestoreGraphProjectInputItems;_GetAllRestoreProjectPathItems;_GenerateRestoreGraph"
+          Condition="'$(PrivateAssemblyVersionSuffix)' != '' or '$(QkrpcV2PrivateDependencies)' == 'false'">
+    <PropertyGroup>
+      <_GenerateRestoreGraphProjectEntryInputProperties>$(_GenerateRestoreGraphProjectEntryInputProperties);PrivateAssemblyVersionSuffix=$(PrivateAssemblyVersionSuffix);QkrpcV2PrivateDependencies=$(QkrpcV2PrivateDependencies)</_GenerateRestoreGraphProjectEntryInputProperties>
+    </PropertyGroup>
+  </Target>
+  <Target Name="QkrpcValidatePrivateDependencyProfile" BeforeTargets="CollectPackageReferences;PrepareForBuild"
+          Condition="'$(PrivateAssemblyVersionSuffix)' != ''">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(PrivateAssemblyVersionSuffix)', '^\d+\.\d+\.\d+(\.\d+)?$'))"
+           Text="PrivateAssemblyVersionSuffix must be the plugin's numeric product version." />
+    <Error Condition="'$(PrivateAssemblyVersionSuffix)' != '$(Version)'"
+           Text="PrivateAssemblyVersionSuffix must match the plugin graph Version." />
+  </Target>
 </Project>

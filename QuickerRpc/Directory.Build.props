@@ -3,6 +3,16 @@
     <RepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'version.json'))))</RepoRoot>
     <MonorepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(RepoRoot), 'Directory.Packages.props'))))</MonorepoRoot>
     <AppendAssemblyVersionFileNameSuffix Condition="'$(AppendAssemblyVersionFileNameSuffix)' == ''">true</AppendAssemblyVersionFileNameSuffix>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <QkrpcV2PrivateDependencies Condition="'$(QkrpcV2PrivateDependencies)' == ''">true</QkrpcV2PrivateDependencies>
+    <PrivateAssemblyVersionSuffix Condition="'$(MSBuildProjectName)' == 'QuickerRpc.Plugin.V2' and '$(Configuration)' == 'Release' and '$(QkrpcV2PrivateDependencies)' == 'true' and '$(PrivateAssemblyVersionSuffix)' == ''">$(Version)</PrivateAssemblyVersionSuffix>
+    <_QkrpcPrivateDependency Condition="'$(MSBuildProjectName)' == 'QuickerRpc.Contracts' or '$(MSBuildProjectName)' == 'QuickerRpc.AgentModel' or '$(MSBuildProjectName)' == 'QuickerRpc.Host.Abstractions' or '$(MSBuildProjectName)' == 'QuickerRpc.Runtime' or '$(MSBuildProjectName)' == 'QuickerRpc.Transport'">true</_QkrpcPrivateDependency>
+    <_QkrpcPrivateProfile Condition="'$(PrivateAssemblyVersionSuffix)' != '' and ('$(_QkrpcPrivateDependency)' == 'true' or '$(MSBuildProjectName)' == 'QuickerRpc.Plugin.V2')">true</_QkrpcPrivateProfile>
+    <!-- Restore, generated sources and compiler caches cannot cross the private/CLI graphs. -->
+    <BaseIntermediateOutputPath Condition="'$(_QkrpcPrivateProfile)' == 'true'">obj/v2-private/$(PrivateAssemblyVersionSuffix)/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath Condition="'$(_QkrpcPrivateProfile)' == 'true'">$(MSBuildProjectDirectory)/$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <BaseOutputPath Condition="'$(_QkrpcPrivateProfile)' == 'true'">bin/v2-private/$(PrivateAssemblyVersionSuffix)/</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)/obj/**;$(MSBuildProjectDirectory)/bin/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- V2 uses the SDK's source transition hook; other products keep their existing build graph. -->

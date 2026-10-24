@@ -7,5 +7,6 @@
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <AssemblyName Condition="'$(Configuration)' != 'Release' OR '$(AppendAssemblyVersionFileNameSuffix)' != 'true' OR '$(TargetFramework)' != 'net472'">$(MSBuildProjectName)</AssemblyName>
     <AssemblyName Condition="'$(Configuration)' == 'Release' AND '$(AppendAssemblyVersionFileNameSuffix)' == 'true' AND '$(TargetFramework)' == 'net472'">$(MSBuildProjectName).$(Version)</AssemblyName>
+    <AssemblyName Condition="'$(_QkrpcPrivateDependency)' == 'true' and '$(PrivateAssemblyVersionSuffix)' != '' and '$(TargetFramework)' != 'net472'">$(MSBuildProjectName).$(PrivateAssemblyVersionSuffix)</AssemblyName>
   </PropertyGroup>
 </Project>
