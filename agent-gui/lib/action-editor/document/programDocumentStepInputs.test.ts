@@ -125,6 +125,7 @@ test("binding suffixes, case aliases and opaque existing values fail without nor
     ...[1, false, null, ["opaque"], {}, { value: 1 }, { Value: null }, { value: "a", Value: "a" }, { VALUE: "a" },
       { value: "a", varKey: "v" }, { value: "a", File: "files/code.cs" }, { value: "a", varKey: 0 },
       { value: "a", file: false }, { value: "a", varKey: "", VarKey: "" }, { value: "a", file: "", File: "" },
+      { value: "a", varKey: " " }, { Value: "a", VarKey: "\t" }, { value: "a", file: " " },
       { value: "a", VARKEY: "" }].map((text) => ({ text })),
   ];
   for (const inputParams of maps) {
@@ -133,7 +134,7 @@ test("binding suffixes, case aliases and opaque existing values fail without nor
 });
 
 test("empty legacy binding placeholders remain intact while their value contributor changes", () => {
-  for (const blank of [null, "", " \t "]) {
+  for (const blank of [null, ""]) {
     for (const [valueField, varField, fileField] of [["value", "varKey", "file"], ["Value", "VarKey", "File"]]) {
       const literal = { [valueField!]: "before", [varField!]: blank, [fileField!]: blank, extra: ["unknown"] };
       const session = create({ steps: [step("selected", { text: literal })] });

@@ -63,7 +63,8 @@ function prepareInput(inputs: SubProgramRecord, key: string, value: string): Pre
     if (!field || typeof raw[field] !== "string") throw new Error(`Input parameter ${key} is not an existing string literal`);
     for (const name of ["varkey", "file"] as const) {
       const binding = member(raw, name);
-      if (binding && raw[binding] !== null && (typeof raw[binding] !== "string" || (raw[binding] as string).trim())) {
+      // Native VarKey selection uses IsNullOrEmpty; whitespace is still a binding.
+      if (binding && raw[binding] !== null && (typeof raw[binding] !== "string" || raw[binding] !== "")) {
         throw new Error(`Input parameter ${key} has an active or opaque binding`);
       }
     }
