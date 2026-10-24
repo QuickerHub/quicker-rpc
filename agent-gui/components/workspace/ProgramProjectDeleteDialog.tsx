@@ -7,6 +7,7 @@ import type { ProgramProjectDeleteKind } from "@/lib/use-program-project-delete"
 export type ProgramProjectDeleteDialogVariant = "workspace" | "quicker-only";
 
 export type ProgramProjectDeleteDialogProps = {
+  active?: boolean;
   open: boolean;
   displayTitle: string;
   kind: ProgramProjectDeleteKind;
@@ -25,6 +26,7 @@ function quickerLabel(kind: ProgramProjectDeleteKind): string {
 }
 
 export function ProgramProjectDeleteDialog({
+  active = true,
   open,
   displayTitle,
   kind,
@@ -47,7 +49,7 @@ export function ProgramProjectDeleteDialog({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!active || !open) return;
     cancelRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busy) {
@@ -57,9 +59,9 @@ export function ProgramProjectDeleteDialog({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, onCancel, open]);
+  }, [active, busy, onCancel, open]);
 
-  if (!open || typeof document === "undefined") {
+  if (!active || !open || typeof document === "undefined") {
     return null;
   }
 

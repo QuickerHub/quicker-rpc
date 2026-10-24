@@ -55,10 +55,13 @@ import { notifyWorkbenchGitRefresh } from "@/lib/workbench/workbench-git-refresh
 import type { StructuredToolResult } from "@/lib/tool-result";
 import { actionExplorerTreeRef } from "@/lib/action-side-panel-focus";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
-import { invalidateWorkspaceFileReadCache } from "@/lib/workspace-file-read-cache";
+import { invalidateWorkspaceFileReadCache, invalidateWorkspaceProjectFileReadCache } from "@/lib/workspace-file-read-cache";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { clearWorkspaceMainEditorDoc } from "@/lib/workspace-main-editor-tab";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
+import { saveProgramDocumentClient } from "@/lib/program-document-save-client";
+import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult } from "@/lib/program-document-save";
+import { createWorkspaceDocumentInstances, runWorkspaceDocumentStorage, workspaceDocumentKey, workspaceDocumentPathInProject, type WorkspaceDocumentInstances, type WorkspaceDocumentOwner } from "@/lib/workspace-document-instances";
 import {
   SIDE_PANEL_VIEW_BROWSER,
   SIDE_PANEL_VIEW_EXPLORER,
@@ -276,6 +279,10 @@ export type WorkspaceExplorerTreeContextValue = {
 
 export type WorkspaceExplorerEditorContextValue = {
   cwd: string;
+  documentInstances: WorkspaceDocumentInstances;
+  saveDocumentFile: (owner: WorkspaceDocumentOwner, content: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  saveDocumentProgram: (owner: WorkspaceDocumentOwner, request: ProgramDocumentSaveRequest) => Promise<ProgramDocumentSaveResult>;
+  refreshDocumentFile: (owner: WorkspaceDocumentOwner) => Promise<void>;
   tabs: ExplorerFileTab[];
   activeTabId: string | null;
   activeTab: ExplorerFileTab | null;
@@ -457,7 +464,7 @@ export type WorkspaceExplorerActions = Pick<
   | "refreshTree"
   | "loadFileContent"
 > & {
-  notifyProjectRemoved: () => void;
+  notifyProjectRemoved: (owner?: { cwd: string; projectPath: string }) => void;
   setActiveSideView: (viewId: string) => void;
   focusSidePanelView: (viewId: string) => void;
   reloadProgramDataPaths: (paths: string[]) => void;
@@ -523,11 +530,25 @@ export function WorkspaceExplorerPanelProvider({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [tabs, setTabs] = useState<ExplorerFileTab[]>([]);
+  const [tabsCwd, setTabsCwd] = useState(cwd.trim());
+  const [documentInstances] = useState(createWorkspaceDocumentInstances);
+  const documentInstancesMountRef = useRef<object | null>(null);
+  useEffect(() => {
+    const mounted = {};
+    documentInstancesMountRef.current = mounted;
+    return () => {
+      documentInstancesMountRef.current = null;
+      queueMicrotask(() => { if (!documentInstancesMountRef.current) documentInstances.dispose(); });
+    };
+  }, [documentInstances]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [treeWatchRevision, setTreeWatchRevision] = useState(0);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const cwdRef = useRef(cwd);
+  const cwdEpochRef = useRef({ cwd, generation: 0 });
+  if (cwdEpochRef.current.cwd !== cwd) cwdEpochRef.current = { cwd, generation: cwdEpochRef.current.generation + 1 };
+  cwdRef.current = cwd;
   const cwdPendingRef = useRef(cwdPending);
   const treeRef = useRef<ActionExplorerTree | null>(null);
   const subprogramTreeRef = useRef<ActionExplorerTree | null>(null);
@@ -539,8 +560,6 @@ export function WorkspaceExplorerPanelProvider({
   expandedPathsRef.current = expandedPaths;
   const persistTreeViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistEditorTabsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeTabIdRef = useRef(activeTabId);
-  activeTabIdRef.current = activeTabId;
   const editorTabsRestoredForCwdRef = useRef<string | null>(null);
   const editorTabsRestoringRef = useRef(false);
   const watchSubscriptionRef = useRef<{
@@ -567,30 +586,12 @@ export function WorkspaceExplorerPanelProvider({
     }, EXPLORER_TREE_VIEW_PERSIST_MS);
   }, []);
 
-  const schedulePersistEditorTabs = useCallback(() => {
-    const activeCwd = cwdRef.current.trim();
-    if (!activeCwd || editorTabsRestoringRef.current) return;
-    if (persistEditorTabsTimerRef.current) {
-      clearTimeout(persistEditorTabsTimerRef.current);
-    }
-    persistEditorTabsTimerRef.current = setTimeout(() => {
-      persistEditorTabsTimerRef.current = null;
-      if (editorTabsRestoringRef.current) return;
-      storeExplorerPanelView(activeCwd, {
-        editorTabs: explorerTabsToPersisted(
-          tabsRef.current,
-          activeTabIdRef.current,
-        ),
-      });
-    }, EXPLORER_EDITOR_TABS_PERSIST_MS);
-  }, []);
-
   const readFileCache = useCallback((path: string): CachedFileContent | undefined => {
-    return fileContentCacheRef.current.get(normalizeExplorerPath(path));
+    return fileContentCacheRef.current.get(workspaceDocumentKey(cwdRef.current, normalizeExplorerPath(path)));
   }, []);
 
   const writeFileCache = useCallback((path: string, entry: CachedFileContent) => {
-    const key = normalizeExplorerPath(path);
+    const key = workspaceDocumentKey(cwdRef.current, normalizeExplorerPath(path));
     const map = fileContentCacheRef.current;
     if (map.has(key)) map.delete(key);
     map.set(key, entry);
@@ -877,25 +878,23 @@ export function WorkspaceExplorerPanelProvider({
 
   useEffect(() => {
     const activeCwd = cwd.trim();
-    if (!activeCwd) return;
+    if (!activeCwd || tabsCwd !== activeCwd) return;
     if (editorTabsRestoredForCwdRef.current !== activeCwd) return;
-    schedulePersistEditorTabs();
+    // Both the timer and cleanup belong to this committed cwd/snapshot, not the next Chat.
+    const persisted = explorerTabsToPersisted(tabs, activeTabId);
+    const persist = () => storeExplorerPanelView(activeCwd, { editorTabs: persisted });
+    persistEditorTabsTimerRef.current = setTimeout(() => {
+      persistEditorTabsTimerRef.current = null;
+      persist();
+    }, EXPLORER_EDITOR_TABS_PERSIST_MS);
     return () => {
       if (persistEditorTabsTimerRef.current) {
         clearTimeout(persistEditorTabsTimerRef.current);
         persistEditorTabsTimerRef.current = null;
-        const latestCwd = cwdRef.current.trim();
-        if (latestCwd && !editorTabsRestoringRef.current) {
-          storeExplorerPanelView(latestCwd, {
-            editorTabs: explorerTabsToPersisted(
-              tabsRef.current,
-              activeTabIdRef.current,
-            ),
-          });
-        }
+        persist();
       }
     };
-  }, [cwd, tabs, activeTabId, schedulePersistEditorTabs]);
+  }, [cwd, tabsCwd, tabs, activeTabId]);
 
   const expandPath = useCallback((path: string) => {
     clearCollapsedAncestors(collapsedPathsRef.current, path);
@@ -936,12 +935,14 @@ export function WorkspaceExplorerPanelProvider({
       if (!activeCwd) return;
       const normalizedPath = normalizeExplorerPath(path);
       const tabId = fileTabId(normalizedPath);
+      const epoch = cwdEpochRef.current;
+      const read = documentInstances.beginRead(activeCwd, tabId, normalizedPath);
       const background = options?.background ?? false;
       const force = options?.force ?? false;
 
       if (force) {
         invalidateWorkspaceFileReadCache(activeCwd, normalizedPath);
-        fileContentCacheRef.current.delete(normalizedPath);
+        fileContentCacheRef.current.delete(workspaceDocumentKey(activeCwd, normalizedPath));
       }
 
       if (
@@ -969,14 +970,15 @@ export function WorkspaceExplorerPanelProvider({
       } catch (error) {
         result = { ok: false, error: formatWorkspaceFetchError(error) };
       }
+      if (cwdEpochRef.current !== epoch || !read.isCurrent()) return;
       if (!result.ok) {
         if (result.error.includes("not a file:")) {
-          setTabs((prev) => prev.filter((tab) => tab.id !== tabId));
-          setActiveTabId((active) => (active === tabId ? null : active));
+          setTabs((prev) => read.isCurrent() && cwdEpochRef.current === epoch ? prev.filter((tab) => tab.id !== tabId) : prev);
+          setActiveTabId((active) => read.isCurrent() && cwdEpochRef.current === epoch && active === tabId ? null : active);
           return;
         }
         setTabs((prev) =>
-          prev.map((tab) =>
+          !read.isCurrent() || cwdEpochRef.current !== epoch ? prev : prev.map((tab) =>
             tab.id === tabId
               ? { ...tab, loading: false, error: result.error }
               : tab,
@@ -992,7 +994,7 @@ export function WorkspaceExplorerPanelProvider({
       });
 
       setTabs((prev) =>
-        prev.map((tab) => {
+        !read.isCurrent() || cwdEpochRef.current !== epoch ? prev : prev.map((tab) => {
           if (tab.id !== tabId) return tab;
           if (
             tab.content === result.content
@@ -1014,7 +1016,7 @@ export function WorkspaceExplorerPanelProvider({
         }),
       );
     },
-    [writeFileCache],
+    [writeFileCache, documentInstances],
   );
 
   const reloadProgramDataTabs = useCallback(
@@ -1138,9 +1140,11 @@ export function WorkspaceExplorerPanelProvider({
   const loadDiffContent = useCallback((path: string, tabId: string) => {
     void (async () => {
       const activeCwd = cwdRef.current.trim();
+      const epoch = cwdEpochRef.current;
+      const read = documentInstances.beginRead(activeCwd, tabId, path);
       if (!activeCwd) {
         setTabs((prev) =>
-          prev.map((tab) =>
+          !read.isCurrent() || cwdEpochRef.current !== epoch ? prev : prev.map((tab) =>
             tab.id === tabId
               ? { ...tab, loading: false, error: "未设置工作目录" }
               : tab,
@@ -1150,9 +1154,10 @@ export function WorkspaceExplorerPanelProvider({
       }
 
       const result = await fetchWorkspaceDiff(activeCwd, path);
+      if (cwdEpochRef.current !== epoch || !read.isCurrent()) return;
       if (!result.ok) {
         setTabs((prev) =>
-          prev.map((tab) =>
+          !read.isCurrent() || cwdEpochRef.current !== epoch ? prev : prev.map((tab) =>
             tab.id === tabId
               ? { ...tab, loading: false, error: result.error }
               : tab,
@@ -1162,7 +1167,7 @@ export function WorkspaceExplorerPanelProvider({
       }
 
       setTabs((prev) =>
-        prev.map((tab) =>
+        !read.isCurrent() || cwdEpochRef.current !== epoch ? prev : prev.map((tab) =>
           tab.id === tabId
             ? {
                 ...tab,
@@ -1174,7 +1179,7 @@ export function WorkspaceExplorerPanelProvider({
         ),
       );
     })();
-  }, []);
+  }, [documentInstances]);
 
   const openDiff = useCallback(
     (path: string) => {
@@ -1207,6 +1212,7 @@ export function WorkspaceExplorerPanelProvider({
 
   useEffect(() => {
     const activeCwd = cwd.trim();
+    setTabsCwd(activeCwd);
     if (!activeCwd) {
       editorTabsRestoredForCwdRef.current = null;
       setTabs([]);
@@ -1353,14 +1359,19 @@ export function WorkspaceExplorerPanelProvider({
         return { ok: false as const, error: "未设置工作目录" };
       }
       const normalizedPath = path.replace(/\\/g, "/");
+      const tabId = fileTabId(normalizedPath);
+      const epoch = cwdEpochRef.current;
+      const owner = documentInstances.getSnapshot().find((item) => item.owner.key === workspaceDocumentKey(activeCwd, tabId))?.owner;
+      documentInstances.invalidateRead(activeCwd, tabId);
       const result = await writeWorkspaceFileApi(activeCwd, normalizedPath, content);
       if (!result.ok) {
         return { ok: false as const, error: result.error };
       }
+      if (cwdEpochRef.current !== epoch || (owner && !documentInstances.isCurrent(owner))) return { ok: true as const };
+      documentInstances.invalidateRead(activeCwd, tabId);
       writeFileCache(normalizedPath, { content });
-      const tabId = fileTabId(normalizedPath);
       setTabs((prev) =>
-        prev.map((tab) => {
+        cwdEpochRef.current !== epoch || (owner && !documentInstances.isCurrent(owner)) ? prev : prev.map((tab) => {
           if (tab.id !== tabId) return tab;
           if (tab.content === content && !tab.loading && !tab.error) return tab;
           return { ...tab, content, loading: false, error: undefined };
@@ -1369,10 +1380,66 @@ export function WorkspaceExplorerPanelProvider({
       notifyWorkbenchGitRefresh();
       return { ok: true as const };
     },
-    [writeFileCache],
+    [writeFileCache, documentInstances],
   );
 
+  const publishDocumentFile = useCallback((owner: WorkspaceDocumentOwner, tab: ExplorerFileTab, canPublish: () => boolean = () => true) => {
+    if (!canPublish()) return;
+    if (!documentInstances.update(owner, tab)) return;
+    if (cwdRef.current.trim() !== owner.cwd) return;
+    writeFileCache(owner.path, { content: tab.content, truncated: tab.truncated, totalChars: tab.totalChars });
+    setTabs((previous) => !canPublish() || !documentInstances.isCurrent(owner) || cwdRef.current.trim() !== owner.cwd
+      ? previous : previous.map((item) => item.id === owner.tabId ? tab : item));
+  }, [documentInstances, writeFileCache]);
+
+  const saveDocumentFile = useCallback(async (owner: WorkspaceDocumentOwner, content: string) => {
+    if (!documentInstances.isCurrent(owner)) return { ok: false as const, error: "文件实例已关闭" };
+    documentInstances.invalidateRead(owner.cwd, owner.tabId);
+    const result = await writeWorkspaceFileApi(owner.cwd, owner.path, content);
+    if (!result.ok) return { ok: false as const, error: result.error };
+    if (!documentInstances.isCurrent(owner)) return { ok: true as const };
+    documentInstances.invalidateRead(owner.cwd, owner.tabId);
+    const instance = documentInstances.getSnapshot().find((item) => item.owner === owner)!;
+    publishDocumentFile(owner, { ...instance.tab, content, loading: false, error: undefined });
+    notifyWorkbenchGitRefresh();
+    return { ok: true as const };
+  }, [documentInstances, publishDocumentFile]);
+
+  const saveDocumentProgram = useCallback(async (owner: WorkspaceDocumentOwner, request: ProgramDocumentSaveRequest): Promise<ProgramDocumentSaveResult> => {
+    const ownerPath = normalizeExplorerPath(owner.path);
+    const bodyPath = /^\.quicker\/actions\/[^/]+\/info\.json$/i.test(ownerPath) ? ownerPath.replace(/info\.json$/i, "data.json") : ownerPath;
+    if (normalizeExplorerPath(request.path) !== bodyPath) return { ok: false, code: "identity_conflict", error: "文件实例路径不匹配" };
+    if (!documentInstances.isCurrent(owner)) return { ok: false, code: "stale_instance", error: "文件实例已关闭" };
+    const payload = structuredClone(request);
+    const invalidateWrittenReads = () => {
+      documentInstances.invalidateRead(owner.cwd, fileTabId(bodyPath));
+      if (payload.metadata) documentInstances.invalidateRead(owner.cwd, fileTabId(bodyPath.replace(/data\.json$/i, "info.json")));
+    };
+    invalidateWrittenReads();
+    const result = await saveProgramDocumentClient(owner.cwd, payload);
+    // Return the exact persistence fact even after close; only the original live owner may update presentation.
+    if (documentInstances.isCurrent(owner) && (result.ok || result.persistedParts?.body || result.persistedParts?.metadata)) invalidateWrittenReads();
+    return result;
+  }, [documentInstances]);
+
+  const refreshDocumentFile = useCallback(async (owner: WorkspaceDocumentOwner) => {
+    const read = documentInstances.beginRead(owner.cwd, owner.tabId, owner.path, owner);
+    const result = await runWorkspaceDocumentStorage(documentInstances, owner, (fixedCwd, fixedPath) => {
+      invalidateWorkspaceFileReadCache(fixedCwd, fixedPath);
+      return fetchWorkspaceFile(fixedCwd, fixedPath);
+    });
+    if (!result || !result.ok || !read.isCurrent()) return;
+    const instance = documentInstances.getSnapshot().find((item) => item.owner === owner)!;
+    read.publish(() => publishDocumentFile(owner, { ...instance.tab, ...result, loading: false, error: undefined }, read.isCurrent));
+    if (cwdRef.current.trim() === owner.cwd) void refreshTree();
+  }, [documentInstances, publishDocumentFile, refreshTree]);
+
+  useLayoutEffect(() => {
+    if (tabsCwd === cwd.trim()) documentInstances.observe(tabsCwd, tabs);
+  }, [cwd, tabsCwd, tabs, documentInstances]);
+
   const closeTab = useCallback((id: string) => {
+    documentInstances.close(cwdRef.current.trim(), id);
     let nextActiveId: string | null = null;
     setTabs((prev) => {
       if (!prev.some((tab) => tab.id === id)) return prev;
@@ -1384,20 +1451,36 @@ export function WorkspaceExplorerPanelProvider({
       setActiveSideView(nextActiveId ?? SIDE_PANEL_VIEW_EXPLORER);
     }
     clearWorkspaceMainEditorDoc();
-  }, [activeSideView, setActiveSideView]);
+  }, [activeSideView, setActiveSideView, documentInstances]);
 
-  const notifyProjectRemoved = useCallback(() => {
-    setTabs([]);
-    setActiveTabId(null);
-    setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
-    setSelectedPath(null);
-    clearWorkspaceMainEditorDoc();
+  const notifyProjectRemoved = useCallback((owner?: { cwd: string; projectPath: string }) => {
+    // Unknown legacy receipts may refresh the tree, but cannot dispose any document.
+    if (!owner?.cwd.trim() || !owner.projectPath.trim()) { void refreshTree(); return; }
+    const removedCwd = owner.cwd.trim();
+    documentInstances.closeProject(removedCwd, owner.projectPath);
+    for (const key of fileContentCacheRef.current.keys()) {
+      const [, path] = JSON.parse(key) as [string, string];
+      if (workspaceDocumentKey(removedCwd, path) === key && workspaceDocumentPathInProject(path, owner.projectPath)) fileContentCacheRef.current.delete(key);
+    }
+    invalidateWorkspaceProjectFileReadCache(removedCwd, owner.projectPath);
+    if (removedCwd !== cwdRef.current.trim()) return;
+    const previous = tabsRef.current;
+    const removed = new Set(previous.filter((tab) => workspaceDocumentPathInProject(tab.path, owner.projectPath)).map((tab) => tab.id));
+    const remaining = previous.filter((tab) => !removed.has(tab.id));
+    const nextActive = remaining[Math.min(previous.findIndex((tab) => removed.has(tab.id)), remaining.length - 1)]?.id ?? remaining.at(-1)?.id ?? null;
+    setTabs((tabs) => tabs.filter((tab) => !workspaceDocumentPathInProject(tab.path, owner.projectPath)));
+    setActiveTabId((id) => id && removed.has(id) ? nextActive : id);
+    if (removed.has(activeSideView)) {
+      setActiveSideView(nextActive ?? SIDE_PANEL_VIEW_EXPLORER);
+      clearWorkspaceMainEditorDoc();
+    }
+    setSelectedPath((path) => path && workspaceDocumentPathInProject(path, owner.projectPath) ? null : path);
     void refreshTree();
-  }, [refreshTree, setActiveSideView]);
+  }, [refreshTree, setActiveSideView, activeSideView, documentInstances]);
 
   const activeTab = useMemo(
-    () => tabs.find((tab) => tab.id === activeTabId) ?? null,
-    [tabs, activeTabId],
+    () => tabsCwd === cwd.trim() ? tabs.find((tab) => tab.id === activeTabId) ?? null : null,
+    [tabs, activeTabId, tabsCwd, cwd],
   );
 
   const treeValue = useMemo(
@@ -1437,6 +1520,10 @@ export function WorkspaceExplorerPanelProvider({
   const editorValue = useMemo(
     (): WorkspaceExplorerEditorContextValue => ({
       cwd,
+      documentInstances,
+      saveDocumentFile,
+      saveDocumentProgram,
+      refreshDocumentFile,
       tabs,
       activeTabId,
       activeTab,
@@ -1452,6 +1539,10 @@ export function WorkspaceExplorerPanelProvider({
     }),
     [
       cwd,
+      documentInstances,
+      saveDocumentFile,
+      saveDocumentProgram,
+      refreshDocumentFile,
       tabs,
       activeTabId,
       activeTab,

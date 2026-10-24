@@ -1,4 +1,5 @@
 import type { WorkspaceReadResponse } from "@/lib/workspace-explorer-api";
+import { workspaceDocumentPathInProject } from "./workspace-document-instances";
 
 export type WorkspaceFileReadCacheEntry = {
   content: string;
@@ -56,6 +57,17 @@ export function invalidateWorkspaceFileReadCache(cwd: string, path: string): voi
   inflight.delete(key);
 }
 
+/** Delete only this project's cached and pending publication rights, without cancelling its callers. */
+export function invalidateWorkspaceProjectFileReadCache(cwd: string, projectPath: string): void {
+  const prefix = `${cwd.trim()}\0`;
+  for (const key of new Set([...cache.keys(), ...inflight.keys()])) {
+    if (key.startsWith(prefix) && workspaceDocumentPathInProject(key.slice(prefix.length), projectPath)) {
+      cache.delete(key);
+      inflight.delete(key);
+    }
+  }
+}
+
 function toCachedResponse(
   cwd: string,
   path: string,
@@ -85,6 +97,7 @@ export async function fetchWorkspaceFileCached(
   let pending = inflight.get(key);
   if (!pending) {
     pending = fetcher().then((result) => {
+      if (inflight.get(key) !== pending) return result;
       inflight.delete(key);
       if (result.ok) {
         seedWorkspaceFileReadCache(cwd, path, result.content, {
@@ -93,6 +106,9 @@ export async function fetchWorkspaceFileCached(
         });
       }
       return result;
+    }, (error) => {
+      if (inflight.get(key) === pending) inflight.delete(key);
+      throw error;
     });
     inflight.set(key, pending);
   }

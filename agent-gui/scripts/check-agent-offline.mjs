@@ -58,6 +58,8 @@ const tests = [
   "lib/release-preview-context.test.ts",
   "lib/workspace-general-file-tool.test.ts",
   "lib/thread-side-panel-sync.test.ts",
+  "lib/workspace-document-instances.test.ts",
+  "lib/workspace-file-read-cache.test.ts",
   "lib/qkrpc-argv.test.ts",
   "lib/qkrpc-action-source-tool.test.ts",
   "lib/qkrpc-action-tool-display.test.ts",

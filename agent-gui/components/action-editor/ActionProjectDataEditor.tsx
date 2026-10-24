@@ -34,6 +34,7 @@ import { findStepById } from "@/lib/action-editor/steps/stepTreeOps";
 import {
   createProgramStepTag,
   type ProgramStepTarget,
+  type ProgramStepTag,
 } from "@/lib/program-step-tag";
 import {
   parseActionProjectInfo,
@@ -135,6 +136,9 @@ function ActionProjectSourceFileTabs({
 }
 
 export type ActionProjectDataEditorProps = {
+  /** Presentation only; hiding the editor retains its session and pending saves. */
+  active?: boolean;
+  onPinStepToChat?: (tag: ProgramStepTag) => void;
   path: string;
   content: string;
   /** When true, content may be an agent slice — editor refetches full file from workspace API. */
@@ -159,6 +163,8 @@ function displayTitleFromProjectInfo(
 }
 
 export function ActionProjectDataEditor({
+  active = true,
+  onPinStepToChat,
   path,
   content,
   truncated = false,
@@ -206,7 +212,7 @@ export function ActionProjectDataEditor({
   const designerBackendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
 
   useEffect(() => {
-    if (!helpOpen) return;
+    if (!active || !helpOpen) return;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "F1") {
         event.preventDefault();
@@ -214,9 +220,10 @@ export function ActionProjectDataEditor({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [helpOpen]);
+  }, [active, helpOpen]);
 
   useEffect(() => {
+    if (!active) return;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== "F1" || event.repeat || helpOpen) return;
       const root = editorRootRef.current;
@@ -228,7 +235,7 @@ export function ActionProjectDataEditor({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [helpOpen]);
+  }, [active, helpOpen]);
 
   useEffect(() => {
     const sameDocument = incomingDocumentRef.current.path === path && incomingDocumentRef.current.cwd === cwd;
@@ -694,7 +701,7 @@ export function ActionProjectDataEditor({
 
   const handlePinStepToChat = useCallback(
     (stepId: string) => {
-      if (!session) return;
+      if (!active || !session) return;
       workspaceRef.current?.flushPendingEdits();
       const snapshot = session.readSnapshot();
       const steps = snapshot.steps;
@@ -730,16 +737,19 @@ export function ActionProjectDataEditor({
         startLine: sliceResult.slice.startLine,
         endLine: sliceResult.slice.endLine,
       });
-      chatComposerActionsRef.current.insertProgramStepTag(tag);
-      chatComposerActionsRef.current.focusComposer();
+      if (onPinStepToChat) onPinStepToChat(tag);
+      else {
+        chatComposerActionsRef.current.insertProgramStepTag(tag);
+        chatComposerActionsRef.current.focusComposer();
+      }
       setPinStepFeedback("已添加到左侧当前对话输入框");
       window.setTimeout(() => setPinStepFeedback(null), 2500);
     },
-    [programPinMeta, session],
+    [active, onPinStepToChat, programPinMeta, session],
   );
 
   const handleSave = useCallback(async () => {
-    if (!session || externalConflict || metadataConflict || hostSyncBusy || targetBlocked) return;
+    if (!active || !session || externalConflict || metadataConflict || hostSyncBusy || targetBlocked) return;
     workspaceRef.current?.flushPendingEdits();
     const started = session.beginSave(() => session.readSnapshot());
     if (!started.ok) {
@@ -788,7 +798,7 @@ export function ActionProjectDataEditor({
     setHasSavedLocalChanges(true);
     setInfoRefreshKey((value) => value + 1);
     onSaved?.();
-  }, [onSave, onSaveDocument, onSaved, session, externalConflict, metadataConflict, path, cwd, hostSyncBusy, targetBlocked, mainAction]);
+  }, [active, onSave, onSaveDocument, onSaved, session, externalConflict, metadataConflict, path, cwd, hostSyncBusy, targetBlocked, mainAction]);
 
   if (contentTruncated) {
     return (
@@ -824,7 +834,7 @@ export function ActionProjectDataEditor({
   }
 
   const editor = (
-    <div className="action-project-data-editor" ref={editorRootRef}>
+    <div className="action-project-data-editor" ref={editorRootRef} inert={!active}>
       <div className="action-project-data-editor-header">
         <ActionProjectMetaSummary
           icon={metaIcon}
@@ -842,6 +852,7 @@ export function ActionProjectDataEditor({
                 disabledReason={targetBlocked ? "动作目标尚未确认，无法操作宿主" : projectBinding === null ? "未绑定宿主，无法运行或打开动作" : "运行、调试、编辑和悬浮尚未接入此文档目标，暂不可用"}
               />
               <ActionProjectSyncBar
+                active={active}
                 key={syncOwnerKey}
                 cwd={cwd}
                 actionId={actionId}
@@ -849,7 +860,7 @@ export function ActionProjectDataEditor({
                 target={syncTarget}
                 targetRequired
                 hasLocalChanges={dirty || hasSavedLocalChanges}
-                blocked={targetBlocked || projectBinding === null || dirty || saving || Boolean(externalConflict || metadataConflict)}
+                blocked={!active || targetBlocked || projectBinding === null || dirty || saving || Boolean(externalConflict || metadataConflict)}
                 blockReason={targetError || (projectBinding === undefined ? "正在读取动作目标" : projectBinding === null ? "未绑定宿主，无法同步到 Quicker" : undefined) || externalConflict || metadataConflict || (dirty || saving ? "请先保存当前编辑再同步到 Quicker" : undefined)}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
@@ -857,6 +868,7 @@ export function ActionProjectDataEditor({
               />
               {deleteTarget ? (
                 <ProgramProjectDeleteControl
+                  active={active}
                   kind={deleteTarget.kind}
                   quickerId={deleteTarget.quickerId}
                   projectPath={deleteTarget.projectPath}
@@ -870,12 +882,13 @@ export function ActionProjectDataEditor({
           <div className="action-project-data-editor-actions">
             <div className="action-project-data-editor-actions-row">
               <ActionProjectSyncBar
+                active={active}
                 key={documentOwnerKey}
                 cwd={cwd}
                 actionId={syncActionId}
                 projectDirectory={syncProjectDirectory}
                 hasLocalChanges={dirty || hasSavedLocalChanges}
-                blocked={dirty || saving || Boolean(externalConflict || metadataConflict)}
+                blocked={!active || dirty || saving || Boolean(externalConflict || metadataConflict)}
                 blockReason={externalConflict || metadataConflict || (dirty || saving ? "请先点击「保存到工作区」再同步到 Quicker" : undefined)}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
@@ -883,6 +896,7 @@ export function ActionProjectDataEditor({
               />
               {deleteTarget ? (
                 <ProgramProjectDeleteControl
+                  active={active}
                   kind={deleteTarget.kind}
                   quickerId={deleteTarget.quickerId}
                   projectPath={deleteTarget.projectPath}
@@ -896,6 +910,7 @@ export function ActionProjectDataEditor({
           <div className="action-project-data-editor-actions">
             <div className="action-project-data-editor-actions-row">
               <ProgramProjectDeleteControl
+                active={active}
                 kind={deleteTarget.kind}
                 quickerId={deleteTarget.quickerId}
                 projectPath={deleteTarget.projectPath}
@@ -944,7 +959,7 @@ export function ActionProjectDataEditor({
           <button
             type="button"
             className="action-project-data-editor-save"
-            disabled={!dirty || saving || hostSyncBusy || targetBlocked || Boolean(externalConflict || metadataConflict)}
+            disabled={!active || !dirty || saving || hostSyncBusy || targetBlocked || Boolean(externalConflict || metadataConflict)}
             onClick={() => void handleSave()}
           >
             {saving ? "保存中…" : "保存到工作区"}
@@ -952,7 +967,7 @@ export function ActionProjectDataEditor({
         </div>
       </div>
 
-      {helpOpen ? <ActionDesignerHelpDialog onClose={() => setHelpOpen(false)} /> : null}
+      {helpOpen && active ? <ActionDesignerHelpDialog onClose={() => setHelpOpen(false)} /> : null}
 
       {saveError ? (
         <p className="workspace-explorer-hint workspace-explorer-hint--err">{saveError}</p>
@@ -982,8 +997,8 @@ export function ActionProjectDataEditor({
               key={`${session.getState().identity.documentKey}::${editorContent}`}
               documentKey={session.getState().identity.documentKey}
               controller={documentController!}
-              active={tab === "visual"}
-              historyDisabled={hostSyncBusy}
+              active={active && tab === "visual"}
+              historyDisabled={!active || hostSyncBusy}
               mainSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}
               catalogPort={catalogPort}
@@ -992,7 +1007,7 @@ export function ActionProjectDataEditor({
               onHandleChange={handleWorkspaceChange}
               onPinStepToChat={handlePinStepToChat}
               metadataPanel={metadataEnabled && liveMetadata ? <ProgramAppearanceEditor
-                value={liveMetadata} disabled={hostSyncBusy} onChange={handleMetadataChange} onSave={() => void handleSave()} /> : undefined}
+                value={liveMetadata} disabled={!active || hostSyncBusy} onChange={handleMetadataChange} onSave={() => void handleSave()} /> : undefined}
             />
           </ThemeProvider>
         </div>

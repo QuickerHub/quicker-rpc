@@ -9,6 +9,7 @@ import {
 import { workspaceExplorerActionsRef } from "@/lib/workspace-explorer";
 
 export type ProgramProjectDeleteControlProps = {
+  active?: boolean;
   kind: ProgramProjectDeleteKind;
   quickerId?: string;
   projectPath: string;
@@ -33,6 +34,7 @@ function IconTrash() {
 }
 
 export function ProgramProjectDeleteControl({
+  active = true,
   kind,
   quickerId,
   projectPath,
@@ -45,8 +47,8 @@ export function ProgramProjectDeleteControl({
 
   const handleDeleted = useCallback(() => {
     onDeleted?.();
-    workspaceExplorerActionsRef.current.notifyProjectRemoved();
-  }, [onDeleted]);
+    workspaceExplorerActionsRef.current.notifyProjectRemoved({ cwd, projectPath });
+  }, [onDeleted, cwd, projectPath]);
 
   const { busy, disabled, statusText, statusErr, executeDelete } =
     useProgramProjectDelete({
@@ -81,7 +83,7 @@ export function ProgramProjectDeleteControl({
         <button
           type="button"
           className="project-info-toolbar-btn project-info-toolbar-btn--danger program-project-delete-btn"
-          disabled={disabled}
+          disabled={!active || disabled}
           title="删除"
           aria-label={`删除 ${displayTitle}`}
           onClick={() => setOpen(true)}
@@ -100,6 +102,7 @@ export function ProgramProjectDeleteControl({
         ) : null}
       </div>
       <ProgramProjectDeleteDialog
+        active={active}
         open={open}
         displayTitle={displayTitle}
         kind={kind}

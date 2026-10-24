@@ -10,12 +10,15 @@ import {
   useWorkspaceExplorerEditor,
   useWorkspaceExplorerTree,
 } from "@/lib/workspace-explorer";
+import { WorkspaceDocumentOutlet, type WorkspaceDocumentChatPresentation } from "./WorkspaceDocumentHost";
 
 /** File preview pane — subscribes to editor context (not tree expand state). */
 export const WorkspaceExplorerEditorArea = memo(function WorkspaceExplorerEditorArea({
   onRefreshTree,
+  chatPresentation,
 }: {
   onRefreshTree: () => void;
+  chatPresentation?: WorkspaceDocumentChatPresentation;
 }) {
   const { activeDoc } = useDocsViewer();
   const { tree, selectedPath, refreshTree } = useWorkspaceExplorerTree();
@@ -35,6 +38,8 @@ export const WorkspaceExplorerEditorArea = memo(function WorkspaceExplorerEditor
     const path = activeTab?.path;
     if (path) void loadFileContent(path, { force: true });
   }, [activeTab?.path, loadFileContent, refreshTree]);
+
+  if (!activeDoc && activeTab && chatPresentation) return <WorkspaceDocumentOutlet cwd={cwd} tab={activeTab} chat={chatPresentation} />;
 
   return (
     <WorkspaceExplorerEditorPane
