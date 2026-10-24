@@ -36,6 +36,9 @@ function observeWatchers(t: TestContext) {
   const watch = fs.watch;
   t.mock.method(fs, "watch", (path, options, listener) => {
     const watcher = watch(path, options, listener);
+    // Linux recursive watching also calls fs.watch internally for non-recursive children.
+    // Only the outer handles belong to the Explorer; Node owns their inner handles.
+    if (options?.recursive !== true) return watcher;
     const record = { closes: 0, notify: (filename: string) => listener("change", filename) };
     records.push(record);
     const close = watcher.close.bind(watcher);
