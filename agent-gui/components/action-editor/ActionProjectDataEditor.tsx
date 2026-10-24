@@ -7,6 +7,8 @@ import type { DesignerCatalogScope } from "@/lib/action-editor/catalog/designerC
 import {
   useCallback,
   useEffect,
+  useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -71,6 +73,9 @@ import { AD_ICONIFY_SPEC } from "@/lib/action-editor/shared/actionDesignerIconif
 import { getActionDesignerBackendBaseUrl } from "@/lib/action-editor/shared/actionDesignerBackendBaseUrl";
 import { IconControl } from "@/lib/action-editor/shared/IconControl";
 import { ActionDesignerHelpDialog } from "@/components/action-editor/ActionDesignerHelpDialog";
+import { useLiveProgramDocumentRegistry } from "@/lib/live-program-document.client";
+import { useWorkspaceDocumentNavigation } from "@/lib/workspace-document-navigation";
+import { createProgramDocumentLiveEndpoint } from "@/lib/action-editor/program/liveProgramDocumentEndpoint";
 import "@/components/action-editor/action-editor-theme.css";
 import "@/components/action-editor/action-editor.css";
 import "@/components/action-editor/action-project-data-editor.css";
@@ -175,6 +180,10 @@ export function ActionProjectDataEditor({
   onSaved,
   onSynced,
 }: ActionProjectDataEditorProps): JSX.Element {
+  const liveDocuments = useLiveProgramDocumentRegistry();
+  const liveNavigation = useWorkspaceDocumentNavigation();
+  const liveInstanceId = useId();
+  const liveGeneration = useRef(0);
   const [tab, setTab] = useState<EditorTab>("visual");
   const [sourceFileTab, setSourceFileTab] = useState(() => normalizeWorkspacePath(path));
   const [sourceFileTabs, setSourceFileTabs] = useState<ActionProjectSourceFileTab[]>([]);
@@ -392,8 +401,15 @@ export function ActionProjectDataEditor({
   const syncOwnerRef = useRef({ key: syncOwnerKey, session });
   syncOwnerRef.current = { key: syncOwnerKey, session };
   const hostSyncBusy = syncBusyOwner?.key === syncOwnerKey && syncBusyOwner.busy;
+  const liveAvailability = useRef({ session, available: !targetBlocked });
+  liveAvailability.current = { session, available: !targetBlocked };
+  const liveSyncBusy = useRef<{ key: string; busy: boolean } | null>(null);
   const handleSyncBusyChange = useCallback((busy: boolean) => {
-    if (syncOwnerRef.current.key === syncOwnerKey && syncOwnerRef.current.session === session) setSyncBusyOwner({ key: syncOwnerKey, busy });
+    if (syncOwnerRef.current.key === syncOwnerKey && syncOwnerRef.current.session === session) {
+      // Sync freezes the native transaction before React renders the inert visual surface.
+      liveSyncBusy.current = { key: syncOwnerKey, busy };
+      setSyncBusyOwner({ key: syncOwnerKey, busy });
+    }
   }, [syncOwnerKey, session]);
 
   useEffect(() => {
@@ -647,6 +663,18 @@ export function ActionProjectDataEditor({
       setDocumentRevision((revision) => revision + 1);
     },
   }) : null, [session]);
+  const liveSessionId = useMemo(() => session ? `${liveInstanceId}:${++liveGeneration.current}` : undefined, [session, liveInstanceId]);
+  const liveOwner = liveNavigation?.owner;
+  useLayoutEffect(() => {
+    if (!liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
+      || liveOwner.cwd !== cwd || liveOwner.path.replace(/\\/g, "/") !== path.replace(/\\/g, "/")) return;
+    const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController,
+      isCurrent: () => sessionRef.current === session && liveAvailability.current.session === session && liveAvailability.current.available
+        && !(liveSyncBusy.current?.key === syncOwnerRef.current.key && liveSyncBusy.current.busy),
+      flushPendingEdits: () => workspaceRef.current?.flushPendingEdits(),
+    });
+    return liveDocuments.register(liveOwner, endpoint);
+  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
   }, []);

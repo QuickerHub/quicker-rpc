@@ -15,6 +15,7 @@ import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
 export function prepareTurnMessagesForModel(params: {
   messages: AgentUIMessage[];
   expandedSlashUserText?: string | null;
+  liveProgramDocument?: boolean;
 }): AgentUIMessage[] {
   let slashTextApplied = false;
   const latestUserIndex = params.messages.findLastIndex((message) => message.role === "user");
@@ -27,7 +28,7 @@ export function prepareTurnMessagesForModel(params: {
       parts: message.parts.map((part) => {
         if (!isTextUIPart(part)) return part;
 
-        let text = expandUserMessageForModel(part.text);
+        let text = expandUserMessageForModel(part.text, params.liveProgramDocument === true && messageIndex === latestUserIndex);
         if (
           !slashTextApplied
           && messageIndex === latestUserIndex

@@ -69,6 +69,12 @@ Agent 写入能力，Ask/Launcher 不开放。保存只尝试一次，冲突、D
 search/get → 同步 `.quicker` → 编辑 → diagnostics → patch → run/trace。
 publish 只在用户明确要求时执行。
 
+主动作工作台的实时 scope 是上述磁盘流程的专用例外：从真实“+对话”入口重新加入步骤，
+本轮 `workspace_program` 才提供客户端 `read_live/edit_live`，读取原设计器的未保存正文，
+仅修改已授权步骤的备注并进入同一撤销历史。Ask 只读，回执明确尚未保存；该端口不写
+动作文件或宿主，聊天历史仍正常持久化。它不是 CLI/MCP 的通用协议，更广编辑和保存
+仍按 A3 验收。
+
 - step 参数先查询 step-runner schema，不猜 `inputs`。
 - source bundle 用宿主文件工具编辑 YAML/资源；工具管理的 sidecar/原生基线不得手改。
 - QuickerAgent 的旧 `.quicker` JSON 程序体仍使用 `workspace_program`。
@@ -164,11 +170,11 @@ Vite 是 renderer 候选，需竖切片和桌面打包验收后切换。已完�
 现有 72 个 API 路径已接入 Node，静态 React 可从搬移后的独立目录运行；同一 SDK loop 的
 SSE/审批、历史/设置/workspace/Designer/docs/skills、真实 browser/terminal 启停和隔离 Edge
 前端检查已有回归。Electron 静态资源、原生模块、两版唯一身份的真实 NSIS `/WX` 构建与
-Windows Job 隔离 packaged launch smoke 已验证。首次隔离安装仍未完成：长 TEMP 尝试
-缺少 249 个解包文件；短 TEMP 已解出完整 7212 个文件，但逐文件复制仍被原 180 秒
-时限中断。验收 runner 已改为 setup 专属短 TEMP、600 秒有界等待与进度记录，
-不能据此声称安装成功。原目录升级、生产快捷方式/真正卸载、真实旧资料与 P1–P3
-完整编辑闭环仍待验收。
+Windows Job 隔离 packaged launch smoke 已验证。唯一测试身份的首次安装与同目录
+0.0.1→0.0.2 升级均已通过，每版 7212 个程序文件逐一核对大小与 SHA-256，合成数据库及
+插件/缓存哨兵保留。此前长 TEMP 解包缺失和 180 秒复制超时已保留为失败证据；当前使用
+setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安装链，GUI 构建源早于最新
+主线；生产快捷方式/真正卸载、真实旧资料与 P1–P3 完整编辑闭环仍待验收。
 默认开发/兼容打包与 Next 依赖因此保留。见 [运行清单](../engineering/static-agent-runtime.md)。
 
 #### 统一 RPC 与动作设计器：当前主线
@@ -182,8 +188,8 @@ Windows Job 隔离 packaged launch smoke 已验证。首次隔离安装仍未完
 | A0：宿主与编辑契约 | 暴露宿主身份、会话、协议/schema 版本与逐能力声明；绑定动作存储身份和 revision | Contracts、Transport、Host.Abstractions、V1/V2 adapters；[统一动作边界](../agent-architecture.md#统一宿主与动作编辑边界) | wire 握手、专属 endpoint、选择、source/Agent 写前绑定与断线禁重发已有离线集成。source bundle 保留 HostBinding 与 V2 StorageIdentity，旧插件只读；V1 source 连续写回及 legacy JSON 持久绑定在本机 0.14.8.159 验收。主动作目标显示、本地完整记录 CAS 和 CLI/HTTP lease 内再次核验已实现；catalog 请求及文档缓存已绑定完整目标。完整 runtime 目录已有两项独立 capability、host/session/owner 快照与 CLI/HTTP 闭环；本机 169 V1 已实测完整分页。V2 目录、多宿主选择、原生 V2 文档与双宿主活进程仍待验收，A0 未完成 |
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。ResourcePane 已接两类绑定目录的筛选、分页、只读选择和刷新；V1 组合动作（已知 XAction）打开复用完整绑定的本地项目或导出到空目录，通过原文件实例入口打开，已有草稿/undo、迟到及未知收据已有 fixture/DOM 回归。169 已验收已有项目复用/重复 UUID/错误 owner 拒绝（HTTP，文件 hash 未变、未执行动作），首次导出及 native GUI 点击仍待验收。全局子程序调用插入/拖放已复用模块参数表单，调用及新变量单事务/undo、未blur草稿和跨文档晚确认已有真实 DOM 回归；该调用链原生验收、动作引用插入/拖放、V2/子程序打开、必要资源操作、完整属性与 host session 接线仍待迁移，A1 未完成 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 adapter/保真条件存储、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已验证；V2 活进程、Designer、进程重启与完整打包流程仍待集成验收 |
-| A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。Agent 工具仍未接 UI 的实时文档 revision；catalog 请求/缓存已绑定文档；多宿主选择、命令绑定和完整人工/Agent 交错编辑仍待实施 |
-| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。74 API、静态 React/Node、资源/native/真实子进程与隔离 Electron 打包启动已验证；NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。首次安装两次超时仍未通过，原目录升级、生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
+| A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。主动作“+对话”私有 pin 已授权本轮 read_live/edit_live 备注，复用原 APDE revision/history，真实 SDK 与隔离完整 SPA 编辑/撤销/自然退出验收通过。Ask 只读，停止后保留已应用回执且迟到调用不重放；无文件/宿主写入。嵌套 UI 入口、参数/变量/属性/外置文件、Agent Save/Sync、多宿主与完整人工/Agent 交错仍未完成 |
+| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。74 API、静态 React/Node、资源/native/真实子进程与隔离 Electron 打包启动已验证；NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
 
 首个实现切片是 A0 的最小身份/能力契约与 A1 的可运行设计器迁移并行推进；真实宿主写入
@@ -218,8 +224,9 @@ Agent 执行循环、文档会话、权限和工具服务。代码整理、界�
 **现有基线**：宿主握手、V1 source bundle/codec、独立 Node chat service、隔离资料根、
 设计器多 surface/history、完整 body snapshot、模块目录、外观属性与保存票据已实现。当前主界面仍依赖
 Next；V2 source adapter、宿主多实例绑定和静态 runtime 已完成首轮离线集成与编译。V1 专用动作
-的 source 连续写回、重读、冲突和部分 checkpoint 恢复已验证；真实双宿主、实时 Agent/Designer
-文档共享和完整新版设计器仍未验收。
+的 source 连续写回、重读、冲突和部分 checkpoint 恢复已验证。实时 Agent/Designer 已接主动作
+备注首片，真实 SDK 与隔离完整 SPA 的编辑、撤销及自然退出验收通过；真实双宿主、
+更广文档修改/保存和完整新版设计器仍未验收。
 本节状态必须随实现更新，不把“分支已编译”写成“主产品已可用”。
 
 | 并行工作包 | 独立交付与主要文件所有权 | 现在可做 / 依赖 | 完成证据 |
@@ -262,7 +269,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 
 | 来源区域 | 必须覆盖的交互与数据 | 当前事实 / 下一步 |
 |---|---|---|
-| `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；原生 V2 storage、选择宿主和 Agent 实时会话仍待接线 |
+| `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；主动作备注已通过私有 pin 接入原 Agent/文档会话；嵌套 UI、更多编辑/保存、原生 V2 storage 与选择宿主仍待接线 |
 | `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 主/嵌套正文、变量和三项属性共用 Session present/history；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序属性、内部引用重命名、创建与带引用校验的确认删除已接线；完整属性和资源目录继续迁移 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |

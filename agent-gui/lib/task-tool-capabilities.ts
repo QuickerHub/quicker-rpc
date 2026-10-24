@@ -13,7 +13,9 @@ export function selectSubagentTools(
   parentTools: ToolSet,
   allowedToolIds: string[] | undefined,
 ): ToolSet {
-  const inherited = { ...parentTools };
-  delete inherited[TASK_TOOL];
+  // Nested generateText has no renderer addToolOutput channel. Never replace a
+  // client definition with a similarly named server/disk tool from a registry.
+  const inherited = Object.fromEntries(Object.entries(parentTools)
+    .filter(([id, definition]) => id !== TASK_TOOL && typeof definition.execute === "function"));
   return pickEnabledTools(inherited, allowedToolIds);
 }

@@ -63,6 +63,7 @@ export function finalizeStreamingReasoningParts(
 /** Resolve tool parts left mid-flight after the user stops generation. */
 export function repairInterruptedToolCalls(
   messages: AgentUIMessage[],
+  recoverOutput?: (toolCallId: string) => unknown,
 ): AgentUIMessage[] {
   let changed = false;
 
@@ -75,6 +76,8 @@ export function repairInterruptedToolCalls(
       if (!isIncompleteToolPart(part)) return part;
 
       messageChanged = true;
+      const recovered = recoverOutput?.(part.toolCallId);
+      if (recovered !== undefined) return { ...part, state: "output-available" as const, output: recovered, approval: undefined } as AgentUIMessagePart;
 
       if (
         part.state === "approval-requested"

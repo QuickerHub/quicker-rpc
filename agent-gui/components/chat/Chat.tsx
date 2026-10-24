@@ -150,6 +150,8 @@ import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window"
 import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { LiveProgramDocumentPin, LiveProgramDocumentRegistryFailure } from "@/lib/live-program-document";
+import { useLiveProgramDocumentRegistry } from "@/lib/live-program-document.client";
 import {
   registerChatComposerActions,
   unregisterChatComposerActions,
@@ -332,6 +334,8 @@ function ChatPanel({
     addToolApprovalResponse,
     addToolOutput,
     repairToolCalls,
+    registerLiveProgramDocumentRegistry,
+    rememberLiveProgramDocumentPin,
   } = useAgentChatSession({
     threadId,
     initialMessages,
@@ -346,6 +350,9 @@ function ChatPanel({
     llmSelection,
     onPersist,
   });
+  const liveProgramDocuments = useLiveProgramDocumentRegistry();
+  useLayoutEffect(() => liveProgramDocuments ? registerLiveProgramDocumentRegistry(liveProgramDocuments) : undefined,
+    [liveProgramDocuments, registerLiveProgramDocumentRegistry]);
 
   useActionProjectImportFromMessages(messages, !ephemeral && visible);
   useReloadProgramDataFromToolMessages(messages, !ephemeral && visible);
@@ -761,11 +768,12 @@ function ChatPanel({
   const insertComposerProgramStepTag = useCallback(
     (tag: ProgramStepTag) => {
       if (editAnchorMessageId) return;
+      rememberLiveProgramDocumentPin(tag.tagId);
       clearError();
       composerRef.current?.insertProgramStepTag(tag);
       requestAnimationFrame(() => composerRef.current?.focusAtEnd());
     },
-    [editAnchorMessageId, clearError],
+    [editAnchorMessageId, clearError, rememberLiveProgramDocumentPin],
   );
 
   // A retained file uses the currently presented Chat, never the Chat that first opened it.
@@ -776,16 +784,17 @@ function ChatPanel({
   }
   const workspaceChatPresentation = useMemo(() => ({
     threadId,
-    pinStep: (tag: ProgramStepTag) => {
+    pinStep: (tag: ProgramStepTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => {
       const owner = workspacePresentationOwnerRef.current;
       if (!owner.active) return;
+      rememberLiveProgramDocumentPin(tag.tagId, pin);
       clearError();
       composerRef.current?.insertProgramStepTag(tag);
       requestAnimationFrame(() => {
         if (workspacePresentationOwnerRef.current === owner && owner.active) composerRef.current?.focusAtEnd();
       });
     },
-  }), [threadId, clearError]);
+  }), [threadId, clearError, rememberLiveProgramDocumentPin]);
 
   useEffect(() => {
     if (ephemeral || !visible) return;

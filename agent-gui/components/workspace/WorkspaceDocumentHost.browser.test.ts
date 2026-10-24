@@ -50,9 +50,11 @@ window.fetch=async(input,init)=>{
  }
  if(url.pathname==='/api/workspace/action-sync'){
   state.syncCalls.push(request);
-  if(request.op==='status')return Response.json({ok:true,status:{state:state.syncState,message:'fake status',localEditVersion:1,remoteEditVersion:2}});
+  state.syncProbe?.(request.op);
+  const target=request.expectedProjectBinding?{projectDirectory:request.projectDirectory,projectBinding:request.expectedProjectBinding}:{};
+  if(request.op==='status')return Response.json({ok:true,...target,status:{state:state.syncState,message:'fake status',localEditVersion:1,remoteEditVersion:2}});
   const result=state.syncMode==='defer'?await new Promise(resolve=>state.syncPending.push(()=>resolve({ok:true,message:'fake synced',editVersion:2}))):{ok:true,message:'fake synced',editVersion:2};
-  return Response.json(result);
+  return Response.json({...result,...target});
  }
  if(state.bound&&url.pathname==='/api/designer/resources/page'){
    const ids=['22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555','66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777'];
@@ -89,8 +91,9 @@ function Controls({setCwd,setThread}){
  });
  return null;
 }
-function Dock({thread}){const presentation=useMemo(()=>({threadId:thread,pinStep:tag=>state.pins.push({thread,tag})}),[thread]);return <section data-chat={thread} style={{height:'100%'}}><WorkspaceExplorerPanel chatPresentation={presentation}/></section>;}
-function App(){const[cwd,setCwd]=useState('C:/fixture/a'),[thread,setThread]=useState('chat-a');return <WorkspaceExplorerShellProvider><WorkspaceExplorerPanelProvider cwd={cwd}><WorkspaceDocumentHost><Controls setCwd={setCwd} setThread={setThread}/><Dock key={thread} thread={thread}/></WorkspaceDocumentHost></WorkspaceExplorerPanelProvider></WorkspaceExplorerShellProvider>;}
+function Dock({thread}){const presentation=useMemo(()=>({threadId:thread,pinStep:(tag,pin)=>state.pins.push({thread,tag,pin})}),[thread]);return <section data-chat={thread} style={{height:'100%'}}><WorkspaceExplorerPanel chatPresentation={presentation}/></section>;}
+const publishRegistry=registry=>{state.live=registry;return()=>{if(state.live===registry)state.live=null;};};
+function App(){const[cwd,setCwd]=useState('C:/fixture/a'),[thread,setThread]=useState('chat-a');return <WorkspaceExplorerShellProvider><WorkspaceExplorerPanelProvider cwd={cwd}><WorkspaceDocumentHost onLiveProgramDocumentRegistry={publishRegistry}><Controls setCwd={setCwd} setThread={setThread}/><Dock key={thread} thread={thread}/></WorkspaceDocumentHost></WorkspaceExplorerPanelProvider></WorkspaceExplorerShellProvider>;}
 const root=createRoot(document.getElementById('root'));state.unmount=()=>root.unmount();root.render(<StrictMode><App/></StrictMode>);
 `;
 
@@ -161,6 +164,121 @@ async function captureNarrow(page: Page, name: string) {
   }
   await page.setViewportSize({ width: 1280, height: 900 });
 }
+
+test("a real step pin exposes the sole unsaved APDE controller to a fixed live scope with one Agent undo and no disk write", { timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await ownedFixture();
+  try {
+    await page.evaluate(() => {
+      const f=(window as any).fixture;
+      const body=f.body("live original").replace('],"variables":', ',{"stepId":"unpin-step","stepRunnerKey":"sys:fixture","note":"not pinned","inputParams":{}}],"variables":');
+      f.liveOriginal=body; f.files.set(f.cwd+'::'+f.file,body); f.open(f.file);
+    });
+    await note(page).waitFor();
+    await page.locator('[data-workspace-document]:visible').getByText("未绑定宿主 · 可保存到工作区，无法同步到 Quicker", { exact: true }).waitFor();
+    await note(page).fill("human unblurred draft");
+    await page.locator('[data-workspace-document]:visible').getByRole("button", { name: "添加步骤到对话", exact: true }).first()
+      .evaluate((button: HTMLButtonElement) => button.click());
+    // A pin grants the original step, while a later manual send reads current human edits.
+    await note(page).fill("human changed after pin without blur");
+    const read = await page.evaluate(() => {
+      const f=(window as any).fixture, pin=f.pins.at(-1).pin;
+      if(!pin?.pinId)throw Error('Real Host pin was not authorized: '+JSON.stringify(pin));
+      f.liveSelection=f.live.captureForManualSend({threadId:'chat-a',userMessageId:'manual-a',cwd:f.cwd,pins:[pin],mode:'edit'});
+      if(f.liveSelection.state!=='ready')throw Error(JSON.stringify(f.liveSelection));
+      f.liveRead=f.live.execute(f.liveSelection.scope,{scopeId:f.liveSelection.scope.scopeId,operationId:'read-a',input:{action:'read_live'}});
+      return f.liveRead;
+    });
+    assert.equal(read.ok, true); assert.equal(read.complete, true); assert.match(read.content, /human changed after pin without blur/);
+    assert.match(read.content, /9007199254740993/); assert.equal(read.dirty, true);
+    const refused = await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.liveSelection.scope;
+      return f.live.execute(scope,{scopeId:scope.scopeId,operationId:'edit-unpinned',input:{action:'edit_live',readOperationId:'read-a',expectedRevision:f.liveRead.revision,stepId:'unpin-step',note:'unauthorized'}});
+    });
+    assert.equal(refused.code, "LIVE_STEP_NOT_GRANTED");
+    await captureNarrow(page, "live-document-before");
+    await page.evaluate(() => { const f=(window as any).fixture;f.open(f.second);f.setThread('chat-b'); });
+    await page.waitForFunction(() => (window as any).fixture.active()?.path === (window as any).fixture.second);
+    await note(page).waitFor(); const secondNote = await note(page).inputValue();
+    const applied = await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.liveSelection.scope;
+      f.liveCommand={scopeId:scope.scopeId,operationId:'edit-a',input:{action:'edit_live',readOperationId:'read-a',expectedRevision:f.liveRead.revision,stepId:'step',note:'agent note in original owner'}};
+      return f.live.execute(scope,f.liveCommand);
+    });
+    assert.equal(applied.ok, true); assert.equal(applied.applied, true); assert.equal(applied.persisted, false);
+    assert.equal(await note(page).inputValue(), secondNote, "the newly visible document must not be edited or focused");
+    await page.evaluate(() => { const f=(window as any).fixture;f.open(f.file); });
+    await page.waitForFunction(() => document.querySelector<HTMLInputElement>('[data-workspace-document]:not([hidden]) .step-form-note-input')?.value === 'agent note in original owner');
+    await captureNarrow(page, "live-document-applied");
+    await page.locator('[data-workspace-document]:visible [title="撤销 (Ctrl+Z)"]').click();
+    assert.equal(await note(page).inputValue(), "human changed after pin without blur", "one undo restores pre-Agent content while keeping the later human draft");
+    const duplicate = await page.evaluate(() => { const f=(window as any).fixture;return f.live.execute(f.liveSelection.scope,f.liveCommand); });
+    assert.deepEqual(duplicate, applied); assert.equal(await note(page).inputValue(), "human changed after pin without blur", "duplicate receipt cannot reapply an edit the user undid");
+    assert.equal(await page.evaluate(() => { const f=(window as any).fixture;return f.files.get('C:/fixture/a::'+f.file)===f.liveOriginal; }), true);
+    assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 0);
+    assert.equal(await page.evaluate(() => (window as any).fixture.syncCalls.length), 0);
+    await call(page, "close");
+    await page.evaluate(() => { const f=(window as any).fixture;f.open(f.file); }); await note(page).waitFor();
+    const old = await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.liveSelection.scope;
+      return f.live.execute(scope,{...f.liveCommand,operationId:'old-owner-new-operation'});
+    });
+    assert.equal(old.ok, false); assert.equal(old.code, "LIVE_DOCUMENT_STALE");
+    assert.notEqual(await note(page).inputValue(), "agent note in original owner");
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test("a native Sync freeze blocks live reads and commits without revoking an otherwise hidden document owner", { timeout: 45_000 }, async () => {
+  const { browser, page, errors } = await ownedFixture();
+  try {
+    await page.evaluate(() => { const f=(window as any).fixture; f.bound=true; f.syncState='quicker_ahead'; f.syncMode='defer'; f.open(f.file); });
+    await note(page).waitFor();
+    const sync = page.locator('[data-workspace-document]:visible .action-project-data-editor-sync .project-info-sync-btn');
+    await sync.waitFor();
+    await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>('[data-workspace-document]:not([hidden]) .action-project-data-editor-sync .project-info-sync-btn')?.disabled);
+    await page.getByRole('button', { name: '添加步骤到对话', exact: true }).click();
+    const ready = await page.evaluate(() => {
+      const f=(window as any).fixture;
+      f.syncSelection=f.live.captureForManualSend({threadId:'chat-a',userMessageId:'before-sync',cwd:f.cwd,pins:[f.pins.at(-1).pin],mode:'edit'});
+      if(f.syncSelection.state==='ready')f.syncRead=f.live.execute(f.syncSelection.scope,{scopeId:f.syncSelection.scope.scopeId,operationId:'before-sync-read',input:{action:'read_live'}});
+      return {selection:f.syncSelection,read:f.syncRead};
+    });
+    assert.equal(ready.selection.state, 'ready'); assert.equal(ready.read.ok, true);
+    await page.evaluate(() => {
+      const f=(window as any).fixture;
+      f.syncProbe=()=>{
+        if(f.syncDispatchReceipts)return;
+        const scope=f.syncSelection.scope;
+        f.syncDispatchReceipts={
+          read:f.live.execute(scope,{scopeId:scope.scopeId,operationId:'sync-dispatch-read',input:{action:'read_live'}}),
+          edit:f.live.execute(scope,{scopeId:scope.scopeId,operationId:'sync-dispatch-edit',input:{action:'edit_live',readOperationId:'before-sync-read',expectedRevision:f.syncRead.revision,stepId:'step',note:'must not commit before Sync render'}}),
+        };
+      };
+    });
+    await sync.click();
+    await page.waitForFunction(() => (window as any).fixture.syncPending.length===1);
+    const dispatched = await page.evaluate(() => (window as any).fixture.syncDispatchReceipts);
+    assert.equal(dispatched.read.ok, false); assert.equal(dispatched.read.code, 'LIVE_DOCUMENT_STALE');
+    assert.equal(dispatched.edit.ok, false); assert.equal(dispatched.edit.application, 'not_applied');
+    await call(page, 'fold');
+    const frozen = await page.evaluate(() => {
+      const f=(window as any).fixture, scope=f.syncSelection.scope;
+      return {
+        read:f.live.execute(scope,{scopeId:scope.scopeId,operationId:'frozen-read',input:{action:'read_live'}}),
+        edit:f.live.execute(scope,{scopeId:scope.scopeId,operationId:'frozen-edit',input:{action:'edit_live',readOperationId:'before-sync-read',expectedRevision:f.syncRead.revision,stepId:'step',note:'must not commit during Sync'}}),
+      };
+    });
+    assert.equal(frozen.read.ok, false); assert.equal(frozen.read.code, 'LIVE_DOCUMENT_STALE');
+    assert.equal(frozen.edit.ok, false); assert.equal(frozen.edit.application, 'not_applied');
+    await page.evaluate(() => (window as any).fixture.syncPending.shift()());
+    await call(page, 'expand');
+    await sync.waitFor();
+    await page.waitForFunction(() => document.querySelector('[data-workspace-document]:not([hidden]) .action-project-data-editor-sync .project-info-sync-btn')?.textContent?.trim()==='同步');
+    assert.doesNotMatch(await note(page).inputValue(), /must not commit/);
+    assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
 
 test("resource action opens reuse dirty file instances and do not let late export receipts steal a new presentation", { timeout: 60_000 }, async () => {
   const { browser, page, errors } = await ownedFixture();

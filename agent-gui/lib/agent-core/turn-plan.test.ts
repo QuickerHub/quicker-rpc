@@ -202,3 +202,21 @@ test("recovery planning and final execution share operation constraints without 
     assert.equal(snapshot.recoveryDecision, plan.recoveryDecision, "snapshot projects the same decision rather than reselecting feedback");
   }
 });
+
+test("live tool recovery uses the same per-turn operation set in Agent, Ask and runtime snapshots", () => {
+  const operationConstraints = { workspace_program: { allowedActions: ["read_live", "edit_live"] } };
+  for (const mode of ["agent", "ask"] as const) {
+    for (const action of ["read_live", "edit_live", "read_data", "patch"]) {
+      const plan = resolveTurnPlan({ actionScope: emptyScope, chatMode: mode, enabledToolIds: ["workspace_program"],
+        readOnlyExecutorToolIds: ["workspace_program"], operationConstraints, messages: [feedbackMessage(action)], userText: "继续" });
+      const allowed = action === "read_live" || (mode === "agent" && action === "edit_live");
+      assert.equal(plan.nextAction?.input?.action, allowed ? action : undefined);
+      assert.equal(Boolean(plan.blockedNextAction), !allowed);
+      assert.ok(plan.requiredToolIds.includes("workspace_program"));
+      const snapshot = buildAgentRuntimeSnapshot({ actionScope: emptyScope, chatMode: mode, enabledToolIds: ["workspace_program"],
+        readOnlyExecutorToolIds: ["workspace_program"], operationConstraints, messages: [feedbackMessage(action)], userText: "继续" });
+      assert.equal(snapshot.turnPlan.nextAction?.input?.action, allowed ? action : undefined);
+      assert.equal(Boolean(snapshot.turnPlan.blockedNextAction), !allowed);
+    }
+  }
+});

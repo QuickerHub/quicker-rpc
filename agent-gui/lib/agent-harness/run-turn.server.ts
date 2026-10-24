@@ -25,7 +25,8 @@ import { createAgentTurnRunner } from "@/lib/agent-harness/turn-runner";
 async function tryLauncherDirectResponse(
   request: ResolvedAgentTurnRequest,
 ): Promise<Response | null> {
-  if (request.chatMode !== CHAT_MODE_LAUNCHER || request.titleTest) {
+  if (request.chatMode !== CHAT_MODE_LAUNCHER || request.titleTest
+    || (request.liveProgramDocument && request.liveProgramDocument.state !== "none")) {
     return null;
   }
 

@@ -19,6 +19,10 @@ const tests = [
   "scripts/build-installer-ownership-helper.test.mjs",
   "scripts/electron-shell-staging.test.mjs",
   "lib/agent-tool-mode-guard.test.ts",
+  "lib/agent-tool-policy.test.ts",
+  "lib/live-program-tool-composition.test.ts",
+  "lib/live-program-document-registry.test.ts",
+  "lib/repair-interrupted-tool-calls.test.ts",
   "lib/agent-core/turn-plan.test.ts",
   "lib/tool-bundles.test.ts",
   "lib/agent-defs/apply-chat-command.server.test.ts",
@@ -152,13 +156,17 @@ const tests = [
   "lib/chat-store-db.server.test.ts",
 ];
 
+// Real client SDK/React imports require React's normal export, independently of
+// the server-only tests above. Both groups retain the same offline guard.
+const clientTests = ["lib/live-program-document-turn.test.ts", "lib/live-program-document-sdk.integration.test.ts"];
+
 function run(args) {
   const result = spawnSync(process.execPath, args, { cwd: root, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-for (const path of tests) {
+for (const path of [...tests, ...clientTests]) {
   if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing offline test: ${path}`);
 }
 run(["scripts/generate-service-routes.mjs", "--check"]);
@@ -170,4 +178,10 @@ run([
   `--test-concurrency=${process.platform === "win32" ? 2 : 4}`,
   "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
   ...tests,
+]);
+run([
+  "node_modules/tsx/dist/cli.mjs", "--test",
+  `--test-concurrency=${process.platform === "win32" ? 2 : 4}`,
+  "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
+  ...clientTests,
 ]);

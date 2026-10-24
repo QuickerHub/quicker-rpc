@@ -165,7 +165,7 @@ export function composeUserMessageDisplay(
 }
 
 /** Expand stored markup to model-facing <qka> tags before convertToModelMessages. */
-export function expandUserMessageForModel(text: string): string {
+export function expandUserMessageForModel(text: string, liveDocument = false): string {
   const withSlashWire = expandSlashTagsInUserText(text);
   if (!INLINE_MARKUP_PROBE_RE.test(withSlashWire)) {
     return withSlashWire.trim();
@@ -177,7 +177,7 @@ export function expandUserMessageForModel(text: string): string {
       const tag = programStepTagFromAttrs(parseHtmlAttrs(attrStr));
       if (!tag) return "";
       expandedAny = true;
-      return expandProgramStepTagForModel(tag);
+      return expandProgramStepTagForModel(tag, liveDocument);
     })
     .replace(BROWSER_ELEMENT_TAG_RE, (_full, attrStr: string) => {
       const element = browserElementTagFromAttrs(parseHtmlAttrs(attrStr));

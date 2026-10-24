@@ -18,7 +18,7 @@ import {
   type ToolBundleId,
 } from "@/lib/tool-bundles";
 import type { ToolNextAction } from "@/lib/tool-result";
-import { getToolModeAvailability, getToolModeOperationDecision } from "@/lib/agent-tool-mode-guard";
+import { getToolModeAvailability, getToolModeOperationDecision, type ToolOperationConstraints } from "@/lib/agent-tool-mode-guard";
 
 export type AgentIntent =
   | "conversation"
@@ -84,6 +84,8 @@ export type ResolveTurnPlanParams = {
   actionDesigner?: { entityId: string; isSubProgram?: boolean };
   /** Callable read-only ports from the same final composition used by the execution guard. */
   readOnlyExecutorToolIds?: readonly string[];
+  /** The same final composition constraints consumed at execution boundaries. */
+  operationConstraints?: ToolOperationConstraints;
 };
 
 function mapIntent(intent: AgentTurnState["intent"]): AgentIntent {
@@ -210,7 +212,8 @@ export function resolveTurnPlan(params: ResolveTurnPlanParams): TurnPlan {
   const requiredToolIds = requiredToolsFor({ nextAction: candidate, recommendedToolIds: turnState.recommendedToolIds });
   let blockedNextAction: TurnPlan["blockedNextAction"];
   if (candidate) {
-    const decision = getToolModeOperationDecision(candidate.tool, params.chatMode, candidate.input, readOnlyToolIds.has(candidate.tool));
+    const constraint = Object.hasOwn(params.operationConstraints ?? {}, candidate.tool) ? params.operationConstraints?.[candidate.tool] : undefined;
+    const decision = getToolModeOperationDecision(candidate.tool, params.chatMode, candidate.input, readOnlyToolIds.has(candidate.tool), constraint);
     const reason = !enabled.has(candidate.tool)
       ? `Tool ${candidate.tool} is unavailable in this turn's final tool set. Enable the required capability or ask the user to handle the step.`
       : !decision.allowed ? decision.reason : undefined;

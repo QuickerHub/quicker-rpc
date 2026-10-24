@@ -47,3 +47,14 @@ test("delegation retains approval and model-output policy on inherited definitio
   assert.equal(child.guarded.needsApproval, true);
   assert.equal(child.guarded.toModelOutput, definition.toModelOutput);
 });
+
+test("nested tasks exclude client-only live and question tools without restoring a disk implementation", async () => {
+  const server = tool({ inputSchema: z.object({}), execute: async () => "server" });
+  const client = tool({ inputSchema: z.object({ action: z.string() }) });
+  const parent = { Read: server, workspace_program: client, ask_question: client, task: server };
+  const child = selectSubagentTools(parent, undefined);
+  assert.deepEqual(Object.keys(child), ["Read"]);
+  assert.equal(child.Read, server);
+  assert.equal(await child.Read.execute!({}, options), "server");
+  assert.deepEqual(selectSubagentTools(parent, ["workspace_program", "ask_question", "task", "qkrpc_action_get"]), {});
+});
