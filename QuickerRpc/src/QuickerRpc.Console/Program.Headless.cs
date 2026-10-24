@@ -223,8 +223,7 @@ internal static partial class Program
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var controlField = (options.ControlField ?? string.Empty).Trim();
-            var controlArg = controlField.Length > 0 ? controlField : null;
+            var controlArg = options.ControlField;
             var response = forAgent
                 ? await session.Proxy
                     .GetStepRunnerDetailAsync(key, controlArg, rpcToken)

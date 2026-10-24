@@ -151,7 +151,10 @@ session。每条连接在核验同一 instance/session/endpoint 后才允许写�
 `HostBinding` 保留已核验能力的不可变副本，source identity/checkpoint 同时保存该绑定；断线、重启、
 能力不足或绑定不一致均不能切往其它宿主，写后断线返回 `WRITE_RESULT_UNKNOWN`。
 CLI、MCP、serve 和 Agent 共用这一约束；Agent 在写前固定 turn 目标，源码保存先离线读取 bundle
-绑定。pool 重连保留 session，catalog cache 按连接隔离，SSE 的独立连接也携带相同绑定和取消。
+绑定。pool 重连保留 session，SSE 的独立连接也携带相同绑定和取消。Console 的 StepRunner
+搜索、Agent schema 与 UI schema 每次重新调用当前绑定的 RPC；连接身份不能证明模块定义
+未变，没有当前 revision 重验时不复用已完成结果。控制值在解析后保持原始 null/字符串，
+不合并空串、空白或大小写；其它命令的参数解析约定不变。
 V1 安装/热更、专用 source 动作连续保存、冲突及 checkpoint 部分成功恢复已验证；
 双宿主活进程和完整 Designer 流程继续按产品计划验收。
 浏览器与服务端共用 `qkrpc-host-binding-contract.ts` 及 `action-project-binding.ts` 的纯身份

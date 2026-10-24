@@ -49,7 +49,7 @@ public sealed class QkrpcMcpCatalogTools
             QkrpcMcpJson.ToElement(new
             {
                 key = key.Trim(),
-                controlField = string.IsNullOrWhiteSpace(controlField) ? null : controlField.Trim(),
+                controlField,
             }),
             cancellationToken);
     }
