@@ -407,6 +407,14 @@ public interface IQuickerRpcService
         string? query, string? style, int skip = 0, int take = 96,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Complete captured runtime action catalog, without search-index or draft initialization.</summary>
+    Task<QuickerRpcResourceCatalogPageResult> GetActionResourceCatalogPageAsync(
+        QuickerRpcResourceCatalogPageRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Complete captured runtime global subprogram catalog.</summary>
+    Task<QuickerRpcResourceCatalogPageResult> GetGlobalSubProgramResourceCatalogPageAsync(
+        QuickerRpcResourceCatalogPageRequest request, CancellationToken cancellationToken = default);
+
     /// <summary>Resolve fa: specs to SVG path data (FontAwesome5 catalog in Quicker).</summary>
     Task<QuickerRpcResolveFontAwesomeIconsResult> ResolveFontAwesomeIconsAsync(
         IList<string> specs,

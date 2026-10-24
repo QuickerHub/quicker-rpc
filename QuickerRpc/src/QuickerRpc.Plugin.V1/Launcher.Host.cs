@@ -72,6 +72,9 @@ public static partial class Launcher
                 services.AddSingleton<V1TriggerHost>();
                 services.AddSingleton<V1DesignerHost>();
                 services.AddSingleton<V1LauncherHost>();
+                services.AddSingleton<V1ResourceCatalogCapture>();
+                services.AddHostedService(sp => sp.GetRequiredService<V1ResourceCatalogCapture>());
+                services.AddSingleton<V1ResourceCatalogPageHost>();
                 services.AddSingleton<V1QuickerRpcHost>();
                 services.AddSingleton<IQuickerRpcHost>(sp => sp.GetRequiredService<V1QuickerRpcHost>());
 

@@ -429,6 +429,14 @@ internal sealed class QuickerRpcGuardedService : IQuickerRpcService
         CancellationToken cancellationToken = default) =>
         InvokeAsync(nameof(SearchFontAwesomeIconsPageAsync), () => inner.SearchFontAwesomeIconsPageAsync(query, style, skip, take, cancellationToken), cancellationToken);
 
+    public Task<QuickerRpcResourceCatalogPageResult> GetActionResourceCatalogPageAsync(
+        QuickerRpcResourceCatalogPageRequest request, CancellationToken cancellationToken = default) =>
+        InvokeAsync(nameof(GetActionResourceCatalogPageAsync), () => inner.GetActionResourceCatalogPageAsync(request, cancellationToken), cancellationToken);
+
+    public Task<QuickerRpcResourceCatalogPageResult> GetGlobalSubProgramResourceCatalogPageAsync(
+        QuickerRpcResourceCatalogPageRequest request, CancellationToken cancellationToken = default) =>
+        InvokeAsync(nameof(GetGlobalSubProgramResourceCatalogPageAsync), () => inner.GetGlobalSubProgramResourceCatalogPageAsync(request, cancellationToken), cancellationToken);
+
     public Task<QuickerRpcResolveFontAwesomeIconsResult> ResolveFontAwesomeIconsAsync(
         IList<string> specs,
         CancellationToken cancellationToken = default) =>

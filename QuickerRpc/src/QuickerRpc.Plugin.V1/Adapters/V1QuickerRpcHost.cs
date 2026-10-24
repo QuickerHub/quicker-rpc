@@ -1,10 +1,14 @@
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
 
 namespace QuickerRpc.Plugin.Adapters;
 
-internal sealed class V1QuickerRpcHost : IQuickerRpcHost
+internal sealed class V1QuickerRpcHost : IQuickerRpcHost, IQuickerRpcResourceCatalogPageHost
 {
+    private readonly V1ResourceCatalogPageHost? _resourceCatalog;
     public V1QuickerRpcHost(
         V1SessionHost session,
         V1ActionProgramHost actionPrograms,
@@ -20,7 +24,8 @@ internal sealed class V1QuickerRpcHost : IQuickerRpcHost
         V1ChromeControlHost chromeControl,
         V1TriggerHost triggers,
         V1DesignerHost designer,
-        V1LauncherHost launcher)
+        V1LauncherHost launcher,
+        V1ResourceCatalogPageHost? resourceCatalog = null)
     {
         Info = new QuickerRpcHostInfo
         {
@@ -44,6 +49,7 @@ internal sealed class V1QuickerRpcHost : IQuickerRpcHost
         Triggers = triggers;
         Designer = designer;
         Launcher = launcher;
+        _resourceCatalog = resourceCatalog;
     }
 
     public QuickerRpcHostInfo Info { get; }
@@ -79,6 +85,18 @@ internal sealed class V1QuickerRpcHost : IQuickerRpcHost
     public IQuickerRpcDesignerHost? Designer { get; }
 
     public IQuickerRpcLauncherHost? Launcher { get; }
+
+    public bool CanRead(string kind) => _resourceCatalog?.CanRead(kind) ?? false;
+
+    public Task<QuickerRpcResourceCatalogPageResult> GetResourceCatalogPageAsync(string kind,
+        QuickerRpcResourceCatalogPageRequest request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return _resourceCatalog is not null
+            ? _resourceCatalog.GetResourceCatalogPageAsync(kind, request, cancellationToken)
+            : Task.FromResult(new QuickerRpcResourceCatalogPageResult { Success = false, Kind = kind,
+                ErrorCode = "UNSUPPORTED_HOST", ErrorMessage = "This host has no runtime resource catalog adapter." });
+    }
 
     private static string TryGetQuickerVersion()
     {
