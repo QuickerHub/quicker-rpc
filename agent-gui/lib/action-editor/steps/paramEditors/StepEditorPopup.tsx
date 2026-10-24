@@ -704,6 +704,7 @@ export function StepEditorPopup({
     <StepEditorPopupBodySkeleton message={loadingMessage} />
   ) : (
       <>
+        {loadingRunnerSchema && hasAnyParams ? <p className="step-editor-popup-empty" role="status">正在加载步骤参数…</p> : null}
         {schemaLoadIssue && hasAnyParams ? <p className="step-editor-popup-empty" role="alert">{schemaLoadIssue}</p> : null}
         <div className="step-editor-popup-params">
           {!hasAnyParams ? (

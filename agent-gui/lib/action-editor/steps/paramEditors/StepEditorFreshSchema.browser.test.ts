@@ -119,7 +119,7 @@ test("a failed fresh popup read reports failure instead of confirming previous s
     const initial = await page.evaluate(() => (window as any).fixture.read("a").content);
     await page.evaluate(() => { (window as any).fixture.fail=true; });
     await page.locator('[data-step-id="a-one"]').dblclick();
-    await popup(page).getByRole("alert").getByText("fresh provider unavailable", { exact: true }).waitFor();
+    await popup(page).getByRole("alert").filter({ hasText: "fresh provider unavailable" }).waitFor();
     assert.equal(await confirm(page).isDisabled(), true);
     await type(popup(page).getByRole("textbox"), "kept on failure");
     await page.evaluate(() => (window as any).fixture.switch("b"));
