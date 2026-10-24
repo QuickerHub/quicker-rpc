@@ -27,6 +27,7 @@ export const agentApiRoutes = [
   { path: "/api/cursor-sdk/session", methods: ["DELETE"], load: () => import("../../app/api/cursor-sdk/session/route") },
   { path: "/api/cursor-sdk/status", methods: ["GET"], load: () => import("../../app/api/cursor-sdk/status/route") },
   { path: "/api/designer/context", methods: ["GET"], load: () => import("../../app/api/designer/context/route") },
+  { path: "/api/designer/resources/page", methods: ["POST"], load: () => import("../../app/api/designer/resources/page/route") },
   { path: "/api/designer/text-tool", methods: ["POST"], load: () => import("../../app/api/designer/text-tool/route") },
   { path: "/api/dev/agent-view-compress", methods: ["GET","POST"], load: () => import("../../app/api/dev/agent-view-compress/route") },
   { path: "/api/dev/browser-runtime", methods: ["POST"], load: () => import("../../app/api/dev/browser-runtime/route") },

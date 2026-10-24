@@ -234,8 +234,11 @@ loaded、退出账号标记、固定账号及服务/锁引用前后未变，再�
 原生账号 epoch；Stop 先失效 owner 再退订，同一组件再次 Start 使用新 owner。分页身份
 共用 Runtime 的 host/session，加上 owner、匿名账号范围、观察 revision、全部摘要和筛选。
 后续页必须带首屏 snapshotId；变化时明确 CATALOG_CHANGED，不拼接两个快照。V2 该可选
-端口暂未接入，两项能力为 false。离线 DI、dispatcher、CLI/HTTP 回归已具备，实机验收
-与设计器 ResourcePane 的消费接线仍待完成。
+端口暂未接入，两项能力为 false。离线 DI、dispatcher、CLI/HTTP 回归已具备；本机 169
+V1 实测分页读完 467 个动作、336 个全局子程序，错误快照明确拒绝，未写正文或运行动作。
+设计器 ResourcePane 已通过绑定项目的标准 API 消费该端口，两类能力分别检查。页面不作
+持久缓存；隐藏或换目标取消请求，目录过期时保留旧摘要并停止拼接，显式刷新重建首屏。
+资源选择只展示摘要，不另建文档或改写 Session；打开与编辑操作仍待迁移。
 
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，

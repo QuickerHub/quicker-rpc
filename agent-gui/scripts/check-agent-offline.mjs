@@ -91,6 +91,8 @@ const tests = [
   "lib/action-editor/catalog/designerFaGeometry.server.test.ts",
   "lib/action-editor/catalog/designerFaPage.test.ts",
   "lib/action-editor/catalog/designerFaPage.server.test.ts",
+  "lib/action-editor/catalog/designerResourcePage.test.ts",
+  "lib/action-editor/catalog/designerResourcePage.server.test.ts",
   "lib/action-editor/shared/faIconPickerSearch.test.ts",
   "lib/action-editor/shared/iconColorUtils.test.ts",
   "lib/fa-icon-cache.test.ts",

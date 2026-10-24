@@ -12,6 +12,7 @@ const UNKNOWN: QkrpcOperationEffects = Object.freeze({ mayMutateHost: true, mayP
 
 // Invoke effects only: workspace augmentation performed by a tool wrapper is a separate operation.
 const effectsByOperation = new Map<string, QkrpcOperationEffects>([
+  ["resource.catalog.page", READ],
   ["ping", READ], ["host.list", READ], ["action.list", READ], ["action.search", READ],
   ["action.mention-search", READ], ["action.get", READ], ["action.open", LOCAL_EXPORT],
   ["action.shared.get", READ], ["action.library.search", READ], ["action.publish.preflight", READ],
