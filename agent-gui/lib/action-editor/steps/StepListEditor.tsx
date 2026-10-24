@@ -349,7 +349,12 @@ export default function StepListEditor({
     }
   }, [active, resourceCallOrigin, catalogPort, programDocumentKey, pendingToolboxInsert]);
   /** Inline search insert at a list slot (mutually exclusive with step param popup). */
-  const [quickInsert, setQuickInsert] = useState<QuickInsertSession | null>(null);
+  const [quickInsert, setQuickInsertState] = useState<QuickInsertSession | null>(null);
+  // Opening, closing or cancelling an insertion is a newer intent than any schema still in flight.
+  const setQuickInsert = useCallback((next: QuickInsertSession | null): void => {
+    insertGeneration.current += 1;
+    setQuickInsertState(next);
+  }, []);
   const editorTargetIdRef = useRef<string | null>(null);
   const quickInsertActiveRef = useRef(false);
   /** Backend GetSummary per stepId, scoped to step body fingerprint (avoids cross-tab / stale merge). */
@@ -963,7 +968,6 @@ export default function StepListEditor({
   }, [popupStep, runnerLookup]);
 
   const openStepEditor = (stepId: string): void => {
-    insertGeneration.current += 1;
     flushCompactSync();
     setPendingToolboxInsert(null);
     setQuickInsert(null);
@@ -972,7 +976,6 @@ export default function StepListEditor({
   };
 
   const closeStepEditor = (): void => {
-    insertGeneration.current += 1;
     setEditorTargetId(null);
     setPendingToolboxInsert(null);
     setQuickInsert(null);
@@ -988,7 +991,7 @@ export default function StepListEditor({
     if (payload.resourceCall && flushProgramEdits) flushSync(flushProgramEdits);
     flushCompactSync();
     setQuickInsert(null);
-    const generation = ++insertGeneration.current;
+    const generation = insertGeneration.current;
     try {
       const step = await prepareToolboxStep(payload, runnerItems, () => stepIdManagerRef.current.nextId(), (key, control) => fetchStepRunnerDetailItem(key, control, undefined, catalogPort));
       if (!activeRef.current || generation !== insertGeneration.current) return;
@@ -1002,7 +1005,7 @@ export default function StepListEditor({
         notifyClipboard?.(error instanceof Error ? error.message : String(error), "error");
       }
     }
-  }, [flushCompactSync, runnerItems, notifyClipboard, catalogPort, resourceCallOrigin, programDocumentKey, readProgramPresent, variables, flushProgramEdits]);
+  }, [flushCompactSync, runnerItems, notifyClipboard, catalogPort, resourceCallOrigin, programDocumentKey, readProgramPresent, variables, flushProgramEdits, setQuickInsert]);
 
   useEffect(() => {
     if (!active || !registerToolboxInsert) return;
@@ -1320,16 +1323,18 @@ export default function StepListEditor({
       if (isTextField) {
         return;
       }
-      // Quick insert is open but focus left the search field (e.g. body): avoid list shortcuts; Escape still closes.
-      if (quickInsert) {
-        if (event.key === "Escape") {
+      // Escape also cancels a schema still loading before its popup has opened.
+      if (event.key === "Escape") {
+        setQuickInsert(null);
+        if (quickInsert) {
           event.preventDefault();
           event.stopPropagation();
-          setQuickInsert(null);
           refocusEditorShell();
         }
         return;
       }
+      // Quick insert is open but focus left the search field: avoid list shortcuts.
+      if (quickInsert) return;
       // Enter (same as B): open quick insert to insert after the selected step.
       if (
         editorTargetId == null &&
@@ -1502,6 +1507,7 @@ export default function StepListEditor({
     setSelectionAnchorId,
     selectedId,
     selectedIds,
+    setQuickInsert,
     setSingleSelection,
     steps
   ]);

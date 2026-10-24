@@ -30,6 +30,7 @@ window.fetch=async(input,init)=>{
  if(url==='/api/step-runner/list')return Response.json({ok:true,items:[basic]});
  if(url==='/api/step-runner/summaries')return Response.json({ok:true,items:[]});
  if(url==='/api/subprogram/list')return Response.json({ok:true,items:[]});
+ if(url==='/api/step-runner/quick-insert')return Response.json({ok:true,json:JSON.stringify({items:[{kind:'runner',id:'fixture-quick',label:'Fixture quick insertion',payload:{stepRunnerKey:'sys:fixture',name:'Fixture step'}}],totalCount:1,hasMore:false})});
  if(url==='/api/step-runner/get'){
   if(body.key==='sys:fixture')return Response.json({ok:true,item:basic});
   if(body.key==='sys:runAction'){
@@ -79,19 +80,25 @@ async function drop(page: Page, transfer: any, before?: string) {
   await target.dispatchEvent("drop", { dataTransfer: transfer, clientY: bounds.y + 1 });
 }
 
+async function mountFixture(page: Page, script: string): Promise<string[]> {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  await page.route("**/*", (route) => route.abort());
+  await page.setContent('<div id="root"></div>');
+  const css = await Promise.all(["components/action-editor/action-editor-theme.css", "components/action-editor/action-editor.css", "components/action-editor/program-editor-toolbox.css"].map((file) => readFile(file, "utf8")));
+  await page.addStyleTag({ content: css.join("\n") + "\nbody{margin:0;background:var(--ad-bg-canvas);color:var(--ad-fg-primary)}#root{height:100vh;}" });
+  await page.addScriptTag({ content: script });
+  return errors;
+}
+
 test("action resources use the real popup/controller, drop slots, undo and owner guards", { timeout: 120_000 }, async () => {
   const result = await compileFixture();
   assert.ok(Object.keys(result.metafile!.inputs).every((file) => !/(?:^|\/)lib\/(?:db\/|qkrpc\.ts|llm-config)/.test(file.replaceAll("\\", "/"))));
   const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
   try {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 900 } }), errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-    await page.route("**/*", (route) => route.abort());
-    await page.setContent('<div id="root"></div>');
-    const css = await Promise.all(["components/action-editor/action-editor-theme.css", "components/action-editor/action-editor.css", "components/action-editor/program-editor-toolbox.css"].map((file) => readFile(file, "utf8")));
-    await page.addStyleTag({ content: css.join("\n") + "\nbody{margin:0;background:var(--ad-bg-canvas);color:var(--ad-fg-primary)}#root{height:100vh;}" });
-    await page.addScriptTag({ content: result.outputFiles[0].text });
+    const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+    const errors = await mountFixture(page, result.outputFiles[0].text);
     let list = await resource(page);
     assert.equal(await list.getByRole("button", { name: "在工作区打开" }).count(), 0);
     await surface(page).locator('[data-step-id="a-one"]').click();
@@ -202,5 +209,78 @@ test("action resources use the real popup/controller, drop slots, undo and owner
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: "../.tmp/action-resource-narrow.png" });
     assert.deepEqual(errors, []); await page.evaluate(() => (window as any).fixture.dispose());
+  } finally { await browser.close(); }
+});
+
+test("newer quick insert and cancellation intent reject a delayed resource schema", { timeout: 120_000 }, async () => {
+  const result = await compileFixture();
+  const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
+  const cases = ["append click", "Enter", "a", "b", "append Space", "root double click",
+    "empty click", "empty Enter", "empty Space", "empty double click", "quick Escape", "quick blur", "pending Escape"];
+  await mkdir("../.tmp", { recursive: true });
+  try {
+    for (const intent of cases) {
+      const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+      try {
+        const errors = await mountFixture(page, result.outputFiles[0].text);
+        if (intent.startsWith("empty")) {
+          await page.getByLabel("打开或新建内部子程序", { exact: true }).click();
+          await page.getByRole("button", { name: "Child", exact: true }).click();
+        }
+        const before = await page.evaluate(() => (window as any).fixture.read().content);
+        await page.evaluate(() => { const f=(window as any).fixture;f.schemaMode="defer";f.resetPort(); });
+        const list = await resource(page);
+        await list.getByRole("button", { name: "插入调用步骤" }).click();
+        await page.waitForFunction(() => (window as any).fixture.pending.length === 1);
+        const editor = surface(page).locator(".step-editor");
+        if (["Enter", "a", "b", "pending Escape"].includes(intent)) {
+          await surface(page).locator('[data-step-id="a-one"]').click();
+          await editor.focus();
+          await page.keyboard.press(intent === "pending Escape" ? "Escape" : intent);
+        } else if (intent.startsWith("empty")) {
+          const empty = surface(page).getByRole("button", { name: "空分支：点击添加步骤或从工具箱拖入", exact: true });
+          if (intent === "empty click") await empty.click();
+          else if (intent === "empty double click") await empty.dblclick();
+          else { await empty.focus(); await empty.press(intent === "empty Enter" ? "Enter" : "Space"); }
+        } else if (intent === "root double click") {
+          await surface(page).locator(".step-listbox.root").dispatchEvent("dblclick", { button: 0 });
+        } else {
+          const append = surface(page).getByRole("button", { name: "在列表末尾添加步骤", exact: true });
+          if (intent === "append Space") { await append.focus(); await append.press("Space"); }
+          else await append.click();
+        }
+        const query = surface(page).locator(".step-quick-insert-input");
+        if (intent !== "pending Escape") {
+          await query.fill("keep newer " + intent);
+          if (intent === "quick Escape") await query.press("Escape");
+          if (intent === "quick blur") await page.getByRole("tab", { name: "动作", exact: true }).click();
+        }
+        await page.evaluate(() => { const f=(window as any).fixture;f.schemaMode="ok";f.pending.splice(0).forEach((done: any)=>done()); });
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        if (await popup(page).count()) await page.screenshot({ path: "../.tmp/action-resource-quick-insert-red.png" });
+        assert.equal(await popup(page).count(), 0, intent + ": an older resource schema must not open a popup");
+        assert.equal(await page.evaluate(() => (window as any).fixture.read().content), before, intent + ": no step or variable transaction");
+        if (["quick Escape", "quick blur", "pending Escape"].includes(intent)) {
+          assert.equal(await query.count(), 0, intent + ": cancellation stays closed");
+        } else {
+          assert.equal(await query.inputValue(), "keep newer " + intent, intent + ": newer search draft survives");
+          assert.equal(await query.evaluate((field) => document.activeElement === field), true);
+          if (intent === "append click") {
+            await page.screenshot({ path: "../.tmp/action-resource-quick-insert-green.png" });
+            await query.press("Enter");
+            const parameter = popup(page).locator(".step-param-row").filter({ hasText: "Existing parameter" });
+            await parameter.locator("textarea,input,[contenteditable=true]").first().fill("newer quick selection");
+            assert.equal(await query.count(), 0, "a picked quick insertion and parameter popup remain exclusive");
+            await popup(page).getByRole("button", { name: "确定", exact: true }).click();
+            assert.equal(await page.evaluate(() => (window as any).fixture.snapshot().steps[2].inputParams.text.value), "newer quick selection");
+            await page.evaluate(() => (window as any).fixture.undo());
+            assert.equal(await page.evaluate(() => (window as any).fixture.snapshot().steps.length), 2);
+          } else await query.press("Escape");
+        }
+        assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []);
+        assert.deepEqual(errors, []);
+        await page.evaluate(() => (window as any).fixture.dispose());
+      } finally { await page.close(); }
+    }
   } finally { await browser.close(); }
 });
