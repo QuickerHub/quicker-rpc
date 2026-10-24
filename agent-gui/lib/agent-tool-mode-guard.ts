@@ -4,7 +4,7 @@ import { formatLocalToolResult } from "@/lib/tool-result";
 
 const ASK_READ_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   workspace_program: new Set([
-    "projects_list", "read_data", "file_read", "file_info", "file_search",
+    "projects_list", "read_data", "file_read", "file_info", "file_search", "read_live",
   ]),
   // Even observations currently ensure a runtime/session; Ask must not invoke it.
   browser: new Set(),
@@ -21,6 +21,13 @@ const ASK_UNAVAILABLE_REMOTE_TOOL_IDS = new Set([
 ]);
 const ASK_PROGRAM_GET_TOOL_IDS = new Set(["qkrpc_action_get", "qkrpc_subprogram_get"]);
 export type ReadOnlyToolExecutors = Readonly<Record<string, NonNullable<Tool["execute"]> | undefined>>;
+export type ToolOperationConstraint = Readonly<{ allowedActions: readonly string[] }>;
+export type ToolOperationConstraints = Readonly<Record<string, ToolOperationConstraint | undefined>>;
+export type ToolModeGuardOptions = Readonly<{
+  operationConstraints?: ToolOperationConstraints;
+  /** Explicit read ports implemented by the renderer, never by a server fallback. */
+  clientReadonlyTools?: readonly string[];
+}>;
 
 export type ToolModeDecision = { allowed: true } | { allowed: false; reason: string };
 const ALLOWED: ToolModeDecision = Object.freeze({ allowed: true });
@@ -52,12 +59,17 @@ export function getToolModeAvailability(toolId: string, mode: ChatMode, readOnly
 }
 
 /** Plan and execution use the same operation boundary, including explicit read-port availability. */
-export function getToolModeOperationDecision(toolId: string, mode: ChatMode, input: unknown, readOnlyExecutorAvailable = false): ToolModeDecision {
+export function getToolModeOperationDecision(toolId: string, mode: ChatMode, input: unknown, readOnlyExecutorAvailable = false, constraint?: ToolOperationConstraint): ToolModeDecision {
   const availability = getToolModeAvailability(toolId, mode, readOnlyExecutorAvailable);
-  if (!availability.allowed || mode !== "ask") return availability;
+  if (!availability.allowed) return availability;
+  const action = input && typeof input === "object" ? (input as Record<string, unknown>).action : undefined;
+  if (constraint && (typeof action !== "string" || !constraint.allowedActions.includes(action))) return {
+    allowed: false,
+    reason: `Tool ${toolId} does not support ${typeof action === "string" ? action : "this operation"} in the current execution scope.`,
+  };
+  if (mode !== "ask") return availability;
   const allowedActions = askReadActions(toolId);
   if (!allowedActions) return ALLOWED;
-  const action = input && typeof input === "object" ? (input as Record<string, unknown>).action : undefined;
   if (typeof action === "string" && allowedActions.has(action)) return ALLOWED;
   return {
     allowed: false,
@@ -68,14 +80,17 @@ export function getToolModeOperationDecision(toolId: string, mode: ChatMode, inp
 }
 
 /** Enforce the operation boundary of mixed read/write tools independently of the model. */
-export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode, readOnlyExecutors: ReadOnlyToolExecutors = {}): T {
-  if (mode !== "ask") return tools;
+export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode, readOnlyExecutors: ReadOnlyToolExecutors = {}, options: ToolModeGuardOptions = {}): T {
+  if (mode !== "ask" && !Object.keys(options.operationConstraints ?? {}).length) return tools;
   const guarded = { ...tools };
+  const clientReadonlyTools = new Set(options.clientReadonlyTools ?? []);
   for (const [toolId, definition] of Object.entries(tools)) {
     const allowedActions = askReadActions(toolId);
     const toolDefinition = definition as Tool;
-    const hasReadOnlyExecutor = typeof readOnlyExecutors[toolId] === "function";
-    const availability = getToolModeAvailability(toolId, mode, hasReadOnlyExecutor);
+    const constraint = Object.hasOwn(options.operationConstraints ?? {}, toolId) ? options.operationConstraints?.[toolId] : undefined;
+    const clientReadonly = clientReadonlyTools.has(toolId) && !toolDefinition.execute;
+    const hasReadOnlyPort = typeof readOnlyExecutors[toolId] === "function" || clientReadonly;
+    const availability = getToolModeAvailability(toolId, mode, hasReadOnlyPort);
     if (!availability.allowed) {
       (guarded as ToolSet)[toolId] = {
         ...toolDefinition,
@@ -88,22 +103,25 @@ export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode,
       } as Tool;
       continue;
     }
-    if (ASK_PROGRAM_GET_TOOL_IDS.has(toolId)) {
+    // The client schema and renderer operation decision enforce its action set.
+    // Attaching execute here would replace the SDK's client callback with disk IO.
+    if (clientReadonly) continue;
+    if (mode === "ask" && ASK_PROGRAM_GET_TOOL_IDS.has(toolId)) {
       (guarded as ToolSet)[toolId] = {
         ...toolDefinition,
         execute: readOnlyExecutors[toolId],
       } as Tool;
       continue;
     }
-    if (!allowedActions || !toolDefinition.execute) continue;
-    const execute = toolId === "workspace_program" ? readOnlyExecutors[toolId]! : toolDefinition.execute;
+    if ((!constraint && (mode !== "ask" || !allowedActions)) || !toolDefinition.execute) continue;
+    const execute = mode === "ask" && toolId === "workspace_program" ? readOnlyExecutors[toolId]! : toolDefinition.execute;
     (guarded as ToolSet)[toolId] = {
       ...toolDefinition,
       execute: async (input, options) => {
         const action = input && typeof input === "object"
           ? (input as Record<string, unknown>).action
           : undefined;
-        const decision = getToolModeOperationDecision(toolId, mode, input, hasReadOnlyExecutor);
+        const decision = getToolModeOperationDecision(toolId, mode, input, hasReadOnlyPort, constraint);
         if (!decision.allowed) {
           return formatLocalToolResult(
             { errorCode: "tool_mode_denied", toolId, mode, action: action ?? null },

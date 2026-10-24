@@ -8,6 +8,7 @@ import {
   type TurnPlan,
 } from "@/lib/agent-core/turn-plan";
 import { collectRecentToolFeedback } from "@/lib/tool-feedback-context";
+import type { ToolOperationConstraints } from "@/lib/agent-tool-mode-guard";
 
 export type AgentRuntimeSnapshot = {
   turnState: AgentTurnState;
@@ -24,6 +25,7 @@ export function buildAgentRuntimeSnapshot(params: {
   userText: string;
   turnPlan?: TurnPlan;
   readOnlyExecutorToolIds?: readonly string[];
+  operationConstraints?: ToolOperationConstraints;
 }): AgentRuntimeSnapshot {
   const recentToolFeedback = collectRecentToolFeedback(params.messages);
   const turnPlan = params.turnPlan
@@ -34,6 +36,7 @@ export function buildAgentRuntimeSnapshot(params: {
       messages: params.messages,
       userText: params.userText,
       readOnlyExecutorToolIds: params.readOnlyExecutorToolIds,
+      operationConstraints: params.operationConstraints,
     });
   return {
     turnState: turnPlan.turnState,

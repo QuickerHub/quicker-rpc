@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { convertToModelMessages, generateText, tool, type ToolExecutionOptions, type UIMessage } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { z } from "zod";
-import { applyToolModeGuards } from "./agent-tool-mode-guard";
+import { applyToolModeGuards, getToolModeOperationDecision } from "./agent-tool-mode-guard";
 import { applyToolCallPolicies } from "./agent-tool-policy";
 import { selectSubagentTools } from "./task-tool-capabilities";
 import { isStructuredToolResult } from "./tool-result";
@@ -183,4 +183,45 @@ test("Ask program get requires explicit read ports and cannot replay the exporti
   assert.equal(reads, 2); assert.equal(exports, 0);
   assert.equal(await applyToolModeGuards(base, "agent").qkrpc_action_get.execute!({ id: "fixture" }, options), "exported");
   assert.equal(exports, 1);
+});
+
+test("Ask client read ports remain client tools through the actual SDK and never call a disk executor", async () => {
+  let diskReads = 0;
+  const client = tool({ inputSchema: z.object({ action: z.literal("read_live") }) });
+  const operationConstraints = { workspace_program: { allowedActions: ["read_live", "edit_live"] } };
+  const guarded = applyToolModeGuards({ workspace_program: client }, "ask", {
+    workspace_program: async () => { diskReads++; return "disk"; },
+  }, { clientReadonlyTools: ["workspace_program"], operationConstraints });
+  assert.equal(guarded.workspace_program, client);
+  assert.equal(guarded.workspace_program.execute, undefined);
+  assert.deepEqual(selectSubagentTools(guarded, ["workspace_program"]), {});
+  assert.equal(getToolModeOperationDecision("workspace_program", "ask", { action: "read_live" }, true, operationConstraints.workspace_program).allowed, true);
+  for (const action of ["edit_live", "read_data", "patch", "future_action"]) {
+    assert.equal(getToolModeOperationDecision("workspace_program", "ask", { action }, true, operationConstraints.workspace_program).allowed, false);
+  }
+  const result = await generateText({
+    prompt: "Read the live document", tools: guarded,
+    model: new MockLanguageModelV3({ doGenerate: async () => ({
+      content: [{ type: "tool-call", toolCallId: "live-read", toolName: "workspace_program", input: '{"action":"read_live"}' }],
+      finishReason: { unified: "tool-calls", raw: "tool-calls" },
+      usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } }, warnings: [],
+    }) }),
+  });
+  assert.equal(result.toolCalls.length, 1);
+  assert.equal(result.toolResults.length, 0, "the SDK leaves the client call for addToolOutput");
+  assert.equal(diskReads, 0);
+});
+
+test("per-turn operation constraints reject old disk operations before Agent execution", async () => {
+  const calls: string[] = [];
+  const tools = applyToolModeGuards({ workspace_program: tool({ inputSchema: z.object({ action: z.string() }),
+    execute: async ({ action }) => { calls.push(action); return { action }; },
+  }) }, "agent", {}, { operationConstraints: { workspace_program: { allowedActions: ["read_live", "edit_live"] } } });
+  for (const action of ["read_data", "write_data", "file_read", "patch", "future_action"]) {
+    const result = await tools.workspace_program.execute!({ action }, options);
+    assert.ok(isStructuredToolResult(result)); assert.equal(result.ok, false);
+  }
+  assert.deepEqual(calls, []);
+  await tools.workspace_program.execute!({ action: "edit_live" }, options);
+  assert.deepEqual(calls, ["edit_live"]);
 });
