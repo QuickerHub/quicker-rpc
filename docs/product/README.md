@@ -131,6 +131,10 @@ V1 已页读 467 个动作、336 个全局子程序，错误快照拒绝，未�
 
 V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。外部接入见 [MCP/CLI 集成](../agent-mcp-integration.md)。
 
+V2 真实进程验收的环境由用户稍后提供；当前继续本地重构，相关双宿主验收保持未完成。
+不启动尚未证明隔离的本机 V2 评测进程。
+
+
 serve invoke 的超时预算覆盖发现、绑定预检、排队、连接握手与 RPC；不在连接成功后
 重置计时。单个 waiter 到期不取消另一请求的连接，错误清理也不阻塞在其 gate 后。
 调用方取消保留原 token，已返回的写入或未知写入收据不被取消覆盖；不承诺撤销已派发
@@ -175,7 +179,7 @@ launch smoke 已验证；NSIS 安装/升级、真实旧资料与 P1–P3 的完�
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。ResourcePane 已接两类绑定目录的筛选、分页、只读选择和刷新；V1 组合动作（已知 XAction）打开复用完整绑定的本地项目或导出到空目录，通过原文件实例入口打开，已有草稿/undo、迟到及未知收据已有 fixture/DOM 回归。打开链的原生实机、V2/子程序打开、插入/拖放及必要资源操作、完整属性与 host session 接线仍待迁移，A1 未完成 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 adapter/保真条件存储、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已验证；V2 活进程、Designer、进程重启与完整打包流程仍待集成验收 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。Agent 工具仍未接 UI 的实时文档 revision；catalog 请求/缓存已绑定文档；多宿主选择、命令绑定和完整人工/Agent 交错编辑仍待实施 |
-| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。72 API、静态 React/Node、资源/native/真实子进程与隔离 Electron 打包启动已验证；安装/升级及 P1–P3 完整流程待集成，Next 兼容入口保留 |
+| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后删除 Next 分支。74 API、静态 React/Node、资源/native/真实子进程与隔离 Electron 打包启动已验证；安装/升级及 P1–P3 完整流程待集成，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
 
 首个实现切片是 A0 的最小身份/能力契约与 A1 的可运行设计器迁移并行推进；真实宿主写入
