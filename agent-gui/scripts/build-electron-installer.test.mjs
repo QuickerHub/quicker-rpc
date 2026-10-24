@@ -36,10 +36,11 @@ test("production runner keeps both signed script passes, helper compilation and 
       for (const pass of [false, true]) {
         const output = await new Target().computeFinalScript(main, pass, new Map());
         assert.match(output, /^!define QA_VERIFIED_OVERLAY_BUILD "25.1.8-v1"\n; license, associations and generated macros/);
-        for (const name of ["installSection.nsh", "multiUser.nsh", "assistedInstaller.nsh", "uninstaller.nsh"]) {
+        for (const name of ["installSection.nsh", "multiUser.nsh", "assistedInstaller.nsh", "uninstaller.nsh", "installUtil.nsh"]) {
           const path = output.split("\n").find((line) => line.trim().startsWith("!include ") && line.endsWith(`${name}"`))?.match(/!include "([^"]+)"/)?.[1];
           assert.ok(path); const source = await readFile(path, "utf8");
           if (name === "installSection.nsh") assert.doesNotMatch(source, /!insertmacro uninstallOldVersion/);
+          if (name === "installUtil.nsh") assert.doesNotMatch(source, /Function |ExecWait|uninstallOldVersion/);
           if (name === "multiUser.nsh") {
             assert.match(source, /StrCpy \$INSTDIR "\$LOCALAPPDATA\\QuickerAgent"/);
             assert.match(source, /GetParameter\} \$R0 "D" ""[^]*?StrCpy \$INSTDIR \$R0/);

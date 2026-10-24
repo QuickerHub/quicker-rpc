@@ -118,6 +118,34 @@ Windows CI 编译生产 helper 并运行纯进程策略 fixture；它不会运�
 专属隐藏窗口 fixture 已验证精确根程序关闭、同名外部进程隔离和后端阻塞，
 仍需隔离安装/升级和真实旧资料验收。
 
+独立的 [NSIS fixture 入口](../../agent-gui/scripts/prepare-nsis-fixture.mjs) 复用上述真实 builder、
+静态 runtime 与 Electron shell，只使用明确提供并核验过的 CLI、ripgrep 和本地工具缓存。
+它不调用嵌入发布密钥的 prepare 链；依赖从已安装的生产依赖图离线复制，`prepare` 只初始化
+新的仓库 `.tmp` 目录，目录已存在时拒绝重新初始化。共享 shell staging 在创建输出前核验真实祖先，
+拒绝 junction/symlink 将新子目录重定向到仓库外。
+
+fixture 使用唯一 appId/GUID/productName、固定安装目录和合成资料；固定版本模板适配编译
+排除全部快捷方式写删、自动启动及用户 AppData 删除，并将安装器缓存放进本轮目录。
+`audit --version=0.0.1` 运行真实打包并在编译前保留 NSIS 预处理结果；
+`build --version=0.0.1` / `build --version=0.0.2` 保留 builder 原有两 pass 和签名入口，
+其中会执行仅负责写出本轮卸载器的受限生成 stub。最终 setup 与真正卸载器不由此入口运行。
+NSIS 3.0.4.1 的 `/PPO` 插件查找使用独立 parser 工具副本，来源与插件 hash 保留在 provenance；
+真实编译器及脚本不使用该解析副本。已删除目录回调与旧卸载链留下的无用函数，保留 `/WX`。
+
+唯一身份下的两版真实 NSIS 制品已通过 `/WX` 构建，产物有版本、大小与 SHA-256 收据；
+本地 fixture 没有签名凭据，不能将保留签名入口写成制品已签名。实际首次安装仍未完成：
+长 TEMP 的尝试在临时解包目录缺少 249 个超过路径上限的文件；短 TEMP 已完整解出
+7212 个文件，但仍在逐个复制时被原 180 秒总时限回收。验收 runner 现只为 setup job
+使用短 TEMP/TMP，并以 600 秒有界等待及 30 秒文件计数/最新创建时间报告观察进度。
+进行中的计数不代表完整 payload 校验，也不能把部分文件或注册项当成安装成功。
+
+[验收脚本](../../agent-gui/scripts/Test-IsolatedNsisAcceptance.ps1) 默认 `-Action Plan` 只读输出
+身份与命令；`Fresh`、`Upgrade`、`Launch`、`Verify` 必须显式运行。它复用现有 owned Job、
+合成 profile 与 RPC guard；setup 的短 TEMP 不改变 Electron smoke 的资料映射。
+真实 builder、setup、原生窗口与桌面 smoke 都不加入自动离线清单；CI 只登记模板/参数/
+路径/隔离策略的纯测试。首次安装、原目录升级、完整 payload hash 与合成资料保留、
+生产快捷方式、真正卸载及真实旧资料仍是独立验收门槛。
+
 浏览器单次调用现已把 turn abortSignal 传到独立 request owner 与按 session 串行的原生
 操作尾部，实际自建 Edge/HTTP 取消、排队、迟到结果及原 context/ref 复用另有验证；
 Electron 原生与用户浏览器继续独立验收，不能用服务退出代替。以上门槛完成前，保留

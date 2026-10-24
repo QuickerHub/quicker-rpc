@@ -29,7 +29,7 @@ function findPackage(name, from) {
 }
 
 /** Copy the resolved production graph, preserving version conflicts without dev dependencies. */
-function stagePackages(names, appDirectory) {
+export function stageRuntimePackages(names, appDirectory, sourceRoot = root) {
   const installed = new Map();
   function stage(name, from, parent = appDirectory) {
     const source = realpathSync(findPackage(name, from));
@@ -49,7 +49,7 @@ function stagePackages(names, appDirectory) {
       stage(dependency, source, target);
     }
   }
-  for (const name of names) stage(name, root);
+  for (const name of names) stage(name, sourceRoot);
   return installed.size;
 }
 
@@ -123,7 +123,7 @@ async function buildInto(appDirectory, development) {
   if ([...externals].some((name) => /^next(?:\/|$)|^@\/|^server-only$/.test(name))) throw new Error("Backend retains framework imports");
   const packages = new Set([...externals].filter((name) => !isBuiltin(name) && !name.startsWith(".")).map(packageName));
   for (const name of ["playwright", "ws", "node-pty"]) packages.add(name);
-  const packageCount = stagePackages(packages, appDirectory);
+  const packageCount = stageRuntimePackages(packages, appDirectory);
   for (const directory of ["browser-runtime", "terminal-runtime", "drizzle/migrations", "lib/agent-defs/bundled"]) {
     cpSync(join(root, directory), join(appDirectory, directory), { recursive: true, filter: (path) => !/\.test\.[cm]?[jt]s$/.test(path) });
   }
