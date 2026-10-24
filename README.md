@@ -66,7 +66,7 @@ load {packagePath}/QuickerRpc.Plugin.{version}.dll
 type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}
 ```
 
-子程序 **QuickerRpc_Run** 入口：`Launcher.StartFromQuickerInParam(quicker_in_param, _context)`。
+子程序 **QuickerRpc_Run** 标准入口：`Launcher.Start(_context)`。它从实际动作 context 解析参数；只有调用方确有已定义的字符串变量时，才将该变量显式传给 `Launcher.StartFromQuickerInParam`。`quicker_in_param` 不会自动成为 C# 标识符。
 
 | 条件 | 行为 |
 |------|------|
