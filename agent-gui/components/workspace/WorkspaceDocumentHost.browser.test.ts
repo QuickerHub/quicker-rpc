@@ -19,10 +19,13 @@ const action='11111111-1111-4111-8111-111111111111';
 const file='.quicker/actions/'+action+'/data.json';
 const second='.quicker/actions/22222222-2222-4222-8222-222222222222/data.json';
 const body=label=>JSON.stringify({steps:[{stepId:'step',stepRunnerKey:'sys:fixture',note:label,inputParams:{}}],variables:[],subPrograms:[],future:'__int64__'}).replace('"__int64__"','9007199254740993');
-const state=window.fixture={file,second,body,calls:[],pins:[],unexpected:[],pending:[],defer:false,deferReads:false,readPending:[],files:new Map(),deletedProjects:new Set(),reads:[],syncCalls:[],syncPending:[],syncMode:'success',syncState:'in_sync',deletePending:[],bound:false,resourceOpens:[],openPending:[],openMode:'success',exportCount:0,bindings:new Map(),projectRemoved:owner=>workspaceExplorerActionsRef.current.notifyProjectRemoved(owner)};
+const state=window.fixture={file,second,body,calls:[],pins:[],unexpected:[],pending:[],defer:false,deferReads:false,readPending:[],files:new Map(),deletedProjects:new Set(),reads:[],syncCalls:[],syncPending:[],syncMode:'success',syncState:'in_sync',deletePending:[],bound:false,resourceOpens:[],openPending:[],openMode:'success',exportCount:0,bindings:new Map(),modalMode:false,deferMetadata:false,metadataPending:[],contractCalls:[],projectRemoved:owner=>workspaceExplorerActionsRef.current.notifyProjectRemoved(owner)};
 const key=(cwd,path)=>cwd+'::'+path;
 const hostBinding={hostInstanceId:'fixture-v1',hostSessionId:'a'.repeat(32),endpoint:'QuickerRpc_User_'+'A'.repeat(24)+'_'+'a'.repeat(32),protocolVersion:1,schemaVersion:1,hostKind:'v1',quickerVersion:'fixture',capabilities:{'resource.action.page.read':true,'action.legacyBody.read':true}};
-const record=(cwd,directory)=>state.bindings.get(key(cwd,directory))??{schemaVersion:1,kind:'action',actionId:directory.split('/').at(-1),hostBinding};
+const record=(cwd,directory)=>state.bindings.get(key(cwd,directory))??{schemaVersion:1,kind:'action',actionId:directory.split('/').at(-1),hostBinding:state.modalMode?{...hostBinding,capabilities:{...hostBinding.capabilities,'stepRunner.inputContract.read':true}}:hostBinding};
+const modalParam={key:'text',name:'Fixture text',description:'Existing generated text input',varType:0,variableMode:0,isMultiLine:false,isRequired:false,validationPattern:'',selectionItems:[],isControlField:false,defaultValue:'',fromOldField:'',isAdvanced:false,allowInput:false,visibleExpression:'',replaceVariable:false,defaultHighlightType:'',skipEval:false,skipLogContent:false,validForList:[],invalidForList:[]};
+const modalRunner={key:'sys:fixture',name:'Fixture text step',description:'Generated UI schema',icon:'',category:'Fixture',secondaryCategories:[],keywords:[],supportedParams:[],subItems:[],stepType:'Action',inputParamDefs:[modalParam],outputParamDefs:[]};
+const modalContract={version:1,source:'runtime-definition',hostKind:'v1',stepRunnerKey:'sys:fixture',controlFieldKey:null,appliedControlFieldValue:null,visibilityResolved:true,reservedBindings:['.file','.var','file','varKey'],inputs:[{key:'text',policyKnown:true,varType:0,variableMode:0,allowInput:false,isControlField:false,visibilityResolved:true,visible:true,literalPolicy:'allowed',literalValueRestriction:'none',blockedReason:null,options:[]}]};
 for(const cwd of ['C:/fixture/a','C:/fixture/b'])for(const p of [file,second])state.files.set(key(cwd,p),body(cwd+(p===second?' second':' initial')));
 const tree=rootPath=>({rootPath,children:[]});
 window.EventSource=class{close(){}};
@@ -74,6 +77,14 @@ window.fetch=async(input,init)=>{
    if(state.openMode==='defer')return await new Promise(resolve=>state.openPending.push(()=>resolve(Response.json(result))));
    return Response.json(result,{status:result.ok?200:409});
  }
+ if(state.modalMode&&url.pathname==='/api/step-runner/input-contract'){
+   state.contractCalls.push(request);
+   const finish=()=>Response.json({ok:true,source:'live',contract:modalContract});
+   if(state.deferMetadata)return await new Promise(resolve=>state.metadataPending.push(()=>resolve(finish())));
+   return finish();
+ }
+ if(state.modalMode&&url.pathname==='/api/subprogram/list')return Response.json({ok:true,items:[]});
+ if(state.modalMode&&url.pathname.startsWith('/api/step-runner/'))return Response.json({ok:true,items:[modalRunner],item:modalRunner,summaries:[]});
  if(state.bound&&url.pathname.startsWith('/api/step-runner/'))return Response.json({ok:true,items:[]});
  state.unexpected.push(url.pathname+':'+request.op);throw new Error('Unexpected fake request '+url.pathname);
 };
@@ -225,6 +236,149 @@ test("a real step pin exposes the sole unsaved APDE controller to a fixed live s
     assert.equal(old.ok, false); assert.equal(old.code, "LIVE_DOCUMENT_STALE");
     assert.notEqual(await note(page).inputValue(), "agent note in original owner");
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+async function prepareModalDocument(page: Page, readSchema = false) {
+  await page.evaluate(() => {
+    const f=(window as any).fixture;
+    f.bound=true; f.modalMode=true;
+    f.modalOriginal=f.body('human note before popup').replace('"inputParams":{}','"inputParams":{"text":"existing literal"}');
+    f.files.set(f.cwd+'::'+f.file,f.modalOriginal); f.open(f.file);
+  });
+  await note(page).waitFor();
+  await page.locator('[data-workspace-document]:visible .action-project-target summary').waitFor();
+  await page.getByRole('button', { name: '添加步骤到对话', exact: true }).click();
+  return await page.evaluate(async (schema) => {
+    const f=(window as any).fixture;
+    f.modalSelection=f.live.captureForManualSend({threadId:'chat-a',userMessageId:'before-modal',cwd:f.cwd,pins:[f.pins.at(-1).pin],mode:'edit'});
+    if(f.modalSelection.state!=='ready')throw Error(JSON.stringify(f.modalSelection));
+    const scope=f.modalSelection.scope;
+    f.modalRead=schema
+      ?await f.live.executeAsync(scope,{scopeId:scope.scopeId,operationId:'before-modal-read',input:{action:'read_live',stepSchemaFor:'step'}})
+      :f.live.execute(scope,{scopeId:scope.scopeId,operationId:'before-modal-read',input:{action:'read_live'}});
+    return f.modalRead;
+  }, readSchema);
+}
+
+async function openParameterDraft(page: Page, value: string) {
+  await page.locator('[data-workspace-document]:visible [data-step-id="step"]').dblclick();
+  const popup=page.getByRole('dialog', { name: /^编辑步骤/ });
+  await popup.waitFor();
+  const field=popup.locator('.step-param-row').filter({ has: page.getByText('Fixture text', { exact: true }) }).locator('.cm-content[contenteditable="true"]');
+  await field.click(); await field.press('Control+A'); await field.pressSequentially(value);
+  // The public discard prompt proves the actual popup owns the typed draft,
+  // rather than merely observing text inserted into CodeMirror's DOM.
+  await popup.getByRole('button',{name:'取消',exact:true}).click();
+  const discard=page.getByRole('alertdialog',{name:'是否保存更改？',exact:true});
+  await discard.waitFor();
+  await discard.getByRole('button',{name:'取消',exact:true}).click();
+  await discard.waitFor({state:'hidden'});
+  return { popup, field };
+}
+
+for (const resolution of ['confirm','cancel'] as const) {
+test(`an actual parameter popup preserves its unconfirmed draft against an already-read Agent edit before ${resolution}`, { timeout: 45_000 }, async () => {
+  const { browser, page, errors } = await ownedFixture();
+  try {
+    const before=await prepareModalDocument(page,true);
+    assert.equal(before.ok,true); assert.equal(Number.isSafeInteger(before.revision),true);
+    assert.deepEqual(before.stepInputSchema.editableInputKeys,['text']);
+    const undo=page.locator('[data-workspace-document]:visible [title="撤销 (Ctrl+Z)"]');
+    const undoWasDisabled=await undo.isDisabled();
+    const human='human unconfirmed popup '+resolution;
+    const {popup,field}=await openParameterDraft(page,human);
+    const receipts=await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.modalSelection.scope;
+      const read=f.live.execute(scope,{scopeId:scope.scopeId,operationId:'during-modal-read',input:{action:'read_live'}});
+      f.modalBlockedCommand={scopeId:scope.scopeId,operationId:'already-read-modal-edit',input:{action:'edit_step_inputs_live',readOperationId:'before-modal-read',expectedRevision:f.modalRead.revision,stepId:'step',changes:[{key:'text',value:'Agent parameter collision'}]}};
+      f.modalBlockedReceipt=f.live.execute(scope,f.modalBlockedCommand);
+      return {edit:f.modalBlockedReceipt,read};
+    });
+    await page.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+    assert.equal(await field.innerText(),human,'an already-read Agent callback cannot rebuild and erase the human parameter draft');
+    assert.equal(receipts.edit.ok,false); assert.equal(receipts.edit.code,'LIVE_DOCUMENT_BUSY'); assert.equal(receipts.edit.application,'not_applied');
+    assert.equal(receipts.read.ok,false); assert.equal(receipts.read.code,'LIVE_DOCUMENT_BUSY');
+    assert.equal(await undo.isDisabled(),undoWasDisabled,'refused Agent work does not change Session history availability');
+    if(resolution==='confirm') await popup.getByRole('button',{name:'确定',exact:true}).click();
+    else {
+      await popup.getByRole('button',{name:'取消',exact:true}).click();
+      const discard=page.getByRole('alertdialog',{name:'是否保存更改？',exact:true});
+      await discard.waitFor();
+      const nested=await page.evaluate(() => {
+        const f=(window as any).fixture,scope=f.modalSelection.scope;
+        return f.live.execute(scope,{scopeId:scope.scopeId,operationId:'discard-dialog-edit',input:{action:'edit_live',readOperationId:'before-modal-read',expectedRevision:f.modalRead.revision,stepId:'step',note:'must not commit under the discard prompt'}});
+      });
+      assert.equal(nested.ok,false); assert.equal(nested.code,'LIVE_DOCUMENT_BUSY'); assert.equal(nested.application,'not_applied');
+      await discard.getByRole('button',{name:'不保存',exact:true}).click();
+    }
+    await popup.waitFor({state:'hidden'});
+    const after=await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.modalSelection.scope;
+      f.modalAfter=f.live.execute(scope,{scopeId:scope.scopeId,operationId:'after-modal-read',input:{action:'read_live'}});
+      return {read:f.modalAfter,replay:f.live.execute(scope,f.modalBlockedCommand)};
+    });
+    assert.equal(after.read.ok,true); assert.equal(after.read.revision,before.revision+(resolution==='confirm'?1:0));
+    assert.equal(JSON.parse(after.read.content).steps[0].inputParams.text,resolution==='confirm'?human:'existing literal');
+    assert.equal(JSON.parse(after.read.content).steps[0].note,'human note before popup');
+    assert.deepEqual(after.replay,receipts.edit,'closing a modal cannot turn the failed operation id into later edit permission');
+    const applied=await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.modalSelection.scope;
+      return f.live.execute(scope,{scopeId:scope.scopeId,operationId:'fresh-after-modal-edit',input:{action:'edit_live',readOperationId:'after-modal-read',expectedRevision:f.modalAfter.revision,stepId:'step',note:'Agent succeeds after the modal closes'}});
+    });
+    assert.equal(applied.ok,true); assert.equal(applied.revisionAfter,after.read.revision+1);
+    await page.waitForFunction(() => document.querySelector<HTMLInputElement>('[data-workspace-document]:not([hidden]) .step-form-note-input')?.value==='Agent succeeds after the modal closes');
+    await undo.click();
+    assert.equal(await note(page).inputValue(),'human note before popup');
+    const undone=await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.modalSelection.scope;
+      return f.live.execute(scope,{scopeId:scope.scopeId,operationId:'after-modal-undo-read',input:{action:'read_live'}});
+    });
+    assert.equal(undone.ok,true,JSON.stringify(undone)); assert.equal(JSON.parse(undone.content).steps[0].inputParams.text,resolution==='confirm'?human:'existing literal');
+    assert.match(undone.content,/9007199254740993/);
+    assert.equal(await page.evaluate(() => {const f=(window as any).fixture;return f.files.get(f.cwd+'::'+f.file)===f.modalOriginal;}),true);
+    assert.equal(await page.evaluate(() => (window as any).fixture.calls.length),0);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected),[]);
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+}
+
+test('a native metadata read that finishes while the real parameter popup is open cannot authorize an input edit', { timeout: 45_000 }, async () => {
+  const {browser,page,errors}=await ownedFixture();
+  try {
+    await prepareModalDocument(page);
+    await page.evaluate(() => {
+      const f=(window as any).fixture,scope=f.modalSelection.scope;
+      f.deferMetadata=true;
+      f.modalMetadata=f.live.executeAsync(scope,{scopeId:scope.scopeId,operationId:'metadata-before-modal',input:{action:'read_live',stepSchemaFor:'step'}});
+    });
+    await page.waitForFunction(() => (window as any).fixture.metadataPending.length===1);
+    const {popup,field}=await openParameterDraft(page,'human draft during native metadata');
+    const late=await page.evaluate(async () => {
+      const f=(window as any).fixture; f.metadataPending.shift()(); return await f.modalMetadata;
+    });
+    assert.equal(late.ok,false); assert.equal(late.code,'LIVE_DOCUMENT_BUSY');
+    assert.equal(await field.innerText(),'human draft during native metadata');
+    await popup.getByRole('button',{name:'取消',exact:true}).click();
+    await page.getByRole('alertdialog',{name:'是否保存更改？',exact:true}).getByRole('button',{name:'不保存',exact:true}).click();
+    await popup.waitFor({state:'hidden'});
+    const proof=await page.evaluate(async () => {
+      const f=(window as any).fixture,scope=f.modalSelection.scope;
+      const invalid=f.live.execute(scope,{scopeId:scope.scopeId,operationId:'late-schema-not-authority',input:{action:'edit_step_inputs_live',readOperationId:'metadata-before-modal',expectedRevision:f.modalRead.revision,stepId:'step',changes:[{key:'text',value:'must not apply'}]}});
+      f.deferMetadata=false;
+      const fresh=await f.live.executeAsync(scope,{scopeId:scope.scopeId,operationId:'new-metadata-after-modal',input:{action:'read_live',stepSchemaFor:'step'}});
+      const edited=f.live.execute(scope,{scopeId:scope.scopeId,operationId:'fresh-input-edit-after-modal',input:{action:'edit_step_inputs_live',readOperationId:'new-metadata-after-modal',expectedRevision:fresh.revision,stepId:'step',changes:[{key:'text',value:'fresh native input edit'}]}});
+      return {invalid,fresh,edited,calls:f.contractCalls};
+    });
+    assert.equal(proof.invalid.ok,false); assert.equal(proof.invalid.code,'LIVE_READ_REQUIRED');
+    assert.equal(proof.fresh.ok,true); assert.deepEqual(proof.fresh.stepInputSchema.editableInputKeys,['text']);
+    assert.equal(proof.edited.ok,true); assert.equal(proof.edited.revisionAfter,proof.fresh.revision+1);
+    assert.equal(proof.calls.length,2);
+    for(const request of proof.calls){assert.equal(request.key,'sys:fixture'); assert.equal(request.catalogContext.cwd,'C:/fixture/a'); assert.equal(request.catalogContext.expectedProjectBinding.hostBinding.capabilities['stepRunner.inputContract.read'],true);}
+    assert.equal(await page.evaluate(() => (window as any).fixture.calls.length),0);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected),[]);
+    assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });
 

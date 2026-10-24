@@ -5,6 +5,27 @@ import { createProgramDocumentEditorController } from "./programDocumentEditorCo
 
 const content = '{"steps":[{"stepId":"main","stepRunnerKey":"future","note":"main","opaque":9223372036854775807}],"variables":[],"subPrograms":[{"id":"child","name":"Child","kind":1,"steps":[],"variables":[],"subPrograms":[{"id":"nested","name":"Nested","kind":1,"steps":[{"stepId":"nested-step","stepRunnerKey":"future","note":"nested","opaque":0.12345678901234567890123456789}],"variables":[],"subPrograms":[]}]}],"opaque":1e999}';
 
+test("Agent input changes notify the original controller once and share the latest human undo baseline", () => {
+  const session = createProgramDocumentSession({ content: content.replace('"note":"main"', '"note":"main","inputParams":{"msg":{"Value":"before","VarKey":"","future":9007199254740993}}'), identity: { documentKey: "inputs", projectBinding: null } });
+  let current = true, notifications = 0;
+  const controller = createProgramDocumentEditorController(session, { isCurrent: () => current, onChange() { notifications++; } });
+  const human = controller.getSurface("main").getPresent(); human.steps[0]!.note = "human draft";
+  controller.getSurface("main").commit(human);
+  const before = session.getState(), oldNotifications = notifications;
+  const request = { expectedRevision: before.revision, expectedIdentity: before.identity, stepId: "main", expectedRunnerKey: "future",
+    changes: [{ key: "msg", value: "Agent input" }], allowedInputKeys: new Set(["msg"]) };
+  const result = controller.applyAgentStepInputs(request);
+  assert.equal(result.ok, true); assert.equal(notifications, oldNotifications + 1);
+  assert.equal(controller.getSurface("main").getPresent().steps[0]!.inputParams.msg!.value, "Agent input");
+  assert.match(session.getState().content, /9007199254740993/); assert.match(session.getState().content, /9223372036854775807/);
+  assert.equal(controller.getSurface("main").getPresent().steps[0]!.note, "human draft");
+  controller.undo(); assert.equal(session.getState().content, before.content);
+  current = false;
+  const departed = session.getState();
+  assert.equal(controller.applyAgentStepInputs({ ...request, expectedRevision: departed.revision }).ok, false);
+  assert.equal(session.getState(), departed);
+});
+
 test("surface handles read one session immediately and share history with properties and unopened subtrees", () => {
   const session = createProgramDocumentSession({ content, identity: { documentKey: "one", projectBinding: null },
     metadata: { path: "info.json", content: '{"title":"Original","description":"","icon":"","EditVersion":9223372036854775807}' } });

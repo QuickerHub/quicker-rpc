@@ -6,4 +6,6 @@ export type XProgramEditorHandle = {
   applyProgram(present: XProgramPresent, options?: { recordUndo?: boolean }): void;
   /** Flush committed-form drafts before document history or persistence reads. */
   flushPendingEdits?(): void;
+  /** Read the owning surface's unconfirmed modal state, including hidden surfaces. */
+  isLiveEditingBlocked?(): boolean;
 };

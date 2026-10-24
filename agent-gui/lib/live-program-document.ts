@@ -1,6 +1,8 @@
 import type { ActionProjectBinding } from "./action-project-binding";
 import type { ProgramDocumentIdentity } from "./action-editor/document/programDocumentSession";
 import type { WorkspaceDocumentOwner } from "./workspace-document-instances";
+import type { StepRunnerInputContract } from "./step-runner-input-contract";
+import type { ProgramDocumentStepInputsRequest } from "./action-editor/document/programDocumentStepInputs";
 
 /** Descriptor only. The existing APDE Session remains the sole editable document/history. */
 export type LiveProgramDocumentTarget = Readonly<{
@@ -26,12 +28,18 @@ export type LiveProgramDocumentSelection = Readonly<{ state: "none" } | {
   state: "unavailable"; code: string; error: string; retryable: false;
 } | { state: "ready"; scope: LiveProgramDocumentScope }>;
 
-export type LiveProgramDocumentInput = Readonly<{ action: "read_live" } | {
+export type LiveProgramDocumentInput = Readonly<{ action: "read_live"; stepSchemaFor?: string } | {
   action: "edit_live";
   readOperationId: string;
   expectedRevision: number;
   stepId: string;
   note: string;
+} | {
+  action: "edit_step_inputs_live";
+  readOperationId: string;
+  expectedRevision: number;
+  stepId: string;
+  changes: readonly Readonly<{ key: string; value: string }>[];
 }>;
 export type LiveProgramDocumentCommand = Readonly<{
   scopeId: string;
@@ -59,8 +67,9 @@ type ReceiptBase = Readonly<{
 }>;
 export type LiveProgramDocumentReceipt = ReceiptBase & Readonly<{
   ok: true; action: "read_live"; complete: true;
+  stepInputSchema?: Readonly<{ stepId: string; contract: StepRunnerInputContract; editableInputKeys: readonly string[] }>;
 } & LiveProgramDocumentSnapshot | {
-  ok: true; action: "edit_live"; applied: true; changed: boolean;
+  ok: true; action: "edit_live" | "edit_step_inputs_live"; applied: true; changed: boolean;
   revisionBefore: number; revisionAfter: number; dirty: boolean; undoable: boolean;
 } | {
   ok: false; action: LiveProgramDocumentInput["action"]; code: string; error: string;
@@ -68,6 +77,14 @@ export type LiveProgramDocumentReceipt = ReceiptBase & Readonly<{
 }>;
 
 export type LiveProgramDocumentEndpointFailure = Readonly<{ ok: false; code: string; error: string; revision?: number }>;
+export type LiveProgramDocumentMutationResult = Readonly<{
+  ok: true; changed: boolean; revisionBefore: number; revisionAfter: number; dirty: boolean;
+}> | LiveProgramDocumentEndpointFailure;
+export type LiveProgramDocumentExecutionOptions = Readonly<{
+  isCancelled?: () => boolean;
+  /** Cancels this pending observer; closing the scope always cancels the underlying read. */
+  abortSignal?: AbortSignal;
+}>;
 /** Endpoint functions reference the existing controller; they do not hold a separate body. */
 export type LiveProgramDocumentEndpoint = Readonly<{
   getTarget(): LiveProgramDocumentTarget | undefined;
@@ -75,9 +92,9 @@ export type LiveProgramDocumentEndpoint = Readonly<{
   read(): Readonly<{ ok: true; snapshot: LiveProgramDocumentSnapshot }> | LiveProgramDocumentEndpointFailure;
   setStepNote(input: Readonly<{
     expectedRevision: number; expectedIdentity: ProgramDocumentIdentity; stepId: string; note: string;
-  }>): Readonly<{
-    ok: true; changed: boolean; revisionBefore: number; revisionAfter: number; dirty: boolean;
-  }> | LiveProgramDocumentEndpointFailure;
+  }>): LiveProgramDocumentMutationResult;
+  readInputContract?(input: { stepRunnerKey: string; controlFieldValue?: string }, signal?: AbortSignal): Promise<StepRunnerInputContract>;
+  setStepInputs?(input: ProgramDocumentStepInputsRequest): LiveProgramDocumentMutationResult;
 }>;
 
 export type LiveProgramDocumentRegistryFailure = Readonly<{ ok: false; code: string; error: string; retryable: false }>;
@@ -88,7 +105,8 @@ export type LiveProgramDocumentRegistry = Readonly<{
     threadId: string; userMessageId: string; cwd: string; pins: readonly LiveProgramDocumentPin[]; mode: "read" | "edit";
   }>): LiveProgramDocumentSelection;
   /** Synchronous commit + receipt registration; no await can split the mutation from its fact. */
-  execute(scope: LiveProgramDocumentScope, command: LiveProgramDocumentCommand, options?: Readonly<{ isCancelled?: () => boolean }>): LiveProgramDocumentReceipt;
+  execute(scope: LiveProgramDocumentScope, command: LiveProgramDocumentCommand, options?: LiveProgramDocumentExecutionOptions): LiveProgramDocumentReceipt;
+  executeAsync(scope: LiveProgramDocumentScope, command: LiveProgramDocumentCommand, options?: LiveProgramDocumentExecutionOptions): Promise<LiveProgramDocumentReceipt>;
   revokeScope(scopeId: string, reason?: string): void;
   dispose(): void;
 }>;

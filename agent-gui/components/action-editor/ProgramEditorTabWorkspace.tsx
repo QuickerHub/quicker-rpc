@@ -36,6 +36,7 @@ import "./program-editor-toolbox.css";
 export type ProgramEditorWorkspaceHandle = {
   getSnapshot(): ActionProgramSnapshot;
   flushPendingEdits(): void;
+  isLiveEditingBlocked(): boolean;
 };
 
 export type ProgramEditorTabWorkspaceProps = {
@@ -106,14 +107,24 @@ function ProgramEditorTabWorkspaceBody({
   const insertionRegistry = useRef(createToolboxInsertionRegistry());
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [visitedTabs, setVisitedTabs] = useState<string[]>([]);
-  const [propertiesTarget, setPropertiesTarget] = useState<{ row: ActionSubProgram; identity: ProgramDocumentIdentity } | null>(null);
+  const [propertiesTarget, setPropertiesTargetState] = useState<{ row: ActionSubProgram; identity: ProgramDocumentIdentity } | null>(null);
+  const propertiesOwner = useRef<typeof propertiesTarget>(null);
+  const setPropertiesTarget = useCallback((target: typeof propertiesTarget) => {
+    propertiesOwner.current = target;
+    setPropertiesTargetState(target);
+  }, []);
   const [contextMenu, setContextMenu] = useState<{ surface: string; left: number; top: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ preview: PreparedSubProgramDelete; locations: SubProgramDeleteLocation[]; ticket: symbol; error?: string } | null>(null);
   const deleteOwner = useRef<{ ticket: symbol; controller: ProgramDocumentEditorController } | null>(null);
   const [lifecycleError, setLifecycleError] = useState<string>();
   const live = useRef({ controller, active, historyDisabled });
   live.current = { controller, active, historyDisabled };
-  const [appearancePickerOpen, setAppearancePickerOpen] = useState(false);
+  const [appearancePickerOpen, setAppearancePickerOpenState] = useState(false);
+  const appearancePickerOwner = useRef(false);
+  const setAppearancePickerOpen = useCallback((open: boolean) => {
+    appearancePickerOwner.current = open;
+    setAppearancePickerOpenState(open);
+  }, []);
   const modalOpen = Boolean(propertiesTarget || deleteTarget || appearancePickerOpen);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const payload = controller.getSnapshot();
@@ -137,11 +148,14 @@ function ProgramEditorTabWorkspaceBody({
     flushPendingEdits();
     controller[direction]();
   }, [active, historyDisabled, controller, flushPendingEdits, modalOpen]);
-  useEffect(() => {
-    const handle: ProgramEditorWorkspaceHandle = { getSnapshot: controller.getSnapshot, flushPendingEdits };
+  useLayoutEffect(() => {
+    const handle: ProgramEditorWorkspaceHandle = { getSnapshot: controller.getSnapshot, flushPendingEdits,
+      isLiveEditingBlocked: () => Boolean(propertiesOwner.current || deleteOwner.current || appearancePickerOwner.current)
+        || ["main", ...available.map((tab) => tab.surface)].some((surface) => bridge.getEditorForSurface(surface)?.isLiveEditingBlocked?.()),
+    };
     onHandleChange?.(handle);
     return () => onHandleChange?.(null);
-  }, [controller, onHandleChange, flushPendingEdits]);
+  }, [controller, onHandleChange, flushPendingEdits, available, bridge.getEditorForSurface]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!active || historyDisabled || modalOpen || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
