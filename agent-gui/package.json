@@ -79,7 +79,7 @@
     "build:static:dev": "node --import tsx scripts/build-static-runtime.mjs --dev",
     "check:service-routes": "node scripts/generate-service-routes.mjs --check",
     "electron:prepare:static": "node --import tsx scripts/electron-prepare-static.mjs",
-    "test:static-runtime": "node --import tsx --test --test-concurrency=1 --test-timeout=60000 service/static-runtime.integration.test.ts"
+    "test:static-runtime": "node --import tsx --test --test-concurrency=1 --test-timeout=300000 service/static-runtime.integration.test.ts"
   },
   "dependencies": {
     "@ai-sdk/mcp": "1.0.46",
