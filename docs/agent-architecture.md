@@ -238,7 +238,18 @@ loaded、退出账号标记、固定账号及服务/锁引用前后未变，再�
 V1 实测分页读完 467 个动作、336 个全局子程序，错误快照明确拒绝，未写正文或运行动作。
 设计器 ResourcePane 已通过绑定项目的标准 API 消费该端口，两类能力分别检查。页面不作
 持久缓存；隐藏或换目标取消请求，目录过期时保留旧摘要并停止拼接，显式刷新重建首屏。
-资源选择只展示摘要，不另建文档或改写 Session；打开与编辑操作仍待迁移。
+资源选择只展示摘要，不改写 Session。已知 XAction 组合动作的「在工作区打开」使用独立的手动本地导出
+API，额外核验 V1 `action.legacyBody.read` 与原项目完整绑定，不把目录能力当作正文权限。
+本地项目按 actionId 与完整目标唯一匹配；已有项目不重导出，新导出只写原子新建的空目录，
+继续调用已有 `action.extract --no-bootstrap`，不新增宿主写入或 Agent 工具通道。
+requestId 的不可变 claim 放在导出目录外，绑定 cwd、现有文件 owner、来源项目及完整目标；
+重复 ID、部分目录或未知收据不重派发。派发后完成归独立有界生命周期，取消与来源变化
+保留已确认本地持久化事实。排队请求遇到前置未知/部分结果只返回自身未派发，并显式关联
+原请求及其本地收据；不冒认其目录、不生成新 claim 或输出目录。canonical workspace 保留
+大小写实体区分。相同 UUID 重查唯一已有项目仍只读成功，不因没有导出目录而报未知。
+工作台 presentation ticket 只在原 owner 仍可见时打开返回路径；
+已有文件实例仅 focus，不 force reload、重建 Session 或清除历史。V2/子程序打开、资源插入/
+拖放与更完整编辑操作仍待迁移；原生实机打开尚待验收。
 
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，

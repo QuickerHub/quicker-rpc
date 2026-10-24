@@ -294,6 +294,8 @@ export type WorkspaceExplorerEditorContextValue = {
       totalChars?: number;
       revealInTree?: boolean;
       tabLabel?: string;
+      /** Resource navigation focuses an existing file instance without reading or replacing its baseline. */
+      preserveExisting?: boolean;
     },
   ) => void;
   openDiff: (path: string) => void;
@@ -1046,6 +1048,7 @@ export function WorkspaceExplorerPanelProvider({
         revealInTree?: boolean;
         /** Titlebar tab label (defaults to file basename). */
         tabLabel?: string;
+        preserveExisting?: boolean;
       },
     ) => {
       const normalizedPath = normalizeExplorerPath(path);
@@ -1066,6 +1069,16 @@ export function WorkspaceExplorerPanelProvider({
         setPanelOpen(true);
         setSelectedPath(normalizedPath);
         setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
+        return;
+      }
+
+      if (meta?.preserveExisting && tabsRef.current.some((tab) => tab.id === fileTabId(normalizedPath) && tab.path === normalizedPath)) {
+        setPanelOpen(true);
+        if (meta.revealInTree !== false) expandPath(normalizedPath);
+        setSelectedPath(normalizedPath);
+        setActiveSideView(fileTabId(normalizedPath));
+        setActiveTabId(fileTabId(normalizedPath));
+        clearWorkspaceMainEditorDoc();
         return;
       }
 

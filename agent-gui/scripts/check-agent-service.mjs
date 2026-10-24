@@ -8,6 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // are synthetic, and the actual CLI child has an isolated profile + network guard.
 const tests = [
   "lib/agent-service/node-http.loopback.test.ts",
+  "lib/designer-resource-action-open.lifecycle.integration.test.ts",
   "lib/agent-service/service.integration.test.ts",
   "service/cli.integration.test.ts",
   "lib/db/writer-lease.process.test.ts",

@@ -7,6 +7,7 @@ import { createWorkspaceDocumentPresentation, type WorkspaceDocumentOwner } from
 import { useWorkspaceExplorerEditor, type ExplorerFileTab } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerEditorPane } from "./WorkspaceExplorerEditorPane";
 import { ManualTracePresentationProvider } from "@/lib/action-trace-presentation";
+import { WorkspaceDocumentNavigationContext } from "@/lib/workspace-document-navigation";
 
 export type WorkspaceDocumentChatPresentation = {
   threadId: string;
@@ -18,7 +19,8 @@ const WorkspaceDocumentHostContext = createContext<Host | null>(null);
 
 /** One renderer for all Chats. The portal target is never replaced when its outlet moves. */
 export function WorkspaceDocumentHost({ children }: { children: ReactNode }) {
-  const { documentInstances, saveDocumentFile, saveDocumentProgram, refreshDocumentFile } = useWorkspaceExplorerEditor();
+  const { cwd, documentInstances, saveDocumentFile, saveDocumentProgram, refreshDocumentFile, openFile } = useWorkspaceExplorerEditor();
+  const currentCwd = useRef(cwd); currentCwd.current = cwd;
   const instances = useSyncExternalStore(documentInstances.subscribe, documentInstances.getSnapshot, documentInstances.getSnapshot);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const parkingRef = useRef<HTMLDivElement | null>(null);
@@ -63,6 +65,16 @@ export function WorkspaceDocumentHost({ children }: { children: ReactNode }) {
       const active = outlet?.owner === owner && documentInstances.isCurrent(owner);
       return <div key={owner.instanceId} hidden={!active} inert={!active} data-workspace-document={owner.key}
         style={active ? { display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, flex: "1 1 auto" } : undefined}>
+        <WorkspaceDocumentNavigationContext.Provider value={{ owner, capture() {
+          const captured = presentation.getCurrent();
+          if (!captured || captured.value.owner !== owner || !documentInstances.isCurrent(owner) || currentCwd.current !== owner.cwd) return;
+          const isCurrent = () => presentation.getCurrent() === captured && documentInstances.isCurrent(owner) && currentCwd.current === owner.cwd;
+          return { cwd: owner.cwd, owner, isCurrent, openFile(path, label) {
+            if (!isCurrent()) return false;
+            openFile(path, undefined, { tabLabel: label, preserveExisting: true });
+            return true;
+          } };
+        } }}>
         <ManualTracePresentationProvider threadId={outlet?.chat.threadId} cwd={owner.cwd} active={active}
           projectDirectory={/^(\.quicker\/actions\/[^/]+)\/(?:info|data)\.json$/i.exec(owner.path.replace(/\\/g, "/"))?.[1]}>
         <WorkspaceExplorerEditorPane active={active} showDoc={false} activeTab={tab} showEditorSkeleton={Boolean(tab.loading && !tab.content)} cwd={owner.cwd}
@@ -71,6 +83,7 @@ export function WorkspaceDocumentHost({ children }: { children: ReactNode }) {
           onRefreshTree={() => { void refreshDocumentFile(owner); }} onActionProjectSynced={() => refreshDocumentFile(owner)}
           onPinStepToChat={(tag) => pinStep(owner, tag)} />
         </ManualTracePresentationProvider>
+        </WorkspaceDocumentNavigationContext.Provider>
       </div>;
     }), container)}
   </WorkspaceDocumentHostContext.Provider>;
