@@ -56,6 +56,18 @@ QuickerRpc.Plugin.V2
 
 ## 自动识别与设计器接入优先项
 
+### 活进程验收隔离门槛
+
+Debug Eval profile 隔离账号正文，不等于隔离完整进程。现有启动路径仍共享 WebView
+目录、MCP Home/config、日志及发现文件，也可触发浏览器注册、全局输入 hooks、IPC
+和第三方监听；仅隐藏 Shell 或设置 Eval DataRoot 不能满足自有测试实例的边界。
+`QUICKER_HOME` override 也不能同时隔离所有账号日志与历史。真实 V2 验收须先提供
+完整的自有进程/资料根与显式端口边界，或使用隔离 OS 用户/VM；不使用会停止其它
+headless 实例的默认启动脚本。只认本次源版本与构建输出，离线 DTO/PE fixture 和旧
+Debug/Release binary 均不能替代实际加载及双宿主验收。
+
+### 接入顺序
+
 1. `IQuickerRpcHost.Info` 与实际逐操作 capability 已暴露为 wire 握手；bootstrap session
    内稳定，独立 endpoint、实例发现/选择与持久写入绑定已实现，V1 活进程已验证。
    两个 fake 宿主可独立路由；真实双宿主选择、V2 与重启仍须实际验收。

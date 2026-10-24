@@ -439,6 +439,12 @@ CLI 与设计器分页链通过，默认 null style、中文/品牌/越界，以
 完整目标失配和非法窗口分别验收。专用动作版本与导出正文未变，零宿主写入和动作执行，
 主产品 frontend check 通过。共享图标选择器与 V2 活进程继续验收。
 
+FA 颜色校验已在原有三/六位 hex 上补原生 `#AARRGGBB`，属性写入与 geometry 的
+spec/color 保留原文。设计器、聊天、输入标签和两个旧向量入口共用显示转换；优先读取
+spec 的显式原生颜色，缺少该字面值时保留 adapter 已产生的 CSS，避免 V2 alpha 二次转换。
+缓存和 Sync 不存 CSS 替代值，四位 hex 与 named/semantic 语法仍未开放。离线回归覆盖
+实际 Sync route、V1 属性校验及 geometry、React/DOM 与旧接口；真实宿主写回单独验收。
+
 R5 文件实例首片已接生产 Chat/dock：已访问文件由工作台保活，切文件、browser/trace、
 折叠面板、切聊天/cwd 不卸载 APDE Session、属性草稿或 pending save。active 管理快捷键
 与 portal，删除选项不会因隐藏重现被重置；Pin/focus 跟随当前可见 Chat。读写固定
