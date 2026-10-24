@@ -63,6 +63,13 @@ function Invoke-OwnedFixtureSetup([string]$Version) {
     $setup = Get-FixtureArtifact $Version
     $run = New-ElectronSmokeRun $repo
     $environment = Get-ElectronSmokeEnvironment $run
+    # The legacy extractor must keep its own plugin/7z-out paths below MAX_PATH.
+    # Only this setup job uses the shorter owned temp; Electron's smoke profile
+    # and its strict environment/host RPC guard retain their original mapping.
+    $setupTemp = Assert-FixtureOwnedPath (Join-Path $fixtureRoot 't')
+    $null = New-Item -ItemType Directory -Path $setupTemp -Force
+    $environment['TEMP'] = $setupTemp
+    $environment['TMP'] = $setupTemp
     if (-not ('QuickerAgent.Smoke.OwnedJob' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'lib/ElectronSmokeProcess.cs') }
     # /D is the last unquoted argument, as required by NSIS. The compile-time
     # final-target gate rejects any path different from this unique directory.
@@ -70,7 +77,7 @@ function Invoke-OwnedFixtureSetup([string]$Version) {
     $owner = $null
     try {
         $owner = [QuickerAgent.Smoke.OwnedJob]::Start($setup, $arguments, $run.Root, $environment)
-        Write-Host "Owned setup pid=$($owner.RootProcessId), identity=$guid; evidence=$($run.Root)"
+        Write-Host "Owned setup pid=$($owner.RootProcessId), identity=$guid; evidence=$($run.Root); setupTemp=$setupTemp"
         $deadline = [DateTime]::UtcNow.AddSeconds(180)
         while (-not $owner.HasExited -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
         if (-not $owner.HasExited) { throw 'Owned setup timed out; retain partial output for review (no rollback claim)' }
@@ -78,7 +85,7 @@ function Invoke-OwnedFixtureSetup([string]$Version) {
     Assert-FixtureInstalled $Version
 }
 if ($Action -eq 'Plan') {
-    [pscustomobject]@{ Identity = $guid; InstallDirectory = $install; RegistryKeys = @($installKey, $uninstallKey); SetupArguments = "/S /currentuser /D=$install";
+    [pscustomobject]@{ Identity = $guid; InstallDirectory = $install; SetupTempDirectory = (Join-Path $fixtureRoot 't'); RegistryKeys = @($installKey, $uninstallKey); SetupArguments = "/S /currentuser /D=$install";
         Order = @('Fresh: 0.0.1 then seed generated DB/sentinels', 'Upgrade: same directory 0.0.2 then hash data', 'Launch: existing owned Job/profile/RPC guard', 'Verify: registration + synthetic data');
         FinalSetupExecuted = $false; TrueUninstallerExecuted = $false; Shortcuts = 'compiled out'; AutoStart = 'compiled out' } | ConvertTo-Json -Depth 5
     exit 0
