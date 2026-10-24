@@ -11,7 +11,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,9 +28,9 @@ export function stageShellProfileModule(sourceRoot, targetRoot) {
 }
 
 /** @param {string} agentGuiRoot */
-function stageBrowserRuntimeForShell(agentGuiRoot) {
+function stageBrowserRuntimeForShell(agentGuiRoot, targetRoot) {
   const src = join(agentGuiRoot, "browser-runtime");
-  const dest = join(shellAppRoot, "browser-runtime");
+  const dest = join(targetRoot, "browser-runtime");
   if (!existsSync(src)) {
     throw new Error(`Missing browser-runtime sources: ${src}`);
   }
@@ -69,9 +69,9 @@ function copyElectronSources(srcDir, destDir) {
 }
 
 /** @param {string} version */
-function writeShellPackageJson(version) {
+function writeShellPackageJson(version, targetRoot, packageName) {
   const pkg = {
-    name: "quicker-agent-electron-shell",
+    name: packageName,
     version,
     private: true,
     description: "QuickerAgent desktop shell",
@@ -81,16 +81,16 @@ function writeShellPackageJson(version) {
       "electron-updater": "^6.8.9",
     },
   };
-  writeFileSync(join(shellAppRoot, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+  writeFileSync(join(targetRoot, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
-function installShellDeps() {
+function installShellDeps(targetRoot) {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(
     npm,
     ["install", "--omit=dev", "--no-package-lock", "--no-fund", "--no-audit"],
     {
-      cwd: shellAppRoot,
+      cwd: targetRoot,
       stdio: "inherit",
       shell: process.platform === "win32",
     },
@@ -101,18 +101,29 @@ function installShellDeps() {
 }
 
 /**
- * @param {{ version?: string }} [opts]
+ * Explicit alternate output is fresh-only and remains within this repository's
+ * .tmp. Callers can stage the already installed dependency graph without npm.
+ * @param {{ version?: string, outputDirectory?: string, packageName?: string, installDependencies?: (root: string) => void }} [opts]
  */
-export function stageElectronShell({ version = "0.1.0" } = {}) {
-  console.log("electron-shell-staging: preparing minimal shell app...");
-  if (existsSync(shellAppRoot)) {
-    rmSync(shellAppRoot, { recursive: true, force: true });
+export function stageElectronShell({ version = "0.1.0", outputDirectory, packageName = "quicker-agent-electron-shell", installDependencies = installShellDeps } = {}) {
+  const targetRoot = outputDirectory ? resolve(outputDirectory) : shellAppRoot;
+  if (outputDirectory) {
+    const difference = relative(resolve(agentGuiRoot, "../.tmp"), targetRoot);
+    if (!difference || difference === ".." || difference.startsWith("..\\") || difference.startsWith("../") || isAbsolute(difference) || existsSync(targetRoot)) {
+      throw new Error("Alternate Electron shell output must be a new repository .tmp directory");
+    }
   }
-  mkdirSync(shellAppRoot, { recursive: true });
-  copyElectronSources(electronRoot, join(shellAppRoot, "electron"));
-  stageShellProfileModule(agentGuiRoot, shellAppRoot);
-  stageBrowserRuntimeForShell(agentGuiRoot);
-  writeShellPackageJson(version);
-  installShellDeps();
-  console.log(`electron-shell-staging: done -> ${shellAppRoot}`);
+  console.log("electron-shell-staging: preparing minimal shell app...");
+  if (existsSync(targetRoot)) {
+    if (resolve(targetRoot) !== resolve(shellAppRoot)) throw new Error("Unknown shell cleanup target");
+    rmSync(targetRoot, { recursive: true, force: true });
+  }
+  mkdirSync(targetRoot, { recursive: true });
+  copyElectronSources(electronRoot, join(targetRoot, "electron"));
+  stageShellProfileModule(agentGuiRoot, targetRoot);
+  stageBrowserRuntimeForShell(agentGuiRoot, targetRoot);
+  writeShellPackageJson(version, targetRoot, packageName);
+  installDependencies(targetRoot);
+  console.log(`electron-shell-staging: done -> ${targetRoot}`);
+  return targetRoot;
 }

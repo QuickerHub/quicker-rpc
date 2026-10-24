@@ -77,7 +77,7 @@ export async function runElectronInstaller(argv, dependencies = {}) {
     generatedMultiUserPath: join(temporary, "multiUser.nsh"), generatedUninstallerPath: join(temporary, "uninstaller.nsh") };
   const loaded = dependencies.Target && dependencies.api ? dependencies : loadInstallerBuildApi();
   const Target = dependencies.Target ?? loaded.Target;
-  const adapter = installPinnedNsisOverlayAdapter(Target, input);
+  const adapter = (dependencies.installAdapter ?? installPinnedNsisOverlayAdapter)(Target, input);
   try {
     await writeFile(input.generatedSectionPath, adapter.generatedSection);
     await writeFile(input.generatedAssistedPath, adapter.generatedLayout.assisted);
