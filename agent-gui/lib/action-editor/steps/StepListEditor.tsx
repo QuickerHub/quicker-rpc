@@ -217,7 +217,7 @@ type BranchType = "if" | "else" | "root";
 type PendingToolboxInsert = {
   dropIndicator: DropIndicator;
   step: ActionStep;
-  resourceCall?: { generation: number; origin: ResourceCallOrigin; resourceId: string; variablesBefore: ActionVariable[]; variablesDraft?: ActionVariable[] };
+  resourceCall?: { generation: number; origin: ResourceCallOrigin; resourceId: string; kind: "action" | "global_subprogram"; variablesBefore: ActionVariable[]; variablesDraft?: ActionVariable[] };
 };
 
 type QuickInsertSession = {
@@ -349,7 +349,12 @@ export default function StepListEditor({
     }
   }, [active, resourceCallOrigin, catalogPort, programDocumentKey, pendingToolboxInsert]);
   /** Inline search insert at a list slot (mutually exclusive with step param popup). */
-  const [quickInsert, setQuickInsert] = useState<QuickInsertSession | null>(null);
+  const [quickInsert, setQuickInsertState] = useState<QuickInsertSession | null>(null);
+  // Opening, closing or cancelling an insertion is a newer intent than any schema still in flight.
+  const setQuickInsert = useCallback((next: QuickInsertSession | null): void => {
+    insertGeneration.current += 1;
+    setQuickInsertState(next);
+  }, []);
   const editorTargetIdRef = useRef<string | null>(null);
   const quickInsertActiveRef = useRef(false);
   /** Backend GetSummary per stepId, scoped to step body fingerprint (avoids cross-tab / stale merge). */
@@ -979,19 +984,19 @@ export default function StepListEditor({
 
   const openToolboxInsert = useCallback(async (payload: ToolboxDragPayload, target: DropIndicator): Promise<void> => {
     if (!activeRef.current) return;
-    if (payload.resourceCall && (!catalogPort?.resourceCallInsertAvailable || !resourceCallMatchesOrigin(payload, resourceCallOrigin) || resourceCallOrigin?.documentKey !== programDocumentKey
+    if (payload.resourceCall && (!catalogPort?.canInsertResourceCall(payload.resourceCall.kind ?? "global_subprogram") || !resourceCallMatchesOrigin(payload, resourceCallOrigin) || resourceCallOrigin?.documentKey !== programDocumentKey
       || resourceCallOrigin?.catalogKey !== catalogPort?.key)) {
       notifyClipboard?.("资源调用来自其它文档、编辑面或已过期目标，未插入步骤。", "error"); return;
     }
     if (payload.resourceCall && flushProgramEdits) flushSync(flushProgramEdits);
     flushCompactSync();
     setQuickInsert(null);
-    const generation = ++insertGeneration.current;
+    const generation = insertGeneration.current;
     try {
       const step = await prepareToolboxStep(payload, runnerItems, () => stepIdManagerRef.current.nextId(), (key, control) => fetchStepRunnerDetailItem(key, control, undefined, catalogPort));
       if (!activeRef.current || generation !== insertGeneration.current) return;
       setPendingToolboxInsert({ dropIndicator: target, step, ...(payload.resourceCall && resourceCallOrigin ? {
-        resourceCall: { generation, origin: resourceCallOrigin, resourceId: payload.resourceCall.resourceId,
+        resourceCall: { generation, origin: resourceCallOrigin, resourceId: payload.resourceCall.resourceId, kind: payload.resourceCall.kind ?? "global_subprogram",
           variablesBefore: structuredClone((readProgramPresent?.() ?? { variables }).variables) },
       } : {}) });
       setEditorTargetId(step.stepId);
@@ -1000,7 +1005,7 @@ export default function StepListEditor({
         notifyClipboard?.(error instanceof Error ? error.message : String(error), "error");
       }
     }
-  }, [flushCompactSync, runnerItems, notifyClipboard, catalogPort, resourceCallOrigin, programDocumentKey, readProgramPresent, variables, flushProgramEdits]);
+  }, [flushCompactSync, runnerItems, notifyClipboard, catalogPort, resourceCallOrigin, programDocumentKey, readProgramPresent, variables, flushProgramEdits, setQuickInsert]);
 
   useEffect(() => {
     if (!active || !registerToolboxInsert) return;
@@ -1015,7 +1020,7 @@ export default function StepListEditor({
 
   const applyStepEditor = (next: ActionStep): boolean => {
     const resource = pendingToolboxInsert?.resourceCall;
-    if (resource && (!activeRef.current || !catalogPort?.resourceCallInsertAvailable || resource.generation !== insertGeneration.current || resource.origin !== resourceCallOrigin
+    if (resource && (!activeRef.current || !catalogPort?.canInsertResourceCall(resource.kind) || resource.generation !== insertGeneration.current || resource.origin !== resourceCallOrigin
       || resource.origin.documentKey !== programDocumentKey || resource.origin.catalogKey !== catalogPort?.key)) return false;
     if (resource && flushProgramEdits) flushSync(flushProgramEdits);
     flushCompactSync();
@@ -1318,16 +1323,18 @@ export default function StepListEditor({
       if (isTextField) {
         return;
       }
-      // Quick insert is open but focus left the search field (e.g. body): avoid list shortcuts; Escape still closes.
-      if (quickInsert) {
-        if (event.key === "Escape") {
+      // Escape also cancels a schema still loading before its popup has opened.
+      if (event.key === "Escape") {
+        setQuickInsert(null);
+        if (quickInsert) {
           event.preventDefault();
           event.stopPropagation();
-          setQuickInsert(null);
           refocusEditorShell();
         }
         return;
       }
+      // Quick insert is open but focus left the search field: avoid list shortcuts.
+      if (quickInsert) return;
       // Enter (same as B): open quick insert to insert after the selected step.
       if (
         editorTargetId == null &&
@@ -1500,6 +1507,7 @@ export default function StepListEditor({
     setSelectionAnchorId,
     selectedId,
     selectedIds,
+    setQuickInsert,
     setSingleSelection,
     steps
   ]);
@@ -2072,7 +2080,7 @@ export default function StepListEditor({
         step={popupStep}
         variables={pendingToolboxInsert?.resourceCall?.variablesDraft ?? variables}
         requireResolvedParameters={Boolean(pendingToolboxInsert?.resourceCall)}
-        resourceSubProgramId={pendingToolboxInsert?.resourceCall?.resourceId}
+        resourceSubProgramId={pendingToolboxInsert?.resourceCall?.kind === "global_subprogram" ? pendingToolboxInsert.resourceCall.resourceId : undefined}
         subPrograms={subPrograms}
         designerHostBaseUrl={backendBaseUrl}
         workspaceContext={workspaceContext}
