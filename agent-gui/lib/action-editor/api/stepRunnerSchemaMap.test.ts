@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+// Keep optional UI metadata validation in the existing explicit schema-map CI entry.
+import "../steps/paramEditors/moduleHelpLink.test";
 import { test } from "node:test";
 import {
   mapAgentSchemaToStepRunnerItem,

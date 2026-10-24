@@ -509,6 +509,7 @@ public static class StepRunnerCatalogMapper
             Name = runner.Name ?? string.Empty,
             Description = TrimToNull(runner.Description),
             Icon = TrimToNull(runner.Icon),
+            HelpLink = TrimToNull(runner.HelpLink),
             ControlField = MapControlFieldOrNull(runner),
             VisibilityFilteringAvailable = filteringAvailable
         };
