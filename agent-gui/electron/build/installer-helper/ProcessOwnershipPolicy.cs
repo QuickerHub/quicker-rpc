@@ -42,7 +42,7 @@ namespace QuickerAgent.Installer
         bool HasExited { get; }
         // The adapter must recheck its held handle and window owner before WM_CLOSE.
         // No TerminateProcess, PID-only signal or process-tree fallback is permitted.
-        bool RequestWindowClose();
+        bool RequestWindowClose(int remainingMilliseconds);
     }
 
     public interface IInstallationProcessPlatform
@@ -91,6 +91,10 @@ namespace QuickerAgent.Installer
         // inside the installation are observed blockers, never authorized descendants.
         // Success does not attest that every external browser/terminal child has exited.
         public static ProcessStopResult CloseRoots(IInstallationProcessPlatform platform, string directory, int timeoutMs)
+        { return Check(platform, directory, timeoutMs, true); }
+        public static ProcessStopResult VerifyClosed(IInstallationProcessPlatform platform, string directory, int timeoutMs)
+        { return Check(platform, directory, timeoutMs, false); }
+        private static ProcessStopResult Check(IInstallationProcessPlatform platform, string directory, int timeoutMs, bool allowClose)
         {
             var held = new Dictionary<string, Owned>(StringComparer.OrdinalIgnoreCase);
             int requests = 0;
@@ -120,8 +124,11 @@ namespace QuickerAgent.Installer
                             if (Potential(candidate.ImageName)) return new ProcessStopResult(false, "PROCESS_IDENTITY_UNAVAILABLE", requests);
                             continue;
                         }
+                        // The native port can positively observe an already exited
+                        // process between snapshot and acquisition. No identity/close
+                        // permission is inferred from this terminal observation.
                         ProcessIdentity identity;
-                        try { identity = lease.ReadIdentity(); }
+                        try { if (lease.HasExited) { lease.Dispose(); continue; } identity = lease.ReadIdentity(); }
                         catch { identity = null; }
                         if (platform.MonotonicMilliseconds >= deadline) { lease.Dispose(); return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests); }
                         if (identity == null || identity.CreationTime <= 0 || String.IsNullOrWhiteSpace(identity.FinalImagePath) || identity.Pid != candidate.Pid)
@@ -142,11 +149,12 @@ namespace QuickerAgent.Installer
                         if (platform.MonotonicMilliseconds >= deadline) return new ProcessStopResult(false, "OWNERSHIP_CHECK_TIMEOUT", requests);
                         if (exited) continue;
                         running = true;
+                        if (!allowClose) return new ProcessStopResult(false, "PROCESS_STILL_RUNNING", requests);
                         if (entry.Root && !entry.Requested)
                         {
                             entry.Requested = true;
                             requests++;
-                            if (!entry.Lease.RequestWindowClose()) return new ProcessStopResult(false, "ROOT_CLOSE_UNAVAILABLE", requests);
+                            if (!entry.Lease.RequestWindowClose((int)Math.Max(1, deadline - platform.MonotonicMilliseconds))) return new ProcessStopResult(false, "ROOT_CLOSE_UNAVAILABLE", requests);
                         }
                     }
                     // A second capture catches processes that appeared during a root's

@@ -9,7 +9,7 @@ internal static class Tests
         public int Pid;
         public long Created = 1;
         public string Path;
-        public bool Exited, Unknown, Changed, ReadThrows, OpenThrows;
+        public bool Exited, Unknown, Changed, ReadThrows, OpenThrows, ExitOnOpen, StateThrows;
         public int Requests, Opens, Disposals, Reads;
         public Action Close;
         public Action Read;
@@ -26,8 +26,8 @@ internal static class Tests
             if (process.ReadThrows) throw new Exception("fixture access denied");
             return new ProcessIdentity(process.Pid, process.Created + (process.Changed && process.Reads > 1 ? 1 : 0), process.Path);
         }
-        public bool HasExited { get { return process.Exited; } }
-        public bool RequestWindowClose() { process.Requests++; if (process.Close != null) process.Close(); return true; }
+        public bool HasExited { get { if (process.StateThrows) throw new Exception("fixture state unavailable"); return process.Exited; } }
+        public bool RequestWindowClose(int remainingMilliseconds) { Check(remainingMilliseconds > 0 && remainingMilliseconds <= 200, "invalid native close budget"); process.Requests++; if (process.Close != null) process.Close(); return true; }
         public void Dispose() { process.Disposals++; }
     }
     private sealed class Platform : IInstallationProcessPlatform
@@ -49,7 +49,7 @@ internal static class Tests
         public IProcessLease OpenStableProcess(int pid)
         {
             foreach (Process process in Processes) if (process.Pid == pid && !process.Exited)
-            { if (process.OpenThrows) throw new Exception("fixture open denied"); return process.Unknown ? null : new Lease(process); }
+            { if (process.OpenThrows) throw new Exception("fixture open denied"); if (process.ExitOnOpen) process.Exited = true; return process.Unknown ? null : new Lease(process); }
             return null;
         }
         public long MonotonicMilliseconds { get; private set; }
@@ -107,7 +107,12 @@ internal static class Tests
             Run("protected foreign open/read failures do not block a fresh target", delegate {
                 var platform = new Platform(); var unreadable = new Process(2, @"C:\Windows\protected-service.exe") { ReadThrows = true };
                 platform.Processes.Add(unreadable); platform.Processes.Add(new Process(3, @"C:\Windows\other-service.exe") { OpenThrows = true });
+                platform.Processes.Add(new Process(4, @"C:\Windows\state-service.exe") { StateThrows = true });
                 Check(Stop(platform).Success && unreadable.Requests == 0 && unreadable.Opens == unreadable.Disposals, "foreign access failure or leak");
+            });
+            Run("a positive exit observation between snapshot and acquisition needs no close", delegate {
+                var platform = new Platform(); var root = new Process(1, @"C:\App\quicker-agent.exe") { ExitOnOpen = true }; platform.Processes.Add(root);
+                Check(Stop(platform).Success && root.Requests == 0 && root.Opens == root.Disposals, "terminal observation became unknown identity or leaked");
             });
             Run("relevant read failure never authorizes a close", delegate {
                 var platform = new Platform(); var root = new Process(1, @"C:\App\quicker-agent.exe") { ReadThrows = true }; platform.Processes.Add(root);
@@ -116,6 +121,11 @@ internal static class Tests
             Run("an unknown creation identity never authorizes a close", delegate {
                 var platform = new Platform(); var root = new Process(1, @"C:\App\quicker-agent.exe") { Created = 0 }; platform.Processes.Add(root);
                 Check(Stop(platform).Code == "PROCESS_IDENTITY_UNAVAILABLE" && root.Requests == 0, "unknown creation time accepted");
+            });
+            Run("pre-copy verification rejects newly running roots without signalling", delegate {
+                var platform = new Platform(); var root = new Process(1, @"C:\App\quicker-agent.exe"); platform.Processes.Add(root);
+                var result = ProcessOwnershipPolicy.VerifyClosed(platform, @"C:\App", 200);
+                Check(!result.Success && root.Requests == 0 && result.RootCloseRequests == 0, "read-only gate signalled or ignored a new root");
             });
             Run("slow capture or identity read expires before a close request", delegate {
                 foreach (bool slowCapture in new[] { true, false }) {
