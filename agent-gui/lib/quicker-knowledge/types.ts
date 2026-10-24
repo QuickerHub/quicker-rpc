@@ -26,6 +26,8 @@ export type QuickerKnowledgeChunk = {
   text: string;
   tokenEstimate: number;
   contentHash: string;
+  /** Capture time declared by the source page; older corpora may not contain it. */
+  fetchedAt?: string | null;
 };
 
 export type QuickerKnowledgeSearchResult = {
@@ -36,4 +38,5 @@ export type QuickerKnowledgeSearchResult = {
   sourceType: QuickerKnowledgeSourceType;
   score: number;
   snippet: string;
+  fetchedAt?: string | null;
 };

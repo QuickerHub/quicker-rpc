@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import type {
@@ -44,7 +45,31 @@ export function hasQuickerKnowledgeCorpus(
 export async function loadQuickerKnowledgeChunksFromJsonl(
   filePath = resolveDefaultQuickerKnowledgeChunksPath(),
 ): Promise<QuickerKnowledgeChunk[]> {
-  const content = await readFile(filePath, "utf8");
+  return (await loadQuickerKnowledgeCorpusSnapshot(filePath)).chunks;
+}
+
+export type QuickerKnowledgeCorpusSnapshot = {
+  corpusPath: string;
+  revision: string;
+  retrievedAt: string;
+  chunks: QuickerKnowledgeChunk[];
+};
+
+export async function loadQuickerKnowledgeCorpusSnapshot(
+  filePath = resolveDefaultQuickerKnowledgeChunksPath(),
+): Promise<QuickerKnowledgeCorpusSnapshot> {
+  const corpusPath = resolve(filePath);
+  const bytes = await readFile(corpusPath);
+  const retrievedAt = new Date().toISOString();
+  return {
+    corpusPath,
+    revision: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+    retrievedAt,
+    chunks: parseChunks(bytes.toString("utf8")),
+  };
+}
+
+function parseChunks(content: string): QuickerKnowledgeChunk[] {
   const chunks: QuickerKnowledgeChunk[] = [];
   const lines = content.split(/\r?\n/u);
 
@@ -97,6 +122,9 @@ function validateChunkRecord(record: unknown, lineNumber: number): QuickerKnowle
   }
 
   const text = chunk.text as string;
+  if (chunk.fetchedAt !== undefined && chunk.fetchedAt !== null && typeof chunk.fetchedAt !== "string") {
+    throw invalidRecord(lineNumber, "fetchedAt must be a string or null when present");
+  }
   const tokenEstimate =
     typeof chunk.tokenEstimate === "number" && Number.isFinite(chunk.tokenEstimate)
       ? chunk.tokenEstimate
@@ -112,6 +140,7 @@ function validateChunkRecord(record: unknown, lineNumber: number): QuickerKnowle
     text,
     tokenEstimate,
     contentHash: chunk.contentHash as string,
+    fetchedAt: typeof chunk.fetchedAt === "string" ? chunk.fetchedAt : null,
   };
 }
 

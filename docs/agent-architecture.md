@@ -151,6 +151,12 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
 `runtime-definition`、`bundled-adapter` 和 `unknown` 是不同来源，均不等同于写权限；
 缺少来源的旧插件结果保持 unknown，不用客户端时间补成原生读取证明。
 
+本地网站 JSONL provider 使用 `local-corpus` 来源和实际读取文件字节的 `sha256:` revision，
+每次核验内容后才复用关键词索引，不信任存储中的 chunk hash 或文件时间、大小。结果保留
+URL 和源页声明的 `fetchedAt`（缺失为 null）；`retrievedAt` 只表示读取本地 snapshot 的时间，
+不表示网站此刻已更新。并发读取各自保留 snapshot 与来源，迟到读取不能覆盖较新缓存或
+已确认的缺失状态。该入口不隐式联网、抓取网站或查询宿主。
+
 Agent 输出因预算省略旧格式 `schemaJson` 时，继续保留实际返回的 knowledge 和参数名，
 完整原始输出留在 `displayData` 供查看。该摘要不是编辑合同；不得补造 provenance，或因
 持有来源与指纹就推断被省略的默认值、类型、约束与写权限。

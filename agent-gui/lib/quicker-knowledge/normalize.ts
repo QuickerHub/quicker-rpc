@@ -281,6 +281,7 @@ function makeChunk(
     title: page.title,
     sectionPath,
     sourceType: page.sourceType,
+    fetchedAt: page.fetchedAt,
     text,
     tokenEstimate: Math.ceil(text.length / 3),
     contentHash,

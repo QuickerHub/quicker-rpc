@@ -30,6 +30,7 @@ describe("quicker knowledge normalization", () => {
     assert.equal(result.page.title, "动作面板");
     assert.equal(result.page.sourceType, "docs_index");
     assert.equal(result.chunks.length, 2);
+    assert.ok(result.chunks.every((chunk) => chunk.fetchedAt === result.page.fetchedAt));
     assert.match(result.chunks[0]!.text, /动作面板用于/);
     assert.deepEqual(result.chunks[1]!.sectionPath, ["动作面板", "按场景切换"]);
     assert.doesNotMatch(result.chunks[0]!.text, /登录|Copyright/);
