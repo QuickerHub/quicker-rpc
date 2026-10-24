@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { describeLiveProgramDocumentOperations } from "./live-program-document-protocol";
 
 const readInput = z.object({ action: z.literal("read_live"), stepSchemaFor: z.string().min(1).optional() }).strict();
 const editInput = z.object({
@@ -22,10 +23,7 @@ export const liveProgramDocumentInputSchema = z.discriminatedUnion("action", [re
 export function createLiveProgramDocumentTool(mode: "read" | "edit", scopeId: string) {
   return tool({
     description: "Read the explicitly pinned live Designer document, including unsaved edits. "
-      + "read_live returns the actual revision, complete native JSON and step references. Add stepSchemaFor for a pinned step to read its native input contract and exact editableInputKeys. "
-      + (mode === "read" ? "This turn is read-only. " : "edit_live changes one pinned step's note after read_live. edit_step_inputs_live changes existing editable input values only after read_live with stepSchemaFor for that same step. Pass that actual read tool call ID as readOperationId and its revision. Existing definitions and bindings are preserved, and closed options are enforced. This does not execute a module or prove that its text values can be converted to runtime types. Dynamic values, bindings and control fields are not supported by this input operation. ")
-      + "Edits share the human editor's undo history and remain unsaved. No disk or Quicker write, export, save, sync or file editing is available through this tool. "
-      + "On an unavailable target or conflict, retain the failure and read again only when the target is still valid; never fall back to another project or disk tools.",
+      + describeLiveProgramDocumentOperations(mode),
     inputSchema: mode === "read" ? readInput.extend({ scopeId: z.literal(scopeId) })
       : z.discriminatedUnion("action", [readInput.extend({ scopeId: z.literal(scopeId) }), editInput.extend({ scopeId: z.literal(scopeId) }), editStepInputs.extend({ scopeId: z.literal(scopeId) })]),
   });
