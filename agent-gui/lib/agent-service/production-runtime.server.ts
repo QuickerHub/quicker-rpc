@@ -42,7 +42,7 @@ export function createAgentRuntimeLoader(loadResources: () => Promise<RuntimeRes
 
 /** Real adapters load on the first chat, never during /health or CLI --help. */
 export const loadProductionAgentRuntime = createAgentRuntimeLoader(async () => {
-  const [runner, database, browser, terminal, api, remoteConfig, manualTrace] = await Promise.all([
+  const [runner, database, browser, terminal, api, remoteConfig, manualTrace, explorer] = await Promise.all([
     import("../agent-harness/run-turn.server"),
     import("../db/client"),
     import("@/lib/browser-runtime-lifecycle.mjs"),
@@ -50,16 +50,18 @@ export const loadProductionAgentRuntime = createAgentRuntimeLoader(async () => {
     import("./api-router"),
     import("../llm-remote-publish-config"),
     import("../action-trace-manual.server"),
+    import("../action-explorer-watch"),
   ]);
+  const explorerWatch = explorer.createActionExplorerWatchOwner();
   remoteConfig.startRemotePublishConfigRefreshOwner();
   return {
     runTurn: runner.runAgentChatTurn,
-    handleRequest: api.handleAgentApiRequest,
+    handleRequest: (request) => explorerWatch.run(() => api.handleAgentApiRequest(request)),
     closeDatabase: database.closeAgentDatabase,
     stopBrowserRuntimes: browser.stopOwnedBrowserRuntimes,
     stopTerminalRuntimes: terminal.stopOwnedTerminalRuntimes,
     stopBackgroundTasks: async () => {
-      const results = await Promise.allSettled([remoteConfig.stopRemotePublishConfigRefreshes(), manualTrace.stopManualTraceRuns()]);
+      const results = await Promise.allSettled([remoteConfig.stopRemotePublishConfigRefreshes(), manualTrace.stopManualTraceRuns(), explorerWatch.dispose()]);
       const errors = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
       if (errors.length) throw new AggregateError(errors.map((result) => result.reason), "Background task cleanup failed");
     },
