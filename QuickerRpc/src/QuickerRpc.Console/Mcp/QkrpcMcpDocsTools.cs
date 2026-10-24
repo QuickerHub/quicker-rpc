@@ -62,6 +62,8 @@ public sealed class QkrpcMcpDocsTools
             title = doc.Title,
             markdown = doc.Markdown,
             schema = doc.Schema,
+            codec = doc.Codec,
+            provenance = doc.Provenance,
             availableTopics = doc.AvailableTopics,
             availableReferences = doc.AvailableReferences,
         };

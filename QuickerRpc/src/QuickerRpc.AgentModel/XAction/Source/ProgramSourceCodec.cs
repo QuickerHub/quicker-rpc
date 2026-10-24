@@ -45,8 +45,7 @@ public static class ProgramSourceCodec
 
         var schema = root.Value<string>("$schema")?.Trim();
         if (!string.IsNullOrEmpty(schema)
-            && !string.Equals(schema, ProgramSourceSchemas.SourceV1, StringComparison.Ordinal)
-            && !string.Equals(schema, ProgramSourceSchemas.ActionV1, StringComparison.Ordinal))
+            && !ProgramSourceSchemas.SupportedFormats.Any(format => string.Equals(schema, format, StringComparison.Ordinal)))
         {
             throw new ProgramSourceException(
                 ProgramSourceCodes.SchemaUnsupported,

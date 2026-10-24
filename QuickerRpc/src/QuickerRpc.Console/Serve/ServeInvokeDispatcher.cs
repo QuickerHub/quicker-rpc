@@ -10,13 +10,24 @@ internal static class ServeInvokeDispatcher
 {
     private static readonly ActionAuthoringGuideService Guides = new();
 
-    public static async Task<ServeInvokeResponse> InvokeAsync(
+    public static Task<ServeInvokeResponse> InvokeAsync(
         QkrpcRpcSessionPool pool,
         string op,
         JsonElement args,
         int timeoutSeconds,
         CancellationToken cancellationToken,
         QuickerRpcHostBinding? binding = null)
+        => InvokeAsync(pool, op, args, timeoutSeconds, cancellationToken, binding,
+            static token => QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: token));
+
+    internal static async Task<ServeInvokeResponse> InvokeAsync(
+        QkrpcRpcSessionPool pool,
+        string op,
+        JsonElement args,
+        int timeoutSeconds,
+        CancellationToken cancellationToken,
+        QuickerRpcHostBinding? binding,
+        Func<CancellationToken, Task<IReadOnlyList<QuickerRpcHostBinding>>> discoverHosts)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var normalized = (op ?? string.Empty).Trim().ToLowerInvariant();
@@ -24,6 +35,7 @@ internal static class ServeInvokeDispatcher
         {
             return Fail("MISSING_OP", "Provide op (e.g. ping, wait, action.list).");
         }
+        var localGuide = normalized.StartsWith("guide.", StringComparison.Ordinal);
 
         var requestAbort = cancellationToken;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(requestAbort);
@@ -31,7 +43,7 @@ internal static class ServeInvokeDispatcher
         ServeInvokeResponse TimedOut() => new()
         {
             Ok = false, Error = "RPC_TIMEOUT", Message = $"RPC timed out after {timeoutSeconds}s.",
-            HostBinding = pool.Binding ?? binding,
+            HostBinding = localGuide ? null : pool.Binding ?? binding,
         };
         ServeInvokeResponse Complete(ServeInvokeResponse response)
         {
@@ -42,8 +54,11 @@ internal static class ServeInvokeDispatcher
         {
             var preservesWriteReceipt = failure.Error == QuickerRpcBindingErrors.UnknownWriteResult;
             if (!preservesWriteReceipt) requestAbort.ThrowIfCancellationRequested();
-            failure.HostBinding ??= pool.Binding ?? binding;
-            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
+            if (!localGuide)
+            {
+                failure.HostBinding ??= pool.Binding ?? binding;
+                await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
+            }
             if (preservesWriteReceipt) return failure;
             requestAbort.ThrowIfCancellationRequested();
             return deadline.IsCancellationRequested ? TimedOut() : failure;
@@ -54,6 +69,15 @@ internal static class ServeInvokeDispatcher
             deadline.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
             cancellationToken = deadline.Token;
             cancellationToken.ThrowIfCancellationRequested();
+            if (localGuide)
+            {
+                return Complete(normalized switch
+                {
+                    "guide.get" => GuideGet(args),
+                    "guide.search" => GuideSearch(args),
+                    _ => Fail("UNKNOWN_OP", $"Unknown guide op: {op}"),
+                });
+            }
             if (normalized == "resource.catalog.page" && !ResourceCatalogServeOps.TryPrepare(args, out _, out _, out var invalidCatalog))
                 return Complete(invalidCatalog!);
             if (normalized == "action.binding")
@@ -64,7 +88,7 @@ internal static class ServeInvokeDispatcher
             if (normalized == "action.save" && ServeJsonArgs.GetBool(args, "dryRun"))
                 return Complete(await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false));
             if (normalized == "host.list")
-                return Complete(Ok(new { service = "qkrpc", candidates = await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false) }));
+                return Complete(Ok(new { service = "qkrpc", candidates = await discoverHosts(cancellationToken).ConfigureAwait(false) }));
             if (binding is null && args.ValueKind == JsonValueKind.Object && args.TryGetProperty("hostBinding", out var bindingJson))
                 binding = JsonSerializer.Deserialize<QuickerRpcHostBinding>(bindingJson.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             var selectedSession = ServeJsonArgs.GetString(args, "hostSessionId");
@@ -105,7 +129,7 @@ internal static class ServeInvokeDispatcher
             if (binding is not null && !string.IsNullOrWhiteSpace(selectedSession) && selectedSession != binding.HostSessionId)
                 return Complete(Fail(QuickerRpcBindingErrors.Mismatch, "Requested session differs from the bound document/connection."));
             if (binding is null && !string.IsNullOrWhiteSpace(selectedSession))
-                binding = QuickerRpcHostDiscovery.Select(await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false), selectedSession);
+                binding = QuickerRpcHostDiscovery.Select(await discoverHosts(cancellationToken).ConfigureAwait(false), selectedSession);
             if (binding is not null) pool = pool.ForBinding(binding);
             else if (normalized == "step-runner.input-contract" && pool.MayBootstrapOnConnect)
             {
@@ -118,12 +142,8 @@ internal static class ServeInvokeDispatcher
             {
                 "ping" => await PingAsync(pool, cancellationToken).ConfigureAwait(false),
                 "wait" => await WaitAsync(args, cancellationToken).ConfigureAwait(false),
-                "guide.get" => GuideGet(args),
-                "guide.search" => GuideSearch(args),
                 "action.save" when ServeJsonArgs.GetBool(args, "dryRun") =>
                     await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false),
-                _ when normalized.StartsWith("guide.", StringComparison.Ordinal) =>
-                    Fail("UNKNOWN_OP", $"Unknown guide op: {op}"),
                 _ => await RpcOpAsync(pool, normalized, args, cancellationToken)
                     .ConfigureAwait(false),
             };
@@ -133,7 +153,7 @@ internal static class ServeInvokeDispatcher
         }
         catch (QuickerRpcClientException ex)
         {
-            return await FailureAsync(new ServeInvokeResponse { Ok = false, Error = ex.ErrorCode, Message = ex.Message, HostBinding = pool.Binding ?? binding }).ConfigureAwait(false);
+            return await FailureAsync(new ServeInvokeResponse { Ok = false, Error = ex.ErrorCode, Message = ex.Message }).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (requestAbort.IsCancellationRequested)
         {
@@ -977,6 +997,8 @@ internal static class ServeInvokeDispatcher
             title = response.Title,
             markdown = response.Markdown,
             schema = response.Schema,
+            codec = response.Codec,
+            provenance = response.Provenance,
             availableTopics = response.AvailableTopics,
             availableReferences = response.AvailableReferences,
         });

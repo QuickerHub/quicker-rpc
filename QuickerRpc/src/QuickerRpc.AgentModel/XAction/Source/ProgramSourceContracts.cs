@@ -1,5 +1,6 @@
 // Ported from Quicker Quicker.Ai.Workspace, revision 574556d76b0b10bd9a8a7951277435649650fab8.
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 
@@ -160,4 +161,8 @@ public static class ProgramSourceSchemas
 {
     public const string SourceV1 = "quicker.program.source.v1";
     public const string ActionV1 = "quicker.action.v1";
+
+    /// <summary>Explicit input formats accepted by this codec, independent of native host capabilities.</summary>
+    public static IReadOnlyList<string> SupportedFormats { get; } =
+        Array.AsReadOnly(new[] { SourceV1, ActionV1 });
 }

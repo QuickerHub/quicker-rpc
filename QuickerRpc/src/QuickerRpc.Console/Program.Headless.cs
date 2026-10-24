@@ -45,6 +45,8 @@ internal static partial class Program
                     title = response.Title,
                     markdown = response.Markdown,
                     schema = response.Schema,
+                    codec = response.Codec,
+                    provenance = response.Provenance,
                     availableTopics = response.AvailableTopics,
                     availableReferences = response.AvailableReferences,
                 },
