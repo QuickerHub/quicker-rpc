@@ -26,6 +26,10 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public int LegacyReads;
     public int MetadataWrites;
     public int CatalogReads;
+    public int InputContractReads;
+    public QuickerRpcStepRunnerInputContractRequest? LastInputContractRequest;
+    public Func<QuickerRpcStepRunnerInputContractRequest, QuickerRpcStepRunnerInputContractResult>? InputContract;
+    public Func<QuickerRpcStepRunnerInputContractRequest, CancellationToken, Task<QuickerRpcStepRunnerInputContractResult>>? AsyncInputContract;
     public string LegacyBodyJson = "{\"steps\":[],\"variables\":[],\"subPrograms\":[]}";
     public bool DropAfterWrite;
     public Func<string, long?, QuickerRpcApplyXActionResult>? Apply;
@@ -158,6 +162,31 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public class Target : LegacyTarget
     {
         public Target(FakeBindingHost owner) : base(owner) { }
+        public async Task<QuickerRpcStepRunnerInputContractResult> GetStepRunnerInputContractAsync(
+            QuickerRpcStepRunnerInputContractRequest request, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref owner.InputContractReads);
+            owner.LastInputContractRequest = request;
+            if (owner.AsyncInputContract is not null) return await owner.AsyncInputContract(request, cancellationToken).ConfigureAwait(false);
+            return owner.InputContract?.Invoke(request) ?? new QuickerRpcStepRunnerInputContractResult
+            {
+                Success = true,
+                Contract = new QuickerRpcStepRunnerInputContract
+                {
+                    HostKind = owner.Info.Host.Kind, StepRunnerKey = request.StepRunnerKey,
+                    ControlFieldKey = request.ControlFieldValue is null ? null : "operation",
+                    AppliedControlFieldValue = request.ControlFieldValue,
+                    VisibilityResolved = true,
+                    ReservedBindings = new List<string> { "file", "varKey", ".file", ".var" },
+                    Inputs = new List<QuickerRpcStepRunnerInputContractInput>
+                    {
+                        new() { Key = "text", PolicyKnown = true, VarType = 0, VariableMode = 0, AllowInput = false,
+                            IsControlField = false, Visible = true, VisibilityResolved = true, LiteralPolicy = "allowed", LiteralValueRestriction = "none" },
+                    },
+                },
+            };
+        }
         public async Task<QuickerRpcHostSessionInfo> GetHostSessionAsync(CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref owner.Handshakes);

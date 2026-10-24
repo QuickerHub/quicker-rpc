@@ -66,4 +66,5 @@ public static class QuickerRpcHostCapabilityNames
     public const string DesignerFontAwesomePageRead = "designer.fontAwesome.page.read";
     public const string ResourceActionPageRead = "resource.action.page.read";
     public const string ResourceGlobalSubProgramPageRead = "resource.globalSubprogram.page.read";
+    public const string StepRunnerInputContractRead = "stepRunner.inputContract.read";
 }

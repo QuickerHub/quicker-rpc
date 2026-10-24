@@ -965,6 +965,16 @@ public sealed class HeadlessActionProgramService
         string? controlFieldValue = null) =>
         GetStepRunnerDetailCore(stepRunnerKey, controlFieldValue, forAgent: true);
 
+    public QuickerRpcStepRunnerInputContractResult GetStepRunnerInputContract(QuickerRpcStepRunnerInputContractRequest request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.StepRunnerKey))
+            return QuickerRpc.Runtime.StepRunnerInputContractBuilder.Failure("INVALID_INPUT_CONTRACT_REQUEST", "A step runner key is required.");
+        if (!QuickerHost.IsRunningInQuicker())
+            return QuickerRpc.Runtime.StepRunnerInputContractBuilder.Failure("UNSUPPORTED_HOST", "Not running inside Quicker.");
+        return QuickerRpc.Runtime.StepRunnerInputContractBuilder.Build(
+            StepRunnerCatalogFromQuicker.BuildForInputContract(request.StepRunnerKey.Trim()), request);
+    }
+
     public QuickerRpcStepRunnerDetailResult GetStepRunnerUiDetail(
         string? stepRunnerKey,
         string? controlFieldValue = null) =>

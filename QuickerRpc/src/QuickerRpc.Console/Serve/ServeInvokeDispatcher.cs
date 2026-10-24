@@ -27,6 +27,7 @@ internal static class ServeInvokeDispatcher
 
         var requestAbort = cancellationToken;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(requestAbort);
+        QkrpcRpcSessionPool? connectedReadOwner = null;
         ServeInvokeResponse TimedOut() => new()
         {
             Ok = false, Error = "RPC_TIMEOUT", Message = $"RPC timed out after {timeoutSeconds}s.",
@@ -41,6 +42,7 @@ internal static class ServeInvokeDispatcher
         {
             var preservesWriteReceipt = failure.Error == QuickerRpcBindingErrors.UnknownWriteResult;
             if (!preservesWriteReceipt) requestAbort.ThrowIfCancellationRequested();
+            failure.HostBinding ??= pool.Binding ?? binding;
             await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
             if (preservesWriteReceipt) return failure;
             requestAbort.ThrowIfCancellationRequested();
@@ -105,6 +107,13 @@ internal static class ServeInvokeDispatcher
             if (binding is null && !string.IsNullOrWhiteSpace(selectedSession))
                 binding = QuickerRpcHostDiscovery.Select(await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false), selectedSession);
             if (binding is not null) pool = pool.ForBinding(binding);
+            else if (normalized == "step-runner.input-contract" && pool.MayBootstrapOnConnect)
+            {
+                // Keep the effective owner in this error/deadline domain too.
+                // The original invoke token still covers discovery and the read.
+                connectedReadOwner = pool.CreateConnectedReadPool();
+                pool = connectedReadOwner;
+            }
             var response = normalized switch
             {
                 "ping" => await PingAsync(pool, cancellationToken).ConfigureAwait(false),
@@ -137,6 +146,10 @@ internal static class ServeInvokeDispatcher
         {
             return await FailureAsync(Fail("INVOKE_FAILED", ex.Message)).ConfigureAwait(false);
         }
+        finally
+        {
+            if (connectedReadOwner is not null) await connectedReadOwner.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     private static async Task<ServeInvokeResponse> RpcOpAsync(
@@ -147,8 +160,13 @@ internal static class ServeInvokeDispatcher
     {
         if (op == "resource.catalog.page")
             return await ResourceCatalogServeOps.PageAsync(pool, args, cancellationToken).ConfigureAwait(false);
-        var rpc = await pool.GetRpcAsync(cancellationToken,
-            op == "action.open" ? new[] { QuickerRpcHostCapabilityNames.ActionSourceRead } : null).ConfigureAwait(false);
+        var requiredCapabilities = op switch
+        {
+            "action.open" => new[] { QuickerRpcHostCapabilityNames.ActionSourceRead },
+            "step-runner.input-contract" => new[] { QuickerRpcHostCapabilityNames.StepRunnerInputContractRead },
+            _ => null,
+        };
+        var rpc = await pool.GetRpcAsync(cancellationToken, requiredCapabilities).ConfigureAwait(false);
         var token = cancellationToken;
 
         return op switch
@@ -202,6 +220,7 @@ internal static class ServeInvokeDispatcher
             "step-runner.list" => await StepRunnerListAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, forAgent: true, token).ConfigureAwait(false),
             "step-runner.getui" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
+            "step-runner.input-contract" => await StepRunnerInputContractAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.summaries" => await StepRunnerSummariesAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.quickinsertsearch" => await StepRunnerQuickInsertSearchAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.toolboxsearch" => await StepRunnerToolboxSearchAsync(rpc, args, token).ConfigureAwait(false),
@@ -2171,6 +2190,27 @@ internal static class ServeInvokeDispatcher
             action,
             payload = HeadlessCliResponses.ToStepRunnerDetailPayload(response),
         });
+    }
+
+    private static async Task<ServeInvokeResponse> StepRunnerInputContractAsync(
+        IQuickerRpcService rpc, JsonElement args, CancellationToken token)
+    {
+        var key = ServeJsonArgs.GetString(args, "key")?.Trim();
+        if (string.IsNullOrEmpty(key)) return Fail("MISSING_KEY", "args.key is required.");
+        if (args.TryGetProperty("controlField", out var control) && control.ValueKind is not JsonValueKind.String and not JsonValueKind.Null)
+            return Fail("INVALID_CONTROL_VALUE", "args.controlField must be a string or null.");
+        var host = await rpc.GetHostSessionAsync(token).ConfigureAwait(false);
+        if (!host.Capabilities.TryGetValue(QuickerRpcHostCapabilityNames.StepRunnerInputContractRead, out var supported) || !supported)
+            return Fail("INPUT_CONTRACT_UNSUPPORTED", "The connected host does not provide runtime input contracts.");
+        var response = await rpc.GetStepRunnerInputContractAsync(new QuickerRpcStepRunnerInputContractRequest
+        {
+            StepRunnerKey = key,
+            // Empty is a possible native option. Only null means use the native default.
+            ControlFieldValue = control.ValueKind == JsonValueKind.String ? control.GetString() : null,
+        }, token).ConfigureAwait(false);
+        if (!response.Success) return Fail(response.ErrorCode ?? "INPUT_CONTRACT_UNAVAILABLE", response.ErrorMessage ?? "The runtime input contract is unavailable.");
+        if (response.Contract is null) return Fail("INVALID_INPUT_CONTRACT", "The host returned no input contract.");
+        return Ok(new { ok = true, action = "step-runner-input-contract", payload = response });
     }
 
     private static async Task<ServeInvokeResponse> StepRunnerSummariesAsync(

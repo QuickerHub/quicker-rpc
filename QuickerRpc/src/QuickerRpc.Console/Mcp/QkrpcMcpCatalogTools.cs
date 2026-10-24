@@ -54,6 +54,17 @@ public sealed class QkrpcMcpCatalogTools
             cancellationToken);
     }
 
+    [McpServerTool(Name = "qkrpc_step_runner_input_contract")]
+    [Description("Read explicit native input policies for a connected host. Use before editing live step inputs; unknown facts remain blocked. This is not a UI schema and does not grant a document edit scope. Missing controlField uses only a proven native default; an explicit empty string remains distinct.")]
+    public Task<string> QkrpcStepRunnerInputContract(
+        string key, string? controlField = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return Task.FromResult(QkrpcMcpJson.FormatObject(new { ok = false, errorMessage = "key is required" }));
+        return _runtime.InvokeOpAsync("step-runner.input-contract",
+            QkrpcMcpJson.ToElement(new { key = key.Trim(), controlField }), cancellationToken);
+    }
+
     [McpServerTool(Name = "qkrpc_fa")]
     [Description("Search or resolve Font Awesome icon specs (fa:Light_Name). Use before set_metadata icon.")]
     public Task<string> QkrpcFa(

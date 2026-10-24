@@ -26,6 +26,7 @@ const effectsByOperation = new Map<string, QkrpcOperationEffects>([
   ["launcher.resolve", READ], ["search-index.status", READ], ["designer.context", READ],
   ["project.diagnostics.get", READ], ["step-runner.list", READ], ["step-runner.search", READ],
   ["step-runner.get", READ], ["step-runner.getUi", READ], ["step-runner.getui", READ],
+  ["step-runner.input-contract", READ],
   ["step-runner.summaries", READ], ["step-runner.quickinsertsearch", READ], ["step-runner.toolboxsearch", READ],
 ]);
 

@@ -104,6 +104,7 @@ internal static partial class Program
             "list" => await RunStepRunnerListAsync(options).ConfigureAwait(false),
             "get" => await RunStepRunnerGetAsync(options, forAgent: true).ConfigureAwait(false),
             "get-ui" => await RunStepRunnerGetAsync(options, forAgent: false).ConfigureAwait(false),
+            "input-contract" => await RunStepRunnerInputContractAsync(options).ConfigureAwait(false),
             "summaries" => await RunStepRunnerSummariesAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownStepRunnerVerbAsync(options).ConfigureAwait(false),
         };
@@ -111,7 +112,7 @@ internal static partial class Program
 
     private static Task<int> ReportUnknownStepRunnerVerbAsync(StepRunnerOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_STEP_RUNNER_VERB",
-            "Use: step-runner search | list | get | get-ui | summaries --request-file <json> [--json]");
+            "Use: step-runner search | list | get | get-ui | input-contract | summaries --request-file <json> [--json]");
 
     private static async Task<int> RunStepRunnerSearchAsync(StepRunnerOptions options)
     {
@@ -177,6 +178,36 @@ internal static partial class Program
             return await EmitErrorAndFailAsync(options.Json, "STEP_RUNNER_LIST_FAILED", ex.Message)
                 .ConfigureAwait(false);
         }
+    }
+
+    private static async Task<int> RunStepRunnerInputContractAsync(StepRunnerOptions options)
+    {
+        var key = options.Key?.Trim();
+        if (string.IsNullOrEmpty(key))
+            return await EmitErrorAndFailAsync(options.Json, "MISSING_KEY", "Provide --key <stepRunnerKey>.").ConfigureAwait(false);
+        QuickerRpcStepRunnerInputContractRequest request;
+        try { request = StepRunnerInputContractCli.CreateRequest(options); }
+        catch (ArgumentException ex) { return await EmitErrorAndFailAsync(options.Json, "INVALID_INPUT_CONTRACT_REQUEST", ex.Message).ConfigureAwait(false); }
+        try
+        {
+            // A validation read cannot start or reload the plugin to obtain a contract.
+            await using var session = await ConnectAsync(options.TimeoutSeconds, tryBootstrap: false).ConfigureAwait(false);
+            var token = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var host = await session.Proxy.GetHostSessionAsync(token).ConfigureAwait(false);
+            if (!host.Capabilities.TryGetValue(QuickerRpcHostCapabilityNames.StepRunnerInputContractRead, out var supported) || !supported)
+                return await EmitErrorAndFailAsync(options.Json, "INPUT_CONTRACT_UNSUPPORTED", "The connected host does not provide runtime input contracts.").ConfigureAwait(false);
+            var response = await session.Proxy.GetStepRunnerInputContractAsync(request, token).ConfigureAwait(false);
+            if (!response.Success || response.Contract is null)
+                return await EmitErrorAndFailAsync(options.Json, response.ErrorCode ?? "INPUT_CONTRACT_UNAVAILABLE",
+                    response.ErrorMessage ?? "The host returned no input contract.").ConfigureAwait(false);
+            global::System.Console.WriteLine(JsonSerializer.Serialize(
+                new { ok = true, action = "step-runner-input-contract", payload = response }, QkrpcJson.CliOutput));
+            return ExitCodes.Success;
+        }
+        catch (QuickerRpcClientException ex) { await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false); }
+        catch (OperationCanceledException) { await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false); }
+        catch (Exception ex) { await EmitErrorAsync(options.Json, "INPUT_CONTRACT_FAILED", ex.Message).ConfigureAwait(false); }
+        return ExitCodes.Error;
     }
 
     private static async Task<int> RunStepRunnerGetAsync(StepRunnerOptions options, bool forAgent)

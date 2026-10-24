@@ -62,6 +62,7 @@ export const agentApiRoutes = [
   { path: "/api/shell/session", methods: ["GET"], load: () => import("../../app/api/shell/session/route") },
   { path: "/api/shell/watch", methods: ["GET"], load: () => import("../../app/api/shell/watch/route") },
   { path: "/api/step-runner/get", methods: ["GET","POST"], load: () => import("../../app/api/step-runner/get/route") },
+  { path: "/api/step-runner/input-contract", methods: ["POST"], load: () => import("../../app/api/step-runner/input-contract/route") },
   { path: "/api/step-runner/list", methods: ["GET","POST"], load: () => import("../../app/api/step-runner/list/route") },
   { path: "/api/step-runner/quick-insert", methods: ["POST"], load: () => import("../../app/api/step-runner/quick-insert/route") },
   { path: "/api/step-runner/subprogram-io", methods: ["GET","POST"], load: () => import("../../app/api/step-runner/subprogram-io/route") },

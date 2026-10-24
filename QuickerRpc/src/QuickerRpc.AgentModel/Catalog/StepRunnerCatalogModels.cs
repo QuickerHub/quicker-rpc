@@ -29,6 +29,9 @@ public sealed class StepRunnerCatalog
 
 public sealed class StepRunnerDefinition
 {
+    /// <summary>Unmapped native visibility mechanisms are never flattened into unconditional visibility.</summary>
+    public string? InputContractVisibilityUnknownReason { get; set; }
+
     public string Key { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
@@ -46,6 +49,9 @@ public sealed class StepRunnerDefinition
 
 public sealed class StepRunnerInputParamDef
 {
+    /// <summary>Native evidence for the optional input contract; absent on supplemental catalog rows.</summary>
+    public StepRunnerNativeInputPolicy? NativeInputPolicy { get; set; }
+
     public string Key { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;

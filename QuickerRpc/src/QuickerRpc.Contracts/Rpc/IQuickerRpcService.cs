@@ -359,6 +359,11 @@ public interface IQuickerRpcService
         string? controlFieldValue = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Strict runtime input facts for an explicitly bound host; never Designer/UI schema.</summary>
+    Task<QuickerRpcStepRunnerInputContractResult> GetStepRunnerInputContractAsync(
+        QuickerRpcStepRunnerInputContractRequest request,
+        CancellationToken cancellationToken = default);
+
     /// <summary>UI step-runner schema (full JSON with icon and control options). Not for LLM tools.</summary>
     Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerUiDetailAsync(
         string stepRunnerKey,

@@ -16,6 +16,12 @@ internal sealed class QkrpcRpcSessionPool : IAsyncDisposable
 
     public QuickerRpcHostBinding? Binding => _binding;
 
+    internal bool MayBootstrapOnConnect => _tryBootstrap && _binding is null && _session is null && !_legacySelected;
+
+    // A validation-only first read may discover an already-running host, but it
+    // must not initialize the plugin to make that host satisfy a new capability.
+    internal QkrpcRpcSessionPool CreateConnectedReadPool() => new(_connectTimeoutSeconds, false, _selection);
+
     public QkrpcRpcSessionPool ForBinding(QuickerRpcHostBinding binding) =>
         _binding?.SameDestination(binding) == true ? this : _boundPools.GetOrAdd(binding.Endpoint + "\0" + binding.HostInstanceId + "\0" + binding.HostSessionId,
             _ => new QkrpcRpcSessionPool(_connectTimeoutSeconds, false) { _binding = binding });
