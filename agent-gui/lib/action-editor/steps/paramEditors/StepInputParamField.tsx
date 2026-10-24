@@ -1,3 +1,4 @@
+import { useStepEditorInputActive } from "./StepEditorInputOwner";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, memo, type JSX, type Ref } from "react";
 import { createPortal } from "react-dom";
 import type { ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
@@ -120,6 +121,7 @@ function StepInputParamFieldInner({
   prefetchedFileContents,
   onRequestCreateVariable,
 }: StepInputParamFieldProps): JSX.Element {
+  const inputActive = useStepEditorInputActive();
   const boolInputId = useId();
   const enumInputId = useId();
   const vt = def.varType;
@@ -200,7 +202,7 @@ function StepInputParamFieldInner({
   }, [enumFilter, enumOptions]);
 
   useEffect(() => {
-    if (!enumOpen) {
+    if (!inputActive || !enumOpen) {
       return;
     }
     const updateEnumRect = (): void => {
@@ -236,10 +238,10 @@ function StepInputParamFieldInner({
       window.removeEventListener("scroll", onLayoutChanged, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
     };
-  }, [enumOpen]);
+  }, [enumOpen, inputActive]);
 
   useEffect(() => {
-    if (!enumOpen) {
+    if (!inputActive || !enumOpen) {
       return;
     }
     if (filteredEnumOptions.length === 0) {
@@ -252,7 +254,7 @@ function StepInputParamFieldInner({
       return;
     }
     setEnumActiveIndex((prev) => Math.max(0, Math.min(prev, filteredEnumOptions.length - 1)));
-  }, [enumOpen, filteredEnumOptions, param.value, enumFilter]);
+  }, [enumOpen, filteredEnumOptions, param.value, enumFilter, inputActive]);
 
   useEffect(() => {
     if (enumOpen) {
@@ -260,10 +262,10 @@ function StepInputParamFieldInner({
     }
     setEnumFilter("");
     setEnumActiveIndex(0);
-  }, [enumOpen]);
+  }, [enumOpen, inputActive]);
 
   useEffect(() => {
-    if (!enumOpen) {
+    if (!inputActive || !enumOpen) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -275,7 +277,7 @@ function StepInputParamFieldInner({
       selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [enumOpen, enumActiveIndex]);
+  }, [enumOpen, enumActiveIndex, inputActive]);
 
   const enumEditorJsx = hasSelectionEnum ? (
     <>
@@ -349,7 +351,7 @@ function StepInputParamFieldInner({
           setEnumFilter("");
         }}
       />
-      {enumOpen && enumRect
+      {inputActive && enumOpen && enumRect
         ? createPortal(
             <div
               ref={enumPopupRef}

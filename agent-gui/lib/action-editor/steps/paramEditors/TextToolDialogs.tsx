@@ -1,4 +1,6 @@
 "use client";
+import { useStepEditorDialogTarget, useStepEditorInputActivityRef } from "./StepEditorInputOwner";
+
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import { createPortal } from "react-dom";
@@ -182,10 +184,13 @@ function KeyCaptureDialog({
   onCancel: () => void;
 }): JSX.Element {
   const mode = keyCaptureModeForTool(toolId) as KeyCaptureMode;
+  const activity = useStepEditorInputActivityRef();
+  const inputActive = activity.current;
   const [preview, setPreview] = useState("");
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
+      if (!activity.current) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -210,9 +215,10 @@ function KeyCaptureDialog({
   );
 
   useEffect(() => {
+    if (!inputActive) return;
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [handleKeyDown]);
+  }, [handleKeyDown, inputActive]);
 
   const hint =
     mode === "sendKeys"
@@ -451,13 +457,17 @@ function EditInCodeDialog({
   onCancel: () => void;
 }): JSX.Element {
   const [text, setText] = useState(initialValue ?? "");
+  const activity = useStepEditorInputActivityRef();
+  const inputActive = activity.current;
 
   const commit = useCallback((): void => {
     onConfirm(text);
   }, [onConfirm, text]);
 
   useEffect(() => {
+    if (!inputActive) return;
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (!activity.current) return;
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
         commit();
@@ -465,7 +475,7 @@ function EditInCodeDialog({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [commit]);
+  }, [commit, inputActive]);
 
   return (
     <div className="text-tool-dialog-panel text-tool-dialog-panel--code">
@@ -491,11 +501,15 @@ function EditInCodeDialog({
 }
 
 export function TextToolDialogs({ state, onConfirm, onCancel }: TextToolDialogsProps): JSX.Element | null {
+  const activity = useStepEditorInputActivityRef();
+  const inputActive = activity.current;
+  const dialogTarget = useStepEditorDialogTarget(!!state);
   useEffect(() => {
-    if (!state) {
+    if (!inputActive || !state) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (!activity.current) return;
       if (event.key !== "Escape") {
         return;
       }
@@ -505,9 +519,9 @@ export function TextToolDialogs({ state, onConfirm, onCancel }: TextToolDialogsP
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [state, onCancel]);
+  }, [state, onCancel, inputActive]);
 
-  if (!state) {
+  if (!state || !dialogTarget) {
     return null;
   }
 
@@ -574,6 +588,6 @@ export function TextToolDialogs({ state, onConfirm, onCancel }: TextToolDialogsP
         {body}
       </div>
     </div>,
-    document.body,
+    dialogTarget,
   );
 }

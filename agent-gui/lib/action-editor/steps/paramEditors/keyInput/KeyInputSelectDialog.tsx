@@ -1,4 +1,6 @@
 "use client";
+import { useStepEditorInputActive } from "../StepEditorInputOwner";
+
 
 import { useCallback, useEffect, useId, useRef, useState, type JSX } from "react";
 import { createPortal } from "react-dom";
@@ -37,6 +39,7 @@ export function KeyInputSelectDialog({
   onConfirm,
   onCancel,
 }: KeyInputSelectDialogProps): JSX.Element | null {
+  const inputActive = useStepEditorInputActive();
   const [draft, setDraft] = useState<KeyInputStepData>(initial);
   const addKeyId = useId();
 
@@ -50,7 +53,7 @@ export function KeyInputSelectDialog({
   }, [open, initial]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!inputActive || !open) return;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -59,9 +62,9 @@ export function KeyInputSelectDialog({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open, onCancel]);
+  }, [open, onCancel, inputActive]);
 
-  if (!open || typeof document === "undefined") {
+  if (!inputActive || !open || typeof document === "undefined") {
     return null;
   }
 

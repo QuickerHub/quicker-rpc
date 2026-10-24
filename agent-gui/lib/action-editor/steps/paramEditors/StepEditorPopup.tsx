@@ -29,7 +29,7 @@ import {
 } from "@/lib/action-editor/shared/designerHostGrpcApi";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../actionStepSerialization";
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
-import { StepEditorInputOwner, StepEditorInputSlot, type InputSlotRegistration } from "./StepEditorInputOwner";
+import { StepEditorInputActivity, StepEditorInputOwner, StepEditorInputSlot, type InputSlotRegistration } from "./StepEditorInputOwner";
 import { StepEditorParamSection } from "./StepEditorParamSection";
 import { shouldExpandAdvancedParamSection } from "./stepEditorAdvancedSection";
 import { ModuleHelpPreviewPopup } from "./ModuleHelpPreviewPopup";
@@ -759,8 +759,7 @@ export function StepEditorPopup({
       </>
     );
 
-  if (!active) return <>{inputEditors}</>;
-  return <>{inputEditors}{createPortal(
+  return <StepEditorInputActivity.Provider value={active}>{inputEditors}{active ? createPortal(
     <>
       <div
         className="step-editor-popup-backdrop"
@@ -836,5 +835,5 @@ export function StepEditorPopup({
       ) : null}
     </>,
     document.body
-  )}</>;
+  ) : null}</StepEditorInputActivity.Provider>;
 }

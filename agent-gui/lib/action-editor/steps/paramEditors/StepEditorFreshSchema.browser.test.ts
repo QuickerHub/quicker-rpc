@@ -14,14 +14,14 @@ import{createDesignerCatalogPort}from'@/lib/action-editor/catalog/designerCatalo
 import{createProgramDocumentSession}from'@/lib/action-editor/document/programDocumentSession';
 import{createProgramDocumentEditorController}from'@/lib/action-editor/program/programDocumentEditorController';
 import{mapAgentSchemaToStepRunnerItem}from'@/lib/action-editor/api/stepRunnerSchemaMap';
-const state=window.fixture={requests:[],unexpected:[],generation:{a:'Old',b:'B'},defer:false,fail:false,pending:[],withFile:!!window.withFileFixture,advanced:false,files:{a:'original file',b:'b original file'},writes:[],holdFileDebounce:false,heldTimers:new Map(),nextTimer:0};
+const state=window.fixture={requests:[],unexpected:[],generation:{a:'Old',b:'B'},defer:false,fail:false,pending:[],withFile:!!window.withFileFixture,withTools:!!window.withToolsFixture,advanced:false,files:{a:'original file',b:'b original file'},writes:[],holdFileDebounce:false,heldTimers:new Map(),nextTimer:0};
 const nativeSetTimeout=window.setTimeout.bind(window),nativeClearTimeout=window.clearTimeout.bind(window);
 window.setTimeout=(callback,delay,...args)=>{if(state.holdFileDebounce&&delay===450){const id=--state.nextTimer;state.heldTimers.set(id,()=>callback(...args));return id;}return nativeSetTimeout(callback,delay,...args);};
 window.clearTimeout=id=>{if(!state.heldTimers.delete(id))nativeClearTimeout(id);};
 state.flushFileWrites=()=>{const callbacks=[...state.heldTimers.values()];state.heldTimers.clear();for(const callback of callbacks)callback();};
 const ids={a:'abcdefab-cdef-4abc-8def-abcdefabcdef',b:'bbcdefab-cdef-4abc-8def-abcdefabcdef'};
 const runner=(label,full,advanced=state.advanced)=>mapAgentSchemaToStepRunnerItem({stepRunnerKey:'fixture:current',name:label+' module',helpLink:'https://docs.example.test/'+label,
- inputs:full?[{key:'text',title:label+' text',valueType:'Text',variableMode:1,defaultValue:label+' default'},...(state.withFile?[{key:'script',title:'Script file',valueType:'Text',variableMode:0,isMultiLine:true,isAdvanced:advanced}]:[])]:[],outputs:[]});
+ inputs:full?[{key:'text',title:label+' text',valueType:'Text',variableMode:1,defaultValue:label+' default',textTools:state.withTools?'EditInCodeWindow':undefined},...(state.withFile?[{key:'script',title:'Script file',valueType:'Text',variableMode:0,isMultiLine:true,isAdvanced:advanced}]:[])]:[],outputs:[]});
 window.fetch=async(input,init)=>{
  const url=String(input),body=JSON.parse(String(init?.body||'{}'));state.requests.push({url,body});
  if(url.startsWith('/api/workspace')){
@@ -69,7 +69,7 @@ async function compileFixture() {
       builder.onLoad({ filter: /.*/, namespace: "fixture-icon" }, () => ({ contents: "export function IconControl(){return null}", loader: "js" }));
     } }] });
 }
-async function openFixture(withFile = false, keepOpen = false) {
+async function openFixture(withFile = false, keepOpen = false, withTools = false) {
   const result = await compileFixture();
   assert.ok(Object.keys(result.metafile!.inputs).every(file => !/(?:^|\/)lib\/(?:db\/|qkrpc\.ts|llm-config)/.test(file.replaceAll("\\", "/"))));
   const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
@@ -80,7 +80,7 @@ async function openFixture(withFile = false, keepOpen = false) {
     await page.route("**/*", route => route.abort()); await page.setContent('<div id="root"></div>');
     const css = await Promise.all(["components/action-editor/action-editor-theme.css", "components/action-editor/action-editor.css", "components/action-editor/program-editor-toolbox.css"].map(file => readFile(file, "utf8")));
     await page.addStyleTag({ content: css.join("\n") + "\nbody{margin:0;font-family:system-ui}#root{height:100vh;}" });
-    await page.evaluate(flag => { (window as any).withFileFixture=flag; }, withFile);
+    await page.evaluate(flags => { (window as any).withFileFixture=flags.withFile; (window as any).withToolsFixture=flags.withTools; }, {withFile,withTools});
     await page.addScriptTag({ content: result.outputFiles[0].text });
     await page.locator('[data-step-id="a-one"]').dblclick();
     await popup(page).getByText("Old text", { exact: true }).waitFor();
@@ -227,6 +227,40 @@ test("cancelled earlier native schema cannot replace a newer same-owner popup re
     assert.equal(await popup(page).getByText("Late text", { exact: true }).count(), 0);
     assert.equal(await popup(page).getByRole("textbox").innerText(), "new owned draft");
     assert.equal(await confirm(page).isEnabled(), true);
+    await finish(page, errors);
+  } finally { await browser.close(); }
+});
+
+test("inactive retained fields park nested dialogs and stop their shortcuts without losing file or dialog drafts", { timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await openFixture(true, true, true);
+  try {
+    const initial = await page.evaluate(() => (window as any).fixture.read("a").content);
+    const fileField = () => popup(page).locator(".step-param-row").filter({ has: page.getByText("Script file", { exact: true }) }).getByRole("textbox");
+    await page.waitForFunction(() => [...document.querySelectorAll('.step-editor-popup [role="textbox"]')].some(node=>node.textContent==='original file'));
+    await fileField().evaluate(node => { (window as any).fixture.fileNode=node; });
+    await popup(page).getByRole("button", { name: "在编辑器中修改", exact: true }).click();
+    const nested = page.locator(".text-tool-dialog");
+    await nested.waitFor({ state: "visible" });
+    await type(nested.getByRole("textbox"), "unconfirmed nested A draft");
+    await page.evaluate(() => (window as any).fixture.switch("b"));
+    await nested.waitFor({ state: "hidden" });
+    await page.locator('[data-program-workspace="b"]').waitFor({ state: "visible" });
+    assert.equal(await page.locator(".text-tool-dialog-backdrop").count(), 0, "inactive portals must leave the active document body");
+    await page.locator('[data-step-id="b-one"]').dblclick();
+    await popup(page).getByText("B text", { exact: true }).waitFor();
+    const bField = popup(page).locator(".step-param-row").filter({ has: page.getByText("B text", { exact: true }) }).getByRole("textbox");
+    await type(bField, "B owned draft");
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter",ctrlKey:true,bubbles:true})));
+    await page.keyboard.press("Escape");
+    await page.getByRole("alertdialog").getByRole("button", { name: "不保存", exact: true }).click();
+    await page.evaluate(() => (window as any).fixture.switch("a"));
+    await nested.waitFor({ state: "visible" });
+    assert.equal(await nested.getByRole("textbox").innerText(), "unconfirmed nested A draft");
+    assert.equal(await fileField().evaluate(node => node===(window as any).fixture.fileNode), true);
+    await nested.getByRole("button", {name:"取消",exact:true}).click();
+    const aField = popup(page).locator(".step-param-row").filter({ has: page.getByText("Old text", { exact: true }) }).getByRole("textbox");
+    assert.equal(await aField.innerText(), "original");
+    assert.equal(await page.evaluate(() => (window as any).fixture.read("a").content), initial);
     await finish(page, errors);
   } finally { await browser.close(); }
 });
