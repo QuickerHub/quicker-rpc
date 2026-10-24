@@ -17,7 +17,7 @@ import{mapAgentSchemaToStepRunnerItem}from'@/lib/action-editor/api/stepRunnerSch
 import catalog from'@/lib/action-editor/data/step-runners-ui-catalog.json';
 const id='abcdefab-cdef-4abc-8def-abcdefabcdef',runner=mapAgentSchemaToStepRunnerItem(catalog.schemas['sys:openUrl']);
 const state=window.fixture={requests:[],unexpected:[]};
-const source=JSON.stringify({steps:[{stepId:'native-open',stepRunnerKey:'sys:openUrl',inputParams:{url:{value:'https://fixture.invalid/'}},outputParams:{errMessage:'original_error_text'},futureStep:'KEEP_INT64'}],variables:[{id:'old-error',key:'original_error_text',varType:0},{id:'new-error',key:'new_error_text',varType:0},{id:'unrelated',key:'wrong_number',varType:1}],subPrograms:[],futureRoot:'KEEP_DECIMAL'}).replace('"KEEP_INT64"','9223372036854775807').replace('"KEEP_DECIMAL"','0.1234567890123456789012345');
+const source=JSON.stringify({steps:[{stepId:'native-open',stepRunnerKey:'sys:openUrl',inputParams:{url:{value:'https://fixture.invalid/'}},outputParams:{errMessage:'original_error_text'},futureStep:'KEEP_INT64'}],variables:[{id:'old-error',key:'original_error_text',varType:0},{id:'new-error',key:'new_error_text',varType:0},{id:'number-target',key:'number_target',varType:1},{id:'image-target',key:'image_target',varType:3}],subPrograms:[],futureRoot:'KEEP_DECIMAL'}).replace('"KEEP_INT64"','9223372036854775807').replace('"KEEP_DECIMAL"','0.1234567890123456789012345');
 window.fetch=async(input,init)=>{
  const url=String(input),body=JSON.parse(String(init?.body||'{}'));state.requests.push({url,body});
  if(body.catalogContext?.expectedProjectBinding?.actionId!==id)throw Error('No unbound catalog fallback');
@@ -51,8 +51,11 @@ const errorRow = (page: Page) => popup(page).locator(".step-param-row").filter({
 async function chooseErrorVariable(page: Page) {
   await errorRow(page).getByRole("combobox").click();
   const options = page.locator(".step-param-variable-picker-popup");
-  assert.equal(await options.getByRole("button", { name: /^wrong_number/ }).count(), 0, "the native Text output keeps standard variable type filtering");
-  await options.getByRole("button", { name: /^new_error_text/ }).click();
+  const selected = options.getByRole("button", { name: /^new_error_text/ });
+  await selected.waitFor();
+  assert.equal(await options.getByRole("button", { name: /^image_target/ }).count(), 0, "Text output keeps the existing incompatible-image filter");
+  assert.equal(await options.getByRole("button", { name: /^number_target/ }).count(), 1, "existing numeric-to-text targets remain available");
+  await selected.click();
 }
 
 test("native common error output edits existing bindings through the real popup and document history", { timeout: 60_000 }, async () => {
