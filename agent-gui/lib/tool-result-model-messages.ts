@@ -1,5 +1,6 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { isStructuredToolResult } from "@/lib/tool-result";
+import { projectStepRunnerKnowledge } from "./tool-knowledge-projection";
 
 export const TOOL_OUTPUT_MAX_INLINE_CHARS = 8 * 1024;
 const TOOL_OUTPUT_HEAD_CHARS = 6 * 1024;
@@ -14,30 +15,48 @@ function serializeForBudget(value: unknown): string | null {
 }
 
 function projectLargeOutput(output: unknown, serialized: string): unknown {
-  const projection = {
-    kind: "tool_output_projection",
-    originalChars: serialized.length,
-    head: serialized.slice(0, TOOL_OUTPUT_HEAD_CHARS),
-    tail: serialized.slice(-TOOL_OUTPUT_TAIL_CHARS),
-    notice:
-      "Output was deterministically projected for model context. Use narrower parameters, paging, or a file read to inspect omitted content.",
-  };
+  const knowledgeProjection = projectStepRunnerKnowledge(output);
+  let headChars = TOOL_OUTPUT_HEAD_CHARS;
+  let tailChars = TOOL_OUTPUT_TAIL_CHARS;
+  let feedbackChars = 512;
+  const build = () => {
+    const projection = {
+      kind: "tool_output_projection",
+      originalChars: serialized.length,
+      head: serialized.slice(0, headChars),
+      tail: tailChars ? serialized.slice(-tailChars) : "",
+      ...(knowledgeProjection ? { knowledgeProjection } : {}),
+      notice: knowledgeProjection
+        ? "StepRunner schema was omitted for the model budget. The metadata projection is incomplete schema, not editing authority; an identical get will not recover it."
+        : "Output was deterministically projected for model context. Use narrower parameters, paging, or a file read to inspect omitted content.",
+    };
 
-  if (!isStructuredToolResult(output)) {
-    return projection;
+    if (!isStructuredToolResult(output)) return projection;
+
+    return {
+      ok: output.ok,
+      exitCode: output.exitCode,
+      source: typeof output.source === "string" ? output.source.slice(0, 128) : undefined,
+      data: projection,
+      stderr: typeof output.stderr === "string" ? output.stderr.slice(0, feedbackChars) : undefined,
+      truncated: true,
+      summary: typeof output.summary === "string" ? output.summary.slice(0, feedbackChars) : undefined,
+      retryable: typeof output.retryable === "boolean" ? output.retryable : undefined,
+      userDecisionRequired: typeof output.userDecisionRequired === "boolean" ? output.userDecisionRequired : undefined,
+    };
+  };
+  let result = build();
+  // Count the serialized projection, including JSON escaping and its metadata wrapper.
+  while (JSON.stringify(result).length > TOOL_OUTPUT_MAX_INLINE_CHARS) {
+    if (headChars || tailChars) {
+      headChars = Math.floor(headChars / 2);
+      tailChars = Math.floor(tailChars / 2);
+    } else {
+      feedbackChars = Math.floor(feedbackChars / 2);
+    }
+    result = build();
   }
-
-  return {
-    ok: output.ok,
-    exitCode: output.exitCode,
-    source: output.source,
-    data: projection,
-    stderr: output.stderr?.slice(0, 512),
-    truncated: true,
-    summary: output.summary?.slice(0, 512),
-    retryable: output.retryable,
-    userDecisionRequired: output.userDecisionRequired,
-  };
+  return result;
 }
 
 /** Tool result payload sent to the LLM: strip UI data, then enforce a stable context budget. */

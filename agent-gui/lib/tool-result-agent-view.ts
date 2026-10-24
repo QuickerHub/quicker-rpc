@@ -41,6 +41,7 @@ import {
   QKRPC_SUBPROGRAM_QUERY_TOOL,
 } from "@/lib/qkrpc-subprogram-tool";
 import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
+import { projectStepRunnerKnowledge } from "./tool-knowledge-projection";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import { WORKSPACE_PROGRAM_TOOL } from "@/lib/workspace-program-tool";
 import {
@@ -1206,6 +1207,11 @@ function applyGlobalBudget(
         ? "See nextActions on this tool result for continuation parameters."
         : "Repeat the tool with narrower parameters."),
   };
+  const knowledgeProjection = projectStepRunnerKnowledge(result);
+  if (knowledgeProjection) {
+    compactData.knowledgeProjection = knowledgeProjection;
+    compactData.readHint = "Schema is incomplete; full schema is not available to the model through this result. Do not repeat an identical get to recover it.";
+  }
 
   const displayData = result.displayData ?? data ?? result.data;
 
@@ -1310,13 +1316,6 @@ function compressStepRunnerGetResult(
     agentSummary: key
       ? `step_runner_get ${key} · schema compressed`
       : "step_runner_get · schema compressed",
-    refetch: key
-      ? {
-          tool: "qkrpc_step_runner_get",
-          reason: "full_schema",
-          inputPatch: { key },
-        }
-      : undefined,
   });
 }
 
