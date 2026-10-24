@@ -1,5 +1,4 @@
 import {
-  getShellSession,
   subscribeShellSession,
   type ShellSessionSnapshot,
 } from "@/lib/shell-session-registry.server";
@@ -19,48 +18,49 @@ export async function GET(req: Request) {
 
   const encoder = new TextEncoder();
   let unsubscribe: (() => void) | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let onAbort: (() => void) | null = null;
   let closed = false;
+
+  const release = () => {
+    if (closed) return;
+    closed = true;
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = null;
+    unsubscribe?.();
+    unsubscribe = null;
+    if (onAbort) req.signal.removeEventListener("abort", onAbort);
+  };
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      const close = () => {
+        if (closed) return;
+        release();
+        controller.close();
+      };
+      onAbort = close;
+      req.signal.addEventListener("abort", onAbort, { once: true });
+      if (req.signal.aborted) { close(); return; }
+
       const push = (snapshot: ShellSessionSnapshot) => {
         if (closed) return;
         controller.enqueue(encoder.encode(encodeSse("snapshot", snapshot)));
         if (snapshot.status !== "running") {
-          closed = true;
-          unsubscribe?.();
-          controller.close();
+          close();
         }
       };
 
-      const existing = getShellSession(sessionId);
-      if (existing) push(existing);
-
-      unsubscribe = subscribeShellSession(sessionId, push);
-
-      const heartbeat = setInterval(() => {
-        if (closed) {
-          clearInterval(heartbeat);
-          return;
-        }
+      // The registry replays synchronously; a terminal snapshot can close before it returns.
+      const stopSubscription = subscribeShellSession(sessionId, push);
+      if (closed) { stopSubscription(); return; }
+      unsubscribe = stopSubscription;
+      heartbeat = setInterval(() => {
         controller.enqueue(encoder.encode(": ping\n\n"));
       }, 15_000);
-
-      const onAbort = () => {
-        closed = true;
-        clearInterval(heartbeat);
-        unsubscribe?.();
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
-        }
-      };
-      req.signal.addEventListener("abort", onAbort);
     },
     cancel() {
-      closed = true;
-      unsubscribe?.();
+      release();
     },
   });
 
