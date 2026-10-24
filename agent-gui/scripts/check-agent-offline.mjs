@@ -97,6 +97,7 @@ const tests = [
   "lib/action-editor/catalog/designerFaPage.test.ts",
   "lib/action-editor/catalog/designerFaPage.server.test.ts",
   "lib/action-editor/catalog/designerResourcePage.test.ts",
+  "lib/action-editor/catalog/resourceCallInsertion.test.ts",
   "lib/action-editor/catalog/designerResourcePage.server.test.ts",
   "lib/action-editor/catalog/designerResourceActionOpen.test.ts",
   "lib/designer-resource-action-open.server.test.ts",

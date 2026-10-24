@@ -34,6 +34,7 @@ import { useXProgramEditorHistory } from "./useXProgramEditorHistory";
 import { useActiveXProgramBridgeOptional } from "./activeXProgramBridge";
 import { ownsProgramKeyboardTarget } from "../shared/programKeyboardOwner";
 import type { RegisterToolboxInsert } from "../toolbox/toolboxInsertionRegistry";
+import type { ResourceCallOrigin } from "../steps/toolboxStepFactory";
 import type { XProgramEditorControl } from "./programDocumentEditorController";
 
 export type XProgramEditorProps = {
@@ -55,6 +56,7 @@ export type XProgramEditorProps = {
   programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
   registerToolboxInsert?: RegisterToolboxInsert;
+  resourceCallOrigin?: ResourceCallOrigin;
   control?: XProgramEditorControl;
   keyboardOwnerId?: string;
 };
@@ -73,6 +75,7 @@ function XProgramEditorInner({
   programDocumentKey,
   onPinStepToChat,
   registerToolboxInsert,
+  resourceCallOrigin,
   control,
   keyboardOwnerId: documentKeyboardOwnerId,
 }: XProgramEditorProps): JSX.Element {
@@ -258,6 +261,9 @@ function XProgramEditorInner({
             stepParamFileContents={stepParamFileContents}
             onPinStepToChat={onPinStepToChat}
             registerToolboxInsert={registerToolboxInsert}
+            resourceCallOrigin={resourceCallOrigin}
+            readProgramPresent={handle.getPresent}
+            flushProgramEdits={handle.flushPendingEdits}
           />
         </div>
 

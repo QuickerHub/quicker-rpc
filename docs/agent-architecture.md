@@ -248,8 +248,20 @@ requestId 的不可变 claim 放在导出目录外，绑定 cwd、现有文件 o
 原请求及其本地收据；不冒认其目录、不生成新 claim 或输出目录。canonical workspace 保留
 大小写实体区分。相同 UUID 重查唯一已有项目仍只读成功，不因没有导出目录而报未知。
 工作台 presentation ticket 只在原 owner 仍可见时打开返回路径；
-已有文件实例仅 focus，不 force reload、重建 Session 或清除历史。V2/子程序打开、资源插入/
-拖放与更完整编辑操作仍待迁移；原生实机打开尚待验收。
+已有文件实例仅 focus，不 force reload、重建 Session 或清除历史。169 已通过真实 HTTP
+验收已有项目复用、同 UUID 重查和错误 owner 拒绝，源文件与外部文件 hash 未变，未执行
+动作；新 UI API 的首次导出和 native GUI 点击仍待验收。
+
+V1 全局子程序调用复用同一模块插入 registry、`prepareToolboxStep`、参数弹窗和文档 controller。
+映射来源为上游 ResourceExplorer 与 SubProgramStepV2 的 `sys:subprogram` / `subProgram`；
+按 catalog 原生 resourceId 读 IO、原样保存 callIdentifier，不拼接标识或猜参数名。所选 UI
+schema 必须证实该输入定义；IO 失败不能确认。IO 使用原 bound raw `subprogram.get`，
+不走 MCP workspace augmentation/ensure-local/export，并显式禁止 CLI bootstrap。
+拖放携带当前 document/surface、完整 catalog key 与可见 owner 票据；晚 schema、隐藏或
+换目标不能提交。提交前 flush 表单，从当前 controller 快照插入；新建变量先暂存在该表单，
+确认时与调用一起单事务提交，取消不插入调用或新变量，已有变量发生变化时保留草稿拒绝覆盖。
+fixture/真实 DOM 已覆盖参数、撤销、嵌套拖放和晚响应；本调用链的 V1 原生实机仍待验收。
+V2/子程序打开写回、动作引用插入/拖放与更完整编辑操作仍待迁移。
 
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，

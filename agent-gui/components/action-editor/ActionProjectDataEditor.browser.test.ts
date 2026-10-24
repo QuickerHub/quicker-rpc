@@ -21,12 +21,13 @@ const makeInfo = id => '{"kind":"action","id":"'+pathFor(id).split('/').at(-2)+'
 const runner = StepRunnerItem.fromPartial({key:'sys:fixture_note',name:'Fixture module',icon:'iconify:mdi:code-tags',inputParamDefs:[],outputParamDefs:[]});
 const capability = StepRunnerItem.fromPartial({key:'sys:fixture_capability',name:'Fixture capability',category:'Text',secondaryCategories:['System'],inputParamDefs:[{key:'mode',name:'Mode',isControlField:true,varType:9,variableMode:1,allowInput:true,selectionItems:[{value:'copy',name:'Copy fixture'}]},{key:'text',name:'Text',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]});
 const state = window.fixture = {calls:[],saved:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument};
-const bindingFor=id=>({schemaVersion:1,kind:'action',actionId:pathFor(id).split('/').at(-2),hostBinding:{hostInstanceId:'instance-'+id,hostSessionId:(id==='a'?'a':'b').repeat(32),endpoint:'QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_'+(id==='a'?'a':'b').repeat(32),protocolVersion:1,schemaVersion:1,hostKind:id==='a'?'v1':'v2',quickerVersion:window.fixtureOptions?.invalidVersion?{future:true}:'fixture-'+id,capabilities:{'action.legacyBody.read':true,'action.legacyBody.write':true}}});
+const bindingFor=id=>({schemaVersion:1,kind:'action',actionId:pathFor(id).split('/').at(-2),hostBinding:{hostInstanceId:'instance-'+id,hostSessionId:(id==='a'?'a':'b').repeat(32),endpoint:'QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_'+(id==='a'?'a':'b').repeat(32),protocolVersion:1,schemaVersion:1,hostKind:id==='a'?'v1':'v2',quickerVersion:window.fixtureOptions?.invalidVersion?{future:true}:'fixture-'+id,capabilities:{'action.legacyBody.read':true,'action.legacyBody.write':true,'resource.globalSubprogram.page.read':Boolean(window.fixtureOptions?.resources&&id==='a')}}});
 state.targetFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id),bindingFor(id)]));state.targetMode=window.fixtureOptions?.targetMode||'bound';state.targetPending=[];state.transportCalls=[];
 state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.json$/,'info.json'),makeInfo(id)]));
 state.documentCalls=[];state.documentPending=[];state.documentMode='success';
 state.syncCalls=[];state.syncPending=[];state.syncMode='success';
 state.catalogRequests=[];state.catalogPending=[];
+state.resourceRequests=[];state.resourceSchemaMode='success';state.resourceSchemaPending=[];state.resourceIoMode='success';state.resourceIoPending=[];
 state.faRequests=[];state.faPending=[];state.geometryRequests=[];state.faMode='success';
 state.resolveFaPending=(index,tag)=>state.faPending[index].resolve(tag);
 state.syncStatusMode='success';state.statusPending=[];
@@ -65,7 +66,23 @@ window.fetch = async (input, init) => {
    value=window.fixtureOptions?.catalogDeferA&&id==='a'?await new Promise(resolve=>state.catalogPending.push({id,resolve:()=>resolve(result)})):result;
  }
  else if(url.pathname==='/api/step-runner/get' && catalogRequest.key==='sys:fixture_capability') value={ok:true,item:capability};
- else if(url.pathname==='/api/step-runner/get' && catalogRequest.key==='sys:subprogram') value={ok:true,item:StepRunnerItem.fromPartial({key:'sys:subprogram',name:'调用子程序',inputParamDefs:[{key:'subProgram',name:'子程序',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]})};
+ else if(url.pathname==='/api/step-runner/get' && catalogRequest.key==='sys:subprogram') {
+   const result={ok:true,item:StepRunnerItem.fromPartial({key:'sys:subprogram',name:'调用子程序',inputParamDefs:[{key:'subProgram',name:'子程序',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]})};
+   if(state.resourceSchemaMode==='fail')return Response.json({ok:false,code:'SCHEMA_UNAVAILABLE',error:'fixture schema unavailable'},{status:503});
+   value=state.resourceSchemaMode==='defer'?await new Promise(resolve=>state.resourceSchemaPending.push(()=>resolve(result))):result;
+ }
+ else if(window.fixtureOptions?.resources&&url.pathname==='/api/designer/resources/page') {
+   state.resourceRequests.push(catalogRequest);
+   value={ok:true,...catalogRequest,expectedSnapshotId:undefined,snapshotId:'resource-'+catalogRequest.catalogContext.expectedProjectBinding.hostBinding.hostSessionId,totalCount:1,hasMore:false,
+     items:[{id:'catalog-row-id',title:'Global fixture',description:'Native call identifier',icon:'',editVersion:'1',actionType:null,callIdentifier:'%%fixture-global'}]};
+ }
+ else if(window.fixtureOptions?.resources&&url.pathname==='/api/step-runner/subprogram-io') {
+   const result={found:true,subProgramId:'fixture-global',identifier:'%%fixture-global',displayName:'Global fixture',description:'',kind:2,
+     inputs:[{key:'message',paramName:'Call message',varType:0,isInput:true,inputParamInfo:{allowInput:true}}],
+     outputs:[{key:'answer',paramName:'Call answer',varType:0,isOutput:true}],bindingHints:[]};
+   if(state.resourceIoMode==='fail')return Response.json({ok:false,code:'IO_UNAVAILABLE',error:'fixture IO unavailable'},{status:503});
+   value=state.resourceIoMode==='defer'?await new Promise(resolve=>state.resourceIoPending.push(()=>resolve(result))):result;
+ }
  else if(url.pathname==='/api/step-runner/get' && ['future:branch','sys:future:branch'].includes(catalogRequest.key)) value={ok:true,item:StepRunnerItem.fromPartial({key:catalogRequest.key,name:'Future branch fixture',inputParamDefs:[],outputParamDefs:[]})};
  else if(url.pathname==='/api/step-runner/toolbox-search') value={ok:true,json:JSON.stringify({items:[{kind:'runner',id:'r:sys:fixture_capability:copy',label:'Copy fixture',parentLabel:'Fixture capability',payload:{stepRunnerKey:'sys:fixture_capability',name:'Fixture capability',controlFieldValue:'copy',inputPresets:{mode:'copy',text:'preset text'}}}],totalCount:1,hasMore:false})};
  else if(url.pathname==='/api/step-runner/summaries') {const request=JSON.parse(init?.body||'{}');value={ok:true,items:(request.steps||[]).map(row=>({stepId:row.stepId,summary:'Fixture summary'}))};}
@@ -244,7 +261,7 @@ afterEach(async () => {
 });
 after(async () => { if (caseOwnsBrowser) { closingBrowsers.add(browser); await browser.close(); } });
 
-async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean; exclusiveDocuments?: boolean; realIcons?: boolean }): Promise<{ page: Page; errors: string[] }> {
+async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean; exclusiveDocuments?: boolean; realIcons?: boolean; resources?: boolean }): Promise<{ page: Page; errors: string[] }> {
   pageSequence += 1;
   diagnose("create-page");
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -1107,6 +1124,116 @@ test("external content preserves a dirty draft and blocks overwrite; an old path
     assert.equal(result.body.steps[0].stepId, "s-b");
     assert.equal(result.body.steps[0].note, "b local latest");
     assert.deepEqual(result.saved, [result.path]);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("global resource call confirms parameters and a created variable as one document transaction after flushing an unblurred draft", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ resources: true });
+  try {
+    await page.getByRole("tab", { name: "子程序", exact: true }).click();
+    const resource = page.getByRole("region", { name: "全局子程序目录" });
+    await resource.getByRole("option", { name: "Global fixture" }).click();
+    await capture(page, "resource-call-before-light.png", "light");
+    await currentNote(page).fill("unblurred before resource insertion");
+    await resource.getByRole("button", { name: "插入调用步骤" }).evaluate((button: HTMLButtonElement) => button.click());
+    const popup = page.locator(".step-editor-popup"); await popup.waitFor();
+    const message = popup.locator(".step-param-row").filter({ hasText: "Call message" });
+    await message.locator("textarea,input,[contenteditable=true]").first().fill("resource message");
+    await popup.getByText("Call answer", { exact: true }).dblclick();
+    const createVariable = page.getByRole("dialog", { name: "创建新变量" }); await createVariable.waitFor();
+    await createVariable.getByLabel("变量名", { exact: true }).fill("call_answer");
+    await createVariable.getByRole("button", { name: "确定", exact: true }).click();
+    await capture(page, "resource-call-parameters-light.png", "light");
+    assert.equal(await page.locator(".program-editor-surface:visible .step-row").count(), 1);
+    assert.equal(await page.locator(".program-editor-surface:visible .x-program-editor-variables-toggle-count").innerText(), "1", "new variable stays in the pending call draft");
+    await popup.getByRole("button", { name: "确定", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 2);
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    assert.equal(saved.steps[0].note, "unblurred before resource insertion");
+    const call = saved.steps[1]; assert.equal(call.stepRunnerKey, "sys:subprogram");
+    assert.equal(call.inputParams.subProgram, "%%fixture-global", "use the native call identifier, not the catalog row id or title");
+    assert.equal(call.inputParams["var:message"], "resource message"); assert.equal(call.outputParams["var:answer"], "call_answer");
+    assert.equal(saved.variables.length, 2); assert.equal(saved.variables.at(-1).key, "call_answer");
+    await capture(page, "resource-call-after-dark.png", "dark");
+    const io = await page.evaluate(() => (window as any).fixture.catalogRequests.filter((r: any) => r.path === "/api/step-runner/subprogram-io"));
+    assert.ok(io.length > 0); assert.ok(io.some((r: any) => r.body.id === "catalog-row-id"), "new call IO uses the selected native id rather than deriving an id from its call text");
+    assert.ok(io.every((r: any) => r.body.catalogContext.expectedProjectBinding.hostBinding.hostInstanceId === "instance-a"));
+    await page.locator(".program-editor-surface:visible .step-row").first().focus(); await page.keyboard.press("Control+z");
+    await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 1);
+    assert.equal(await currentNote(page).inputValue(), "unblurred before resource insertion");
+    assert.equal(await page.locator(".program-editor-surface:visible .x-program-editor-variables-toggle-count").innerText(), "1", "one undo removes the call and its created variable together");
+    await page.keyboard.press("Control+y"); await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 2);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("global resource call rejects late schema, failed IO and hidden confirmations without changing another document", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ resources: true, exclusiveDocuments: true });
+  try {
+    const select = async () => {
+      await page.getByRole("tab", { name: "子程序", exact: true }).click();
+      const resource = page.getByRole("region", { name: "全局子程序目录" });
+      await resource.getByRole("option", { name: "Global fixture" }).click();
+      return resource;
+    };
+    let resource = await select();
+    await page.evaluate(() => { (window as any).fixture.resourceSchemaMode = "defer"; });
+    await resource.getByRole("button", { name: "插入调用步骤" }).click();
+    await page.waitForFunction(() => (window as any).fixture.resourceSchemaPending.length === 1);
+    await page.evaluate(() => (window as any).fixture.setDocument("b")); await page.waitForSelector('[data-step-id="s-b"]');
+    await page.evaluate(() => { const f=(window as any).fixture;f.resourceSchemaMode="success";f.resourceSchemaPending.shift()(); });
+    assert.equal(await page.locator(".step-editor-popup").count(), 0);
+    assert.equal(await page.locator(".program-editor-surface:visible .step-row").count(), 1);
+    await page.evaluate(() => (window as any).fixture.setDocument("a")); await page.waitForSelector('[data-step-id="s-a"]');
+    resource = await select();
+    await page.evaluate(() => { (window as any).fixture.resourceIoMode = "fail"; });
+    await resource.getByRole("button", { name: "插入调用步骤" }).click();
+    const popup = page.locator(".step-editor-popup"); await popup.getByText("fixture IO unavailable", { exact: true }).waitFor();
+    assert.equal(await popup.getByRole("button", { name: "确定", exact: true }).isDisabled(), true);
+    await page.keyboard.press("Alt+s"); assert.equal(await page.locator(".program-editor-surface:visible .step-row").count(), 1);
+    await popup.getByRole("button", { name: "取消", exact: true }).click();
+    await page.evaluate(() => { (window as any).fixture.resourceIoMode = "defer"; });
+    await resource.getByRole("button", { name: "插入调用步骤" }).click();
+    await page.waitForFunction(() => (window as any).fixture.resourceIoPending.length === 1);
+    assert.equal(await popup.getByRole("button", { name: "确定", exact: true }).isDisabled(), true);
+    await page.evaluate(() => (window as any).fixture.setActive(false));
+    await page.waitForFunction(() => document.querySelector(".step-editor-popup") == null);
+    await page.evaluate(() => { const f=(window as any).fixture;f.resourceIoPending.shift()();f.setActive(true); });
+    assert.equal(await page.locator(".step-editor-popup").count(), 0);
+    assert.equal(await page.locator(".program-editor-surface:visible .step-row").count(), 1);
+    assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 0);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("global resource call drag uses the current surface origin and rejects a drag captured in another surface", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ resources: true });
+  try {
+    await page.getByRole("tab", { name: "子程序", exact: true }).click();
+    const row = page.getByRole("region", { name: "全局子程序目录" }).getByRole("option", { name: "Global fixture" });
+    await row.waitFor(); assert.equal(await row.getAttribute("draggable"), "true");
+    const stale = await page.evaluateHandle(() => new DataTransfer());
+    await row.dispatchEvent("dragstart", { dataTransfer: stale });
+    const drop = async (dataTransfer: any) => {
+      const tree = page.locator(".program-editor-surface:visible .step-listbox.root");
+      await tree.dispatchEvent("dragover", { dataTransfer });
+      await page.evaluate(() => new Promise(requestAnimationFrame));
+      await tree.dispatchEvent("drop", { dataTransfer });
+    };
+    await openInternalTab(page, "Child / Nested");
+    await drop(stale); assert.equal(await page.locator(".step-editor-popup").count(), 0);
+    const fresh = await page.evaluateHandle(() => new DataTransfer());
+    await row.dispatchEvent("dragstart", { dataTransfer: fresh }); await drop(fresh);
+    const popup = page.locator(".step-editor-popup");
+    await popup.getByText("Call message", { exact: true }).waitFor();
+    await popup.getByRole("button", { name: "确定", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 2);
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    assert.equal(saved.steps.length, 1); assert.equal(saved.subPrograms[0].subPrograms[0].steps.length, 2);
+    assert.equal(saved.subPrograms[0].subPrograms[0].steps.at(-1).inputParams.subProgram, "%%fixture-global");
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });
