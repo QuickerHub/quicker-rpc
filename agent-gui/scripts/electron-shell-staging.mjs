@@ -7,7 +7,9 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  lstatSync,
   readdirSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -19,6 +21,28 @@ const electronRoot = join(agentGuiRoot, "electron");
 const shellAppRoot = join(electronRoot, "shell-app");
 
 const SKIP_DIRS = new Set(["resources", "dist", "build", "shell-app"]);
+
+function assertAlternateShellOutput(targetRoot) {
+  const repository = resolve(agentGuiRoot, ".."), temporary = join(repository, ".tmp");
+  const difference = relative(temporary, targetRoot);
+  if (!difference || difference === ".." || difference.startsWith("..\\") || difference.startsWith("../") || isAbsolute(difference))
+    throw new Error("Alternate Electron shell output must be a new repository .tmp directory");
+  const canonicalRepository = realpathSync(repository);
+  // The destination may not exist yet. Inspect every existing ancestor before
+  // the first mkdir/copy, including dangling links which existsSync hides.
+  for (let cursor = targetRoot; ; cursor = dirname(cursor)) {
+    let metadata;
+    try { metadata = lstatSync(cursor); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    if (metadata) {
+      if (metadata.isSymbolicLink() || !metadata.isDirectory()) throw new Error("Alternate Electron shell output has a redirected or non-directory ancestor");
+      const actual = realpathSync(cursor), expected = resolve(canonicalRepository, relative(repository, cursor));
+      if (actual !== expected) throw new Error("Alternate Electron shell output escaped its real repository ancestry");
+      if (cursor === targetRoot) throw new Error("Alternate Electron shell output must be a new repository .tmp directory");
+    }
+    if (cursor === repository) break;
+  }
+}
 
 /** Shared pure path policy is needed by both app.asar/electron and browser-runtime. */
 export function stageShellProfileModule(sourceRoot, targetRoot) {
@@ -107,12 +131,7 @@ function installShellDeps(targetRoot) {
  */
 export function stageElectronShell({ version = "0.1.0", outputDirectory, packageName = "quicker-agent-electron-shell", installDependencies = installShellDeps } = {}) {
   const targetRoot = outputDirectory ? resolve(outputDirectory) : shellAppRoot;
-  if (outputDirectory) {
-    const difference = relative(resolve(agentGuiRoot, "../.tmp"), targetRoot);
-    if (!difference || difference === ".." || difference.startsWith("..\\") || difference.startsWith("../") || isAbsolute(difference) || existsSync(targetRoot)) {
-      throw new Error("Alternate Electron shell output must be a new repository .tmp directory");
-    }
-  }
+  if (outputDirectory) assertAlternateShellOutput(targetRoot);
   console.log("electron-shell-staging: preparing minimal shell app...");
   if (existsSync(targetRoot)) {
     if (resolve(targetRoot) !== resolve(shellAppRoot)) throw new Error("Unknown shell cleanup target");

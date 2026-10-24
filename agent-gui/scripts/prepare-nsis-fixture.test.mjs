@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { parseFixtureArguments, fixtureBuilderConfig, assertFixturePreprocessed, NSIS_FIXTURE_IDENTITY } from "./prepare-nsis-fixture.mjs";
@@ -42,4 +42,16 @@ test("real-builder preprocessing gate refuses foreign registry/shell actions and
   assert.match(assertFixturePreprocessed(source, manifest, { stub: true, uninstallerOutput: output }), /WriteUninstaller/);
   for (const changed of [source.replace("Software\\fixture-guid", "Software\\foreign"), source.replace("Call setInstallSectionSpaceRequired", "Call foreignStartup"), source.replace(manifest.stubDirectory, "C:\\Users\\somebody"), source.replace("WriteUninstaller", "CreateShortCut"), source + '\nWinShell::UninstAppUserModelId "foreign"', source.replace(output, "C:\\outside.exe")])
     assert.throws(() => assertFixturePreprocessed(changed, manifest, { stub: true, uninstallerOutput: output }));
+});
+test("shared shell staging rejects a fresh child beneath a junction before creating anything outside its repository", () => {
+  const repository = resolve(import.meta.dirname, "../.."), temporary = join(repository, ".tmp");
+  mkdirSync(temporary, { recursive: true });
+  const owner = mkdtempSync(join(temporary, "shell-junction-owner-"));
+  const outside = mkdtempSync(join(resolve(repository, ".."), "shell-junction-outside-"));
+  const junction = join(owner, "redirect"), destination = join(junction, "fresh-shell"); let calls = 0;
+  symlinkSync(outside, junction, process.platform === "win32" ? "junction" : "dir");
+  try {
+    assert.throws(() => stageElectronShell({ outputDirectory: destination, installDependencies() { calls++; } }), /redirected|ancestry/);
+    assert.equal(calls, 0); assert.equal(existsSync(join(outside, "fresh-shell")), false);
+  } finally { unlinkSync(junction); }
 });
