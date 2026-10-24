@@ -13,37 +13,22 @@ namespace QuickerRpc.Plugin.Services;
 /// <summary>Maps Quicker step runners to <see cref="StepRunnerCatalog"/> via reflection.</summary>
 internal static class StepRunnerCatalogFromQuicker
 {
-    private static StepRunnerCatalog? _cachedCatalog;
-    private static readonly object CatalogLock = new();
+    public static StepRunnerCatalog Build() => BuildForKnowledge().Catalog;
 
-    public static StepRunnerCatalog Build()
+    internal static StepRunnerKnowledgeProvider.ReadResult BuildForKnowledge()
     {
-        var cached = _cachedCatalog;
-        if (cached is not null)
+        if (!QuickerInternalAccess.IsInQuicker)
+            return new StepRunnerKnowledgeProvider.ReadResult(new StepRunnerCatalog());
+        return StepRunnerKnowledgeProvider.ReadCurrent(() =>
         {
-            return cached;
-        }
-
-        lock (CatalogLock)
-        {
-            if (_cachedCatalog is not null)
-            {
-                return _cachedCatalog;
-            }
-
-            _cachedCatalog = BuildCore();
-            return _cachedCatalog;
-        }
+            try { return TryGetAllRunners(); }
+            catch { return null; }
+        }, runner => MapRunner(runner, captureInputPolicy: false, captureKnowledgeEvidence: true), PluginStepRunnerCatalog.GetDefinitions);
     }
 
     /// <summary>Force rebuild after plugin step-runner registration changes.</summary>
     internal static void InvalidateCache()
     {
-        lock (CatalogLock)
-        {
-            _cachedCatalog = null;
-        }
-
         StepRunnerCatalogGeneration.Bump();
         StepRunnerUiCatalogBuilder.InvalidateCache();
     }
@@ -142,7 +127,7 @@ internal static class StepRunnerCatalogFromQuicker
         return getAll?.Invoke(service, null) as IEnumerable;
     }
 
-    private static StepRunnerDefinition? MapRunner(object runner, bool captureInputPolicy)
+    private static StepRunnerDefinition? MapRunner(object runner, bool captureInputPolicy, bool captureKnowledgeEvidence = false)
     {
         var runnerType = runner.GetType();
         var key = ReadString(runner, "Key");
@@ -153,19 +138,19 @@ internal static class StepRunnerCatalogFromQuicker
 
         return new StepRunnerDefinition
         {
-            InputContractVisibilityUnknownReason = captureInputPolicy ? StepRunnerNativeInputPolicy.CaptureRunnerVisibilityUnknownReason(runner) : null,
+            InputContractVisibilityUnknownReason = captureInputPolicy || captureKnowledgeEvidence ? StepRunnerNativeInputPolicy.CaptureRunnerVisibilityUnknownReason(runner) : null,
             Key = key,
             Name = ReadString(runner, "Name") ?? string.Empty,
             Description = ReadString(runner, "Description") ?? string.Empty,
             Icon = ReadString(runner, "Icon") ?? string.Empty,
             HelpLink = ReadString(runner, "HelpLink"),
             Category = ReadEnumString(runner, "Category"),
-            InputParamDefs = MapInputs(runnerType.GetProperty("InputParams")?.GetValue(runner), captureInputPolicy),
+            InputParamDefs = MapInputs(runnerType.GetProperty("InputParams")?.GetValue(runner), captureInputPolicy, captureKnowledgeEvidence),
             OutputParamDefs = MapOutputs(runnerType.GetProperty("OutputParams")?.GetValue(runner)),
         };
     }
 
-    private static IList<StepRunnerInputParamDef> MapInputs(object? defs, bool captureInputPolicy)
+    private static IList<StepRunnerInputParamDef> MapInputs(object? defs, bool captureInputPolicy, bool captureKnowledgeEvidence = false)
     {
         var list = new List<StepRunnerInputParamDef>();
         if (defs is not IEnumerable enumerable)
@@ -191,7 +176,7 @@ internal static class StepRunnerCatalogFromQuicker
             list.Add(
                 new StepRunnerInputParamDef
                 {
-                    NativeInputPolicy = captureInputPolicy ? StepRunnerNativeInputPolicy.Capture(p) : null,
+                    NativeInputPolicy = captureInputPolicy || captureKnowledgeEvidence ? StepRunnerNativeInputPolicy.Capture(p) : null,
                     Key = key,
                     Name = ReadString(p, "Name") ?? string.Empty,
                     Description = ReadString(p, "Description") ?? string.Empty,
