@@ -52,18 +52,17 @@ if (-not (Test-Path -LiteralPath $versionFile)) {
 
 $versionData = Get-Content -Raw -Path $versionFile | ConvertFrom-Json
 $quickerRpcVersion = Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $versionData
+$semantic = Get-QuickerRpcSemVerFromVersion -Version $quickerRpcVersion
+if ($TagVersion -and (Get-QuickerRpcSemVerFromVersion -Version $TagVersion) -cne $semantic) {
+    throw "TagVersion must match version.json semver $semantic."
+}
 
+# The baseline includes the already committed current version. Existing tags
+# remain protected by the separate ForceRetag guard before any tag mutation.
 Assert-QuickerRpcVersionMonotonic `
     -RepoRoot $RepoRoot `
     -CandidateVersion $quickerRpcVersion `
-    -AllowEqual:$ForceRetag
-
-$semantic = if ($TagVersion) {
-    Get-QuickerRpcSemVerFromVersion -Version $TagVersion
-}
-else {
-    Get-QuickerRpcSemVerFromVersion -Version $quickerRpcVersion
-}
+    -AllowEqual
 
 $tagName = "v$semantic"
 $zipName = Get-QuickerRpcCliZipName -Version $semantic
