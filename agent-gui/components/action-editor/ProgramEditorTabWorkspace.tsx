@@ -7,6 +7,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from "react-dom";
 import type { ProgramDocumentIdentity } from "@/lib/action-editor/document/programDocumentSession";
 import { SubProgramPropertiesPopup } from "./SubProgramPropertiesPopup";
+import { ProgramEditorModalContext } from "@/lib/action-editor/shared/ProgramEditorModalContext";
 import { SubProgramDeleteDialog, type SubProgramDeleteLocation } from "./SubProgramDeleteDialog";
 import type { PreparedSubProgramDelete } from "@/lib/action-editor/document/programDocumentSubPrograms";
 import XProgramEditor from "@/lib/action-editor/program/XProgramEditor";
@@ -110,7 +111,8 @@ function ProgramEditorTabWorkspaceBody({
   const [lifecycleError, setLifecycleError] = useState<string>();
   const live = useRef({ controller, active, historyDisabled });
   live.current = { controller, active, historyDisabled };
-  const modalOpen = Boolean(propertiesTarget || deleteTarget);
+  const [appearancePickerOpen, setAppearancePickerOpen] = useState(false);
+  const modalOpen = Boolean(propertiesTarget || deleteTarget || appearancePickerOpen);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const payload = controller.getSnapshot();
   const workspaceRootRef = useRef<HTMLDivElement>(null);
@@ -346,7 +348,9 @@ function ProgramEditorTabWorkspaceBody({
       </aside>
       <div className="program-editor-documents">
       {metadataVisited && metadataPanel != null ? <div id={`${mainPanelId}-metadata`} role="tabpanel" aria-label="属性"
-        hidden={!metadataVisible} className="program-editor-metadata-surface">{metadataPanel}</div> : null}
+        hidden={!metadataVisible} className="program-editor-metadata-surface"><ProgramEditorModalContext.Provider
+          value={{ active: metadataVisible && !historyDisabled, keyboardOwnerId, setPickerOpen: setAppearancePickerOpen }}>
+          {metadataPanel}</ProgramEditorModalContext.Provider></div> : null}
       <div id={mainPanelId} role="tabpanel" aria-label={mainSurface === "subProgram" ? "子程序" : "主程序"}
         hidden={!mainVisible} className="program-editor-surface">
         <XProgramEditor initialPresent={payload} baselineFingerprint={fingerprintXProgramPresent(payload)}

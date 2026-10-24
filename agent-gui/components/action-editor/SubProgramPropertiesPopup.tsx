@@ -4,6 +4,7 @@ import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "re
 import { createPortal } from "react-dom";
 import type { SubProgramPropertiesPatch } from "@/lib/action-editor/document/programDocumentSubProgramProperties";
 import { IconControl } from "@/lib/action-editor/shared/IconControl";
+import IconPickerDialog from "@/lib/action-editor/shared/IconPickerDialog";
 import "./sub-program-properties-popup.css";
 
 type Props = {
@@ -24,6 +25,7 @@ export function SubProgramPropertiesPopup({ value, reservedNames, active, disabl
   const [draft, setDraft] = useState(() => ({ ...value }));
   const [error, setError] = useState<string>();
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const cancelDiscard = useRef<HTMLButtonElement>(null);
@@ -58,6 +60,7 @@ export function SubProgramPropertiesPopup({ value, reservedNames, active, disabl
     else onClose();
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (pickerOpen) return;
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Escape") {
       event.preventDefault(); event.stopPropagation();
@@ -71,10 +74,9 @@ export function SubProgramPropertiesPopup({ value, reservedNames, active, disabl
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
   };
-  if (!active) return null;
-  return createPortal(<div ref={root} data-program-keyboard-owner={keyboardOwnerId} onKeyDown={onKeyDown}>
+  const popup = active ? createPortal(<div ref={root} data-program-keyboard-owner={keyboardOwnerId} onKeyDown={onKeyDown}>
     <div className="step-editor-popup-backdrop sub-program-properties-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !discardOpen) requestClose(); }}>
-      <div className="step-editor-popup sub-program-properties-popup" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} inert={discardOpen}>
+      <div className="step-editor-popup sub-program-properties-popup" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} inert={discardOpen || pickerOpen}>
         <header className="step-editor-popup-header"><h2 id={`${id}-title`}>子程序属性</h2><button type="button" className="step-editor-popup-close" aria-label="关闭子程序属性" onClick={requestClose}>×</button></header>
         <div className="step-editor-popup-body sub-program-properties-body">
           <fieldset disabled={disabled}>
@@ -83,6 +85,7 @@ export function SubProgramPropertiesPopup({ value, reservedNames, active, disabl
             {error ? <p className="sub-program-properties-error" id={`${id}-error`} role="alert">{error}</p> : null}
             <div className="sub-program-properties-field"><label htmlFor={`${id}-description`}>说明</label><textarea id={`${id}-description`} rows={4} value={draft.description} onChange={(event) => update({ description: event.target.value })} /></div>
             <label htmlFor={`${id}-icon`}>图标<input id={`${id}-icon`} value={draft.icon} spellCheck={false} onChange={(event) => update({ icon: event.target.value })} /></label>
+            <button type="button" className="step-editor-popup-btn secondary" aria-label="选择子程序图标" onClick={() => setPickerOpen(true)}>选择图标…</button>
             <button type="button" className="step-editor-popup-btn secondary" disabled={!draft.icon.trim()} onClick={() => update({ icon: "" })}>清除图标</button>
           </fieldset>
         </div>
@@ -93,5 +96,10 @@ export function SubProgramPropertiesPopup({ value, reservedNames, active, disabl
       <header className="step-editor-popup-header"><h2 id={`${id}-discard`}>是否保存更改？</h2></header><div className="step-editor-popup-body">子程序属性有未保存的修改。关闭前是否应用这些更改？</div>
       <footer className="step-editor-popup-footer"><button ref={cancelDiscard} type="button" className="step-editor-popup-btn secondary" onClick={() => { setDiscardOpen(false); nameInput.current?.focus(); }}>取消</button><button type="button" className="step-editor-popup-btn secondary" onClick={onClose}>不保存</button><button type="button" className="step-editor-popup-btn primary" disabled={disabled} onClick={apply}>确定</button></footer>
     </div></div> : null}
-  </div>, document.body);
+  </div>, document.body) : null;
+  return <>{popup}<IconPickerDialog open={pickerOpen} active={active && !disabled} keyboardOwnerId={keyboardOwnerId}
+    value={draft.icon} onClose={() => setPickerOpen(false)} onSelect={(icon) => {
+      if (!active || disabled) return;
+      update({ icon }); setPickerOpen(false);
+    }} /></>;
 }
