@@ -44,6 +44,11 @@ MCP `qkrpc_host_list` 返回同一候选集，source open 也接受 `hostSession
 `WRITE_RESULT_UNKNOWN` 表示发送后无法确认结果，必须核对原宿主，不能自动重发。
 旧 bundle 缺少绑定时仍可离线 dry-run，但实际保存必须重新 open。
 
+HTTP `timeoutSeconds` 是单次 invoke 的共同处理预算，包含宿主发现、绑定预检、连接排队、
+管道握手与 RPC，连接完成后不会重新计时。预算到期返回 `RPC_TIMEOUT`；调用方取消保留
+原取消信号。已开始写入的明确收据或 `WRITE_RESULT_UNKNOWN` 继续保留，超时不证明没有
+写入，也不撤销原生副作用。错误清理不等待另一个请求正在建立的连接。
+
 ## 本地编写工作流
 
 Coding Agent 优先使用 MCP 的同名能力；CLI 示例用于人工诊断和脚本：
