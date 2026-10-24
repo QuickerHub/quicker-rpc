@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -153,7 +153,11 @@ test("an unrelated ancestor directory change safely rechecks an otherwise unchan
   const guard = createPackageSourceInspector({ inspectMetadata(paths) { calls.push(...paths); } });
   assert.equal(guard.inspectCandidate(f.source), realpathSync(f.source));
   const beforeChange = calls.length;
+  const ancestorBefore = lstatSync(f.root);
   mkdirSync(join(f.root, "parallel-fixture"));
+  // Directory creation can share a filesystem timestamp tick; make this proof change explicit.
+  utimesSync(f.root, ancestorBefore.atime, new Date(ancestorBefore.mtimeMs + 2_000));
+  assert.notEqual(lstatSync(f.root).mtimeMs, ancestorBefore.mtimeMs, "The fixture must change ancestor metadata");
   assert.equal(guard.inspectCandidate(f.source), realpathSync(f.source));
   assert.ok(calls.length > beforeChange, "Ancestor metadata changes require a fresh check even when the package itself is unchanged");
 });
