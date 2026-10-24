@@ -284,6 +284,12 @@ getter 的连接或超时失败保留原错误/exit/绑定，既不伪装成功�
 生产 runtime 的资源端口注入回归覆盖 Agent/Ask 的零加载与零连接、原有工具交集、取消
 及独立 turn；本片修复初始化副作用，不代表操作描述或整个 R1 已统一。
 
+invoke 持久化事实已分开描述宿主修改与本地导出，供绑定、HTTP/CLI 收据及重试共用。
+动作 open/extract 和子程序 export 的空体、坏 JSON、丢失确认与超时保留结果未知，
+不自动重放或转用 CLI；已知未启动错误保留原结果。明确未知收据不再变成连接失败或
+自动恢复建议。真实生产传输/工具链的 guarded 回归与独立审查通过；wrapper 自身的
+工作区 augmentation、bootstrap、权限及 TurnPlan 不据此视为已经统一。
+
 旧 JSON 动作项目已加入 `.qkrpc/project-binding.json`，CLI/MCP/serve/Agent 的导出、创建和
 同步跨请求保留来源宿主，写前核验 action ID、目录和 info；多个同 ID 项目不取首个，
 未绑定旧项目不自动继承当前连接。C#/Node 共用项目 lease，部分 bootstrap 不重发宿主创建，
