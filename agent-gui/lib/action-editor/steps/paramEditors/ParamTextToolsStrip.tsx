@@ -116,7 +116,7 @@ export function ParamTextToolsStrip({
     setDialogState({
       kind,
       toolId,
-      initialValue: kind === "editInCode" ? currentValue : undefined,
+      initialValue: kind === "editInCode" || kind === "color" || kind === "colorArgb" ? currentValue : undefined,
       variables: kind === "boolExpression" ? variables : undefined,
     });
   }, [variables, currentValue]);

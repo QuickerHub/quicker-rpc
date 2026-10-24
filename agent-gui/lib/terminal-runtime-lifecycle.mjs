@@ -1,6 +1,7 @@
 import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
 import { requestOwnedChildTreeStop } from "./owned-child-stop.mjs";
 import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { RUNTIME_VERSION } from "../terminal-runtime/config.mjs";
@@ -82,18 +83,25 @@ function normalizeBase(url) {
 /** @typedef {{ ok: boolean; runtimeVersion?: string; protocolVersion?: string }} TerminalRuntimeHealth */
 
 /** @param {string} base */
-export async function fetchTerminalRuntimeHealth(base, timeoutMs = 3000) {
+export async function fetchTerminalRuntimeHealth(base, timeoutMs = 3000, abortSignal) {
+  abortSignal?.throwIfAborted();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${normalizeBase(base)}/health`, {
       method: "GET",
-      signal: controller.signal,
+      signal: abortSignal ? AbortSignal.any([abortSignal, controller.signal]) : controller.signal,
       cache: "no-store",
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return { ok: false };
+    abortSignal?.throwIfAborted();
+    if (!res.ok) {
+      await res.body?.cancel();
+      abortSignal?.throwIfAborted();
+      return { ok: false };
+    }
     const body = await res.json();
+    abortSignal?.throwIfAborted();
     return {
       ok: body?.ok === true,
       runtimeOwner: typeof body?.runtimeOwner === "string" ? body.runtimeOwner : undefined,
@@ -103,6 +111,7 @@ export async function fetchTerminalRuntimeHealth(base, timeoutMs = 3000) {
         typeof body?.protocolVersion === "string" ? body.protocolVersion : undefined,
     };
   } catch {
+    abortSignal?.throwIfAborted();
     return { ok: false };
   } finally {
     clearTimeout(timer);
@@ -110,8 +119,8 @@ export async function fetchTerminalRuntimeHealth(base, timeoutMs = 3000) {
 }
 
 /** @param {string} base */
-export async function checkTerminalRuntimeHealth(base, timeoutMs = 3000) {
-  const health = await fetchTerminalRuntimeHealth(base, timeoutMs);
+export async function checkTerminalRuntimeHealth(base, timeoutMs = 3000, abortSignal) {
+  const health = await fetchTerminalRuntimeHealth(base, timeoutMs, abortSignal);
   return health.ok === true && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
@@ -121,14 +130,15 @@ export function isTerminalRuntimeVersionCurrent(health) {
     && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
-async function waitForTerminalRuntimeHealth(base, maxMs = 30_000) {
+async function waitForTerminalRuntimeHealth(base, maxMs = 30_000, abortSignal) {
   const deadline = Date.now() + maxMs;
   let attempt = 0;
   while (Date.now() < deadline) {
-    if (await checkTerminalRuntimeHealth(base, 1200)) return;
+    abortSignal?.throwIfAborted();
+    if (await checkTerminalRuntimeHealth(base, 1200, abortSignal)) return;
     attempt += 1;
     const delayMs = attempt <= 8 ? 60 : attempt <= 20 ? 120 : 250;
-    await new Promise((r) => setTimeout(r, delayMs));
+    await delay(delayMs, undefined, { signal: abortSignal });
   }
   throw new Error(`terminal runtime did not become ready at ${base}/health`);
 }
@@ -250,7 +260,8 @@ export async function stopOwnedTerminalRuntimes() {
  * @param {string} [agentGuiRoot]
  * @param {string} host
  */
-export async function ensureTerminalRuntime(agentGuiRoot, host) {
+export async function ensureTerminalRuntime(agentGuiRoot, host, abortSignal) {
+  abortSignal?.throwIfAborted();
   if (process.env.AGENT_GUI_SKIP_TERMINAL_RUNTIME === "1") {
     return null;
   }
@@ -259,7 +270,8 @@ export async function ensureTerminalRuntime(agentGuiRoot, host) {
   const port = resolveTerminalPort();
   const base = runtimeHttpOrigin(host, port);
 
-  const health = await fetchTerminalRuntimeHealth(base);
+  const health = await fetchTerminalRuntimeHealth(base, undefined, abortSignal);
+  abortSignal?.throwIfAborted();
   if (health.ok && isTerminalRuntimeVersionCurrent(health)
     && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
     console.log(`terminal: reusing runtime ${health.runtimeVersion} at ${base}/health`);
@@ -324,10 +336,12 @@ export async function ensureTerminalRuntime(agentGuiRoot, host) {
   trackTerminalRuntimeChild(runtimeRoot, child, { port });
 
   try {
-    await waitForTerminalRuntimeHealth(base);
+    await waitForTerminalRuntimeHealth(base, undefined, abortSignal);
     console.log(`terminal: ready at ${base}/health`);
     return child;
   } catch (err) {
+    // A request owns its wait, not the shared runtime child retained by this service.
+    abortSignal?.throwIfAborted();
     console.warn(
       `terminal: ${err instanceof Error ? err.message : String(err)} — embedded terminal may be unavailable`,
     );
