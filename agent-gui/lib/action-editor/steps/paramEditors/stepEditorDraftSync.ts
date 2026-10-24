@@ -2,6 +2,7 @@ import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep } from "@/lib/action-editor/types/common";
 import { inferControlFieldKeyFromStep } from "@/lib/action-editor/steps/stepControlFieldInfer";
 import { ensureParamValue } from "./stepParamValue";
+import { moduleHelpLink } from "./moduleHelpLink";
 
 export { inferControlFieldKeyFromStep };
 
@@ -23,6 +24,7 @@ export function runnerSchemaFingerprint(item: StepRunnerItem | undefined): strin
   if (!item) return "";
   return JSON.stringify({
     key: item.key,
+    helpLink: moduleHelpLink(item),
     input: (item.inputParamDefs ?? []).map((d) => ({
       k: d.key,
       vt: d.varType,

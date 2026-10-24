@@ -32,6 +32,8 @@ import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../a
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
 import { StepEditorParamSection } from "./StepEditorParamSection";
 import { shouldExpandAdvancedParamSection } from "./stepEditorAdvancedSection";
+import { ModuleHelpPreviewPopup } from "./ModuleHelpPreviewPopup";
+import { moduleHelpLink } from "./moduleHelpLink";
 import {
   buildStepEditorDraft,
   draftParamsFingerprint,
@@ -189,6 +191,8 @@ export function StepEditorPopup({
   /** Last successfully fetched `runnerKey\\0controlLiteral` (controlLiteral empty = base schema). */
   const loadedSchemaKeyRef = useRef("");
   const catalogPort = useDesignerCatalogPort();
+  const [helpOwner, setHelpOwner] = useState<{ stepId: string; catalog: typeof catalogPort; link: string } | null>(null);
+  const closeHelp = useCallback(() => setHelpOwner(null), []);
   const catalogOwnerRef = useRef(catalogPort);
   const schemaFetchSeqRef = useRef(0);
   const hydratedRunnerRef = useRef(hydratedRunnerItem);
@@ -339,6 +343,10 @@ export function StepEditorPopup({
   const [showOutputs, setShowOutputs] = useState(true);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [schemaLoadIssue, setSchemaLoadIssue] = useState<string | undefined>(undefined);
+  const helpLink = moduleHelpLink(editorRunnerItem);
+  const helpPreviewOpen = !!helpOwner && active && open && !!step && helpOwner.stepId === step.stepId
+    && helpOwner.catalog === catalogPort && helpOwner.link === helpLink;
+  useEffect(() => { setHelpOwner(null); }, [active, open, step?.stepId, catalogPort, helpLink]);
   if (catalogOwnerRef.current !== catalogPort) {
     catalogOwnerRef.current = catalogPort;
     schemaFetchSeqRef.current += 1;
@@ -638,6 +646,7 @@ export function StepEditorPopup({
 
   /** Cancel / × / Escape: confirm discard when there are unsaved edits. */
   const requestClose = useCallback((): void => {
+    if (helpPreviewOpen) return;
     if (discardDialogOpen || createVariableRequest) {
       return;
     }
@@ -649,7 +658,7 @@ export function StepEditorPopup({
       return;
     }
     setDiscardDialogOpen(true);
-  }, [createVariableRequest, discardDialogOpen, isDirty, onClose]);
+  }, [createVariableRequest, discardDialogOpen, isDirty, onClose, helpPreviewOpen]);
 
   /** Backdrop click: same as requestClose. */
   const requestBackdropClose = useCallback((): void => {
@@ -662,6 +671,7 @@ export function StepEditorPopup({
       return;
     }
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (helpPreviewOpen) return;
       if (event.key === "Escape") {
         if (document.querySelector(".text-tool-dialog-backdrop")) {
           return;
@@ -699,7 +709,7 @@ export function StepEditorPopup({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose, canApply]);
+  }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose, canApply, helpPreviewOpen]);
 
   if (!active || !open || !step) {
     return null;
@@ -766,6 +776,7 @@ export function StepEditorPopup({
     <>
       <div
         className="step-editor-popup-backdrop"
+        inert={helpPreviewOpen}
         data-program-keyboard-owner={keyboardOwnerId}
         role="presentation"
         onMouseDown={(event) => {
@@ -783,6 +794,8 @@ export function StepEditorPopup({
         >
           <header className="step-editor-popup-header">
             <h2 id="step-editor-popup-title">编辑步骤 — {popupHeadingRunner}</h2>
+            {helpLink ? <button type="button" className="step-editor-popup-btn secondary"
+              onClick={() => setHelpOwner({ stepId: step.stepId, catalog: catalogPort, link: helpLink })}>模块帮助</button> : null}
             <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
               ×
             </button>
@@ -809,6 +822,8 @@ export function StepEditorPopup({
           </footer>
         </div>
       </div>
+      {helpPreviewOpen ? <ModuleHelpPreviewPopup helpLink={helpLink} title={`模块帮助 — ${popupHeadingRunner}`}
+        keyboardOwnerId={keyboardOwnerId} onClose={closeHelp} /> : null}
       {createVariableRequest ? (
         <StepCreateVariableDialog
           open
