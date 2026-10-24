@@ -91,6 +91,8 @@ const tests = [
   "lib/action-editor/catalog/designerFaPage.test.ts",
   "lib/action-editor/catalog/designerFaPage.server.test.ts",
   "lib/fa-icon-cache.test.ts",
+  "lib/icon-color.test.ts",
+  "lib/fa-icon-color-render.test.ts",
   "lib/action-editor/program/assembleActionProgramSnapshot.test.ts",
   "lib/action-editor/wire/normalizeProgramWireForDisk.test.ts",
   "lib/program-document-save-client.test.ts",

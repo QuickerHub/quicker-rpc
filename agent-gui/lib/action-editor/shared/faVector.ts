@@ -6,7 +6,7 @@
  * fetches so the toolbox does not open hundreds of simultaneous HTTP connections.
  */
 
-import type { FaIconGeometry } from "@/lib/fa-icon";
+import { faIconGeometryFill, type FaIconGeometry } from "@/lib/fa-icon";
 import {
   ensureFaIconsResolved,
   flushFaIconCache,
@@ -177,7 +177,7 @@ function geometryToFaVectorDto(geometry: FaIconGeometry): FaVectorDto {
     path: geometry.path,
     width: geometry.width,
     height: geometry.height,
-    fill: geometry.color?.trim() || "currentColor",
+    fill: faIconGeometryFill(geometry),
     icon: geometry.enumName,
   };
 }

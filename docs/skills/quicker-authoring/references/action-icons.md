@@ -13,10 +13,15 @@ P3 metadata, context menu items, CommonOperationItem — Font Awesome and image 
 | type | example | notes |
 |------|---------|-------|
 | Font Awesome | `fa:Light_AddressBook` | default Light; fa search returns Light_* / Brands_* |
-| FA + color | `fa:Light_Cog:#3b82f6` | optional #RRGGBB |
+| FA + color | `fa:Light_Cog:#3b82f6` | optional #RGB, #RRGGBB or native #AARRGGBB |
 | image URL | `https://files.getquicker.net/_icons/....png` | absolute http(s) |
 
 **FORBIDDEN**: `fa:clipboard` (no style prefix), guessed names, relative paths.
+
+The native eight-digit suffix puts alpha first: `#80112233` is half-transparent
+RGB `112233`. Keep that literal in action metadata; CSS conversion belongs to the
+display boundary. Four-digit hex and named/semantic colors are not accepted by
+the qkrpc action icon validator.
 
 ## Get spec
 

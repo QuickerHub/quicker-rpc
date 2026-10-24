@@ -38,6 +38,18 @@ test("changed presentation uses only changed fields and the body response versio
   if (result.ok) assert.equal(result.editVersion, "12");
 });
 
+test("Sync keeps the native ARGB icon spec in metadata writes and local info", async () => {
+  const icon = "fa:Light_Flask:#80112233";
+  const nativeInfo = infoContent.replace("fa:old", icon);
+  const fake = fixture([metadata(), body(), response({ success: true, editVersion: 12 })]);
+  const result = await syncActionProjectBodyAndMetadata({ ...options, infoContent: nativeInfo }, fake.ports);
+  assert.equal(result.ok, true);
+  const args = fake.calls[2]!;
+  assert.equal(args[args.indexOf("--icon") + 1], icon);
+  assert.equal(nativeInfo.includes(icon), true);
+  assert.deepEqual(fake.stamps, ["12"]);
+});
+
 test("empty title and failed or malformed metadata read never reach body apply", async () => {
   const empty = fixture([]);
   const invalid = await syncActionProjectBodyAndMetadata({ ...options, infoContent: infoContent.replace('"Local"', '" "') }, empty.ports);

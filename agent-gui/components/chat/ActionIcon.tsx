@@ -1,6 +1,6 @@
 "use client";
 
-import { isFaIconSpec, isHttpIconUrl } from "@/lib/fa-icon";
+import { faIconGeometryFill, isFaIconSpec, isHttpIconUrl } from "@/lib/fa-icon";
 import { useFaIconGeometry } from "@/lib/use-fa-icon-geometry";
 
 export type ActionIconProps = {
@@ -35,7 +35,7 @@ function FaSvgIcon({
   className?: string;
   title?: string;
 }) {
-  const fill = geometry.color ?? "currentColor";
+  const fill = faIconGeometryFill(geometry);
   const label =
     title
     ?? (geometry.label ? `${geometry.label} (${geometry.spec})` : geometry.spec);

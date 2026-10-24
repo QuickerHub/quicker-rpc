@@ -12,7 +12,7 @@ public static class FontAwesomeIconSpecValidator
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly Regex ColorPattern = new(
-        @"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$",
+        @"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     /// <summary>Parse <c>fa:{enumName}</c>[:{#color}] without catalog membership check.</summary>
@@ -150,7 +150,7 @@ public static class FontAwesomeIconSpecValidator
         if (color is not null && !ColorPattern.IsMatch(color))
         {
             error =
-                $"icon color '{color}' is invalid; use #RGB or #RRGGBB (e.g. fa:Light_Flask:#3b82f6).";
+                $"icon color '{color}' is invalid; use #RGB, #RRGGBB or native #AARRGGBB (e.g. fa:Light_Flask:#803b82f6).";
             return false;
         }
 

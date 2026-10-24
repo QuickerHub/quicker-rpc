@@ -126,6 +126,38 @@ test("production route → status decision → explicit push returns exact Int64
   });
 });
 
+test("actual Sync route sends native ARGB unchanged and stamps only the confirmed metadata version", async () => {
+  await fixture(async (root, directory, original) => {
+    const icon = "fa:Light_Flask:#80112233";
+    await writeFile(join(directory, "info.json"), original.replace('"icon":""', `"icon":"${icon}"`));
+    const calls: string[] = [];
+    await withFetch(async (url, init) => {
+      if (url === "/api/workspace/action-sync") return POST(new Request("http://fixture.invalid/api/workspace/action-sync", init));
+      assert.ok(String(url).startsWith(base));
+      const request = JSON.parse(String(init?.body));
+      assert.deepEqual(request.hostBinding, binding);
+      calls.push(request.op);
+      if (request.op === "action.get") return Response.json({ ok: true, data: { success: true, editVersion: 10, compressed: { title: "Local", description: "", icon: "" } } });
+      if (request.op === "action.validate") return Response.json({ ok: true, data: { success: true } });
+      if (request.op === "action.apply") return Response.json({ ok: true, data: { success: true, editVersion: 11 } });
+      assert.equal(request.op, "action.set-metadata");
+      assert.equal(request.args.icon, icon);
+      assert.equal(request.args.expectedEditVersion, 11);
+      return Response.json({ ok: true, data: { success: true, editVersion: 12 } });
+    }, async () => {
+      const result = await pushActionProjectToQuickerApi(root, id);
+      assert.equal(result.ok, true, JSON.stringify(result));
+      const saved = await readFile(join(directory, "info.json"), "utf8");
+      assert.equal(JSON.parse(saved).icon, icon);
+      assert.equal(JSON.parse(saved).editVersion, 12);
+      assert.match(saved, /"opaque":9007199254740993/u);
+      assert.equal((await readActionProjectSyncTrust(directory))?.editVersion, 12);
+      assert.equal(calls.filter((op) => op === "action.set-metadata").length, 1);
+      assert.equal(calls.includes("host.list"), false);
+    });
+  });
+});
+
 test("client pull and legacy API status keep Int64 strings, while unsafe number-only status cannot claim sync", async () => {
   await withFetch(async (_url, init) => {
     const request = JSON.parse(String(init?.body)) as { op: string };

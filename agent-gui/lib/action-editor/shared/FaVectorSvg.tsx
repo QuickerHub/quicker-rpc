@@ -2,7 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { memo, useEffect, useState } from "react";
-import type { FaIconGeometry } from "@/lib/fa-icon";
+import { faIconGeometryFill, type FaIconGeometry } from "@/lib/fa-icon";
 import { ensureFaIconsResolved, flushFaIconCache, getFaIconFromCache } from "@/lib/fa-icon-cache";
 import { useFaIconGeometry } from "@/lib/use-fa-icon-geometry";
 import { getBundledIconifyIcon } from "./actionDesignerIconify";
@@ -67,7 +67,7 @@ function FaGeometrySvg({
 }): JSX.Element {
   const w = geometry.width > 0 ? geometry.width : 512;
   const h = geometry.height > 0 ? geometry.height : 512;
-  const fill = geometry.color?.trim() || "currentColor";
+  const fill = faIconGeometryFill(geometry);
 
   return (
     <span className={className} title={title} style={iconSlotFrameStyle(size)}>

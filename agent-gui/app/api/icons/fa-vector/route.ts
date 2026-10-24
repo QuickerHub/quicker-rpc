@@ -1,4 +1,5 @@
 import { runQkrpc } from "@/lib/qkrpc";
+import { faIconGeometryFill } from "@/lib/fa-icon";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +28,11 @@ function mapFirstItem(data: unknown): FaVectorDto | null {
   const o = raw as Record<string, unknown>;
   const path = typeof o.path === "string" ? o.path : "";
   if (!path) return null;
-  const color = typeof o.color === "string" ? o.color.trim() : "";
   return {
     path,
     width: typeof o.width === "number" ? o.width : 512,
     height: typeof o.height === "number" ? o.height : 512,
-    fill: color || "currentColor",
+    fill: faIconGeometryFill({ spec: typeof o.spec === "string" ? o.spec : undefined, color: typeof o.color === "string" ? o.color : undefined }),
     icon: typeof o.enumName === "string" ? o.enumName : undefined,
   };
 }
