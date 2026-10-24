@@ -9,13 +9,14 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using QuickerRpc.AgentModel.Schemas;
 using QuickerRpc.AgentModel.Search;
+using QuickerRpc.AgentModel.XAction.Source;
 
 namespace QuickerRpc.AgentModel.Guides;
 
 /// <summary>Loads embedded ActionAuthoring Markdown topics for qkrpc CLI agents. Source: repo <c>docs/action-authoring/</c>.</summary>
 public sealed class ActionAuthoringGuideService
 {
-    private const string ResourcePrefix = "QuickerRpc.AgentModel.Docs.ActionAuthoring.";
+    internal const string ResourcePrefix = "QuickerRpc.AgentModel.Docs.ActionAuthoring.";
     private const string ReferenceResourcePrefix = ResourcePrefix + "References.";
     private const string ReferenceManifestResource = ResourcePrefix + "references-manifest.json";
 
@@ -52,13 +53,17 @@ public sealed class ActionAuthoringGuideService
             };
         }
 
+        var schema = ResolveTopicSchema(match.Topic);
         return new GetActionAuthoringDocResult
         {
             Success = true,
             Topic = match.Topic,
             Title = match.Title,
             Markdown = match.Markdown,
-            Schema = ResolveTopicSchema(match.Topic),
+            Schema = schema,
+            Codec = string.Equals(match.Topic, "program-source", StringComparison.Ordinal)
+                ? ProgramSourceCodecDescriptor.Describe() : null,
+            Provenance = ActionAuthoringGuideProvenance.Describe(match.Markdown, schema),
         };
     }
 
@@ -118,6 +123,7 @@ public sealed class ActionAuthoringGuideService
             Reference = refMatch.Id,
             Title = ExtractTitle(refMatch.Markdown) ?? refMatch.Title,
             Markdown = refMatch.Markdown,
+            Provenance = ActionAuthoringGuideProvenance.Describe(refMatch.Markdown, schema: null),
         };
     }
 

@@ -314,7 +314,7 @@ function mapAgentInputParamDef(
     allowInput: readBool(o, "allowInput", "AllowInput"),
     visibleExpression: "",
     replaceVariable: false,
-    defaultHighlightType: "",
+    defaultHighlightType: readString(o, "defaultHighlightType", "DefaultHighlightType"),
     skipEval: false,
     skipLogContent: false,
     validForList: [],
@@ -408,16 +408,15 @@ function mapOutputParamDef(raw: unknown): StepRunnerOutputParamDef | null {
 
 /** Read literal control-field value from step inputParams (for filtered step-runner get). */
 export function resolveStepControlFieldLiteral(
-  step: { inputParams?: Record<string, { varKey?: string; value?: string }> },
+  step: { inputParams?: Record<string, { varKey?: string; value?: string; file?: string }> },
   controlFieldKey: string | undefined
 ): string | undefined {
   const cfKey = (controlFieldKey ?? "").trim();
   if (!cfKey) return undefined;
   const pin = step.inputParams?.[cfKey];
   if (!pin) return undefined;
-  if ((pin.varKey ?? "").trim().length > 0) return undefined;
-  const v = (pin.value ?? "").trim();
-  return v.length > 0 ? v : undefined;
+  if ((pin.varKey ?? "").length > 0 || (pin.file ?? "").length > 0) return undefined;
+  return typeof pin.value === "string" ? pin.value : undefined;
 }
 
 export function mapAgentSchemaToStepRunnerItem(schema: Record<string, unknown>) {

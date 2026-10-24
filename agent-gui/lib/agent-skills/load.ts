@@ -34,6 +34,7 @@ const bodyCache = new Map<string, { mtimeMs: number; body: string }>();
 export async function loadSkillInstructions(
   skillName: string,
   cwd?: string,
+  options?: { fresh?: boolean },
 ): Promise<LoadedAgentSkill | null> {
   const record = await getAgentSkill(skillName, cwd);
   if (!record) return null;
@@ -57,11 +58,12 @@ export async function loadSkillInstructions(
   const cacheKey = record.skillMdPath;
   const cached = bodyCache.get(cacheKey);
   let body: string;
-  if (cached && cached.mtimeMs === bodyMtime) {
+  if (!options?.fresh && cached && cached.mtimeMs === bodyMtime) {
     body = cached.body;
   } else {
     body = await readTier2Body(record.skillDir, record.name, skillMdRaw);
-    bodyCache.set(cacheKey, { mtimeMs: bodyMtime, body });
+    // A request-local fresh snapshot may complete after a newer cached read.
+    if (!options?.fresh) bodyCache.set(cacheKey, { mtimeMs: bodyMtime, body });
   }
 
   return { ...record, parsed, body };

@@ -1,3 +1,4 @@
+import { useStepEditorInputActive } from "./StepEditorInputOwner";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { ActionVariable } from "@/lib/action-editor/types/common";
@@ -32,6 +33,7 @@ export function StepVariablePicker({
   activateLabelRef,
   onRequestCreateVariable,
 }: StepVariablePickerProps): JSX.Element {
+  const inputActive = useStepEditorInputActive();
   const pool = resolveVariables ?? candidates;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [isEditingPicker, setIsEditingPicker] = useState(false);
@@ -74,7 +76,7 @@ export function StepVariablePicker({
   }, [candidates, pickerQuery]);
 
   useEffect(() => {
-    if (!pickerOpen) {
+    if (!inputActive || !pickerOpen) {
       setActiveOptionIndex(0);
       return;
     }
@@ -88,7 +90,7 @@ export function StepVariablePicker({
       }
       return Math.max(0, Math.min(prev, filteredOptions.length - 1));
     });
-  }, [pickerOpen, filteredOptions, selectedKey]);
+  }, [pickerOpen, filteredOptions, selectedKey, inputActive]);
 
   const commitPick = (nextVarKey: string): void => {
     if (nextVarKey === STEP_PARAM_CREATE_VARIABLE_ROW_ID) {
@@ -122,10 +124,10 @@ export function StepVariablePicker({
   }, [openPickerRef, openPicker]);
 
   useEffect(() => {
-    if (!pickerOpen) {
+    if (!inputActive || !pickerOpen) {
       return;
     }
-    const onPointerDown = (event: PointerEvent): void => {
+    const onPointerDown = (event: Event): void => {
       const root = pickerRef.current;
       const popupRoot = pickerPopupRef.current;
       const target = event.target;
@@ -143,11 +145,15 @@ export function StepVariablePicker({
       }
     };
     document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [pickerOpen, activateLabelRef]);
+    document.addEventListener("focusin", onPointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("focusin", onPointerDown, true);
+    };
+  }, [pickerOpen, activateLabelRef, inputActive]);
 
   useEffect(() => {
-    if (!pickerOpen) {
+    if (!inputActive || !pickerOpen) {
       return;
     }
     const updatePopupRect = (): void => {
@@ -180,10 +186,10 @@ export function StepVariablePicker({
       window.removeEventListener("resize", onLayoutChanged);
       window.removeEventListener("scroll", onLayoutChanged, true);
     };
-  }, [pickerOpen]);
+  }, [pickerOpen, inputActive]);
 
   useLayoutEffect(() => {
-    if (!pickerOpen || !popupRect || popupRect.direction !== "up") {
+    if (!inputActive || !pickerOpen || !popupRect || popupRect.direction !== "up") {
       return;
     }
     const popup = pickerPopupRef.current;
@@ -204,7 +210,7 @@ export function StepVariablePicker({
         top: desiredTop
       };
     });
-  }, [pickerOpen, popupRect, filteredOptions.length]);
+  }, [pickerOpen, popupRect, filteredOptions.length, inputActive]);
 
   return (
     <div className="step-param-variable-picker" ref={pickerRef}>
@@ -292,7 +298,7 @@ export function StepVariablePicker({
           )}
         </div>
       ) : null}
-      {pickerOpen && popupRect
+      {inputActive && pickerOpen && popupRect
         ? createPortal(
             <div
               className={`step-param-variable-picker-popup step-param-variable-picker-popup--portal step-param-variable-picker-popup--${popupRect.direction}`}

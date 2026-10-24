@@ -2,6 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { argvToInvoke } from "./qkrpc-argv.ts";
 
+test("UI and Agent get argv keep inline native control literals exact", () => {
+  for (const verb of ["get", "get-ui"]) {
+    const op = verb === "get-ui" ? "step-runner.getUi" : "step-runner.get";
+    for (const controlField of ["", " Mode ", "Mode", "mode", "--json", "--native-option"]) {
+      assert.deepEqual(argvToInvoke(["step-runner",verb,"--key","fixture:current",`--control-field=${controlField}`,"--json"]),
+        {op,args:{key:"fixture:current",controlField}});
+    }
+    assert.deepEqual(argvToInvoke(["step-runner",verb,"--key","fixture:current","--json"]),{op,args:{key:"fixture:current",controlField:undefined}});
+  }
+});
+
 test("input contracts have their own read invoke and preserve an explicit empty native control value", () => {
   assert.deepEqual(argvToInvoke(["step-runner", "input-contract", "--key", "sys:fixture", "--control-field", "", "--json"]),
     { op: "step-runner.input-contract", args: { key: "sys:fixture", controlField: "" } });

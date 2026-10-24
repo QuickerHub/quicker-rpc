@@ -215,7 +215,7 @@ export function stepRunnerSchemaCacheKey(step: ActionStep): string {
   if (!key) return "";
   const cfKey = inferControlFieldKeyFromStep(step, undefined);
   const control = resolveStepControlFieldLiteral(step, cfKey || undefined);
-  return control ? `${key}\0${control}` : key;
+  return control === undefined ? key : `${key}\0${control}`;
 }
 
 export type StepRunnerSchemaRequest = {

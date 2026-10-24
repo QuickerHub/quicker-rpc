@@ -2,7 +2,6 @@ import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep } from "@/lib/action-editor/types/common";
 import { inferControlFieldKeyFromStep } from "@/lib/action-editor/steps/stepControlFieldInfer";
 import { ensureParamValue } from "./stepParamValue";
-import { moduleHelpLink } from "./moduleHelpLink";
 
 export { inferControlFieldKeyFromStep };
 
@@ -19,25 +18,9 @@ export function stepEditorDraftFingerprint(step: ActionStep): string {
   });
 }
 
-/** Detect runner schema shape changes without object identity churn. */
+/** Full UI comparison for rendering, not proof of current provider content. */
 export function runnerSchemaFingerprint(item: StepRunnerItem | undefined): string {
-  if (!item) return "";
-  return JSON.stringify({
-    key: item.key,
-    helpLink: moduleHelpLink(item),
-    input: (item.inputParamDefs ?? []).map((d) => ({
-      k: d.key,
-      vt: d.varType,
-      vm: d.variableMode,
-      control: d.isControlField,
-      advanced: d.isAdvanced,
-      items: (d.selectionItems ?? []).map((x) => x.value),
-    })),
-    output: (item.outputParamDefs ?? []).map((d) => ({
-      k: d.key,
-      advanced: d.isAdvanced,
-    })),
-  });
+  return item ? JSON.stringify(item) : "";
 }
 
 /** Params-only fingerprint to skip no-op draft merges. */

@@ -1,4 +1,5 @@
 import MiniSearch from "minisearch";
+import type { ActionAuthoringDocKnowledge } from "./action-authoring-docs.shared";
 import {
   parseIndexableSections,
   tryExtractSectionBody,
@@ -11,6 +12,7 @@ export type AuthoringDocSearchRow = {
   description: string;
   markdown: string;
   reference?: string;
+  knowledge?: ActionAuthoringDocKnowledge;
   /** Space-joined search aliases from topics manifest. */
   searchAliases?: string;
 };

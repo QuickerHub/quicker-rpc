@@ -1,4 +1,6 @@
 "use client";
+import { useStepEditorInputActive } from "./StepEditorInputOwner";
+
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import { createPortal } from "react-dom";
@@ -51,6 +53,7 @@ export function FormDefEditorDialog({
   forDict = false,
   title = "编辑表单定义",
 }: FormDefEditorDialogProps): JSX.Element | null {
+  const inputActive = useStepEditorInputActive();
   const [tab, setTab] = useState<EditorTab>("visual");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -246,7 +249,7 @@ export function FormDefEditorDialog({
     return "";
   }, [filePath, storageMode]);
 
-  if (!open) return null;
+  if (!inputActive || !open) return null;
 
   const body = loading ? (
     <div className="form-def-editor-loading">加载表单定义…</div>

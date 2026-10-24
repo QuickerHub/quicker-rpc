@@ -1,3 +1,4 @@
+import { useStepEditorInputActive } from "./StepEditorInputOwner";
 import {
   useCallback,
   useEffect,
@@ -38,6 +39,8 @@ export type VarOrValueParamEditorProps = {
   param: ActionStepParam;
   onChange: (next: ActionStepParam) => void;
   multiline?: boolean;
+  minMultilineHeight?: number;
+  maxMultilineHeight?: number;
   workspace?: ActionProjectWorkspaceContext;
   /** Project-relative files/ content prefetched by StepListEditor. */
   prefetchedFileContents?: StepSummaryFileContents;
@@ -82,6 +85,8 @@ export function VarOrValueParamEditor({
   param,
   onChange,
   multiline = false,
+  minMultilineHeight,
+  maxMultilineHeight = STEP_PARAM_SCRIPT_MAX_HEIGHT,
   workspace,
   prefetchedFileContents,
   openPopupRef,
@@ -89,6 +94,7 @@ export function VarOrValueParamEditor({
   activateLabelRef,
   onRequestCreateVariable,
 }: VarOrValueParamEditorProps): JSX.Element {
+  const inputActive = useStepEditorInputActive();
   const vt = def.varType;
   const selectionItems = def.selectionItems ?? [];
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -307,7 +313,7 @@ export function VarOrValueParamEditor({
   const activeRow = filteredRows[activeIndex] ?? null;
 
   useEffect(() => {
-    if (!popupOpen) {
+    if (!inputActive || !popupOpen) {
       setActiveIndex(0);
       return;
     }
@@ -330,10 +336,10 @@ export function VarOrValueParamEditor({
       return;
     }
     setActiveIndex((prev) => Math.max(0, Math.min(prev, filteredRows.length - 1)));
-  }, [popupOpen, filteredRows, mode, param.value, param.varKey, filter]);
+  }, [popupOpen, filteredRows, mode, param.value, param.varKey, filter, inputActive]);
 
   useEffect(() => {
-    if (!popupOpen) {
+    if (!inputActive || !popupOpen) {
       return;
     }
     const updateRect = (): void => {
@@ -358,7 +364,7 @@ export function VarOrValueParamEditor({
     };
     updateRect();
     const onLayoutChanged = (): void => updateRect();
-    const onPointerDown = (event: PointerEvent): void => {
+    const onPointerDown = (event: Event): void => {
       const target = event.target;
       const host = hostRef.current;
       const toggle = toggleRef.current;
@@ -378,15 +384,17 @@ export function VarOrValueParamEditor({
     window.addEventListener("resize", onLayoutChanged);
     window.addEventListener("scroll", onLayoutChanged, true);
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("focusin", onPointerDown, true);
     return () => {
       window.removeEventListener("resize", onLayoutChanged);
       window.removeEventListener("scroll", onLayoutChanged, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("focusin", onPointerDown, true);
     };
-  }, [popupOpen, activateLabelRef, dismissPopup]);
+  }, [popupOpen, activateLabelRef, dismissPopup, inputActive]);
 
   useLayoutEffect(() => {
-    if (!popupOpen || !popupRect || popupRect.direction !== "up") {
+    if (!inputActive || !popupOpen || !popupRect || popupRect.direction !== "up") {
       return;
     }
     const popup = popupRef.current;
@@ -404,10 +412,10 @@ export function VarOrValueParamEditor({
       }
       return { ...prev, top: desiredTop };
     });
-  }, [popupOpen, popupRect, filteredRows.length]);
+  }, [popupOpen, popupRect, filteredRows.length, inputActive]);
 
   useEffect(() => {
-    if (!popupOpen) {
+    if (!inputActive || !popupOpen) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -415,7 +423,7 @@ export function VarOrValueParamEditor({
       filterInputRef.current?.select();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [popupOpen]);
+  }, [popupOpen, inputActive]);
 
   const bodyJsx =
     mode === "variable" ? (
@@ -467,7 +475,8 @@ export function VarOrValueParamEditor({
           className="step-param-expression-editor"
           placeholder={def.defaultValue || ""}
           multiline={effectiveMultiline}
-          maxMultilineHeight={STEP_PARAM_SCRIPT_MAX_HEIGHT}
+          maxMultilineHeight={maxMultilineHeight}
+          minMultilineHeight={minMultilineHeight}
           fileState={externalFile}
           omitBadge
           prefetchedFileContents={prefetchedFileContents}
@@ -505,7 +514,7 @@ export function VarOrValueParamEditor({
           onClick={togglePopup}
         />
       </div>
-      {popupOpen && popupRect
+      {inputActive && popupOpen && popupRect
         ? createPortal(
             <div
               ref={popupRef}

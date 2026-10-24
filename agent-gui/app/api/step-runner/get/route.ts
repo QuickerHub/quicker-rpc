@@ -2,7 +2,6 @@ import { runQkrpc } from "@/lib/qkrpc";
 import { mapAgentSchemaToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import {
   getStaticStepRunnerItem,
-  hasStaticStepRunnersUiCatalog,
 } from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
 import { resolveStepRunnerKeyCandidates } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
 import { runDesignerCatalogRequest, postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
@@ -45,8 +44,8 @@ async function fetchLiveStepRunnerItem(
   request: DesignerCatalogRequest,
 ): Promise<Record<string, unknown> | null> {
   const args = ["step-runner", "get-ui", "--key", key, "--json"];
-  if (controlField) {
-    args.push("--control-field", controlField);
+  if (controlField !== undefined) {
+    args.push(`--control-field=${controlField}`);
   }
 
   const result = await runQkrpc(args, { timeoutMs: 60_000, ...request.rpcOptions });
@@ -99,15 +98,6 @@ async function get(key: string, controlField: string | undefined, request: Desig
     }
   }
 
-  if (!request.bound && hasStaticStepRunnersUiCatalog()) {
-    for (const tryKey of keysToTry) {
-      const staticItem = fetchStaticStepRunnerItem(tryKey, controlField);
-      if (staticItem) {
-        return Response.json({ ok: true, item: staticItem, source: "static-fallback" });
-      }
-    }
-  }
-
   return Response.json(
     {
       ok: false,
@@ -119,9 +109,9 @@ async function get(key: string, controlField: string | undefined, request: Desig
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  return runDesignerCatalogRequest(req, {}, (request) => get(url.searchParams.get("key")?.trim() ?? "", url.searchParams.get("controlField")?.trim(), request));
+  return runDesignerCatalogRequest(req, {}, (request) => get(url.searchParams.get("key")?.trim() ?? "", url.searchParams.get("controlField") ?? undefined, request));
 }
 
 export async function POST(req: Request) {
-  return postDesignerCatalogRequest(req, (body, request) => get(typeof body.key === "string" ? body.key.trim() : "", typeof body.controlField === "string" ? body.controlField.trim() : undefined, request));
+  return postDesignerCatalogRequest(req, (body, request) => get(typeof body.key === "string" ? body.key.trim() : "", typeof body.controlField === "string" ? body.controlField : undefined, request));
 }

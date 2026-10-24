@@ -1,4 +1,6 @@
 "use client";
+import { useStepEditorInputActivityRef } from "../StepEditorInputOwner";
+
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { ActionStepParam } from "@/lib/action-editor/types/common";
@@ -33,6 +35,8 @@ export function KeyboardParamEditor({
   description,
   onAdvancedMode,
 }: KeyboardParamEditorProps): JSX.Element {
+  const activeRef = useStepEditorInputActivityRef();
+  const inputActive = activeRef.current;
   const [recording, setRecording] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const captureRef = useRef(createKeyInputCaptureState());
@@ -64,6 +68,7 @@ export function KeyboardParamEditor({
   }, []);
 
   const finishRecording = useCallback(() => {
+    if (!activeRef.current) { stopRecording(); return; }
     const captured = keyInputCaptureToData(captureRef.current);
     if (captured.keys.length > 0 || captured.ctrlKeys.length > 0) {
       applyData(captured);
@@ -72,20 +77,22 @@ export function KeyboardParamEditor({
   }, [applyData, stopRecording]);
 
   const handleCaptureKeyDown = useCallback((event: KeyboardEvent): void => {
-    keyInputCaptureKeyDown(event, captureRef.current);
+    if (activeRef.current) keyInputCaptureKeyDown(event, captureRef.current);
   }, []);
 
   const handleCaptureKeyUp = useCallback(
     (event: KeyboardEvent): void => {
-      if (keyInputCaptureKeyUp(event, captureRef.current)) {
+      if (activeRef.current && keyInputCaptureKeyUp(event, captureRef.current)) {
         finishRecording();
       }
     },
     [finishRecording],
   );
 
+  useEffect(() => { if (!inputActive) stopRecording(); }, [inputActive, stopRecording]);
+
   useEffect(() => {
-    if (!recording) return;
+    if (!inputActive || !recording) return;
 
     if (isElectronShell()) {
       let disposed = false;
@@ -95,6 +102,7 @@ export function KeyboardParamEditor({
         const { startElectronKeyInputCapture } = await import("./keyInputElectronCapture");
         if (disposed) return;
         stopElectron = await startElectronKeyInputCapture((event, phase) => {
+          if (disposed) return;
           if (phase === "keydown") {
             handleCaptureKeyDown(event);
             return;
@@ -114,6 +122,7 @@ export function KeyboardParamEditor({
     }
 
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (!activeRef.current) return;
       if (keyInputCaptureKeyDown(event, captureRef.current)) {
         event.preventDefault();
         event.stopPropagation();
@@ -121,6 +130,7 @@ export function KeyboardParamEditor({
     };
 
     const onKeyUp = (event: KeyboardEvent): void => {
+      if (!activeRef.current) return;
       if (keyInputCaptureKeyUp(event, captureRef.current)) {
         event.preventDefault();
         event.stopPropagation();
@@ -134,7 +144,7 @@ export function KeyboardParamEditor({
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
     };
-  }, [recording, finishRecording, handleCaptureKeyDown, handleCaptureKeyUp]);
+  }, [recording, finishRecording, handleCaptureKeyDown, handleCaptureKeyUp, inputActive]);
 
   const toggleRecording = (): void => {
     if (recording) {

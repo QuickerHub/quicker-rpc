@@ -172,6 +172,12 @@ StepRunner 结果还受 24,000 字符的全局摘要与最终模型 JSON 8,192 �
 
 迁移首片先移除按 thread/key 无限复用的模块结果，以及按固定技能组合阻断重新发现的规则。
 后续接 native provenance/fresh reader、统一查询与失效、codec/文档来源和升级场景验收。
+本地 codec 的首片沿现有 `guide.get(program-source)` / CLI guide / MCP docs 输出 `codec`
+与 `provenance`：Decode 与 descriptor 共用支持格式列表，实现身份来自实际加载的 AgentModel
+程序集及 module ID；descriptor 指纹仅标识描述正文。内置指南标为 `bundled-fallback`，
+按实际嵌入文档、reference manifest 和 schema 内容计算指纹，不取文件时间或 Quicker 版本表。
+这些离线结果的 native source 能力始终 unknown；不改变当前绑定、原生 availability 或保存许可。
+Node 文档路由与统一来源消费继续按迁移计划接入，不能把新增离线 descriptor 当作该项全部完成。
 相同模块更新字段、同宿主更新定义、换会话、先空后有、来源不可用及旧查询晚到分别验证。
 实施状态统一维护在[产品计划](product/README.md#refactor-execution-plan)，不以移除一层缓存
 或定义一个 provider 接口作为整项完成。

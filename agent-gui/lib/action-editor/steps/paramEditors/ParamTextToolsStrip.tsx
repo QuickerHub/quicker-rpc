@@ -5,6 +5,7 @@ import type { ActionVariable } from "@/lib/action-editor/types/common";
 import { TEXT_TOOL_CATALOG } from "./textToolCatalog";
 import { parseParamTextToolIds } from "./stepRunnerInputParamUi";
 import { TextToolDialogs, type TextToolDialogState } from "./TextToolDialogs";
+import { useStepEditorInputActivityRef } from "./StepEditorInputOwner";
 import {
   isQkrpcTextTool,
   isWebTextTool,
@@ -43,6 +44,7 @@ export function ParamTextToolsStrip({
   variables = [],
   disabled = false,
 }: ParamTextToolsStripProps): JSX.Element | null {
+  const activity = useStepEditorInputActivityRef();
   const ids = parseParamTextToolIds(textTools);
   const [dialogState, setDialogState] = useState<TextToolDialogState>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -50,6 +52,7 @@ export function ParamTextToolsStrip({
 
   const commitValue = useCallback(
     (value: string, mode: "replace" | "append" = "replace"): void => {
+      if (!activity.current) return;
       const trimmed = value.trim();
       if (!trimmed) {
         return;
@@ -221,6 +224,7 @@ export function ParamTextToolsStrip({
       <TextToolDialogs
         state={dialogState}
         onConfirm={(value) => {
+          if (!activity.current) return;
           const replaceAll = dialogState?.kind === "editInCode";
           setDialogState(null);
           if (replaceAll) {
