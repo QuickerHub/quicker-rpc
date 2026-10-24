@@ -1,6 +1,6 @@
 /**
  * Stage a minimal Electron shell app for electron-builder.
- * Next / Playwright / SWC live in extraResources standalone — not in app.asar.
+ * The Agent service and its runtime dependencies live in extraResources, not app.asar.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeRuntimeMode } from "../electron/runtime-mode.mjs";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const electronRoot = join(agentGuiRoot, "electron");
@@ -93,7 +94,7 @@ function copyElectronSources(srcDir, destDir) {
 }
 
 /** @param {string} version */
-function writeShellPackageJson(version, targetRoot, packageName) {
+function writeShellPackageJson(version, targetRoot, packageName, runtimeMode) {
   const pkg = {
     name: packageName,
     version,
@@ -101,6 +102,7 @@ function writeShellPackageJson(version, targetRoot, packageName) {
     description: "QuickerAgent desktop shell",
     author: "Quicker",
     main: "electron/bootstrap.cjs",
+    quickerAgentRuntimeMode: runtimeMode,
     dependencies: {
       "electron-updater": "^6.8.9",
     },
@@ -127,9 +129,10 @@ function installShellDeps(targetRoot) {
 /**
  * Explicit alternate output is fresh-only and remains within this repository's
  * .tmp. Callers can stage the already installed dependency graph without npm.
- * @param {{ version?: string, outputDirectory?: string, packageName?: string, installDependencies?: (root: string) => void }} [opts]
+ * @param {{ version?: string, runtimeMode?: string, outputDirectory?: string, packageName?: string, installDependencies?: (root: string) => void }} [opts]
  */
-export function stageElectronShell({ version = "0.1.0", outputDirectory, packageName = "quicker-agent-electron-shell", installDependencies = installShellDeps } = {}) {
+export function stageElectronShell({ version = "0.1.0", runtimeMode = "static", outputDirectory, packageName = "quicker-agent-electron-shell", installDependencies = installShellDeps } = {}) {
+  runtimeMode = normalizeRuntimeMode(runtimeMode);
   const targetRoot = outputDirectory ? resolve(outputDirectory) : shellAppRoot;
   if (outputDirectory) assertAlternateShellOutput(targetRoot);
   console.log("electron-shell-staging: preparing minimal shell app...");
@@ -141,7 +144,7 @@ export function stageElectronShell({ version = "0.1.0", outputDirectory, package
   copyElectronSources(electronRoot, join(targetRoot, "electron"));
   stageShellProfileModule(agentGuiRoot, targetRoot);
   stageBrowserRuntimeForShell(agentGuiRoot, targetRoot);
-  writeShellPackageJson(version, targetRoot, packageName);
+  writeShellPackageJson(version, targetRoot, packageName, runtimeMode);
   installDependencies(targetRoot);
   console.log(`electron-shell-staging: done -> ${targetRoot}`);
   return targetRoot;

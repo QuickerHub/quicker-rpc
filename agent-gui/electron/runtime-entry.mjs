@@ -1,18 +1,29 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { normalizeRuntimeMode, readRuntimeMode, RUNTIME_MODE_FILE } from "./runtime-mode.mjs";
 
-/** Legacy staging remains selectable until combined Designer and installer acceptance. */
-export function resolveRuntimeEntry(appDirectory) {
-  const manifestPath = join(appDirectory, "runtime-manifest.json");
-  if (existsSync(manifestPath)) {
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    if (manifest.format !== "quicker-agent-static-runtime" || manifest.version !== 1 || manifest.next !== false) {
-      throw new Error("Unsupported static Agent runtime manifest");
-    }
-    for (const file of ["service.mjs", "lib/service-main.mjs", "renderer/index.html"]) {
-      if (!existsSync(join(appDirectory, file))) throw new Error(`Static Agent runtime missing ${file}`);
-    }
-    return { path: join(appDirectory, "service.mjs"), kind: "static" };
+/** The default is static; legacy is selected explicitly by its build marker or caller. */
+export function resolveRuntimeEntry(appDirectory, options = {}) {
+  appDirectory = resolve(appDirectory);
+  const recordedMode = readRuntimeMode(appDirectory);
+  const mode = options.mode === undefined ? recordedMode : normalizeRuntimeMode(options.mode);
+  if (options.mode !== undefined && existsSync(join(appDirectory, RUNTIME_MODE_FILE)) && mode !== recordedMode) {
+    throw new Error(`Requested ${mode} but ${join(appDirectory, RUNTIME_MODE_FILE)} selects ${recordedMode}`);
   }
-  return { path: join(appDirectory, "server.js"), kind: "legacy-next" };
+  if (mode === "legacy-next") {
+    const path = join(appDirectory, "server.js");
+    if (!existsSync(path)) throw new Error(`Legacy Next Agent runtime missing ${path}; run pnpm build:legacy-next and pnpm electron:prepare --runtime=legacy-next`);
+    return { path, kind: mode };
+  }
+  const manifestPath = join(appDirectory, "runtime-manifest.json");
+  let manifest;
+  try { manifest = JSON.parse(readFileSync(manifestPath, "utf8")); }
+  catch (error) {
+    throw new Error(`Static Agent runtime requires ${manifestPath}; run pnpm build or pnpm electron:prepare. Legacy requires an explicit --runtime=legacy-next build. ${error.message}`, { cause: error });
+  }
+  if (manifest?.format !== "quicker-agent-static-runtime" || manifest.version !== 1 || manifest.next !== false) throw new Error(`Unsupported static Agent runtime manifest ${manifestPath}`);
+  for (const file of ["service.mjs", "lib/service-main.mjs", "renderer/index.html"]) {
+    if (!existsSync(join(appDirectory, file))) throw new Error(`Static Agent runtime missing ${join(appDirectory, file)}; run pnpm build or pnpm electron:prepare`);
+  }
+  return { path: join(appDirectory, "service.mjs"), kind: "static" };
 }

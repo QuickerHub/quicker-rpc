@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
 import { prepareRemoteCipherPepper } from "./embed-remote-cipher-pepper.mjs";
 import { readQuickerRpcSemverFromJson, readQuickerRpcVersionJson, resolveQuickerRpcVersionJsonPath } from "../lib/repo-paths.mjs";
+import { writeRuntimeMode } from "../electron/runtime-mode.mjs";
 
 const defaultAgentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRepoRoot = join(defaultAgentGuiRoot, "..");
@@ -71,7 +72,7 @@ function resolveStandaloneSrc(agentGuiRoot) {
   if (existsSync(direct)) return base;
   const nested = join(base, "agent-gui", "server.js");
   if (existsSync(nested)) return join(base, "agent-gui");
-  throw new Error(`Run pnpm build first. Missing standalone server.js under ${base}`);
+  throw new Error(`Run pnpm build:legacy-next first. Missing legacy standalone server.js under ${base}`);
 }
 
 function stripNestedBundleArtifacts(appRoot) {
@@ -593,4 +594,5 @@ export function prepareDesktopBundle(options) {
   if (options.verify !== false) {
     verifyStagedBundle(agentGuiRoot, ctx.resourcesDir, label);
   }
+  writeRuntimeMode(join(ctx.resourcesDir, "app"), "legacy-next");
 }

@@ -5,7 +5,8 @@
 #   pwsh ./publish/Publish-QuickerAgent.ps1
 #   pwsh ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
 #   pwsh ./publish/Publish-QuickerAgent.ps1 -PreflightOnly
-#   pwsh ./publish/Publish-QuickerAgent.ps1 -SkipNextBuild
+#   pwsh ./publish/Publish-QuickerAgent.ps1 -SkipAppBuild
+#   pwsh ./publish/Publish-QuickerAgent.ps1 -RuntimeMode legacy-next
 #   pwsh ./publish/Preflight-QuickerAgentFast.ps1
 #   pwsh ./publish/Preflight-QuickerAgentBuild.ps1
 
@@ -15,14 +16,18 @@ param(
     [switch]$SkipQkrpcBuild,
     # Run electron NSIS build only (no publish/ copy). Used before GitHub Release tag push.
     [switch]$PreflightOnly,
-    # Reuse existing .next/standalone (skip pnpm build; run electron-prepare + bundle only).
-    [switch]$SkipNextBuild
+    [ValidateSet('static', 'legacy-next')]
+    [string]$RuntimeMode = 'static',
+    # Reuse the selected staged app (or explicit legacy .next/standalone).
+    [Alias('SkipNextBuild')]
+    [switch]$SkipAppBuild
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1')
+. (Join-Path $PSScriptRoot 'agent-gui-build-mode.ps1')
 
 if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -36,14 +41,6 @@ function Get-QuickerAgentVersionFromJson {
     }
     $json = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
     return Get-QuickerRpcSemVerFromVersion -Version (Resolve-QuickerRpcVersionStringFromJsonObject -JsonObject $json)
-}
-
-function Test-NextStandaloneReady {
-    param([string]$AgentGuiDir)
-    $base = Join-Path $AgentGuiDir '.next\standalone'
-    if (Test-Path -LiteralPath (Join-Path $base 'server.js')) { return $true }
-    if (Test-Path -LiteralPath (Join-Path $base 'agent-gui\server.js')) { return $true }
-    return $false
 }
 
 function Resolve-QuickerAgentElectronSetupExe {
@@ -100,25 +97,13 @@ try {
     Set-QuickerAgentIsolatedUserProfile
     $env:AGENT_GUI_DEFAULT_CWD = $RepoRoot
 
-    if ($SkipNextBuild) {
-        if (-not (Test-NextStandaloneReady -AgentGuiDir $agentGuiDir)) {
-            throw 'SkipNextBuild set but .next/standalone is missing; run without -SkipNextBuild first.'
-        }
-        Write-Host 'Skipping next build (reuse .next/standalone)' -ForegroundColor DarkCyan
-    }
-    else {
+    if (-not $SkipAppBuild) {
         Write-Host 'release gate (fast)...' -ForegroundColor Cyan
         node scripts/preflight-release-gate.mjs
         if ($LASTEXITCODE -ne 0) { throw "preflight-release-gate failed ($LASTEXITCODE)" }
-
-        Write-Host 'next build (production)...' -ForegroundColor Cyan
-        pnpm build
-        if ($LASTEXITCODE -ne 0) { throw "pnpm build failed ($LASTEXITCODE)" }
     }
 
-    Write-Host 'electron:prepare (stage app + qkrpc + node + shell)...' -ForegroundColor Cyan
-    pnpm electron:prepare
-    if ($LASTEXITCODE -ne 0) { throw "electron:prepare failed ($LASTEXITCODE)" }
+    Invoke-QuickerAgentElectronPrepare -RuntimeMode $RuntimeMode -SkipAppBuild:$SkipAppBuild
 
     Write-Host 'electron-builder (NSIS installer + latest.yml)...' -ForegroundColor Cyan
     $env:ELECTRON_BUILDER_OUTPUT_DIR = $distDir

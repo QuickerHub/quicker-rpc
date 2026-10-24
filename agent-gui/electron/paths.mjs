@@ -32,38 +32,44 @@ export function bundledNodeExe(resourceRoot) {
 }
 
 /** @param {string} dir */
-export function isCompleteResourceRoot(dir) {
-  return (
-    existsSync(resolveRuntimeEntry(join(dir, "app")).path) &&
-    existsSync(bundledNodeExe(dir))
-  );
+export function isCompleteResourceRoot(dir, options = {}) {
+  return resourceRootError(dir, options.runtimeMode) === null;
+}
+
+function resourceRootError(dir, runtimeMode) {
+  try {
+    resolveRuntimeEntry(join(dir, "app"), { mode: runtimeMode });
+    if (!existsSync(bundledNodeExe(dir))) return `Bundled Node missing ${bundledNodeExe(dir)}`;
+    return null;
+  } catch (error) { return error.message; }
 }
 
 /**
  * Resolve bundled resources root (app/, node/, qkrpc/, rg/).
  * @param {{ isPackaged: boolean, resourcesPath?: string }} app
  */
-export function resolveResourceRoot(app) {
+export function resolveResourceRoot(app, options = {}) {
   const base = packagedResourcesBase(app);
   if (base) {
     const candidates = [base, join(base, "resources")];
+    const failures = [];
     for (const root of candidates) {
-      if (isCompleteResourceRoot(root)) {
-        return root;
-      }
+      const error = resourceRootError(root, options.runtimeMode);
+      if (error === null) return root;
+      failures.push(`${root}: ${error}`);
     }
     throw new Error(
-      `runtime bundle incomplete (need an Agent app entry and bundled node under ${base} or ${join(base, "resources")})`,
+      `runtime bundle incomplete:\n${failures.join("\n")}`,
     );
   }
 
   const devStaged = join(electronRoot, "resources");
-  if (isCompleteResourceRoot(devStaged)) {
+  if (isCompleteResourceRoot(devStaged, options)) {
     return devStaged;
   }
 
   throw new Error(
-    "electron/resources not staged — run pnpm electron:prepare (or electron:build) first",
+    `electron/resources not staged — run pnpm electron:prepare (or electron:build) first. ${resourceRootError(devStaged, options.runtimeMode)}`,
   );
 }
 

@@ -84,7 +84,6 @@ export function createLauncherCommands(deps) {
   let hadStableFocus = false;
   let emitShownOnFocus = false;
   let showRequested = false;
-  let launcherReady = false;
   let disposed = false;
   /** @type {number | null} */
   let suppressBlurUntil = null;
@@ -200,7 +199,6 @@ export function createLauncherCommands(deps) {
   function buildLauncherWindow(show) {
     if (disposed) return null;
     showRequested = show;
-    launcherReady = false;
     const win = new BrowserWindow({
       width: LAUNCHER_WIDTH,
       height: LAUNCHER_HEIGHT,
@@ -231,15 +229,13 @@ export function createLauncherCommands(deps) {
 
     win.once("ready-to-show", () => {
       if (disposed || launcherWindow !== win) return;
-      launcherReady = true;
-      if (showRequested) showLauncherWindow(win);
+      if (showRequested && !win.isVisible()) showLauncherWindow(win);
     });
 
     launcherWindow = win;
     win.on("closed", () => {
       if (launcherWindow === win) {
         launcherWindow = null;
-        launcherReady = false;
         showRequested = false;
         handlersRegistered = false;
         clearBlurHideTimer();
@@ -253,7 +249,8 @@ export function createLauncherCommands(deps) {
     if (disposed) return null;
     showRequested = true;
     if (launcherWindow && !launcherWindow.isDestroyed()) {
-      if (launcherReady) showLauncherWindow(launcherWindow);
+      // An early hide can suspend first paint; an explicit reopen must resume it.
+      showLauncherWindow(launcherWindow);
       return launcherWindow;
     }
     return buildLauncherWindow(true);
