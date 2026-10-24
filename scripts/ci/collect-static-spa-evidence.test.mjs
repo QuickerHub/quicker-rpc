@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { test } from "node:test";
@@ -54,6 +54,83 @@ test("a linked root screenshot cannot make the collector read another fixture tr
   symlinkSync(target, join(f.generated, "failure.png"), process.platform === "win32" ? "junction" : "dir");
   assert.throws(() => collect(f.root), /Invalid SPA evidence entry/);
   assert.equal(existsSync(join(f.output, "static-runtime-integration-fixture-failure.png")), false);
+});
+
+test("hard-linked evidence is omitted before payload reads with the default metadata inspector", (t) => {
+  const f = fixture(t), profile = join(f.generated, "profile"); mkdirSync(profile);
+  const privateFile = join(profile, "private-fixture.txt");
+  writeFileSync(privateFile, JSON.stringify({ format: "static-spa-phase-timeline", version: 1,
+    phases: [{ phase: "GENERATED_PRIVATE_PROFILE_FIXTURE_ONLY", elapsedMs: 1 }] }));
+  for (const source of [join(f.bucket, "browser.log"), join(f.bucket, "suite.log"),
+    ...["primary-failure.txt", "failure-dom.txt", "service-stderr.log", "phase-timeline.json", "failure.png"].map((leaf) => join(f.generated, leaf))])
+    linkSync(privateFile, source);
+  const actualRead = fs.readSync;
+  let readBytes = 0;
+  mockFs(t, "readSync", (...args) => { const read = actualRead(...args); readBytes += read; return read; });
+  const report = collectStaticSpaEvidence({ repositoryDirectory: f.root });
+  assert.equal(readBytes, 0);
+  assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 7);
+  assert.ok(report.omitted.every(({ reason }) => reason === "hard-linked source"));
+  assert.deepEqual(readdirSync(f.output), ["manifest.json"]);
+});
+
+test("a hardlink added after the path snapshot is omitted before payload reads", (t) => {
+  const f = fixture(t), source = join(f.generated, "failure.png"), alias = join(f.generated, "private.txt");
+  writeFileSync(source, "generated fixture");
+  const actualLstat = fs.lstatSync, actualRead = fs.readSync;
+  let linked = false, readBytes = 0;
+  mockFs(t, "lstatSync", (path, ...args) => {
+    const info = actualLstat(path, ...args);
+    if (path === source && !linked) { linked = true; linkSync(source, alias); }
+    return info;
+  });
+  mockFs(t, "readSync", (...args) => { const read = actualRead(...args); readBytes += read; return read; });
+  const report = collect(f.root);
+  assert.equal(linked, true); assert.equal(readBytes, 0);
+  assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 1);
+  assert.match(report.omitted[0].reason, /source changed after inspection/);
+  assert.deepEqual(readdirSync(f.output), ["manifest.json"]);
+});
+
+test("a hardlink added after open is omitted before payload reads", (t) => {
+  const f = fixture(t), source = join(f.generated, "failure.png"), alias = join(f.generated, "private.txt");
+  writeFileSync(source, "generated fixture");
+  const actualOpen = fs.openSync, actualRead = fs.readSync;
+  let linked = false, readBytes = 0;
+  mockFs(t, "openSync", (path, ...args) => {
+    const fd = actualOpen(path, ...args);
+    if (path === source && !linked) { linked = true; linkSync(source, alias); }
+    return fd;
+  });
+  mockFs(t, "readSync", (...args) => { const read = actualRead(...args); readBytes += read; return read; });
+  const report = collect(f.root);
+  assert.equal(linked, true); assert.equal(readBytes, 0);
+  assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 1);
+  assert.match(report.omitted[0].reason, /source changed after inspection/);
+  assert.deepEqual(readdirSync(f.output), ["manifest.json"]);
+});
+
+test("a hardlink added after the opened snapshot is rejected by the post-read check", (t) => {
+  const f = fixture(t), source = join(f.generated, "failure.png"), alias = join(f.generated, "private.txt");
+  const content = "generated fixture"; writeFileSync(source, content);
+  const actualOpen = fs.openSync, actualFstat = fs.fstatSync, actualRead = fs.readSync;
+  let sourceFd, linked = false, readBytes = 0;
+  mockFs(t, "openSync", (path, ...args) => {
+    const fd = actualOpen(path, ...args);
+    if (path === source) sourceFd = fd;
+    return fd;
+  });
+  mockFs(t, "fstatSync", (fd, ...args) => {
+    const info = actualFstat(fd, ...args);
+    if (fd === sourceFd && !linked) { linked = true; linkSync(source, alias); }
+    return info;
+  });
+  mockFs(t, "readSync", (...args) => { const read = actualRead(...args); readBytes += read; return read; });
+  const report = collect(f.root);
+  assert.equal(linked, true); assert.equal(readBytes, Buffer.byteLength(content));
+  assert.equal(report.files.length, 0); assert.equal(report.omittedCount, 1);
+  assert.match(report.omitted[0].reason, /source changed during read/);
+  assert.deepEqual(readdirSync(f.output), ["manifest.json"]);
 });
 
 test("a PNG growing from 1 byte to 6 MiB after inspection is omitted before any payload read", (t) => {

@@ -38,13 +38,18 @@ export function collectStaticSpaEvidence({ repositoryDirectory = repository,
     writeFileSync(join(output, name), bytes, { flag: "wx" });
     report.files.push({ name, bytes: bytes.length }); report.totalBytes += bytes.length;
   }
+  function sourceSnapshot(source, name) {
+    const info = inspect(source);
+    if (info && info.nlink !== 1n) { omit(name, "hard-linked source"); return; }
+    return info;
+  }
   function readBounded(source, name, info, limit, tail = false) {
     const fd = openSync(source, "r");
     try {
       // A path can change after inspection. Recheck the opened handle before
       // reading bytes, then allocate only the approved bounded snapshot size.
       const opened = fstatSync(fd, { bigint: true });
-      if (!opened.isFile() || !sameSnapshot(opened, info)) { omit(name, "source changed after inspection"); return null; }
+      if (!opened.isFile() || opened.nlink !== 1n || !sameSnapshot(opened, info)) { omit(name, "source changed after inspection"); return null; }
       const size = Number(opened.size);
       if (!Number.isSafeInteger(size)) { omit(name, "unsupported source size"); return null; }
       const data = Buffer.alloc(Math.min(size, limit)), start = tail ? Math.max(0, size - data.length) : 0;
@@ -55,18 +60,18 @@ export function collectStaticSpaEvidence({ repositoryDirectory = repository,
         offset += read;
       }
       const after = fstatSync(fd, { bigint: true });
-      if (offset !== data.length || !after.isFile() || !sameSnapshot(after, opened)) { omit(name, "source changed during read"); return null; }
+      if (offset !== data.length || !after.isFile() || after.nlink !== 1n || !sameSnapshot(after, opened)) { omit(name, "source changed during read"); return null; }
       return data;
     } finally { closeSync(fd); }
   }
   function textTail(source, name, limit) {
-    const info = inspect(source);
+    const info = sourceSnapshot(source, name);
     if (!info) return;
     const data = readBounded(source, name, info, limit, true);
     if (data !== null) save(name, data);
   }
   function phaseTimeline(source, name) {
-    const info = inspect(source), limit = 16 * 1024;
+    const info = sourceSnapshot(source, name), limit = 16 * 1024;
     if (!info) return;
     if (info.size > limit) { omit(name, "phase size limit"); return; }
     const data = readBounded(source, name, info, limit);
@@ -100,7 +105,7 @@ export function collectStaticSpaEvidence({ repositoryDirectory = repository,
       for (const leaf of ["primary-failure.txt", "failure-dom.txt", "service-stderr.log"])
         textTail(join(fixture, leaf), `${name}-${leaf}`, 64 * 1024);
       for (const leaf of readdirSync(fixture).filter((value) => /^[A-Za-z0-9_-]+\.png$/.test(value)).sort()) {
-        const source = join(fixture, leaf), info = inspect(source);
+        const source = join(fixture, leaf), info = sourceSnapshot(source, `${name}-${leaf}`);
         if (!info) continue;
         if (info.size > pngLimit) { omit(`${name}-${leaf}`, "PNG size limit"); continue; }
         if (report.files.length >= fileLimit || report.totalBytes + Number(info.size) > totalLimit) { omit(`${name}-${leaf}`, "artifact budget"); continue; }
