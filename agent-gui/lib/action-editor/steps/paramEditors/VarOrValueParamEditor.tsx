@@ -38,6 +38,8 @@ export type VarOrValueParamEditorProps = {
   param: ActionStepParam;
   onChange: (next: ActionStepParam) => void;
   multiline?: boolean;
+  minMultilineHeight?: number;
+  maxMultilineHeight?: number;
   workspace?: ActionProjectWorkspaceContext;
   /** Project-relative files/ content prefetched by StepListEditor. */
   prefetchedFileContents?: StepSummaryFileContents;
@@ -82,6 +84,8 @@ export function VarOrValueParamEditor({
   param,
   onChange,
   multiline = false,
+  minMultilineHeight,
+  maxMultilineHeight = STEP_PARAM_SCRIPT_MAX_HEIGHT,
   workspace,
   prefetchedFileContents,
   openPopupRef,
@@ -358,7 +362,7 @@ export function VarOrValueParamEditor({
     };
     updateRect();
     const onLayoutChanged = (): void => updateRect();
-    const onPointerDown = (event: PointerEvent): void => {
+    const onPointerDown = (event: Event): void => {
       const target = event.target;
       const host = hostRef.current;
       const toggle = toggleRef.current;
@@ -378,10 +382,12 @@ export function VarOrValueParamEditor({
     window.addEventListener("resize", onLayoutChanged);
     window.addEventListener("scroll", onLayoutChanged, true);
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("focusin", onPointerDown, true);
     return () => {
       window.removeEventListener("resize", onLayoutChanged);
       window.removeEventListener("scroll", onLayoutChanged, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("focusin", onPointerDown, true);
     };
   }, [popupOpen, activateLabelRef, dismissPopup]);
 
@@ -467,7 +473,8 @@ export function VarOrValueParamEditor({
           className="step-param-expression-editor"
           placeholder={def.defaultValue || ""}
           multiline={effectiveMultiline}
-          maxMultilineHeight={STEP_PARAM_SCRIPT_MAX_HEIGHT}
+          maxMultilineHeight={maxMultilineHeight}
+          minMultilineHeight={minMultilineHeight}
           fileState={externalFile}
           omitBadge
           prefetchedFileContents={prefetchedFileContents}

@@ -12,6 +12,7 @@ export type CodeMirrorExpressionEditorProps = {
   placeholder?: string;
   multiline?: boolean;
   maxMultilineHeight?: number;
+  minMultilineHeight?: number;
   className?: string;
 };
 
@@ -21,13 +22,13 @@ const INLINE_HEIGHT = 22;
 /** Matches expressionEditorCodeMirrorTheme `.cm-scroller` line-height. */
 const MULTILINE_LINE_HEIGHT = 18;
 
-function clampMultilineHeight(contentHeight: number, maxHeight: number): number {
-  return Math.min(Math.max(contentHeight, MIN_MULTILINE_HEIGHT), maxHeight);
+function clampMultilineHeight(contentHeight: number, maxHeight: number, minHeight: number): number {
+  return Math.min(Math.max(contentHeight, minHeight), maxHeight);
 }
 
-function estimateMultilineHeight(text: string, maxHeight: number): number {
+function estimateMultilineHeight(text: string, maxHeight: number, minHeight: number): number {
   const lines = Math.max(1, text.split(/\r?\n/).length);
-  return clampMultilineHeight(lines * MULTILINE_LINE_HEIGHT, maxHeight);
+  return clampMultilineHeight(lines * MULTILINE_LINE_HEIGHT, maxHeight, minHeight);
 }
 
 export function CodeMirrorExpressionEditor({
@@ -37,27 +38,29 @@ export function CodeMirrorExpressionEditor({
   placeholder,
   multiline = false,
   maxMultilineHeight = DEFAULT_MAX_MULTILINE_HEIGHT,
+  minMultilineHeight = MIN_MULTILINE_HEIGHT,
   className,
 }: CodeMirrorExpressionEditorProps): JSX.Element {
-  const cappedMultilineHeight = Math.max(MIN_MULTILINE_HEIGHT, maxMultilineHeight);
+  const minimumMultilineHeight = Math.max(MIN_MULTILINE_HEIGHT, minMultilineHeight);
+  const cappedMultilineHeight = Math.max(minimumMultilineHeight, maxMultilineHeight);
 
   const [multilineHeight, setMultilineHeight] = useState(() =>
-    multiline ? estimateMultilineHeight(value, cappedMultilineHeight) : MIN_MULTILINE_HEIGHT,
+    multiline ? estimateMultilineHeight(value, cappedMultilineHeight, minimumMultilineHeight) : MIN_MULTILINE_HEIGHT,
   );
 
   useEffect(() => {
     if (!multiline) {
       return;
     }
-    setMultilineHeight(estimateMultilineHeight(value, cappedMultilineHeight));
-  }, [multiline, cappedMultilineHeight]);
+    setMultilineHeight(estimateMultilineHeight(value, cappedMultilineHeight, minimumMultilineHeight));
+  }, [multiline, cappedMultilineHeight, minimumMultilineHeight]);
 
   const handleLayout = useCallback(
     (view: EditorView) => {
-      const next = clampMultilineHeight(view.contentHeight, cappedMultilineHeight);
+      const next = clampMultilineHeight(view.contentHeight, cappedMultilineHeight, minimumMultilineHeight);
       setMultilineHeight((prev) => (prev === next ? prev : next));
     },
-    [cappedMultilineHeight],
+    [cappedMultilineHeight, minimumMultilineHeight],
   );
 
   const extensions = useMemo(
@@ -101,7 +104,7 @@ export function CodeMirrorExpressionEditor({
         theme="none"
         height={heightStyle}
         maxHeight={maxHeightStyle}
-        minHeight={multiline ? `${MIN_MULTILINE_HEIGHT}px` : undefined}
+        minHeight={multiline ? `${minimumMultilineHeight}px` : undefined}
         extensions={extensions}
         onChange={onChange}
         basicSetup={false}

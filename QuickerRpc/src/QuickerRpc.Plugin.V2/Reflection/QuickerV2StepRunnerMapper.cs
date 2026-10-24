@@ -71,6 +71,7 @@ internal static class QuickerV2StepRunnerMapper
                     ReadEnumInt(p, "VariableMode"),
                     selectionItems.Count > 0),
                 IsMultiLine = ReadBool(p, "IsMultiLine"),
+                DefaultHighlightType = QuickerV2Reflection.ReadString(p, "DefaultHighlightType"),
                 IsAdvanced = ReadBool(p, "IsAdvanced"),
                 AllowInput = ReadBool(p, "AllowInput"),
                 TextTools = SerializeTextTools(ReadProperty(p, "TextTools")),

@@ -29,6 +29,8 @@ export function runnerSchemaFingerprint(item: StepRunnerItem | undefined): strin
       k: d.key,
       vt: d.varType,
       vm: d.variableMode,
+      multiline: d.isMultiLine,
+      highlight: d.defaultHighlightType,
       control: d.isControlField,
       advanced: d.isAdvanced,
       items: (d.selectionItems ?? []).map((x) => x.value),

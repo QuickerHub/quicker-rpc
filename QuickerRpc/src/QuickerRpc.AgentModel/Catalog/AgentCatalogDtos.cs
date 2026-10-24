@@ -140,6 +140,10 @@ public sealed class AgentInputParamSchema
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsMultiLine { get; set; }
 
+    /// <summary>UI-only native language hint.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultHighlightType { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsAdvanced { get; set; }
 

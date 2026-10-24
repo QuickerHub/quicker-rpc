@@ -314,7 +314,7 @@ function mapAgentInputParamDef(
     allowInput: readBool(o, "allowInput", "AllowInput"),
     visibleExpression: "",
     replaceVariable: false,
-    defaultHighlightType: "",
+    defaultHighlightType: readString(o, "defaultHighlightType", "DefaultHighlightType"),
     skipEval: false,
     skipLogContent: false,
     validForList: [],
