@@ -69,13 +69,17 @@ internal sealed class V1ResourceCatalogCapture : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        Owner? previous;
         lock (_gate)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(V1ResourceCatalogCapture));
             if (_owner?.IsActive == true) return Task.CompletedTask;
+            previous = _owner;
             // This factory reads only already-loaded module/member metadata, never account state or stores.
             _owner = new Owner(_createBinding());
         }
+        // Account invalidation may precede a lifecycle Stop. Do not orphan that owner's strong subscription.
+        previous?.Unsubscribe();
         return Task.CompletedTask;
     }
 

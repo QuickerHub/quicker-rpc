@@ -226,6 +226,8 @@ internal static partial class Program
         var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
         return verb switch
         {
+            "catalog-page" => await RunResourceCatalogPageAsync(QuickerRpcResourceCatalogKinds.GlobalSubProgram, options.Scope, options.Query,
+                options.Skip, options.Take, options.SnapshotId, options.Json, options.TimeoutSeconds, options.NoBootstrap).ConfigureAwait(false),
             "search" => await RunSubProgramSearchAsync(options).ConfigureAwait(false),
             "list" => await RunSubProgramListAsync(options).ConfigureAwait(false),
             "create" => await RunSubProgramCreateAsync(options).ConfigureAwait(false),
@@ -250,7 +252,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SUBPROGRAM_VERB",
-            "Use: subprogram create|get|patch|replace|validate|export|import|apply|list|search|publish|update|edit|edit-var|delete (see qkrpc help --json)")
+            "Use: subprogram catalog-page|create|get|patch|replace|validate|export|import|apply|list|search|publish|update|edit|edit-var|delete (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -274,6 +276,8 @@ internal static partial class Program
 
         return verb switch
         {
+            "catalog-page" => await RunResourceCatalogPageAsync(QuickerRpcResourceCatalogKinds.Action, options.Scope, options.Query,
+                options.Skip, options.Take, options.SnapshotId, options.Json, options.TimeoutSeconds, options.NoBootstrap).ConfigureAwait(false),
             "update" => await RunActionUpdateAsync(options).ConfigureAwait(false),
             "publish" => await RunActionPublishAsync(options).ConfigureAwait(false),
             "search" => await RunActionSearchAsync(options).ConfigureAwait(false),
@@ -309,7 +313,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action open|save|create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|library search|shared get|shared-info-get|shared-info-set|shared-info-submit-review|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action catalog-page|open|save|create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|library search|shared get|shared-info-get|shared-info-set|shared-info-submit-review|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -1566,6 +1570,15 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
+    [Option("skip", Default = 0, HelpText = "catalog-page: offset; later windows require --snapshot-id.")]
+    public int Skip { get; set; }
+
+    [Option("take", Default = 500, HelpText = "catalog-page: window size, maximum 500.")]
+    public int Take { get; set; }
+
+    [Option("snapshot-id", HelpText = "catalog-page: snapshotId returned by the first window.")]
+    public string? SnapshotId { get; set; }
+
     [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | library | shared | ... (see qkrpc help action)")]
     public string? Command { get; set; }
 
@@ -1629,7 +1642,7 @@ public sealed class ActionOptions
     [Option("filter", HelpText = "Install source filter for list/search: library|installed|local|published.")]
     public string? Filter { get; set; }
 
-    [Option("scope", HelpText = "Limit to process/scene: chrome, global, common, default, taskbar, desktop, agent, profile id/name.")]
+    [Option("scope", HelpText = "catalog-page: runtimeCatalog. Search/list: process/scene, chrome, global, common, default, taskbar, desktop, agent, profile id/name.")]
     public string? Scope { get; set; }
 
     [Option("limit", Default = 20, HelpText = "Max results for action search/list (1-200).")]
@@ -1747,7 +1760,19 @@ public sealed class ActionOptions
 [Verb("subprogram", HelpText = "Global (public) subprogram operations via RPC.")]
 public sealed class SubProgramOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | publish | update | edit | edit-var | delete")]
+    [Option("scope", HelpText = "catalog-page: runtimeCatalog (loaded native resources).")]
+    public string? Scope { get; set; }
+
+    [Option("skip", Default = 0, HelpText = "catalog-page: offset; later windows require --snapshot-id.")]
+    public int Skip { get; set; }
+
+    [Option("take", Default = 500, HelpText = "catalog-page: window size, maximum 500.")]
+    public int Take { get; set; }
+
+    [Option("snapshot-id", HelpText = "catalog-page: snapshotId returned by the first window.")]
+    public string? SnapshotId { get; set; }
+
+    [Value(0, MetaName = "command", Required = true, HelpText = "catalog-page | create | get | patch | replace | export | import | list | search | publish | update | edit | edit-var | delete")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Global subprogram id or name.")]

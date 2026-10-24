@@ -186,6 +186,10 @@ internal static class QkrpcCliHelp
 
                     opts: ActionProjectImportOpts()),
 
+                Cmd("action catalog-page", "Read complete loaded runtime action summaries without search/index or program hydration. Later windows require snapshotId from the first page.", "qkrpc action catalog-page [--scope runtimeCatalog] [--query <text>] [--skip 0] [--take 500] [--snapshot-id <snapshotId>] [--json]",
+                    opts: ResourceCatalogPageOpts()),
+                Cmd("subprogram catalog-page", "Read complete loaded runtime global subprogram summaries. Excludes unsaved designer drafts and unloaded database rows.", "qkrpc subprogram catalog-page [--scope runtimeCatalog] [--query <text>] [--skip 0] [--take 500] [--snapshot-id <snapshotId>] [--json]",
+                    opts: ResourceCatalogPageOpts()),
                 Cmd("action list", "List/search actions. --query accepts plain text, legacy prefixes, or JSON {filter,sort,keyword,fields}.", "qkrpc action list [--query <text|json>] [--query-file <path>] [--fields actionId,title,...] [--filter library|local|published] [--scope ...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
 
                     opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON. filter: {source,uses,usesOnly,keyword,script|expr}; sort: {key,script,by,desc}; fields: [actionId,title,...] or *.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("fields", "Output projection: comma-separated field names or * (also fields/select/columns in JSON query)."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title. Ignored when JSON sort script is set."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
@@ -510,6 +514,18 @@ internal static class QkrpcCliHelp
     }
 
 
+
+    private static object[] ResourceCatalogPageOpts() => new[]
+    {
+        Option("scope", "Loaded native catalog scope.", defaultValue: "runtimeCatalog"),
+        Option("query", "Case-insensitive summary substring filter."),
+        Option("skip", "Offset. Nonzero offsets require snapshot-id.", defaultValue: "0"),
+        Option("take", "Window size, maximum 500.", defaultValue: "500"),
+        Option("snapshot-id", "First page snapshotId; changed catalogs are rejected."),
+        Option("json", "Structured payload and exact string editVersion."),
+        Option("timeout", "Total connection and read budget in seconds.", defaultValue: "10"),
+        Option("no-bootstrap", "Skip auto-start."),
+    };
 
     private static object[] ActionHeadlessOpts() =>
 

@@ -1,4 +1,4 @@
-using System.Reflection;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using QuickerRpc.Contracts.Rpc;
@@ -102,8 +102,10 @@ internal sealed class V1QuickerRpcHost : IQuickerRpcHost, IQuickerRpcResourceCat
     {
         try
         {
-            var quickerAsm = Assembly.Load("Quicker");
-            return quickerAsm.GetName().Version?.ToString() ?? string.Empty;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                if (string.Equals(assembly.GetName().Name, "Quicker", StringComparison.Ordinal))
+                    return assembly.GetName().Version?.ToString() ?? string.Empty;
+            return string.Empty;
         }
         catch
         {

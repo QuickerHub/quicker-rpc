@@ -4,9 +4,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Host;
 using QuickerRpc.Plugin.Adapters;
 using QuickerRpc.Plugin.Reflection;
 using QuickerRpc.Plugin.Services;
@@ -152,14 +155,29 @@ public sealed class V1ResourceCatalogCaptureTests
     });
 
     [TestMethod]
+    public Task Restart_after_account_invalidation_unsubscribes_the_old_owner_even_without_an_intervening_Stop() => Ui(async dispatcher =>
+    {
+        var native = new NativeSession(); using var capture = Create(native, dispatcher); await capture.StartAsync(default);
+        var first = await capture.CaptureAsync("action", default); var late = native.Listeners.Single();
+        native.Account = "b";
+        Assert.AreEqual("ACCOUNT_CONTEXT_CHANGED", (await capture.CaptureAsync("action", default)).ErrorCode);
+        Assert.IsFalse(capture.CanRead("action"));
+        await capture.StartAsync(default); Assert.AreEqual(1, native.Unsubscriptions);
+        var next = await capture.CaptureAsync("action", default); Assert.IsTrue(next.Success, next.ErrorMessage);
+        Assert.AreNotEqual(first.OwnerId, next.OwnerId); Assert.AreNotEqual(first.AccountScope, next.AccountScope);
+        late(); Assert.IsTrue(capture.IsCurrent(next)); Assert.AreEqual(1, native.Listeners.Count);
+    });
+
+    [TestMethod]
     public Task Partial_enumeration_cancel_account_change_and_sync_during_copy_publish_no_partial_page() => Ui(async dispatcher =>
     {
-        foreach (var mode in new[] { "throw", "cancel", "account", "sync" })
+        foreach (var mode in new[] { "throw", "cancel", "account", "sync", "exit", "context" })
         {
             var native = new NativeSession(); native.Rows.Add(Row("a")); native.Rows.Add(Row("b"));
             using var stop = new CancellationTokenSource();
             native.OnRow = index => { if (index != 1) return; if (mode == "throw") throw new InvalidOperationException("fixture native fault");
-                if (mode == "cancel") stop.Cancel(); if (mode == "account") native.Account = "other"; if (mode == "sync") native.RaiseSync(); };
+                if (mode == "cancel") stop.Cancel(); if (mode == "account") native.Account = "other"; if (mode == "sync") native.RaiseSync();
+                if (mode == "exit") native.IsExiting = true; if (mode == "context") native.IsCurrentContext = false; };
             using var capture = Create(native, dispatcher); await capture.StartAsync(default);
             if (mode == "cancel")
             {
@@ -170,7 +188,8 @@ public sealed class V1ResourceCatalogCaptureTests
             {
                 var result = await capture.CaptureAsync("action", default);
                 Assert.IsFalse(result.Success, mode); Assert.AreEqual(0, result.Entries.Count);
-                Assert.AreEqual(mode == "throw" ? "CATALOG_CAPTURE_FAILED" : mode == "account" ? "ACCOUNT_CONTEXT_CHANGED" : "CATALOG_CHANGED", result.ErrorCode);
+                Assert.AreEqual(mode == "throw" ? "CATALOG_CAPTURE_FAILED" : mode == "account" ? "ACCOUNT_CONTEXT_CHANGED"
+                    : mode is "exit" or "context" ? "ACCOUNT_CONTEXT_UNAVAILABLE" : "CATALOG_CHANGED", result.ErrorCode);
             }
             Assert.AreEqual(1, native.EnumerationDisposals);
             Assert.IsFalse(Monitor.IsEntered(native.SyncRoot));
@@ -188,6 +207,77 @@ public sealed class V1ResourceCatalogCaptureTests
         var empty = await host.GetResourceCatalogPageAsync("global_subprogram", new());
         Assert.IsTrue(empty.Success, empty.ErrorMessage); Assert.IsNotNull(empty.SnapshotId); Assert.AreEqual(0, empty.TotalCount); Assert.IsFalse(empty.HasMore);
     });
+
+    [TestMethod]
+    public Task Production_resource_DI_and_root_handshake_follow_Start_Stop_restart_with_one_shared_session_scope() => Ui(async dispatcher =>
+    {
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies().Select(value => value.FullName).ToArray();
+        var native = new NativeSession(); native.Rows.Add(Row("a")); native.Rows.Add(Row("b"));
+        using var queued = new ManualResetEventSlim();
+        using var capture = new V1ResourceCatalogCapture(() => new NativeBinding(native), () => { queued.Set(); return dispatcher; });
+        using var host = new HostBuilder().ConfigureServices((_, services) =>
+        {
+            // Use the same registration as Launcher; only the native accessor and irrelevant ports are fixtures.
+            services.AddV1ResourceCatalog(); services.AddSingleton(capture);
+            services.AddSingleton<QuickerRpcHostSessionScope>();
+            services.AddSingleton(sp => Root(sp.GetRequiredService<V1ResourceCatalogPageHost>()));
+            services.AddSingleton<IQuickerRpcHost>(sp => sp.GetRequiredService<V1QuickerRpcHost>());
+            services.AddSingleton(sp => new QuickerRpcService(sp.GetRequiredService<IQuickerRpcHost>(), null!, null!, null!, null!,
+                sp.GetRequiredService<QuickerRpcHostSessionScope>()));
+        }).Build();
+        var runtime = host.Services.GetRequiredService<QuickerRpcService>();
+        var port = host.Services.GetRequiredService<V1ResourceCatalogPageHost>();
+        Assert.AreSame(capture, host.Services.GetServices<IHostedService>().Single());
+        var before = await runtime.GetHostSessionAsync();
+        Assert.IsFalse(before.Capabilities[QuickerRpcHostCapabilityNames.ResourceActionPageRead]);
+        Assert.IsFalse(before.Capabilities[QuickerRpcHostCapabilityNames.ResourceGlobalSubProgramPageRead]);
+        await host.StartAsync();
+        var started = await runtime.GetHostSessionAsync();
+        Assert.AreEqual(before.HostSessionId, started.HostSessionId);
+        Assert.IsTrue(started.Capabilities[QuickerRpcHostCapabilityNames.ResourceActionPageRead]);
+        Assert.IsTrue(started.Capabilities[QuickerRpcHostCapabilityNames.ResourceGlobalSubProgramPageRead]);
+        Assert.AreEqual(0, native.Reads); // Handshakes never read account state or catalogs.
+        var first = await runtime.GetActionResourceCatalogPageAsync(new() { Take = 1 });
+        Assert.IsTrue(first.Success, first.ErrorMessage);
+        Assert.AreEqual(first.SnapshotId, (await port.GetResourceCatalogPageAsync("action", new() { Take = 2 })).SnapshotId);
+        var oldCallback = native.Listeners.Single(); var reads = native.Reads;
+        queued.Reset();
+        var pending = Task.Run(() => runtime.GetActionResourceCatalogPageAsync(new()));
+        Assert.IsTrue(queued.Wait(TimeSpan.FromSeconds(3)));
+        await host.StopAsync();
+        Assert.IsFalse((await runtime.GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.ResourceActionPageRead]);
+        // Generic Host's lifetime is terminal after Stop. Reuse the registered component via its actual hosted hooks.
+        await host.Services.GetServices<IHostedService>().Single().StartAsync(default);
+        Assert.AreEqual("CATALOG_CHANGED", (await pending).ErrorCode); Assert.AreEqual(reads, native.Reads);
+        Assert.AreEqual(1, native.Unsubscriptions);
+        var stale = await runtime.GetActionResourceCatalogPageAsync(new() { Skip = 1, ExpectedSnapshotId = first.SnapshotId });
+        Assert.AreEqual("CATALOG_CHANGED", stale.ErrorCode);
+        var fresh = await runtime.GetActionResourceCatalogPageAsync(new());
+        Assert.IsTrue(fresh.Success, fresh.ErrorMessage); Assert.AreNotEqual(first.SnapshotId, fresh.SnapshotId);
+        oldCallback();
+        Assert.AreEqual(fresh.SnapshotId, (await runtime.GetActionResourceCatalogPageAsync(new())).SnapshotId);
+        Assert.AreEqual(started.HostSessionId, (await runtime.GetHostSessionAsync()).HostSessionId);
+        await host.Services.GetServices<IHostedService>().Single().StopAsync(default); Assert.AreEqual(2, native.Unsubscriptions);
+        Assert.AreEqual(assemblies.Count(value => value.StartsWith("Quicker,", StringComparison.Ordinal)),
+            AppDomain.CurrentDomain.GetAssemblies().Count(value => value.GetName().Name == "Quicker"),
+            "Composing the host must not load Quicker or construct native services.");
+    });
+
+    [TestMethod]
+    public async Task Manual_root_without_catalog_composition_keeps_both_capabilities_false_and_refuses_reads()
+    {
+        var root = Root(null); var runtime = new QuickerRpcService(root, null!, null!, null!, null!);
+        var session = await runtime.GetHostSessionAsync();
+        Assert.IsFalse(session.Capabilities[QuickerRpcHostCapabilityNames.ResourceActionPageRead]);
+        Assert.IsFalse(session.Capabilities[QuickerRpcHostCapabilityNames.ResourceGlobalSubProgramPageRead]);
+        Assert.AreEqual("UNSUPPORTED_HOST", (await runtime.GetActionResourceCatalogPageAsync(new())).ErrorCode);
+        Assert.AreEqual("UNSUPPORTED_HOST", (await runtime.GetGlobalSubProgramResourceCatalogPageAsync(new())).ErrorCode);
+    }
+
+    private static V1QuickerRpcHost Root(V1ResourceCatalogPageHost? port) => new(
+        session: null!, actionPrograms: null!, actionSharing: null!, subPrograms: null!, actionRuns: null!, actionCatalog: null!,
+        search: null!, settings: null!, actionDocs: null!, stepRunners: null!, expressions: null!, chromeControl: null!, triggers: null!,
+        designer: null!, launcher: null!, resourceCatalog: port);
 
     private static V1ResourceCatalogCapture Create(NativeSession session, Dispatcher dispatcher) =>
         new(() => new NativeBinding(session), () => dispatcher);
