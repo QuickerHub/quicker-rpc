@@ -216,6 +216,37 @@ test("operation effects distinguish a dispatched export timeout from a refused h
   } finally { mock.timers.reset(); }
 });
 
+test("server RPC timeouts retain uncertain write receipts while pure reads and explicit refusals stay unchanged", async () => {
+  const receipt = { ok: false, error: "RPC_TIMEOUT", message: "RPC timed out after 1s.", data: { requestId: "fixture-deadline" } };
+  for (const argv of [
+    ["action", "open", "--id", "fixture-only", "--dir", ".tmp/fixture-only"],
+    ["action", "set-metadata", "--id", "fixture-only", "--icon", "fa:Light_Flask"],
+  ]) {
+    await withFakeServe(() => Response.json(receipt), async (requests) => {
+      const result = await invokeQkrpcHttp(sourceInvoke(argv), { hostBinding: fakeBinding });
+      const parsed = result?.parsed as { error?: string; retryable?: boolean; cause?: unknown };
+      assert.equal(parsed.error, "WRITE_RESULT_UNKNOWN");
+      assert.equal(parsed.retryable, false);
+      assert.deepEqual(parsed.cause, receipt);
+      assert.match(result!.stderr, /host.*local|local.*host/i);
+      assert.equal(requests.length, 1);
+    });
+  }
+  await withFakeServe(() => Response.json(receipt), async () => {
+    const result = await invokeQkrpcHttp(sourceInvoke(["fa", "search", "--query", "fixture-only"]), { hostBinding: fakeBinding });
+    assert.deepEqual(result?.parsed, receipt);
+    assert.equal(result?.stderr, receipt.message);
+  });
+  for (const error of ["INVALID_ARGS", "HOST_BINDING_MISMATCH", "EDIT_VERSION_CONFLICT"]) {
+    const rejected = { ok: false, error, message: "Explicit fixture refusal.", data: { persisted: false } };
+    await withFakeServe(() => Response.json(rejected), async () => {
+      const result = await invokeQkrpcHttp(sourceInvoke(["action", "open", "--id", "fixture-only", "--dir", ".tmp/fixture-only"]), { hostBinding: fakeBinding });
+      assert.deepEqual(result?.parsed, rejected);
+      assert.equal(result?.stderr, rejected.message);
+    });
+  }
+});
+
 test("FA page HTTP forwards exact binding/criteria and reports disconnect as a read failure", async () => {
   const invoke = sourceInvoke(["fa", "page", "--query", "camera", "--style", "Light", "--skip", "24", "--take", "2"]);
   await withFakeServe(() => Response.json({ ok: true, data: { ok: true, payload: { names: ["Light_Camera"], totalCount: 25, hasMore: false } } }), async (requests) => {

@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { invokeQkrpcHttp } from "./qkrpc-http";
 import { currentQkrpcTarget, readHostBinding, isQkrpcReadOnlyInvoke, type QkrpcHostBinding } from "./qkrpc-host-binding";
 import { runWithAgentRequestContextAsync } from "./qkrpc-request-context";
-import { formatQkrpcResultForAgent, runQkrpcForTool, runQkrpcWithPatchFileForTool } from "./qkrpc";
+import { formatQkrpcResultForAgent, isRetryableQkrpcFailure, runQkrpcForTool, runQkrpcWithPatchFileForTool } from "./qkrpc";
 import { isQkrpcBinMissingFailure, isQkrpcConnectivityFailure } from "./qkrpc-connectivity";
 import { saveActionFromWorkspace } from "./action-project-workflow";
 import { getActionProjectSyncStatus } from "./action-project-sync";
@@ -173,6 +173,46 @@ test("generic HTTP exports preserve unknown receipts through turn gating and Age
     assert.equal(spawns, 0);
     assert.equal(posts.filter((op) => op === "action.extract").length, 3);
     assert.equal(posts.filter((op) => op === "fa.search").length, 3, "no connectivity gate replaces the subsequent read");
+  } finally { spawn.mock.restore(); syncBuiltinESMExports(); }
+});
+
+test("generic tools cannot soften server RPC timeouts for exports or host writes into success", async () => {
+  const receipt = { ok: false, error: "RPC_TIMEOUT", message: "RPC timed out after 1s.", data: { requestId: "fixture-deadline" } };
+  const posts: string[] = [];
+  let spawns = 0;
+  const spawn = mock.method(childProcess, "spawn", () => { spawns += 1; throw new Error("Unexpected CLI fallback"); });
+  syncBuiltinESMExports();
+  try {
+    await isolated(async (url, init) => {
+      if (String(url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
+      posts.push(request(init).op);
+      return Response.json(receipt);
+    }, async () => {
+      for (const argv of [
+        ["action", "extract", "--id", "fixture-only", "--dir", ".tmp/fixture-only"],
+        ["action", "set-metadata", "--id", "fixture-only", "--icon", "fa:Light_Flask"],
+      ]) {
+        await runWithAgentRequestContextAsync({}, async () => {
+          const result = await runQkrpcForTool(argv, { hostBinding: a });
+          assert.equal(result.ok, false);
+          const formatted = formatQkrpcResultForAgent(result);
+          assert.equal(formatted.ok, false);
+          assert.equal(isRetryableQkrpcFailure(result), false);
+          const data = formatted.data as { error?: string; retryable?: boolean; cause?: unknown; guidance?: unknown };
+          assert.equal(data.error, "WRITE_RESULT_UNKNOWN");
+          assert.equal(data.retryable, false);
+          assert.deepEqual(data.cause, receipt);
+          assert.equal(data.guidance, undefined);
+        });
+      }
+      const read = await invokeQkrpcHttp({ op: "fa.search", args: { query: "fixture-only" } }, { hostBinding: a });
+      assert.ok(read);
+      assert.deepEqual(read.parsed, receipt);
+      assert.equal(isRetryableQkrpcFailure(read), true);
+      assert.equal(formatQkrpcResultForAgent(read).ok, true, "pure reads retain the existing soft timeout projection");
+    });
+    assert.deepEqual(posts, ["action.extract", "action.set-metadata", "fa.search"]);
+    assert.equal(spawns, 0);
   } finally { spawn.mock.restore(); syncBuiltinESMExports(); }
 });
 

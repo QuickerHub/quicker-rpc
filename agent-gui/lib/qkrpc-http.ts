@@ -211,6 +211,10 @@ export async function invokeQkrpcHttp(
       if (returned) bindQkrpcTarget({ gateway: base, binding: returned });
     }
     if (!body.ok) {
+      if (write && body.error === "RPC_TIMEOUT") {
+        const failure = bindingFailure("WRITE_RESULT_UNKNOWN", `${body.message ?? body.error} Host or local changes may have persisted; inspect before retrying.`);
+        return { ...failure, parsed: { ...failure.parsed, cause: body } };
+      }
       return {
         ok: false,
         exitCode: 1,
