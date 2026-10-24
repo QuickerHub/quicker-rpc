@@ -27,7 +27,7 @@ function rejected(session: ProgramDocumentSession, input: ProgramDocumentStepInp
 }
 
 test("an Agent batch uses the existing Session once; one undo retains the latest human draft", () => {
-  const session = create({ steps: [step("selected", { text: "before", second: { Value: "second", VarKey: " ", File: null, future: { intact: true } } })], variables: [] });
+  const session = create({ steps: [step("selected", { text: "before", second: { Value: "second", VarKey: "", File: null, future: { intact: true } } })], variables: [] });
   session.transact({ expectedRevision: 0, expectedIdentity: identity, source: "ui", update(body) {
     (body.steps as ReturnType<typeof step>[])[0]!.note = "human unblurred draft";
   } });
@@ -39,7 +39,7 @@ test("an Agent batch uses the existing Session once; one undo retains the latest
   assert.equal(result.state.dirty, true); assert.equal(result.state.baselineContent, baseline);
   assert.equal(session.getHistoryState().undoDepth, 2);
   assert.equal(raw(session).steps[0].inputParams.text, "Agent value");
-  assert.deepEqual(raw(session).steps[0].inputParams.second, { Value: "Agent second", VarKey: " ", File: null, future: { intact: true } });
+  assert.deepEqual(raw(session).steps[0].inputParams.second, { Value: "Agent second", VarKey: "", File: null, future: { intact: true } });
   assert.equal(raw(session).steps[0].note, "human unblurred draft");
   assert.deepEqual(raw(session).steps[0].outputParams, { answer: "human-output" });
   const committed = session.getState().content;
