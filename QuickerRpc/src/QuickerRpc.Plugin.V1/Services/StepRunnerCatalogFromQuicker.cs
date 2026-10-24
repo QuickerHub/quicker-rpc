@@ -48,7 +48,11 @@ internal static class StepRunnerCatalogFromQuicker
         StepRunnerUiCatalogBuilder.InvalidateCache();
     }
 
-    private static StepRunnerCatalog BuildCore()
+    /// <summary>Fresh native definitions only; the legacy catalog/cache is never authority for this port.</summary>
+    internal static StepRunnerCatalog BuildForInputContract(string stepRunnerKey) =>
+        BuildCore(captureInputPolicy: true, stepRunnerKey);
+
+    private static StepRunnerCatalog BuildCore(bool captureInputPolicy = false, string? requestedKey = null)
     {
         var items = new List<StepRunnerDefinition>();
         if (!QuickerInternalAccess.IsInQuicker)
@@ -77,7 +81,9 @@ internal static class StepRunnerCatalogFromQuicker
 
                 try
                 {
-                    var mapped = MapRunner(ro);
+                    if (requestedKey is not null && !string.Equals(ReadString(ro, "Key"), requestedKey, StringComparison.Ordinal))
+                        continue;
+                    var mapped = MapRunner(ro, captureInputPolicy);
                     if (mapped is not null)
                     {
                         items.Add(mapped);
@@ -90,7 +96,7 @@ internal static class StepRunnerCatalogFromQuicker
             }
         }
 
-        MergeSupplementalRunners(items);
+        if (!captureInputPolicy) MergeSupplementalRunners(items);
         return new StepRunnerCatalog { Items = items };
     }
 
@@ -136,7 +142,7 @@ internal static class StepRunnerCatalogFromQuicker
         return getAll?.Invoke(service, null) as IEnumerable;
     }
 
-    private static StepRunnerDefinition? MapRunner(object runner)
+    private static StepRunnerDefinition? MapRunner(object runner, bool captureInputPolicy)
     {
         var runnerType = runner.GetType();
         var key = ReadString(runner, "Key");
@@ -147,17 +153,18 @@ internal static class StepRunnerCatalogFromQuicker
 
         return new StepRunnerDefinition
         {
+            InputContractVisibilityUnknownReason = captureInputPolicy ? StepRunnerNativeInputPolicy.CaptureRunnerVisibilityUnknownReason(runner) : null,
             Key = key,
             Name = ReadString(runner, "Name") ?? string.Empty,
             Description = ReadString(runner, "Description") ?? string.Empty,
             Icon = ReadString(runner, "Icon") ?? string.Empty,
             Category = ReadEnumString(runner, "Category"),
-            InputParamDefs = MapInputs(runnerType.GetProperty("InputParams")?.GetValue(runner)),
+            InputParamDefs = MapInputs(runnerType.GetProperty("InputParams")?.GetValue(runner), captureInputPolicy),
             OutputParamDefs = MapOutputs(runnerType.GetProperty("OutputParams")?.GetValue(runner)),
         };
     }
 
-    private static IList<StepRunnerInputParamDef> MapInputs(object? defs)
+    private static IList<StepRunnerInputParamDef> MapInputs(object? defs, bool captureInputPolicy)
     {
         var list = new List<StepRunnerInputParamDef>();
         if (defs is not IEnumerable enumerable)
@@ -183,6 +190,7 @@ internal static class StepRunnerCatalogFromQuicker
             list.Add(
                 new StepRunnerInputParamDef
                 {
+                    NativeInputPolicy = captureInputPolicy ? StepRunnerNativeInputPolicy.Capture(p) : null,
                     Key = key,
                     Name = ReadString(p, "Name") ?? string.Empty,
                     Description = ReadString(p, "Description") ?? string.Empty,

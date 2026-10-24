@@ -7,8 +7,17 @@ using QuickerRpc.Plugin.Services;
 
 namespace QuickerRpc.Plugin.Adapters;
 
-internal sealed class V1StepRunnerHost : IQuickerRpcStepRunnerHost
+internal sealed class V1StepRunnerHost : IQuickerRpcStepRunnerHost, IQuickerRpcStepRunnerInputContractHost
 {
+    public bool IsInputContractAvailable => true;
+
+    public Task<QuickerRpcStepRunnerInputContractResult> GetStepRunnerInputContractAsync(
+        QuickerRpcStepRunnerInputContractRequest request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_programs.GetStepRunnerInputContract(request));
+    }
+
     private readonly HeadlessActionProgramService _programs;
 
     public V1StepRunnerHost(HeadlessActionProgramService programs) => _programs = programs;

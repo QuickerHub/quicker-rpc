@@ -298,7 +298,7 @@ public sealed class ResourceCatalogRpcTests
         public IQuickerRpcSearchHost Search => throw new AssertFailedException();
         public IQuickerRpcSettingsHost Settings => throw new AssertFailedException();
         public IQuickerRpcActionDocHost ActionDocs => throw new AssertFailedException();
-        public IQuickerRpcStepRunnerHost StepRunners => throw new AssertFailedException();
+        public IQuickerRpcStepRunnerHost StepRunners { get; } = DispatchProxy.Create<IQuickerRpcStepRunnerHost, NeverInvokePort>();
         public IQuickerRpcExpressionHost Expressions => throw new AssertFailedException();
         public IQuickerRpcChromeControlHost? ChromeControl => null;
         public IQuickerRpcTriggerHost? Triggers => null;

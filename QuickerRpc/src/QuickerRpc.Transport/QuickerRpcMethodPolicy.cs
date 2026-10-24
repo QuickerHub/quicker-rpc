@@ -27,6 +27,7 @@ public static class QuickerRpcMethodPolicy
         or nameof(IQuickerRpcService.SearchStepRunnersAsync)
         or nameof(IQuickerRpcService.ListStepRunnersAsync)
         or nameof(IQuickerRpcService.GetStepRunnerDetailAsync)
+        or nameof(IQuickerRpcService.GetStepRunnerInputContractAsync)
         or nameof(IQuickerRpcService.GetStepRunnerUiDetailAsync)
         or nameof(IQuickerRpcService.GetActionStepSummariesAsync)
         or nameof(IQuickerRpcService.SearchStepQuickInsertAsync)
@@ -56,6 +57,7 @@ public static class QuickerRpcMethodPolicy
 
     public static string? Capability(string method) => method switch
     {
+        nameof(IQuickerRpcService.GetStepRunnerInputContractAsync) => QuickerRpcHostCapabilityNames.StepRunnerInputContractRead,
         "GetActionProgramSourceAsync" => QuickerRpcHostCapabilityNames.ActionSourceRead,
         "ApplyActionProgramSourceAsync" => QuickerRpcHostCapabilityNames.ActionSourceWrite,
         "ApplyActionProgramSourceWithStorageAsync" => QuickerRpcHostCapabilityNames.ActionSourceWrite,

@@ -17,7 +17,7 @@ public sealed class MethodPolicyTests
             "PreflightPublishSharedActionAsync", "GetSharedActionDetailHtmlAsync", "SearchActionSummariesAsync", "SearchActionsAsync",
             "SearchGlobalSubProgramsAsync", "ListGlobalSubProgramsAsync", "GetCompressedSubProgramAsync", "PreflightPublishSharedSubProgramAsync",
             "GetCompressedActionByIdAsync", "GetActionProgramSourceAsync", "GetCompressedSharedActionAsync", "SearchActionLibraryAsync",
-            "SearchStepRunnersAsync", "ListStepRunnersAsync", "GetStepRunnerDetailAsync", "GetStepRunnerUiDetailAsync", "GetActionStepSummariesAsync",
+            "SearchStepRunnersAsync", "ListStepRunnersAsync", "GetStepRunnerDetailAsync", "GetStepRunnerInputContractAsync", "GetStepRunnerUiDetailAsync", "GetActionStepSummariesAsync",
             "SearchStepQuickInsertAsync", "SearchToolboxModulesAsync", "ReadClipboardSpecialFormatAsync", "SearchFontAwesomeIconsAsync",
             "SearchFontAwesomeIconsPageAsync", "ResolveFontAwesomeIconsAsync", "CheckExpressionSyntaxAsync", "ListBrowserTabsAsync", "CheckCSharpScriptSyntaxAsync",
             "SearchSettingsAsync", "ListSettingsAsync", "GetSettingAsync", "ListSettingsPagesAsync", "ListSettingsDirectLinksAsync",

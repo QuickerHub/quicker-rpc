@@ -30,7 +30,8 @@ internal sealed class QuickerRpcGuardedService : IQuickerRpcService
     {
         token.ThrowIfCancellationRequested();
         var write = !QuickerRpcMethodPolicy.IsReadOnly(method);
-        if (write && (server ? legacyEndpoint || !handshaken : Binding is null))
+        var requiresBinding = method == nameof(GetStepRunnerInputContractAsync);
+        if ((write || requiresBinding) && (server ? legacyEndpoint || !handshaken : Binding is null))
             throw Failure(QuickerRpcBindingErrors.Required, "A verified dedicated host connection is required for this operation.");
         var capability = QuickerRpcMethodPolicy.Capability(method);
         if (Binding is not null && capability is not null && !Binding.Supports(capability))
@@ -380,6 +381,10 @@ internal sealed class QuickerRpcGuardedService : IQuickerRpcService
         string? controlFieldValue = null,
         CancellationToken cancellationToken = default) =>
         InvokeAsync(nameof(GetStepRunnerDetailAsync), () => inner.GetStepRunnerDetailAsync(stepRunnerKey, controlFieldValue, cancellationToken), cancellationToken);
+
+    public Task<QuickerRpcStepRunnerInputContractResult> GetStepRunnerInputContractAsync(
+        QuickerRpcStepRunnerInputContractRequest request, CancellationToken cancellationToken = default) =>
+        InvokeAsync(nameof(GetStepRunnerInputContractAsync), () => inner.GetStepRunnerInputContractAsync(request, cancellationToken), cancellationToken);
 
     public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerUiDetailAsync(
         string stepRunnerKey,

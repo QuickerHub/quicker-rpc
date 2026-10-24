@@ -50,6 +50,7 @@ public sealed partial class QuickerRpcService
                 [QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead] = (_host.Designer as IQuickerRpcDesignerFontAwesomePageHost)?.IsFontAwesomePageAvailable ?? false,
                 [QuickerRpcHostCapabilityNames.ResourceActionPageRead] = (_host as IQuickerRpcResourceCatalogPageHost)?.CanRead(QuickerRpcResourceCatalogKinds.Action) ?? false,
                 [QuickerRpcHostCapabilityNames.ResourceGlobalSubProgramPageRead] = (_host as IQuickerRpcResourceCatalogPageHost)?.CanRead(QuickerRpcResourceCatalogKinds.GlobalSubProgram) ?? false,
+                [QuickerRpcHostCapabilityNames.StepRunnerInputContractRead] = (_host.StepRunners as IQuickerRpcStepRunnerInputContractHost)?.IsInputContractAvailable ?? false,
             },
         });
     }
