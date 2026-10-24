@@ -249,6 +249,35 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  transport-linux:
+    name: Transport contracts (Ubuntu)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Build shared transport and verify Linux contracts and netstandard consumer
+        shell: pwsh
+        run: ./scripts/ci/Test-LinuxTransport.ps1
+      - name: Upload actual Linux Transport results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: transport-linux-results
+          path: |
+            .tmp/ci-results/transport-linux/**/*.trx
+            .tmp/ci-results/transport-linux/**/receipt.json
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
   dotnet:
     name: Host-independent .NET
     runs-on: windows-2025

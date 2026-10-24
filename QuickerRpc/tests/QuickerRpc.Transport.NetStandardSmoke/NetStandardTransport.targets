@@ -1,0 +1,6 @@
+<Project>
+  <!-- Consumer-only build hook: keep NuGet's target selection aligned with SetTargetFramework. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'QuickerRpc.Transport'">
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+  </PropertyGroup>
+</Project>

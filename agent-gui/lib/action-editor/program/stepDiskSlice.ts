@@ -183,6 +183,38 @@ export function hashProgramStepContent(content: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
+/** Root-relative nested pin paths are descriptive, not legacy patch paths. */
+export function computeNestedProgramStepDiskSlice(diskText: string, nodePath: string): ProgramStepDiskSliceResult {
+  if (!/^(?:subPrograms\/\d+\/)+steps\/\d+(?:\/(?:ifSteps|elseSteps)\/\d+)*$/.test(nodePath)) {
+    return { ok: false, error: "invalid nested step nodePath" };
+  }
+  try {
+    let objectStart = skipWhitespace(diskText, 0);
+    if (diskText[objectStart] !== "{") return { ok: false, error: "data.json root is not an object" };
+    const tokens = nodePath.split("/");
+    let bounds: { start: number; end: number } | null = null;
+    for (let index = 0; index < tokens.length; index += 2) {
+      const property = tokens[index]!;
+      const position = Number(tokens[index + 1]);
+      if (!Number.isSafeInteger(position)) return { ok: false, error: "nested step index is not a safe integer" };
+      const valueStart = findObjectPropertyValueStart(diskText, objectStart, property);
+      if (valueStart == null) return { ok: false, error: `document has no "${property}" at nodePath ${nodePath}` };
+      const arrayStart = skipWhitespace(diskText, valueStart);
+      if (diskText[arrayStart] !== "[") return { ok: false, error: `"${property}" is not a JSON array` };
+      bounds = findArrayElementBounds(diskText, arrayStart, position);
+      if (!bounds) return { ok: false, error: `index ${position} out of range at nodePath ${nodePath}` };
+      objectStart = skipWhitespace(diskText, bounds.start);
+      if (diskText[objectStart] !== "{") return { ok: false, error: "expected a program or step object" };
+    }
+    if (!bounds) return { ok: false, error: "step not found" };
+    const content = diskText.slice(bounds.start, bounds.end);
+    return { ok: true, slice: { nodePath, content, contentHash: hashProgramStepContent(content),
+      startLine: offsetToLine(diskText, bounds.start), endLine: offsetToLine(diskText, Math.max(bounds.start, bounds.end - 1)) } };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 /**
  * Locates the exact wire JSON text span for a step in data.json.
  * `diskText` must be the current editor/saved wire JSON (not a summary slice).
