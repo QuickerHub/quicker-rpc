@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { getRequestChatMode } from "@/lib/qkrpc-request-context";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -651,7 +652,7 @@ export async function saveProgramFromWorkspace(
   }
 }
 
-export async function listWorkspaceSubProgramProjects(): Promise<
+export async function listWorkspaceSubProgramProjects(options?: { readOnly?: boolean }): Promise<
   | { ok: true; root: string; projects: SubProgramProjectMeta[] }
   | { ok: false; error: string }
 > {
@@ -684,7 +685,9 @@ export async function listWorkspaceSubProgramProjects(): Promise<
       continue;
     }
 
-    info = await repairSubprogramInfoIfMissingName(projectPath, info);
+    if (options?.readOnly !== true && getRequestChatMode() !== "ask") {
+      info = await repairSubprogramInfoIfMissingName(projectPath, info);
+    }
 
     projects.push({
       dirName,

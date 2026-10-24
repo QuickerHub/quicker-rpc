@@ -127,13 +127,39 @@ test("read failure and the existing connectivity gate never start repair, fall b
     assert.equal(failed.ok, false); assert.match(String(failed.stderr), /fixture read denied/);
     assert.equal(calls.length, 1);
     setResult({ code: 1, stdout: '{"ok":false,"error":"PLUGIN_NOT_RUNNING"}', stderr: "fixture plugin disconnected" });
-    assert.equal((await executeQkrpcActionIdTool({ action: "get", id })).ok, false);
+    const disconnected = await executeQkrpcActionIdTool({ action: "get", id });
+    assert.equal(disconnected.ok, false);
+    assert.equal((disconnected.data as { error: string }).error, "PLUGIN_NOT_RUNNING");
+    assert.match(JSON.stringify(disconnected), /manually.*Agent mode/);
+    assert.equal(JSON.stringify(disconnected).includes("qkrpc_wait"), false);
     assert.equal(calls.length, 2);
     const blocked = await executeQkrpcSubprogramIdTool({ action: "get", id: "FixtureSubprogram" });
     assert.equal(blocked.ok, false); assert.equal(calls.length, 2);
+    assert.equal((blocked.data as { status: string }).status, "connectivity_blocked");
+    assert.equal(JSON.stringify(blocked).includes("qkrpc_wait"), false);
     const reason = new Error("stop before any connection");
     const cancel = new AbortController(); cancel.abort(reason);
     await assert.rejects(executeQkrpcActionGetReadOnly({ id }, { abortSignal: cancel.signal }), (error) => error === reason);
+    assert.equal(calls.length, 2);
+  }));
+});
+
+test("single readonly failures retain native codes, binding and timeout outcomes without Agent retry projection", async () => {
+  await fixture((root, calls, setResult) => runWithAgentRequestContextAsync({ cwd: root, chatMode: "ask" }, async () => {
+    bindQkrpcTarget({ gateway: base, binding });
+    setResult({ code: 1, stdout: JSON.stringify({ ok: false, error: "HOST_UNAVAILABLE", hostBinding: binding }), stderr: "The selected host is unavailable" });
+    const unavailable = await executeQkrpcActionGetReadOnly({ id });
+    assert.equal(unavailable.ok, false); assert.equal(unavailable.exitCode, 1);
+    assert.equal((unavailable.data as { error: string }).error, "HOST_UNAVAILABLE");
+    assert.deepEqual((unavailable.data as { hostBinding: unknown }).hostBinding, binding);
+    assert.equal(JSON.stringify(unavailable).includes("qkrpc_wait"), false);
+    setResult({ code: -1, stdout: '{"error":"READ_TIMEOUT","resultKnown":false}', stderr: "fixture read timed out" });
+    const timeout = await executeQkrpcSubprogramGetReadOnly({ id: "FixtureSubprogram" });
+    assert.equal(timeout.ok, false); assert.equal(timeout.exitCode, -1);
+    assert.equal((timeout.data as { error: string }).error, "READ_TIMEOUT");
+    assert.equal((timeout.data as { resultKnown: boolean }).resultKnown, false);
+    assert.equal((timeout.data as { attempts?: number }).attempts, undefined);
+    assert.equal(timeout.retryable, false);
     assert.equal(calls.length, 2);
   }));
 });

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { enrichActionProjectResolveError, guardWorkspaceActionId } from "@/lib/action-scope";
 import { syncActionToWorkspace } from "@/lib/action-project-workflow";
-import { getRequestActionScope } from "@/lib/qkrpc-request-context";
+import { getRequestActionScope, getRequestChatMode } from "@/lib/qkrpc-request-context";
 import { syncSubprogramToWorkspace } from "@/lib/subprogram-project-workflow";
 import { resolveWorkspacePath } from "@/lib/workspace-fs";
 import { writeEmptyProgramDataJsonIfMissing } from "@/lib/workspace-project-disk";
@@ -28,7 +28,10 @@ export type WorkspaceProgramResolveResult =
       resolved: ResolvedProgramDataJson;
       autoSynced?: boolean;
     }
-  | { ok: false; error: string };
+  | { ok: false; error: string; errorCode?: string };
+
+/** Internal execution policy, separate from the model's tool input. */
+export type WorkspaceProgramReadOptions = { readOnly?: boolean };
 
 export type ResolvedProgramProjectFile = {
   target: WorkspaceProgramTarget;
@@ -51,12 +54,19 @@ export function parseProgramTargetInput(
 
 async function ensureProgramProjectOnDisk(
   target: WorkspaceProgramTarget,
-): Promise<{ ok: true; autoSynced: boolean } | { ok: false; error: string }> {
+  options?: WorkspaceProgramReadOptions,
+): Promise<{ ok: true; autoSynced: boolean } | { ok: false; error: string; errorCode?: string }> {
   const projectDir = workspaceProgramProjectDir(target);
   const dataPath = workspaceProgramDataJsonPath(target);
   const resolved = resolveWorkspacePath(dataPath);
   if (resolved.ok && existsSync(resolved.absolute)) {
     return { ok: true, autoSynced: false };
+  }
+
+  if (options?.readOnly === true || getRequestChatMode() === "ask") {
+    return { ok: false, errorCode: "workspace_program_not_local",
+      error: `Local data.json is unavailable for ${formatWorkspaceProgramLabel(target)}. Ask cannot create an empty program or export it from Quicker; use an existing local project or switch to Agent mode.`,
+    };
   }
 
   const infoResolved = resolveWorkspacePath(`${projectDir}/info.json`);
@@ -116,6 +126,7 @@ async function ensureProgramProjectOnDisk(
 
 export async function resolveWorkspaceProgramDataForTool(
   input: ParsedWorkspaceProgramInput,
+  options?: WorkspaceProgramReadOptions,
 ): Promise<WorkspaceProgramResolveResult> {
   const parsed = parseWorkspaceProgramTarget(input);
   if (!parsed.ok) {
@@ -123,9 +134,9 @@ export async function resolveWorkspaceProgramDataForTool(
   }
 
   const target = parsed.target;
-  const ensured = await ensureProgramProjectOnDisk(target);
+  const ensured = await ensureProgramProjectOnDisk(target, options);
   if (!ensured.ok) {
-    return { ok: false, error: ensured.error };
+    return ensured;
   }
 
   const projectDir = workspaceProgramProjectDir(target);
@@ -240,18 +251,19 @@ function validateProgramFilesScopePath(
 export async function resolveWorkspaceProgramFileForTool(
   input: ParsedWorkspaceProgramInput,
   relativePath: string,
+  options?: WorkspaceProgramReadOptions,
 ): Promise<
   | { ok: true; resolved: ResolvedProgramProjectFile }
-  | { ok: false; error: string }
+  | { ok: false; error: string; errorCode?: string }
 > {
   const validated = validateProgramResourceRelativePath(relativePath);
   if (!validated.ok) {
     return { ok: false, error: validated.error };
   }
 
-  const dataResolved = await resolveWorkspaceProgramDataForTool(input);
+  const dataResolved = await resolveWorkspaceProgramDataForTool(input, options);
   if (!dataResolved.ok) {
-    return { ok: false, error: dataResolved.error };
+    return dataResolved;
   }
 
   const { target, projectDir } = dataResolved.resolved;
@@ -278,18 +290,19 @@ export async function resolveWorkspaceProgramFileForTool(
 export async function resolveWorkspaceProgramFilesScopeForTool(
   input: ParsedWorkspaceProgramInput,
   relativePath: string | undefined,
+  options?: WorkspaceProgramReadOptions,
 ): Promise<
   | { ok: true; resolved: ResolvedProgramProjectFile & { scopeKind: "file" | "directory" } }
-  | { ok: false; error: string }
+  | { ok: false; error: string; errorCode?: string }
 > {
   const validated = validateProgramFilesScopePath(relativePath ?? "files");
   if (!validated.ok) {
     return { ok: false, error: validated.error };
   }
 
-  const dataResolved = await resolveWorkspaceProgramDataForTool(input);
+  const dataResolved = await resolveWorkspaceProgramDataForTool(input, options);
   if (!dataResolved.ok) {
-    return { ok: false, error: dataResolved.error };
+    return dataResolved;
   }
 
   const { target, projectDir } = dataResolved.resolved;

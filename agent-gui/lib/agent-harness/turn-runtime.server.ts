@@ -34,6 +34,7 @@ import { createTaskToolForParent, TASK_TOOL } from "@/lib/task-tool.server";
 import { applyToolModeGuards } from "@/lib/agent-tool-mode-guard";
 import { executeQkrpcActionGetReadOnly } from "@/lib/qkrpc-action-tool.server";
 import { executeQkrpcSubprogramGetReadOnly } from "@/lib/qkrpc-subprogram-tool.server";
+import { executeWorkspaceProgramReadOnly } from "@/lib/workspace-program-tool.server";
 import { createTurnExecutionState, type TurnExecutionState } from "./turn-execution-state";
 
 export type ResolvedAgentTurnScope = {
@@ -52,13 +53,18 @@ export async function resolveAgentTurnScope(
   request: ResolvedAgentTurnRequest,
   abortSignal?: AbortSignal,
   executionState: TurnExecutionState = createTurnExecutionState(),
+  readDesignerContext: typeof fetchDesignerContextSnapshot = fetchDesignerContextSnapshot,
 ): Promise<ResolvedAgentTurnScope> {
   abortSignal?.throwIfAborted();
   let actionScope = extractActionScopeFromMessages(request.messagesForModel);
   let designerEmbedBlock: string | undefined;
 
   if (request.actionDesigner && request.chatMode !== CHAT_MODE_LAUNCHER) {
-    const designerSnapshot = await fetchDesignerContextSnapshot(false);
+    // The current remote context adapter may bootstrap Quicker. Keep the local
+    // embed target, but do not request live window state in Ask mode.
+    const designerSnapshot = request.chatMode === "ask"
+      ? { ok: false, designers: [] }
+      : await readDesignerContext(false);
     abortSignal?.throwIfAborted();
     const windowContext = resolveDesignerWindowContext(designerSnapshot, {
       scoped: request.body.designerEmbedScoped === true,
@@ -69,6 +75,9 @@ export async function resolveAgentTurnScope(
       request.actionDesigner,
       windowContext,
     ) || undefined;
+    if (request.chatMode === "ask") {
+      designerEmbedBlock += "\n- Ask 模式未请求远端设计器上下文；当前标题与选中步骤不可用。仅使用消息中明确提供的程序范围。";
+    }
     actionScope = mergeDesignerDefaultActionScope(
       actionScope,
       request.actionDesigner,
@@ -136,6 +145,7 @@ export async function prepareAgentTurnRuntime(params: {
       request.slashCommand.overrides.toolAllowlist,
     );
     const guardedTools = applyToolModeGuards(composedTools, request.chatMode, {
+      workspace_program: (input) => executeWorkspaceProgramReadOnly(input as Parameters<typeof executeWorkspaceProgramReadOnly>[0]),
       qkrpc_action_get: (input, options) => executeQkrpcActionGetReadOnly(input as Parameters<typeof executeQkrpcActionGetReadOnly>[0], { abortSignal: options.abortSignal }),
       qkrpc_subprogram_get: (input, options) => executeQkrpcSubprogramGetReadOnly(input as Parameters<typeof executeQkrpcSubprogramGetReadOnly>[0], { abortSignal: options.abortSignal }),
     });

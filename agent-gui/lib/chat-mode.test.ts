@@ -60,6 +60,17 @@ describe("resolveEnabledToolsForChatMode", () => {
     );
   });
 
+  it("lists only local tools and explicit non-bootstrapping program getters in Ask", () => {
+    assert.deepEqual(defaultAskToolIds(), [
+      "docs", "ask_question", "web_search", "Read", "Grep", "workspace_program",
+      "qkrpc_action_get", "qkrpc_subprogram_get",
+    ]);
+    // This temporary Ask boundary must not narrow the operational launcher.
+    for (const id of ["qkrpc_action_query", "qkrpc_subprogram_query", "qkrpc_fa", "launcher_resolve", "quicker_settings"]) {
+      assert.ok(defaultLauncherToolIds().includes(id));
+    }
+  });
+
   it("keeps custom tools in agent mode", () => {
     assert.deepEqual(
       resolveEnabledToolsForChatMode(

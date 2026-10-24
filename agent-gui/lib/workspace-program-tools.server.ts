@@ -36,7 +36,9 @@ import {
   resolveWorkspaceProgramDataForTool,
   resolveWorkspaceProgramFileForTool,
   resolveWorkspaceProgramFilesScopeForTool,
+  type WorkspaceProgramReadOptions,
 } from "@/lib/workspace-program-resolve.server";
+import { getRequestChatMode } from "@/lib/qkrpc-request-context";
 import { scheduleProgramSyntaxLint } from "@/lib/program-syntax-lint";
 import {
   buildValuePrefixWarningFields,
@@ -229,6 +231,7 @@ function blockReadDataAfterPatch(
 
 export async function executeWorkspaceProgramReadData(
   input: ParsedWorkspaceProgramInput & ReadSlice & { mode?: "content" | "summary" },
+  options?: WorkspaceProgramReadOptions,
 ): Promise<Record<string, unknown>> {
   const blocked = blockReadDataAfterCreate(input);
   if (blocked) {
@@ -240,6 +243,13 @@ export async function executeWorkspaceProgramReadData(
   }
 
   if (input.mode === "summary") {
+    if (options?.readOnly === true || getRequestChatMode() === "ask") {
+      const local = await resolveWorkspaceProgramDataForTool(input, options);
+      if (!local.ok) return formatLocalToolResult(
+        { action: "program-data-summary", success: false, errorMessage: local.error, errorCode: local.errorCode },
+        false, local.error, { retryable: false },
+      );
+    }
     const parsed = parseWorkspaceProgramTarget(input);
     if (!parsed.ok) {
       return formatLocalToolResult(
@@ -267,10 +277,10 @@ export async function executeWorkspaceProgramReadData(
     });
   }
 
-  const resolved = await resolveWorkspaceProgramDataForTool(input);
+  const resolved = await resolveWorkspaceProgramDataForTool(input, options);
   if (!resolved.ok) {
     return formatLocalToolResult(
-      { action: "program-data-read", success: false, errorMessage: resolved.error },
+      { action: "program-data-read", success: false, errorMessage: resolved.error, errorCode: resolved.errorCode },
       false,
       resolved.error,
     );
@@ -458,11 +468,12 @@ export async function executeWorkspaceProgramEditData(
 
 export async function executeWorkspaceProgramFileInfo(
   input: ParsedWorkspaceProgramInput & { path: string },
+  options?: WorkspaceProgramReadOptions,
 ): Promise<Record<string, unknown>> {
-  const resolved = await resolveWorkspaceProgramFileForTool(input, input.path);
+  const resolved = await resolveWorkspaceProgramFileForTool(input, input.path, options);
   if (!resolved.ok) {
     return formatLocalToolResult(
-      { action: "file-info", success: false, errorMessage: resolved.error },
+      { action: "file-info", success: false, errorMessage: resolved.error, errorCode: resolved.errorCode },
       false,
       resolved.error,
     );
@@ -493,11 +504,12 @@ export async function executeWorkspaceProgramFileSearch(
     maxMatches?: number;
     caseInsensitive?: boolean;
   },
+  options?: WorkspaceProgramReadOptions,
 ): Promise<Record<string, unknown>> {
-  const resolved = await resolveWorkspaceProgramFilesScopeForTool(input, input.path);
+  const resolved = await resolveWorkspaceProgramFilesScopeForTool(input, input.path, options);
   if (!resolved.ok) {
     return formatLocalToolResult(
-      { action: "file-search", success: false, errorMessage: resolved.error },
+      { action: "file-search", success: false, errorMessage: resolved.error, errorCode: resolved.errorCode },
       false,
       resolved.error,
     );
@@ -529,11 +541,12 @@ export async function executeWorkspaceProgramFileSearch(
 
 export async function executeWorkspaceProgramFileRead(
   input: ParsedWorkspaceProgramInput & ReadSlice & { path: string },
+  options?: WorkspaceProgramReadOptions,
 ): Promise<Record<string, unknown>> {
-  const resolved = await resolveWorkspaceProgramFileForTool(input, input.path);
+  const resolved = await resolveWorkspaceProgramFileForTool(input, input.path, options);
   if (!resolved.ok) {
     return formatLocalToolResult(
-      { action: "file-read", success: false, errorMessage: resolved.error },
+      { action: "file-read", success: false, errorMessage: resolved.error, errorCode: resolved.errorCode },
       false,
       resolved.error,
     );
@@ -697,14 +710,14 @@ export async function executeWorkspaceProgramFileEdit(
 
 export async function executeWorkspaceProgramProjects(input?: {
   target?: "action" | "global_subprogram" | "all";
-}): Promise<Record<string, unknown>> {
+}, options?: WorkspaceProgramReadOptions): Promise<Record<string, unknown>> {
   const filter = input?.target ?? "all";
   const actions =
     filter === "global_subprogram"
       ? null
       : await listWorkspaceActionProjects();
   const subprograms =
-    filter === "action" ? null : await listWorkspaceSubProgramProjects();
+    filter === "action" ? null : await listWorkspaceSubProgramProjects(options);
 
   if (actions && !actions.ok) {
     return formatLocalToolResult(

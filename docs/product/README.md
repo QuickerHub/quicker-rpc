@@ -269,8 +269,15 @@ R1 审计发现兼容 get 会顺带导出文件：Ask 的动作/子程序读取�
 也不失败重试或回退。最终 mode guard、历史审批续跑、子代理和直接 Ask 调用均覆盖；
 Agent 的兼容导出保留。生产假 CLI/HTTP、文件写入 spy 及 SDK 审批回归通过独立审查，
 整合后 682 项离线/类型检查通过。
-其它 Ask 查询、连接恢复与 pre-turn Designer context 仍有自动启动路径，下一片继续
-收紧目录与最终执行门禁；这两个 getter 的修复不表示 Ask 整体无副作用。
+后续收口已将依赖自启动 adapter 的远端查询、恢复、catalog、FA、设置和 Launcher resolve
+移出 Ask 默认目录，并在最终执行入口拒绝旧审批与显式调用。远端 diagnostics 也关闭；
+pre-turn 不查询实时 Designer 状态，保留消息/embed 的明确目标。workspace 通过显式本地
+读取端口，覆盖正文/summary/文件和列表；缺正文不补空或导出，列举子程序不远端修补。
+getter 的连接或超时失败保留原错误/exit/绑定，既不伪装成功，也不建议 Ask 的禁用恢复工具。
+相关 28 项定向回归、三类目标/三种磁盘状态的生产读路径及 SDK 审批/子代理通过独立审查。
+整合后 696 项离线/类型检查及移位静态 renderer/Node API、frontend check、所属进程清理通过。
+外部 qkrpc MCP 的兼容 get 未声明只读，SDK 默认 false，已确认不会被 Ask 外部工具过滤器放行。
+未接通非启动端口的能力逐项恢复，操作描述、TurnPlan 与外部工具语义审计继续进行。
 
 旧 JSON 动作项目已加入 `.qkrpc/project-binding.json`，CLI/MCP/serve/Agent 的导出、创建和
 同步跨请求保留来源宿主，写前核验 action ID、目录和 info；多个同 ID 项目不取首个，

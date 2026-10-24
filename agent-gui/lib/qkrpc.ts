@@ -566,6 +566,30 @@ export function formatQkrpcResult(result: QkrpcRunResult): Record<string, unknow
   };
 }
 
+/** Preserve a single read's receipt; Ask cannot use the Agent recovery tool. */
+export function formatQkrpcReadOnlyGetResultForAgent(result: QkrpcRunResult): Record<string, unknown> {
+  const formatted = formatQkrpcResult(result);
+  if (result.ok) return formatted;
+  const payload = result.parsed && typeof result.parsed === "object" && !Array.isArray(result.parsed)
+    ? result.parsed as Record<string, unknown> : undefined;
+  const blocked = payload?.status === "connectivity_blocked";
+  const connectivity = blocked || isQkrpcConnectivityFailure(result) || payload?.error === "HOST_UNAVAILABLE";
+  const guidance = connectivity
+    ? "Ask will not start or repair Quicker or serve. Start and connect the selected Quicker host/plugin manually, or switch to Agent mode for recovery. The existing host binding is preserved."
+    : "This read failed after one attempt. Ask did not retry or start Quicker or serve; inspect the original error before choosing the next action.";
+  const data = formatted.data;
+  return {
+    ...formatted,
+    data: data && typeof data === "object" && !Array.isArray(data)
+      ? { ...data, ...(blocked ? { message: "Read blocked after an earlier connection failure; no connection was attempted." } : {}), guidance }
+      : data,
+    // The gate's old stderr is operational advice, not a native host receipt.
+    ...(blocked ? { stderr: "Ask read blocked after an earlier connection failure; no automatic recovery was attempted." } : {}),
+    summary: guidance,
+    retryable: false,
+  };
+}
+
 async function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
   try { await delay(ms, undefined, { signal: abortSignal }); }
   catch (error) { abortSignal?.throwIfAborted(); throw error; }
