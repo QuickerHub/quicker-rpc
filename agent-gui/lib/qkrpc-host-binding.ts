@@ -9,7 +9,7 @@ const READ_OPS = new Set([
   "ping", "host.list", "action.binding", "action.list", "action.search", "action.mention-search", "action.get", "action.open",
   "action.shared.get", "action.library.search", "action.publish.preflight", "action.shared-info.get",
   "action.validate", "action.extract", "subprogram.search", "subprogram.list", "subprogram.get",
-  "subprogram.validate", "subprogram.export", "clipboard.read-special-format", "fa.search", "fa.resolve",
+  "subprogram.validate", "subprogram.export", "clipboard.read-special-format", "fa.search", "fa.resolve", "fa.page",
   "expr.check", "script.check", "chrome.tabs", "quicker.account.get", "quicker.web-session.get",
   "settings.search", "settings.list", "settings.get", "settings.pages", "settings.links", "settings.resolve",
   "trigger.list", "trigger.events", "launcher.resolve", "search-index.status", "designer.context",

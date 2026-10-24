@@ -395,6 +395,8 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("key", "StepRunner key."), Option("control-field", "Control-field value."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("fa page", "Read a host's paged FA catalog (independent of legacy search).", "qkrpc fa page [--query <keyword>] [--style <style>] [--skip 0] [--take 96] [--json]",
+                    opts: new[] { Option("query", "Search criteria."), Option("style", "Optional style filter."), Option("skip", "Offset.", defaultValue: "0"), Option("take", "Page size, maximum 300.", defaultValue: "96"), Option("json", "Structured page facts in payload."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
                 Cmd("fa resolve", "Resolve fa: specs to SVG path data (for UIs).", "qkrpc fa resolve --spec fa:Light_Flask [--json] | qkrpc fa resolve --specs '[\"fa:Light_A\"]' --json",
                     opts: new[] { Option("spec", "Single fa: icon spec."), Option("specs", "JSON array of fa: specs (batch, max 80 unique)."), Option("json", "Structured output: items[] with path, width, height."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
                 Cmd("fa search", "Search FA icons (see guide action-icons). Default: Light_* + Brands_*; --expand: all styles.", "qkrpc fa search [--query <keyword>] [--limit 40] [--expand] [--json]",

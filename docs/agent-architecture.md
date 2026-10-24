@@ -178,6 +178,11 @@ FA geometry 复用同一 port、lease 与目标核验；Provider presence 与 un
 主动作 APDE 的外层 Provider 覆盖标题与属性，嵌套 surface 保持同 owner；未提供局部 port
 的 Workspace 继承外层 presence，不制造新的 loading 状态。其它无 Provider 的旧入口
 保留原全局图标兼容行为；全局缓存改为实际使用时才加载，导入模块不会读取用户存储。
+FA 分页仅接受完整文档绑定，复用原 catalog port、项目 lease 和 RPC 前后核验，不借用
+旧入口的默认宿主。纯 helper 归一 query/style/window 并校验 names、query、style、skip、
+take、totalCount、hasMore；旧搜索/resolve 不变。分页与其它 catalog 共享 256 项 LRU
+及按 waiter 取消的 pending 请求。CLI/serve 使用 page 专用 JSON 输出保留 null style，
+不改变全局省略策略或放松前端事实校验。
 `ensureParamValue` 的纯值转换与参数 UI 分离，catalog/draft helpers 不再为该函数导入整条
 参数编辑器及图标组件；这只关闭该处依赖边界，不表示其它混层已全部清理。
 多宿主选择、完整资源目录与 Agent/UI 共享实时 revision 仍待接线；

@@ -418,8 +418,13 @@ V1 15 项、Runtime 22 项、无 V2 引用 7 项及 Transport 14 项通过；独
 PE 缺失/拒绝和固定 DTO；V2 原生算法、活进程及完整图标选择器仍待验收。
 `0.14.8.165` 整次热更成功，540 个安装文件与发布源一致；真实 V1 以完整绑定验证八组
 分页，目录 5996 项、中文/样式/品牌搜索、相邻页、越界归一、预取消与错误 session 拒绝
-均通过，零动作执行和宿主写入，主产品 frontend check 通过。CLI/HTTP/设计器分页适配
-及共享选择器继续独立交付，不能用底层读取验收代替完整 UI。
+均通过，零动作执行和宿主写入，主产品 frontend check 通过。
+分页适配已接 CLI `fa page`、serve `fa.page` 和文档绑定的 `/api/fa/page`。新 Node 入口
+强制完整文档目标，loading、未绑定、缺失及失配在 RPC 前拒绝；响应核验七项分页事实，
+默认全样式的 `style:null` 通过专用输出保留。客户端复用同一 port 的共享请求与 256 项
+LRU，取消和关闭后不发布迟到缓存。独立审查及真实 CLI/fake pipe、临时 HTTP 与本地
+显式 Node route 跨边界回归通过；.NET CI 始终运行核心序列化断言，附加 Node 检查单独
+启用。准备集成版本 166；共享图标选择器与 V2 活进程继续验收。
 
 R5 文件实例首片已接生产 Chat/dock：已访问文件由工作台保活，切文件、browser/trace、
 折叠面板、切聊天/cwd 不卸载 APDE Session、属性草稿或 pending save。active 管理快捷键

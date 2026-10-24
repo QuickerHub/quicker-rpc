@@ -6,6 +6,7 @@ import {
 } from "./designerCatalogContext";
 
 type Pending = { controller: AbortController; promise: Promise<unknown>; waiters: number };
+const MAX_CACHED_VALUES = 256;
 
 export type DesignerCatalogPort = ReturnType<typeof createDesignerCatalogPort>;
 
@@ -21,6 +22,7 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
   const pending = new Map<string, Pending>();
   let closed = false;
   const remoteEnabled = context === undefined || (context !== null && context.expectedProjectBinding !== null);
+  const documentBound = context !== undefined && context !== null && context.expectedProjectBinding !== null;
 
   function shared<T>(requestKey: string, load: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (closed) return Promise.reject(new DesignerCatalogError("STALE_CATALOG_OWNER", "The document catalog has closed."));
@@ -66,9 +68,20 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
   }
 
   return {
-    key, remoteEnabled,
-    get<T>(cacheKey: string): T | undefined { return closed ? undefined : values.get(cacheKey) as T | undefined; },
-    set<T>(cacheKey: string, value: T): void { if (!closed) values.set(cacheKey, value); },
+    key, remoteEnabled, documentBound,
+    get<T>(cacheKey: string): T | undefined {
+      if (closed || !values.has(cacheKey)) return undefined;
+      const value = values.get(cacheKey);
+      values.delete(cacheKey);
+      values.set(cacheKey, value);
+      return value as T;
+    },
+    set<T>(cacheKey: string, value: T): void {
+      if (closed) return;
+      values.delete(cacheKey);
+      values.set(cacheKey, value);
+      if (values.size > MAX_CACHED_VALUES) values.delete(values.keys().next().value!);
+    },
     shared,
     async request<T>(path: string, payload: object, signal?: AbortSignal): Promise<T> {
       if (!remoteEnabled) throw new DesignerCatalogError("CATALOG_TARGET_UNAVAILABLE", "This document has no bound catalog target.");

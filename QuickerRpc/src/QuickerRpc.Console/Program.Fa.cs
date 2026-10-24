@@ -6,6 +6,13 @@ namespace QuickerRpc.Console;
 
 internal static partial class Program
 {
+    private static readonly JsonSerializerOptions FaPageJson = new(QkrpcJson.CliOutput)
+    { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never };
+
+    // Style=null is a page fact. Preserve it through both outer serializers' null omission policies.
+    internal static JsonElement SerializeFaPagePayload(QuickerRpcFontAwesomePageResult page) =>
+        JsonSerializer.SerializeToElement(page, FaPageJson);
+
     private static async Task<int> RunFaAsync(FaOptions options)
     {
         var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
@@ -13,13 +20,47 @@ internal static partial class Program
         {
             "search" => await RunFaSearchAsync(options).ConfigureAwait(false),
             "resolve" => await RunFaResolveAsync(options).ConfigureAwait(false),
+            "page" => await RunFaPageAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownFaVerbAsync(options).ConfigureAwait(false),
         };
     }
 
     private static Task<int> ReportUnknownFaVerbAsync(FaOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_FA_VERB",
-            "Use: fa search | fa resolve (see qkrpc help --json)");
+            "Use: fa search | fa resolve | fa page (see qkrpc help --json)");
+
+    private static async Task<int> RunFaPageAsync(FaOptions options)
+    {
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var token = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var response = await session.Proxy.SearchFontAwesomeIconsPageAsync(
+                options.Query, options.Style, options.Skip, options.Take, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (options.Json)
+                global::System.Console.WriteLine(JsonSerializer.Serialize(new { ok = response.Success, action = "fa-page", payload = SerializeFaPagePayload(response),
+                    error = response.Success ? null : response.ErrorMessage?.StartsWith("UNSUPPORTED_HOST", StringComparison.Ordinal) == true ? "UNSUPPORTED_HOST" : "FA_PAGE_FAILED" }, QkrpcJson.CliOutput));
+            else if (response.Success)
+                foreach (var name in response.Names) global::System.Console.WriteLine(name);
+            else global::System.Console.Error.WriteLine(response.ErrorMessage ?? "fa page failed");
+            return response.Success ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "FA_PAGE_FAILED", ex.Message).ConfigureAwait(false);
+        }
+    }
 
     private static async Task<int> RunFaSearchAsync(FaOptions options)
     {

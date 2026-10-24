@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { invokeQkrpcHttp } from "./qkrpc-http";
-import { currentQkrpcTarget, readHostBinding, type QkrpcHostBinding } from "./qkrpc-host-binding";
+import { currentQkrpcTarget, readHostBinding, isQkrpcReadOnlyInvoke, type QkrpcHostBinding } from "./qkrpc-host-binding";
 import { runWithAgentRequestContextAsync } from "./qkrpc-request-context";
 import { runQkrpcForTool, runQkrpcWithPatchFileForTool } from "./qkrpc";
 import { saveActionFromWorkspace } from "./action-project-workflow";
@@ -21,6 +21,11 @@ import { actionProjectInfoFromCreateResponse, actionProjectInfoFromMetadataGet, 
 import { buildInSyncStatusAfterPush } from "./action-project-sync-events";
 
 const base = "http://binding-fixture.invalid:19477";
+
+test("FA paging is an explicit read while unknown FA operations keep no-replay policy", () => {
+  assert.equal(isQkrpcReadOnlyInvoke({ op: "fa.page", args: {} }), true);
+  assert.equal(isQkrpcReadOnlyInvoke({ op: "fa.unknown", args: {} }), false);
+});
 const a: QkrpcHostBinding = {
   hostInstanceId: "instance-a", hostSessionId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   endpoint: "QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
