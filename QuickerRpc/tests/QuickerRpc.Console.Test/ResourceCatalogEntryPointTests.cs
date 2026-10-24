@@ -6,6 +6,7 @@ using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.Console.Mcp;
 using QuickerRpc.Console.Serve;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Testing;
 using QuickerRpc.Transport;
 using StreamJsonRpc;
 
@@ -191,8 +192,7 @@ public sealed class ResourceCatalogEntryPointTests
                     [QuickerRpcHostCapabilityNames.ResourceActionPageRead] = action, [QuickerRpcHostCapabilityNames.ResourceGlobalSubProgramPageRead] = true } };
             Target = new(this); loop = Run(NewPipe());
         }
-        private NamedPipeServerStream NewPipe() => new(Info.Endpoint, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        private NamedPipeServerStream NewPipe() => CurrentUserPipeFixture.Create(Info.Endpoint);
         private async Task Run(NamedPipeServerStream pipe)
         {
             try { while (!stop.IsCancellationRequested) { await pipe.WaitForConnectionAsync(stop.Token);

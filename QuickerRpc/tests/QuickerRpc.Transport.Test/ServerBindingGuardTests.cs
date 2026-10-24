@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Testing;
 using StreamJsonRpc;
 
 namespace QuickerRpc.Transport.Test;
@@ -28,7 +29,7 @@ public sealed class ServerBindingGuardTests
     private static async Task RunConnection(IQuickerRpcService inner, RecordingService fixture, bool legacy)
     {
         var name = "qkrpc-server-guard-" + Guid.NewGuid().ToString("N");
-        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var server = CurrentUserPipeFixture.Create(name, 1, PipeOptions.Asynchronous);
         using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var accepted = server.WaitForConnectionAsync(stop.Token);

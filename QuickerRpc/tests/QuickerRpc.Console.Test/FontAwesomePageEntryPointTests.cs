@@ -5,6 +5,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.Console.Mcp;
 using QuickerRpc.Console.Serve;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Testing;
 using QuickerRpc.Transport;
 using StreamJsonRpc;
 
@@ -222,8 +223,7 @@ public sealed class FontAwesomePageEntryPointTests
                 Host = new() { Kind = "v2", QuickerVersion = "fixture" }, Capabilities = new Dictionary<string, bool> { [QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead] = available } };
             Target = new(this); var pipe = NewPipe(); loop = Run(pipe);
         }
-        private NamedPipeServerStream NewPipe() => new(Info.Endpoint, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        private NamedPipeServerStream NewPipe() => CurrentUserPipeFixture.Create(Info.Endpoint);
         private async Task Run(NamedPipeServerStream pipe)
         {
             try

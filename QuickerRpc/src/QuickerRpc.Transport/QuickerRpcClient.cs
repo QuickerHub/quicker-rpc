@@ -152,23 +152,27 @@ public static class QuickerRpcClient
     internal static async Task<QuickerRpcClientSession> ConnectEndpointAsync(
         string endpoint, object? clientRpcTarget, CancellationToken cancellationToken)
     {
-#if NET472
-        var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut, PipeOptions.Asynchronous);
-#else
-        var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut,
-            PipeOptions.Asynchronous | (PipeOptions)0x20000000); // CurrentUserOnly, including netstandard clients.
+        // Windows validates the server's owner against Token.User below. CurrentUserOnly uses
+        // Token.Owner, which can be Administrators for an elevated client of the same user.
+        var options = PipeOptions.Asynchronous;
+#if !NET472
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            options |= (PipeOptions)0x20000000; // CurrentUserOnly, including netstandard clients.
 #endif
+        var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut,
+            options);
         QuickerRpcClientSession? session = null;
         try
         {
             await pipe.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
 #if NET472
-            using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
-            {
-                var owner = pipe.GetAccessControl().GetOwner(typeof(System.Security.Principal.SecurityIdentifier));
-                if (!Equals(owner, identity.User)) throw new UnauthorizedAccessException("The pipe owner is not the current user.");
-            }
+            QuickerRpcPipeClientSecurity.RequireCurrentUserOwner(pipe);
+#else
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                QuickerRpcPipeClientSecurity.RequireCurrentUserOwner(pipe);
 #endif
+            cancellationToken.ThrowIfCancellationRequested();
             var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe, clientRpcTarget);
             session = new QuickerRpcClientSession(pipe, jsonRpc, proxy);
             var info = await QuickerRpcHostSessionClient.TryGetAsync(proxy, cancellationToken).ConfigureAwait(false);
