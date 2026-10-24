@@ -39,8 +39,10 @@ internal static class ServeInvokeDispatcher
         }
         async Task<ServeInvokeResponse> FailureAsync(ServeInvokeResponse failure)
         {
-            requestAbort.ThrowIfCancellationRequested();
+            var preservesWriteReceipt = failure.Error == QuickerRpcBindingErrors.UnknownWriteResult;
+            if (!preservesWriteReceipt) requestAbort.ThrowIfCancellationRequested();
             await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
+            if (preservesWriteReceipt) return failure;
             requestAbort.ThrowIfCancellationRequested();
             return deadline.IsCancellationRequested ? TimedOut() : failure;
         }
@@ -115,7 +117,8 @@ internal static class ServeInvokeDispatcher
                     .ConfigureAwait(false),
             };
             response.HostBinding = pool.Binding ?? binding;
-            return Complete(response);
+            // An operation's receipt may describe persisted or unconfirmed writes even after cancellation.
+            return response;
         }
         catch (QuickerRpcClientException ex)
         {

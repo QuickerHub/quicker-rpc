@@ -108,6 +108,36 @@ public sealed class ServeInvokeDeadlineTests
     }
 
     [TestMethod]
+    public async Task An_expired_source_save_preserves_its_unconfirmed_write_receipt()
+    {
+        await using var host = new FakeBindingHost();
+        await using var pool = new QkrpcRpcSessionPool(20, false);
+        var directory = Path.Combine(Path.GetTempPath(), "qkrpc-deadline-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var opened = await ServeInvokeDispatcher.InvokeAsync(pool, "action.open",
+                JsonSerializer.SerializeToElement(new { id = Guid.NewGuid().ToString(), dir = directory }), 5, default, host.Binding);
+            Assert.IsTrue(opened.Ok, opened.Message);
+            host.AsyncApply = async token =>
+            {
+                await Task.Delay(Timeout.Infinite, token);
+                return new QuickerRpcApplyXActionResult();
+            };
+            var result = await ServeInvokeDispatcher.InvokeAsync(pool, "action.save",
+                JsonSerializer.SerializeToElement(new { dir = directory }), 1, default, host.Binding)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.AreEqual(QuickerRpcBindingErrors.UnknownWriteResult, result.Error);
+            Assert.AreEqual(1, host.Writes);
+        }
+        finally
+        {
+            Assert.IsTrue(Path.GetFullPath(directory).StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase));
+            Assert.IsTrue(Path.GetFileName(directory).StartsWith("qkrpc-deadline-", StringComparison.Ordinal));
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task Caller_cancellation_preserves_its_token_instead_of_becoming_an_RPC_timeout()
     {
         await using var pool = new QkrpcRpcSessionPool(20, false);
