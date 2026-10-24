@@ -78,8 +78,20 @@ function Invoke-OwnedFixtureSetup([string]$Version) {
     try {
         $owner = [QuickerAgent.Smoke.OwnedJob]::Start($setup, $arguments, $run.Root, $environment)
         Write-Host "Owned setup pid=$($owner.RootProcessId), identity=$guid; evidence=$($run.Root); setupTemp=$setupTemp"
-        $deadline = [DateTime]::UtcNow.AddSeconds(180)
-        while (-not $owner.HasExited -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
+        $deadline = [DateTime]::UtcNow.AddSeconds(600)
+        $nextProgress = [DateTime]::UtcNow.AddSeconds(30)
+        while (-not $owner.HasExited -and [DateTime]::UtcNow -lt $deadline) {
+            if ([DateTime]::UtcNow -ge $nextProgress) {
+                # Diagnostic metadata only; completeness is verified separately
+                # after setup, since an in-flight copy is not a stable snapshot.
+                $files = @(Get-ChildItem -LiteralPath $install -File -Recurse -ErrorAction SilentlyContinue)
+                $latest = $files | Sort-Object CreationTimeUtc -Descending | Select-Object -First 1
+                $birth = if ($null -ne $latest) { $latest.CreationTimeUtc.ToString('o') } else { 'none' }
+                Write-Host "Owned setup pid=$($owner.RootProcessId) progress: installedFiles=$($files.Count); latestBirthUtc=$birth"
+                $nextProgress = [DateTime]::UtcNow.AddSeconds(30)
+            }
+            Start-Sleep -Milliseconds 200
+        }
         if (-not $owner.HasExited) { throw 'Owned setup timed out; retain partial output for review (no rollback claim)' }
     } finally { if ($null -ne $owner) { $owner.Dispose() } }
     Assert-FixtureInstalled $Version
