@@ -68,7 +68,9 @@ function assertDeclaredEntry(name, directory, manifest, resolver, assertPath) {
 }
 
 /** Resolve package metadata and entry paths only; never evaluate package code. */
-export function findRuntimePackage(name, from, assertPath = () => {}) {
+export function findRuntimePackage(name, from, assertPath = () => {}, {
+  inspectCandidate = () => {}, inspectPackage = () => {},
+} = {}) {
   packageName(name);
   const context = canonical(from, assertPath);
   const resolver = createRequire(join(context, "package.json"));
@@ -76,6 +78,7 @@ export function findRuntimePackage(name, from, assertPath = () => {}) {
   // polyfill package with the same name (for example buffer or events).
   for (const base of resolver.resolve.paths(`${name}/package.json`) ?? []) {
     const candidate = join(base, name);
+    inspectCandidate(candidate);
     try { lstatSync(candidate); }
     catch (error) {
       if (error.code === "ENOENT" || error.code === "ENOTDIR") continue;
@@ -83,6 +86,7 @@ export function findRuntimePackage(name, from, assertPath = () => {}) {
     }
     const directory = canonical(candidate, assertPath);
     if (!statSync(directory).isDirectory()) throw invalid(`Runtime package is not a directory: ${directory}`);
+    inspectPackage(directory, name);
     const manifest = readManifest(directory, assertPath);
     assertDeclaredEntry(name, directory, manifest, resolver, assertPath);
     return directory;
@@ -102,6 +106,23 @@ function dependencyMap(manifest, field) {
     || Object.entries(value).some(([name, version]) => { packageName(name); return typeof version !== "string"; }))
     throw invalid(`Invalid runtime ${field} in ${manifest.name ?? "package"}`);
   return value;
+}
+
+/** The effective runtime edges, shared by staging and closure verification. */
+export function runtimeDependencyEntries(manifest) {
+  const required = dependencyMap(manifest, "dependencies");
+  const optionalDependencies = dependencyMap(manifest, "optionalDependencies");
+  const peers = dependencyMap(manifest, "peerDependencies");
+  const entries = [];
+  for (const name of Object.keys(required).sort())
+    if (!own(optionalDependencies, name)) entries.push({ name, kind: "dependency", optional: false });
+  for (const name of Object.keys(optionalDependencies).sort()) entries.push({ name, kind: "optional", optional: true });
+  for (const name of Object.keys(peers).sort()) {
+    if (own(required, name) || own(optionalDependencies, name)) continue;
+    const optional = manifest.peerDependenciesMeta?.[name]?.optional === true;
+    entries.push({ name, kind: optional ? "optionalPeer" : "peer", optional });
+  }
+  return entries;
 }
 
 /** Verify the staged production graph without importing providers or runtime code. */
@@ -129,17 +150,7 @@ export function verifyRuntimeDependencyGraph(root, runtimePackageRoots, addition
     if (hasDeclaredBareEntry(manifest)) importRequests.push({ specifier: name, from, allowNoExport: true });
     if (packages.has(target)) return;
     packages.set(target, { name: manifest.name ?? name, version: manifest.version ?? "", directory: target });
-    const required = dependencyMap(manifest, "dependencies");
-    const optionalDependencies = dependencyMap(manifest, "optionalDependencies");
-    const peers = dependencyMap(manifest, "peerDependencies");
-    for (const dependency of Object.keys(required).sort())
-      if (!own(optionalDependencies, dependency)) visit(dependency, target, "dependency");
-    for (const dependency of Object.keys(optionalDependencies).sort()) visit(dependency, target, "optional", true);
-    for (const dependency of Object.keys(peers).sort()) {
-      if (own(required, dependency) || own(optionalDependencies, dependency)) continue;
-      const optionalPeer = manifest.peerDependenciesMeta?.[dependency]?.optional === true;
-      visit(dependency, target, optionalPeer ? "optionalPeer" : "peer", optionalPeer);
-    }
+    for (const { name, kind, optional } of runtimeDependencyEntries(manifest)) visit(name, target, kind, optional);
   }
   for (const name of [...new Set(runtimePackageRoots)].sort()) visit(name, directory, "root");
   for (const entry of additionalRoots) {

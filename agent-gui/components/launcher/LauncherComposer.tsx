@@ -137,8 +137,13 @@ function LauncherComposer({
   }, [disabled, readComposerText, onSubmit, llmSelection]);
 
   useEffect(() => {
-    if (isDesktopShell()) return;
     const frame = requestAnimationFrame(() => {
+      // A cold desktop window can emit shown before this lazy component mounts.
+      if (isDesktopShell() && (
+        !document.hasFocus()
+        || document.visibilityState !== "visible"
+        || document.activeElement !== document.body && document.activeElement !== document.documentElement
+      )) return;
       composerRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);

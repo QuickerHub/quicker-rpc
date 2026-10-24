@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 // The popup projects native common outputs from the same mapped catalog before parameter editing.
 import "../steps/paramEditors/ensureErrorMessageOutputParam.test";
+import "../steps/paramEditors/stepEditorAdvancedSection.test";
 import { StepRunnerItem } from "../types/action_query";
 import { mapAgentSchemaToStepRunnerItem, mapSearchItemToStepRunnerItem } from "../api/stepRunnerSchemaMap";
 import { fetchToolboxModuleSearch } from "../steps/stepQuickInsertApi";

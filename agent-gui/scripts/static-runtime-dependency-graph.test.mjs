@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import fs, { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { findRuntimePackage, isRuntimePackageMissing, verifyRuntimeDependencyGraph } from "./static-runtime-dependency-graph.mjs";
+import { findRuntimePackage, isRuntimePackageMissing, runtimeDependencyEntries, verifyRuntimeDependencyGraph } from "./static-runtime-dependency-graph.mjs";
 
 const temporary = resolve(dirname(fileURLToPath(import.meta.url)), "../../.tmp");
 function fixture(t) {
@@ -23,6 +24,94 @@ function pkg(parent, name, options = {}) {
   file(join(path, "index.js"), "throw new Error('Provider code must never execute during metadata checks');\n");
   return path;
 }
+
+test("shared runtime edges preserve optional overrides, peers and deterministic kinds", () => {
+  assert.deepEqual(runtimeDependencyEntries({
+    dependencies: { z: "1", overlap: "1", a: "1" },
+    optionalDependencies: { overlap: "2", optional: "1" },
+    peerDependencies: { z: "2", overlap: "3", optional: "2", peer: "1", absentPeer: "1" },
+    peerDependenciesMeta: { absentPeer: { optional: true } },
+  }), [
+    { name: "a", kind: "dependency", optional: false },
+    { name: "z", kind: "dependency", optional: false },
+    { name: "optional", kind: "optional", optional: true },
+    { name: "overlap", kind: "optional", optional: true },
+    { name: "absentPeer", kind: "optionalPeer", optional: true },
+    { name: "peer", kind: "peer", optional: false },
+  ]);
+  assert.deepEqual(runtimeDependencyEntries({}), []);
+  assert.throws(() => runtimeDependencyEntries({ dependencies: { invalid: 7 } }), /Invalid runtime dependencies/);
+  assert.throws(() => runtimeDependencyEntries({ optionalDependencies: [] }), /Invalid runtime optionalDependencies/);
+  assert.throws(() => runtimeDependencyEntries({ peerDependencies: { "../invalid": "1" } }), /Invalid runtime package name/);
+});
+
+test("package inspection hooks run before canonical candidate checks and manifest reads", (t) => {
+  const root = fixture(t), source = pkg(root, "source");
+  const candidate = join(root, "node_modules/alias"), events = [];
+  symlinkSync(source, candidate, process.platform === "win32" ? "junction" : "dir");
+  const canonicalSource = realpathSync(source), canonicalManifest = join(canonicalSource, "package.json");
+  const resolved = findRuntimePackage("alias", root, (path) => events.push(["assertPath", path]), {
+    inspectCandidate: (path) => events.push(["candidate", path]),
+    inspectPackage: (path, name) => events.push(["package", path, name]),
+  });
+  assert.equal(resolved, canonicalSource);
+  const candidateIndex = events.findIndex(([kind]) => kind === "candidate");
+  const directoryIndex = events.findIndex(([kind, path]) => kind === "assertPath" && path === canonicalSource);
+  const packageIndex = events.findIndex(([kind]) => kind === "package");
+  const manifestIndex = events.findIndex(([kind, path]) => kind === "assertPath" && path === canonicalManifest);
+  assert.deepEqual(events[candidateIndex], ["candidate", candidate]);
+  assert.deepEqual(events[packageIndex], ["package", canonicalSource, "alias"]);
+  assert.ok(candidateIndex < directoryIndex && directoryIndex < packageIndex && packageIndex < manifestIndex);
+});
+
+for (const exists of [true, false]) test(`candidate metadata rejection precedes lstat through an unchecked ancestor link: ${exists ? "existing" : "missing"}`, (t) => {
+  const root = fixture(t), caller = join(root, "caller"), outside = join(root, "outside");
+  mkdirSync(caller); mkdirSync(outside);
+  const name = "fixture-candidate-order-7d701ef1";
+  if (exists) mkdirSync(join(outside, name));
+  symlinkSync(outside, join(caller, "node_modules"), process.platform === "win32" ? "junction" : "dir");
+  const candidate = join(caller, "node_modules", name), events = [];
+  const originalLstat = fs.lstatSync;
+  const mock = t.mock.method(fs, "lstatSync", (path, ...args) => {
+    if (path === candidate) events.push("lstat");
+    return originalLstat(path, ...args);
+  });
+  const rejection = new Error("fixture candidate metadata rejected");
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => findRuntimePackage(name, caller, () => {}, {
+      inspectCandidate(path) {
+        assert.equal(path, candidate, "even a missing descendant must be inspected before lookup continues");
+        events.push("metadata");
+        throw rejection;
+      },
+    }), (error) => error === rejection && !isRuntimePackageMissing(error));
+    assert.deepEqual(events, ["metadata"]);
+  } finally { mock.mock.restore(); syncBuiltinESMExports(); }
+});
+
+test("inspection rejections precede broken JSON and broken entry resolution and are never missing", (t) => {
+  const root = fixture(t), broken = pkg(root, "broken", { main: "missing-entry.js" });
+  file(join(broken, "package.json"), "not JSON; inspection must reject first");
+  const rejection = new Error("fixture package tree rejected");
+  let packageInspected = false;
+  assert.throws(() => findRuntimePackage("broken", root, () => {}, {
+    inspectCandidate: () => { throw rejection; },
+    inspectPackage: () => { packageInspected = true; },
+  }), (error) => error === rejection && !isRuntimePackageMissing(error));
+  assert.equal(packageInspected, false);
+  assert.throws(() => findRuntimePackage("broken", root, () => {}, { inspectPackage: () => { throw rejection; } }), (error) => error === rejection);
+  file(join(broken, "package.json"), JSON.stringify({ name: "broken", exports: "./missing-entry.js" }));
+  assert.throws(() => findRuntimePackage("broken", root, () => {}, { inspectPackage: () => { throw rejection; } }), (error) => error === rejection);
+  const missingCandidates = [];
+  let missingPackageInspected = false;
+  assert.throws(() => findRuntimePackage("fixture-missing-hook-7d701ef1", root, () => {}, {
+    inspectCandidate: (path) => { missingCandidates.push(path); },
+    inspectPackage: () => { missingPackageInspected = true; },
+  }), isRuntimePackageMissing);
+  assert.equal(missingCandidates[0], join(root, "node_modules/fixture-missing-hook-7d701ef1"));
+  assert.equal(missingPackageInspected, false);
+});
 
 test("metadata graph preserves nested versions, required peers and ordinary dependency cycles without executing providers", (t) => {
   const root = fixture(t);
