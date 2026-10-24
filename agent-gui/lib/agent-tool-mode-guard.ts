@@ -22,19 +22,67 @@ const ASK_UNAVAILABLE_REMOTE_TOOL_IDS = new Set([
 const ASK_PROGRAM_GET_TOOL_IDS = new Set(["qkrpc_action_get", "qkrpc_subprogram_get"]);
 export type ReadOnlyToolExecutors = Readonly<Record<string, NonNullable<Tool["execute"]> | undefined>>;
 
+export type ToolModeDecision = { allowed: true } | { allowed: false; reason: string };
+const ALLOWED: ToolModeDecision = Object.freeze({ allowed: true });
+
+function askReadActions(toolId: string): ReadonlySet<string> | undefined {
+  return Object.hasOwn(ASK_READ_ACTIONS, toolId) ? ASK_READ_ACTIONS[toolId] : undefined;
+}
+
+/** Intrinsic mode constraints only; final tool composition still owns membership and parent restrictions. */
+export function getToolModeAvailability(toolId: string, mode: ChatMode, readOnlyExecutorAvailable = false): ToolModeDecision {
+  if (mode !== "ask") return ALLOWED;
+  if (ASK_UNAVAILABLE_REMOTE_TOOL_IDS.has(toolId)) return {
+    allowed: false,
+    reason: `Ask mode cannot use ${toolId}: its current adapter may start Quicker or serve. A non-bootstrapping read port is required.`,
+  };
+  if (ASK_PROGRAM_GET_TOOL_IDS.has(toolId) && !readOnlyExecutorAvailable) return {
+    allowed: false, reason: `Ask mode requires a read-only execution port for ${toolId}; workspace export is unavailable.`,
+  };
+  if (toolId === "workspace_program" && !readOnlyExecutorAvailable) return {
+    allowed: false, reason: "Ask workspace reads require an explicit local-only execution port; automatic project export and repair are unavailable.",
+  };
+  if (askReadActions(toolId)?.size === 0) return {
+    allowed: false,
+    reason: toolId === "browser"
+      ? "Browser is unavailable in Ask mode because the current adapter may start a runtime or create a session. Use Agent mode for browser actions."
+      : `Ask mode only permits read operations for ${toolId}. Switch to Agent mode to make changes.`,
+  };
+  return ALLOWED;
+}
+
+/** Plan and execution use the same operation boundary, including explicit read-port availability. */
+export function getToolModeOperationDecision(toolId: string, mode: ChatMode, input: unknown, readOnlyExecutorAvailable = false): ToolModeDecision {
+  const availability = getToolModeAvailability(toolId, mode, readOnlyExecutorAvailable);
+  if (!availability.allowed || mode !== "ask") return availability;
+  const allowedActions = askReadActions(toolId);
+  if (!allowedActions) return ALLOWED;
+  const action = input && typeof input === "object" ? (input as Record<string, unknown>).action : undefined;
+  if (typeof action === "string" && allowedActions.has(action)) return ALLOWED;
+  return {
+    allowed: false,
+    reason: toolId === "workspace_program" && action === "diagnostics"
+      ? "Diagnostics are unavailable in Ask mode because the current adapter may start Quicker. Local program and file reads remain available."
+      : `Ask mode only permits read operations for ${toolId}. Switch to Agent mode to make changes.`,
+  };
+}
+
 /** Enforce the operation boundary of mixed read/write tools independently of the model. */
 export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode, readOnlyExecutors: ReadOnlyToolExecutors = {}): T {
   if (mode !== "ask") return tools;
   const guarded = { ...tools };
   for (const [toolId, definition] of Object.entries(tools)) {
-    const allowedActions = ASK_READ_ACTIONS[toolId];
+    const allowedActions = askReadActions(toolId);
     const toolDefinition = definition as Tool;
-    if (ASK_UNAVAILABLE_REMOTE_TOOL_IDS.has(toolId)) {
+    const hasReadOnlyExecutor = typeof readOnlyExecutors[toolId] === "function";
+    const availability = getToolModeAvailability(toolId, mode, hasReadOnlyExecutor);
+    if (!availability.allowed) {
       (guarded as ToolSet)[toolId] = {
         ...toolDefinition,
-        execute: () => formatLocalToolResult(
-          { errorCode: "tool_mode_denied", toolId, mode }, false,
-          `Ask mode cannot use ${toolId}: its current adapter may start Quicker or serve. A non-bootstrapping read port is required.`,
+        execute: (input) => formatLocalToolResult(
+          { errorCode: "tool_mode_denied", toolId, mode, ...(allowedActions ? {
+            action: input && typeof input === "object" ? (input as Record<string, unknown>).action ?? null : null,
+          } : {}) }, false, availability.reason,
           { retryable: false },
         ),
       } as Tool;
@@ -43,20 +91,7 @@ export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode,
     if (ASK_PROGRAM_GET_TOOL_IDS.has(toolId)) {
       (guarded as ToolSet)[toolId] = {
         ...toolDefinition,
-        execute: readOnlyExecutors[toolId] ?? (() => formatLocalToolResult(
-          { errorCode: "tool_mode_denied", toolId, mode }, false,
-          `Ask mode requires a read-only execution port for ${toolId}; workspace export is unavailable.`,
-          { retryable: false },
-        )),
-      } as Tool;
-      continue;
-    }
-    if (toolId === "workspace_program" && !readOnlyExecutors[toolId]) {
-      (guarded as ToolSet)[toolId] = {
-        ...toolDefinition,
-        execute: () => formatLocalToolResult({ errorCode: "tool_mode_denied", toolId, mode }, false,
-          "Ask workspace reads require an explicit local-only execution port; automatic project export and repair are unavailable.",
-          { retryable: false }),
+        execute: readOnlyExecutors[toolId],
       } as Tool;
       continue;
     }
@@ -68,18 +103,12 @@ export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode,
         const action = input && typeof input === "object"
           ? (input as Record<string, unknown>).action
           : undefined;
-        if (
-          typeof action !== "string"
-          || !allowedActions.has(action)
-        ) {
+        const decision = getToolModeOperationDecision(toolId, mode, input, hasReadOnlyExecutor);
+        if (!decision.allowed) {
           return formatLocalToolResult(
             { errorCode: "tool_mode_denied", toolId, mode, action: action ?? null },
             false,
-            toolId === "browser"
-              ? "Browser is unavailable in Ask mode because the current adapter may start a runtime or create a session. Use Agent mode for browser actions."
-              : toolId === "workspace_program" && action === "diagnostics"
-                ? "Diagnostics are unavailable in Ask mode because the current adapter may start Quicker. Local program and file reads remain available."
-              : `Ask mode only permits read operations for ${toolId}. Switch to Agent mode to make changes.`,
+            decision.reason,
             { retryable: false },
           );
         }

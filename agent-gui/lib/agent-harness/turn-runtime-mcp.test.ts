@@ -6,8 +6,13 @@ import vm from "node:vm";
 import { build } from "esbuild";
 import type { ChatMode } from "@/lib/chat-mode";
 import type { PreparedAgentTurnRuntime } from "./turn-runtime.server";
+import type { AgentUIMessage } from "@/lib/chat-types";
+import type { ToolExecutionOptions } from "ai";
+import { formatLocalToolResult, isStructuredToolResult } from "@/lib/tool-result";
 
-type Probe = { loads: number; connections: number; disposals: number };
+type Probe = { loads: number; connections: number; disposals: number;
+  plans: Array<{ enabledToolIds: readonly string[]; readOnlyExecutorToolIds?: readonly string[] }>;
+  baseCalls: unknown[]; readCalls: unknown[] };
 type Prepare = typeof import("./turn-runtime.server").prepareAgentTurnRuntime;
 let compiled = "";
 
@@ -20,8 +25,12 @@ const resourcePorts: Record<string, string> = {
     import { selectChatToolsFromRegistry } from '@/lib/chat-tool-selection';
     const definition = { inputSchema: {}, execute: async () => 'fixture' };
     const tools = Object.fromEntries(['Read','Write','list_tools','skill_load','set_thread_title'].map(id=>[id,definition]));
+    tools.workspace_program={inputSchema:{},execute:async input=>{probe.baseCalls.push(input);return {ok:true,exitCode:0,source:'local',data:input}}};
     export const selectChatTools = params => selectChatToolsFromRegistry(tools, params);
     export const createChatSystemBuilder = async () => () => 'fixture system';`,
+  "@/lib/agent-core/turn-plan": `
+    import { resolveTurnPlan as actualResolveTurnPlan } from './lib/agent-core/turn-plan.ts';
+    export const resolveTurnPlan = params => {probe.plans.push(params);return actualResolveTurnPlan(params);};`,
   "@/lib/context-compaction-reinject.server": "export const buildPostCompactReinjectBlock=()=>'';",
   "@/lib/designer-context.server": "export const fetchDesignerContextSnapshot=async()=>{throw Error('No host in fixture')};",
   "@/lib/designer-embed-layout": "export const resolveDesignerWindowContext=()=>undefined;",
@@ -39,7 +48,7 @@ const resourcePorts: Record<string, string> = {
   "@/lib/task-tool.server": "export const TASK_TOOL='task';export const createTaskToolForParent=()=>{throw Error('No child loop in fixture')};",
   "@/lib/qkrpc-action-tool.server": "export const executeQkrpcActionGetReadOnly=()=>{throw Error('No host in fixture')};",
   "@/lib/qkrpc-subprogram-tool.server": "export const executeQkrpcSubprogramGetReadOnly=()=>{throw Error('No host in fixture')};",
-  "@/lib/workspace-program-tool.server": "export const executeWorkspaceProgramReadOnly=()=>{throw Error('No workspace IO in fixture')};",
+  "@/lib/workspace-program-tool.server": "export const executeWorkspaceProgramReadOnly=input=>{probe.readCalls.push(input);return {ok:true,exitCode:0,source:'local',data:input}};",
 };
 
 before(async () => {
@@ -64,7 +73,7 @@ before(async () => {
 });
 
 function fixture() {
-  const probe: Probe = { loads: 0, connections: 0, disposals: 0 };
+  const probe: Probe = { loads: 0, connections: 0, disposals: 0, plans: [], baseCalls: [], readCalls: [] };
   const module = { exports: {} as { prepareAgentTurnRuntime: Prepare } };
   vm.runInNewContext(compiled, {
     module, exports: module.exports, probe, require: createRequire(import.meta.url),
@@ -72,12 +81,13 @@ function fixture() {
   });
   const prepare = (options: {
     mode?: ChatMode; allowlist?: string[]; titleTest?: boolean; benchMode?: boolean; abortSignal?: AbortSignal;
+    enabledToolIds?: string[]; messages?: AgentUIMessage[];
   } = {}): Promise<PreparedAgentTurnRuntime> => {
     const request = {
-      chatMode: options.mode ?? "agent", enabledToolIds: ["Read"],
+      chatMode: options.mode ?? "agent", enabledToolIds: options.enabledToolIds ?? ["Read"],
       titleTest: options.titleTest ?? false, benchMode: options.benchMode ?? false,
       slashCommand: { overrides: { toolAllowlist: options.allowlist } }, body: {},
-      messagesForModel: [], repairedMessages: [], lastUserText: "hello", cwd: "fixture-only",
+      messagesForModel: [], repairedMessages: options.messages ?? [], lastUserText: "hello", cwd: "fixture-only",
     };
     return module.exports.prepareAgentTurnRuntime({
       request, scope: { actionScope: { pinnedLatestAll: [] } },
@@ -133,4 +143,45 @@ test("a cancelled turn stops before connection and another turn remains independ
   assert.equal(other.probe.connections, 1);
   await runtime.dispose();
   assert.equal(other.probe.disposals, 1);
+});
+
+test("the runtime resolves one recovery plan from its final command set and real read-only port composition", async () => {
+  for (const row of [
+    { mode: "agent", action: "diagnostics", allowlist: [] as string[], allowed: false },
+    { mode: "ask", action: "diagnostics", allowlist: ["workspace_program"], allowed: false },
+    { mode: "ask", action: "read_data", allowlist: ["workspace_program"], allowed: true },
+    { mode: "agent", action: "diagnostics", allowlist: ["workspace_program"], allowed: true },
+  ] as const) {
+    const run = fixture();
+    const messages = [{ id: "recovery", role: "assistant", parts: [{
+      type: "tool-workspace_program", toolCallId: "prior-write", state: "output-available", input: { action: "patch" },
+      output: formatLocalToolResult({ action: "program-patch" }, true, undefined, { nextActions: [{
+        tool: "workspace_program", reason: "Verification remains required.", priority: "required", input: { action: row.action },
+      }] }),
+    }] }] as AgentUIMessage[];
+    const runtime = await run.prepare({ mode: row.mode, enabledToolIds: ["workspace_program"], allowlist: [...row.allowlist], messages });
+    try {
+      const plan = runtime.runtimeSnapshot.turnPlan;
+      assert.equal(run.probe.plans.length, 1, "the production composition resolves one plan");
+      assert.deepEqual(Array.from(run.probe.plans[0].enabledToolIds), Object.keys(runtime.tools));
+      assert.ok(run.probe.plans[0].readOnlyExecutorToolIds?.includes("workspace_program"));
+      assert.equal(runtime.runtimeSnapshot.recoveryDecision, plan.recoveryDecision);
+      assert.ok(plan.requiredToolIds.includes("workspace_program"));
+      if (row.allowed) {
+        assert.equal(plan.nextAction?.input?.action, row.action);
+        assert.equal(plan.blockedNextAction, undefined);
+      } else {
+        assert.equal(plan.nextAction, undefined);
+        assert.equal(plan.blockedNextAction?.action.input?.action, row.action);
+        assert.equal(plan.recoveryDecision.kind, "ask_user");
+      }
+      const execute = runtime.tools.workspace_program?.execute;
+      if (execute) {
+        const result = await execute({ action: row.action }, { toolCallId: "new-operation", messages: [] } as ToolExecutionOptions);
+        assert.ok(isStructuredToolResult(result)); assert.equal(result.ok, row.allowed);
+      }
+      assert.equal(run.probe.baseCalls.length, row.allowed && row.mode === "agent" ? 1 : 0);
+      assert.equal(run.probe.readCalls.length, row.allowed && row.mode === "ask" ? 1 : 0);
+    } finally { await runtime.dispose(); }
+  }
 });

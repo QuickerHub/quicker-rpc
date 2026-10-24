@@ -18,6 +18,7 @@ import {
   type ToolBundleId,
 } from "@/lib/tool-bundles";
 import type { ToolNextAction } from "@/lib/tool-result";
+import { getToolModeAvailability, getToolModeOperationDecision } from "@/lib/agent-tool-mode-guard";
 
 export type AgentIntent =
   | "conversation"
@@ -67,6 +68,7 @@ export type TurnPlan = {
   slimToolIds: string[];
   blockedToolIds: string[];
   nextAction?: ToolNextAction;
+  blockedNextAction?: { action: ToolNextAction; reason: string };
   recoveryDecision: AgentRecoveryDecision;
   verificationPolicy: VerificationPolicy;
   systemHints: string[];
@@ -80,6 +82,8 @@ export type ResolveTurnPlanParams = {
   messages: AgentUIMessage[];
   userText: string;
   actionDesigner?: { entityId: string; isSubProgram?: boolean };
+  /** Callable read-only ports from the same final composition used by the execution guard. */
+  readOnlyExecutorToolIds?: readonly string[];
 };
 
 function mapIntent(intent: AgentTurnState["intent"]): AgentIntent {
@@ -149,23 +153,8 @@ function targetsFromParams(params: ResolveTurnPlanParams): TargetRef[] {
   return targets;
 }
 
-function blockedToolsForMode(mode: ChatMode, enabledToolIds: readonly string[]): string[] {
-  if (mode !== CHAT_MODE_ASK) return [];
-  return enabledToolIds.filter((id) =>
-    id === "Shell"
-    || id === "Write"
-    || id === "StrReplace"
-    || id === "workspace_program"
-    || id === "qkrpc_action_open"
-    || id === "qkrpc_action_save"
-    || id.includes("_run")
-    || id.includes("_debug")
-    || id.includes("_delete")
-    || id.includes("_create")
-    || id.includes("_publish")
-    || id.includes("_set_")
-    || id.includes("_move")
-  );
+function blockedToolsForMode(mode: ChatMode, enabledToolIds: readonly string[], readOnlyToolIds: ReadonlySet<string>): string[] {
+  return enabledToolIds.filter((id) => !getToolModeAvailability(id, mode, readOnlyToolIds.has(id)).allowed);
 }
 
 function verificationPolicyFor(params: {
@@ -214,9 +203,35 @@ export function resolveTurnPlan(params: ResolveTurnPlanParams): TurnPlan {
   const activeToolBundles = resolveActiveToolBundles(bundleParams);
   const fullSchemaToolIds = [...resolveFullSchemaToolIds(bundleParams)];
   const recentToolFeedback = collectRecentToolFeedback(params.messages);
-  const recoveryDecision = chooseRecoveryDecision(recentToolFeedback);
-  const nextAction =
-    recoveryDecision.kind === "next_action" ? recoveryDecision.action : undefined;
+  const proposedRecovery = chooseRecoveryDecision(recentToolFeedback);
+  const candidate = proposedRecovery.kind === "next_action" ? proposedRecovery.action : undefined;
+  const enabled = new Set(params.enabledToolIds);
+  const readOnlyToolIds = new Set(params.readOnlyExecutorToolIds ?? []);
+  const requiredToolIds = requiredToolsFor({ nextAction: candidate, recommendedToolIds: turnState.recommendedToolIds });
+  let blockedNextAction: TurnPlan["blockedNextAction"];
+  if (candidate) {
+    const decision = getToolModeOperationDecision(candidate.tool, params.chatMode, candidate.input, readOnlyToolIds.has(candidate.tool));
+    const reason = !enabled.has(candidate.tool)
+      ? `Tool ${candidate.tool} is unavailable in this turn's final tool set. Enable the required capability or ask the user to handle the step.`
+      : !decision.allowed ? decision.reason : undefined;
+    if (reason) blockedNextAction = { action: candidate, reason };
+  }
+  const nextAction = blockedNextAction ? undefined : candidate;
+  let recoveryDecision: AgentRecoveryDecision = proposedRecovery;
+  if (blockedNextAction && proposedRecovery.kind === "next_action") {
+    const action = blockedNextAction.action;
+    recoveryDecision = {
+      kind: "ask_user",
+      sourceTool: proposedRecovery.sourceTool,
+      reason: [
+        `${action.priority === "required" ? "Required operation" : "Suggested operation"} ${action.tool} remains incomplete.`,
+        blockedNextAction.reason,
+        params.chatMode === CHAT_MODE_ASK
+          ? "Switch to Agent if execution is intended, or ask the user to handle it."
+          : "Ask the user how to provide the missing capability or complete this step.",
+      ].join(" "),
+    };
+  }
   const verificationPolicy = verificationPolicyFor({
     mode: params.chatMode,
     intent,
@@ -235,17 +250,19 @@ export function resolveTurnPlan(params: ResolveTurnPlanParams): TurnPlan {
     capabilityBundles: capabilityBundlesFor(intent, activeToolBundles),
     activeToolBundles,
     skillHints: [],
-    requiredToolIds: requiredToolsFor({
-      nextAction,
-      recommendedToolIds: turnState.recommendedToolIds,
-    }),
+    requiredToolIds,
     fullSchemaToolIds,
     slimToolIds: params.enabledToolIds.filter((id) => !fullSchemaToolIds.includes(id)),
-    blockedToolIds: blockedToolsForMode(params.chatMode, params.enabledToolIds),
+    blockedToolIds: [...new Set([
+      ...blockedToolsForMode(params.chatMode, params.enabledToolIds, readOnlyToolIds),
+      ...requiredToolIds.filter((id) => !enabled.has(id)),
+    ])],
     nextAction,
+    ...(blockedNextAction ? { blockedNextAction } : {}),
     recoveryDecision,
     verificationPolicy,
-    systemHints: turnState.verificationHints,
+    systemHints: blockedNextAction && recoveryDecision.kind === "ask_user"
+      ? [...turnState.verificationHints, recoveryDecision.reason] : turnState.verificationHints,
     turnState,
   };
 }
