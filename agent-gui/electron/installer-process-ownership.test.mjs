@@ -27,6 +27,8 @@ test("the final-directory CHECK_APP_RUNNING hook overrides builder's image-wide 
   assert.match(check, /!macro CHECK_APP_RUNNING[^]*?!ifmacrodef customCheckAppRunning[^]*?!insertmacro customCheckAppRunning/);
   assert.match(check, /!macro _CHECK_APP_RUNNING[^]*?taskkill \/im/i,
     "removing only the customInit kill would leave a second global-kill path active");
+  assert.match(macro("QA_RunOwnership") ?? "", /!ifndef QA_VERIFIED_OVERLAY_BUILD[^]*?!error/,
+    "raw builder invocations cannot bypass the safe overlay generation path");
 });
 
 test("the supported hook sees final INSTDIR before legacy uninstall or file extraction", () => {

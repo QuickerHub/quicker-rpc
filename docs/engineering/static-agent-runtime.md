@@ -90,7 +90,7 @@ pnpm test:static-runtime
 pnpm check:action-designer
 pnpm electron:check
 pnpm electron:prepare:static
-pnpm exec electron-builder --win nsis --publish never -c.directories.output=../.tmp/static-electron-dist
+node scripts/build-electron-installer.mjs --win nsis --publish never --config.directories.output=../.tmp/static-electron-dist
 pwsh -File scripts/Test-QuickerAgentElectronSmoke.ps1 -Action full -DistDir ../.tmp/static-electron-dist
 ```
 
@@ -106,6 +106,16 @@ Int64/高精度字段保真、过期 baseline 返回 409 且不覆盖文件；�
 打包 smoke 使用原 Windows Job Object 隔离协议，所有 RPC 都被本轮 guard 拒绝。
 它验证打包产物与所属进程的启动，不能代替 NSIS 安装/升级、真实旧用户资料升级、
 V1/V2 专用动作写回或完整新版 Designer 与 Agent 协同。
+
+NSIS 两条正式打包入口共用固定版本模板适配与 .NET Framework 4.7.2 ownership helper。
+构建必须经过上述入口；原始 builder 调用缺少适配标记时拒绝生成安装器。最终安装目录、
+产品注册身份与程序路径先于关闭请求核验；只有精确根程序接收有界 WM_CLOSE，其它程序
+仅作为阻塞项观察。同目录已识别产品采用 overlay，保留用户资料，不执行旧卸载器；
+目录迁移、身份不明、case-sensitive/重定向/云端占位路径或仍运行的程序明确拒绝。
+包与现有目标共用程序资源分类，用户 local/plugins/cache 目录不进入覆盖或递归检查。
+Overlay 会保留过时程序文件，部分复制失败也不具有事务回滚语义。
+本片的仅读模板、纯策略与专属隐藏窗口验证后，仍需隔离安装/升级和真实旧资料验收。
+
 浏览器单次调用现已把 turn abortSignal 传到独立 request owner 与按 session 串行的原生
 操作尾部，实际自建 Edge/HTTP 取消、排队、迟到结果及原 context/ref 复用另有验证；
 Electron 原生与用户浏览器继续独立验收，不能用服务退出代替。以上门槛完成前，保留

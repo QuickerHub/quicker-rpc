@@ -123,7 +123,7 @@ try {
     Write-Host 'electron-builder (NSIS installer + latest.yml)...' -ForegroundColor Cyan
     $env:ELECTRON_BUILDER_OUTPUT_DIR = $distDir
     $electronOutputArg = "--config.directories.output=$distDir"
-    pnpm exec electron-builder --win nsis $electronOutputArg
+    node scripts/build-electron-installer.mjs --win nsis $electronOutputArg
     if ($LASTEXITCODE -ne 0) { throw "electron-builder failed ($LASTEXITCODE)" }
 
     node scripts/verify-electron-asar.mjs

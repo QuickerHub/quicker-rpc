@@ -41,8 +41,8 @@ test("adapter delegates both original final-script passes without bypassing sign
   const original = Target.prototype.computeFinalScript, adapter = installPinnedNsisOverlayAdapter(Target, input), target = new Target();
   for (const isInstaller of [false, true]) {
     const output = await target.computeFinalScript(input.mainTemplate, isInstaller, ["x64"]);
-    assert.match(output, /^; original license and generated macros/);
-    assert.match(output, /!include "C:\/fixture-only\/overlay\/installSection.nsh"/);
+    assert.match(output, /^!define QA_VERIFIED_OVERLAY_BUILD "25.1.8-v1"\n; original license and generated macros/);
+    assert.ok(output.includes('!include "C:\\fixture-only\\overlay\\installSection.nsh"'));
     assert.doesNotMatch(output, /!include "installSection.nsh"/);
   }
   assert.deepEqual(calls.map(([, pass, archs]) => [pass, archs]), [[false, ["x64"]], [true, ["x64"]]]);
