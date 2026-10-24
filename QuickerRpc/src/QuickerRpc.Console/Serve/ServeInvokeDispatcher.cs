@@ -52,6 +52,8 @@ internal static class ServeInvokeDispatcher
             deadline.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
             cancellationToken = deadline.Token;
             cancellationToken.ThrowIfCancellationRequested();
+            if (normalized == "resource.catalog.page" && !ResourceCatalogServeOps.TryPrepare(args, out _, out _, out var invalidCatalog))
+                return Complete(invalidCatalog!);
             if (normalized == "action.binding")
             {
                 var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty);
@@ -143,6 +145,8 @@ internal static class ServeInvokeDispatcher
         JsonElement args,
         CancellationToken cancellationToken)
     {
+        if (op == "resource.catalog.page")
+            return await ResourceCatalogServeOps.PageAsync(pool, args, cancellationToken).ConfigureAwait(false);
         var rpc = await pool.GetRpcAsync(cancellationToken,
             op == "action.open" ? new[] { QuickerRpcHostCapabilityNames.ActionSourceRead } : null).ConfigureAwait(false);
         var token = cancellationToken;

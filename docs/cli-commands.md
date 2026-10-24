@@ -49,6 +49,24 @@ HTTP `timeoutSeconds` 是单次 invoke 的共同处理预算，包含宿主发�
 原取消信号。已开始写入的明确收据或 `WRITE_RESULT_UNKNOWN` 继续保留，超时不证明没有
 写入，也不撤销原生副作用。错误清理不等待另一个请求正在建立的连接。
 
+## 完整运行目录分页
+
+`action catalog-page` 与 `subprogram catalog-page` 读取当前宿主已加载资源的原始摘要，
+独立于受限搜索；不包含未保存设计器草稿或未加载数据库行。当前只为已审计 V1 构建开放，
+未知 V1 和 V2 明确不支持。默认每页 500 项，返回 `totalCount`、`hasMore` 与
+`snapshotId`，`editVersion` 始终为字符串。自动化读取应加 `--no-bootstrap`。
+
+```powershell
+qkrpc action catalog-page --host-binding '<完整绑定 JSON>' --take 500 --no-bootstrap --json
+qkrpc action catalog-page --host-binding '<同一完整绑定 JSON>' --skip 500 --take 500 --snapshot-id '<首屏 snapshotId>' --no-bootstrap --json
+qkrpc subprogram catalog-page --host-binding '<完整绑定 JSON>' --no-bootstrap --json
+```
+
+HTTP 使用 `resource.catalog.page`，参数 `kind` 为 `action` 或 `global_subprogram`，
+另带 `scope: runtimeCatalog`、`query`、`skip`、`take` 和 `expectedSnapshotId`。
+非首屏必须提供快照；收到 `CATALOG_CHANGED` 后重新读取首屏。忙、退出、枚举失败和
+能力未开放均返回失败，不能按成功空目录处理。目录读取本身不建索引、不加载正文、不写账号数据。
+
 ## 本地编写工作流
 
 Coding Agent 优先使用 MCP 的同名能力；CLI 示例用于人工诊断和脚本：
