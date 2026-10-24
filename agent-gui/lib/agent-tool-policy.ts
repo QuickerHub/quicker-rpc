@@ -73,15 +73,47 @@ function limitResult(params: {
 }
 
 /**
- * Apply deterministic, per-turn limits at the execution boundary.
- * The returned closure owns its counters, so a new wrapper must be created per turn.
+ * One gate belongs to one turn. Client command ledgers must check duplicate
+ * operation IDs before consuming it, so returning a receipt is not a new call.
  */
+export function createToolCallPolicyGate(
+  overrides: Record<string, Partial<ToolCallPolicy> | undefined> = {},
+) {
+  const totalCalls = new Map<string, number>();
+  const identicalCalls = new Map<string, number>();
+  const policies = new Map<string, ToolCallPolicy>();
+  const capturedOverrides = new Map(Object.entries(overrides).map(([id, policy]) => [id, policy ? { ...policy } : undefined]));
+  return {
+    consume(toolId: string, input: unknown) {
+      let policy = policies.get(toolId);
+      if (!policy) {
+        policy = resolveToolCallPolicy(toolId, capturedOverrides.get(toolId));
+        policies.set(toolId, policy);
+      }
+      const total = (totalCalls.get(toolId) ?? 0) + 1;
+      totalCalls.set(toolId, total);
+      if (total > policy.maxCallsPerTurn) {
+        return limitResult({ toolId, kind: "total", limit: policy.maxCallsPerTurn });
+      }
+      const fingerprint = `${toolId}:${stableJson(input)}`;
+      const identical = (identicalCalls.get(fingerprint) ?? 0) + 1;
+      identicalCalls.set(fingerprint, identical);
+      if (identical > policy.maxIdenticalCallsPerTurn) {
+        return limitResult({ toolId, kind: "identical", limit: policy.maxIdenticalCallsPerTurn });
+      }
+      return undefined;
+    },
+  };
+}
+
+export type ToolCallPolicyGate = ReturnType<typeof createToolCallPolicyGate>;
+
+/** Apply the same gate at the server execution boundary, without wrapping client-only definitions. */
 export function applyToolCallPolicies<T extends ToolSet>(
   tools: T,
   overrides: Record<string, Partial<ToolCallPolicy> | undefined> = {},
 ): T {
-  const totalCalls = new Map<string, number>();
-  const identicalCalls = new Map<string, number>();
+  const gate = createToolCallPolicyGate(overrides);
   const wrapped = {} as T;
 
   for (const [toolId, definition] of Object.entries(tools)) {
@@ -92,31 +124,11 @@ export function applyToolCallPolicies<T extends ToolSet>(
     }
 
     const execute = toolDefinition.execute;
-    const policy = resolveToolCallPolicy(toolId, overrides[toolId]);
     (wrapped as ToolSet)[toolId] = {
       ...toolDefinition,
       execute: async (input, options) => {
-        const total = (totalCalls.get(toolId) ?? 0) + 1;
-        totalCalls.set(toolId, total);
-        if (total > policy.maxCallsPerTurn) {
-          return limitResult({
-            toolId,
-            kind: "total",
-            limit: policy.maxCallsPerTurn,
-          });
-        }
-
-        const fingerprint = `${toolId}:${stableJson(input)}`;
-        const identical = (identicalCalls.get(fingerprint) ?? 0) + 1;
-        identicalCalls.set(fingerprint, identical);
-        if (identical > policy.maxIdenticalCallsPerTurn) {
-          return limitResult({
-            toolId,
-            kind: "identical",
-            limit: policy.maxIdenticalCallsPerTurn,
-          });
-        }
-
+        const rejected = gate.consume(toolId, input);
+        if (rejected) return rejected;
         return execute(input, options);
       },
     } as Tool;
