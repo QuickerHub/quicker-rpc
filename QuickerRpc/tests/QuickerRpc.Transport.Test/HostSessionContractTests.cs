@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Testing;
 using StreamJsonRpc;
 
 namespace QuickerRpc.Transport.Test;
@@ -98,7 +99,7 @@ public sealed class HostSessionContractTests
         public static async Task<ContractSession> ConnectAsync(object target)
         {
             var name = "qkrpc-host-session-fixture-" + Guid.NewGuid().ToString("N");
-            var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            var server = CurrentUserPipeFixture.Create(name, 1, PipeOptions.Asynchronous);
             var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
             try
             {

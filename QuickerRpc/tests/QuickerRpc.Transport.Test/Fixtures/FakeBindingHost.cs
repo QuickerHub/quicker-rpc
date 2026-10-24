@@ -64,11 +64,7 @@ public sealed class FakeBindingHost : IAsyncDisposable
     public QuickerRpcHostBinding Binding => new(Info.HostInstanceId, Info.HostSessionId, Endpoint, 1, 1,
         Info.Host.Kind, Info.Host.QuickerVersion, new Dictionary<string, bool>(Info.Capabilities));
 
-    private NamedPipeServerStream NewPipe() => OperatingSystem.IsWindows()
-        ? NamedPipeServerStreamAcl.Create(Endpoint, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, QuickerRpcPipeSecurity.CreateForCrossElevationPeers())
-        : new(Endpoint, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+    private NamedPipeServerStream NewPipe() => CurrentUserPipeFixture.Create(Endpoint);
 
     private async Task RunAsync()
     {

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Testing;
 using StreamJsonRpc;
 
 namespace QuickerRpc.Transport.Test;
@@ -80,7 +81,7 @@ public sealed class FontAwesomePageContractTests
         public static async Task<Fixture> ConnectAsync(bool supported, string icon)
         {
             var session = Guid.NewGuid().ToString("N"); var endpoint = QuickerRpcEndpointNames.ForSession(session);
-            var server = new NamedPipeServerStream(endpoint, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            var server = CurrentUserPipeFixture.Create(endpoint, 1, PipeOptions.Asynchronous);
             var client = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut, PipeOptions.Asynchronous);
             try
             {

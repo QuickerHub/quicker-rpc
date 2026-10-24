@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Testing;
 using StreamJsonRpc;
 
 namespace QuickerRpc.Transport.Test;
@@ -281,7 +282,7 @@ public sealed class StepRunnerInputContractTests
         {
             var session = Guid.NewGuid().ToString("N");
             var endpoint = QuickerRpcEndpointNames.ForSession(session);
-            var server = new NamedPipeServerStream(endpoint, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            var server = CurrentUserPipeFixture.Create(endpoint, 1);
             var client = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut, PipeOptions.Asynchronous);
             try
             {
