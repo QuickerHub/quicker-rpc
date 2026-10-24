@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
 import { build } from "esbuild";
-import { chromium } from "playwright";
+import { chromium, type Locator } from "playwright";
 
 // Real parameter fields, document/controller and workspace; fake bound host responses only.
 const fixture = `
@@ -56,6 +56,14 @@ async function compileFixture() {
     } }] });
 }
 
+async function replaceEditorText(field: Locator, value: string) {
+  // Keyboard commands update CodeMirror's selection/document, not just its DOM.
+  await field.click();
+  await field.press("ControlOrMeta+A");
+  await field.pressSequentially(value);
+  assert.equal(await field.innerText(), value);
+}
+
 test("native parameter sections preserve drafts, hidden values, history and document owners", { timeout: 60_000 }, async () => {
   const result = await compileFixture();
   assert.ok(Object.keys(result.metafile!.inputs).every(file => !/(?:^|\/)lib\/(?:db\/|qkrpc\.ts|llm-config)/.test(file.replaceAll("\\", "/"))));
@@ -78,7 +86,7 @@ test("native parameter sections preserve drafts, hidden values, history and docu
     await header("高级").waitFor();
     assert.deepEqual(await popup.locator(".step-editor-param-section__header").allTextContents(), ["常规", "高级", "输出到变量"]);
     assert.equal(await header("高级").getAttribute("aria-expanded"), "true");
-    await section("常规").getByRole("textbox").fill("kept general draft");
+    await replaceEditorText(section("常规").getByRole("textbox"), "kept general draft");
     await header("常规").focus(); await page.keyboard.press("Space");
     assert.equal(await header("常规").getAttribute("aria-expanded"), "false");
     await page.keyboard.press("Enter");
@@ -94,7 +102,7 @@ test("native parameter sections preserve drafts, hidden values, history and docu
     await header("高级").focus(); await page.keyboard.press("Enter");
     const advancedText = section("高级").getByRole("textbox").first();
     assert.equal(await advancedText.innerText(), "advanced original");
-    await advancedText.fill("confirmed advanced");
+    await replaceEditorText(advancedText, "confirmed advanced");
     await header("高级").click();
     await popup.getByRole("button", { name: "确定", exact: true }).click();
     await page.waitForFunction(() => (window as any).fixture.snapshot("a").steps[1].inputParams.adv0.value === "confirmed advanced");
@@ -113,7 +121,13 @@ test("native parameter sections preserve drafts, hidden values, history and docu
     await page.evaluate(() => (window as any).fixture.releaseLate());
     await header("高级").waitFor();
     assert.equal(await header("高级").getAttribute("aria-expanded"), "true", "late schemas use their actual short-list default");
-    await section("高级").getByRole("textbox").fill("owned a draft");
+    await replaceEditorText(section("高级").getByRole("textbox"), "owned a draft");
+    // Verify the popup owns an unconfirmed model draft before switching owners.
+    await popup.getByRole("button", { name: "取消", exact: true }).click();
+    const discard = page.getByRole("alertdialog", { name: "是否保存更改？", exact: true });
+    await discard.waitFor();
+    await discard.getByRole("button", { name: "取消", exact: true }).click();
+    await discard.waitFor({ state: "hidden" });
     await page.evaluate(() => (window as any).fixture.switch("b"));
     await page.locator('[data-step-id="b-short"]').dblclick();
     await header("高级").waitFor();

@@ -14,6 +14,7 @@
 | Designer DOM | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 真实无头 Edge、现有设计器组件与工作台 DOM 回归；生成 fixture、网络 guard、独立临时 profile |
 | Static SPA | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 完整构建、搬移、原生验证与 React + 独立 Node 服务；原有 generated fixture、fake model、工作台编辑与自然退出 |
 | Host-independent .NET | Windows / `global.json` SDK | Runtime/Transport 全目标框架构建；Console、Transport、fake-host Runtime 单测；保留 TRX |
+| Transport contracts | Ubuntu / `global.json` SDK | Transport 全目标编译、完整 net10 合同测试、实际 netstandard2.0 客户端绑定与 Ping；记录 TRX 与 receipt |
 
 安装使用 `pnpm install --frozen-lockfile`，缓存仅包含 pnpm store，不跨平台复用
 `node_modules`。保留原生模块构建，因为 SQLite fixture 需要 `better-sqlite3`；仅跳过
@@ -46,6 +47,23 @@ benchmark 工作区中的 `.quicker` 命令与子代理是版本控制内的测�
 被忽略的文件。旧 docs、Agent eval unit、action-trace 工作流已合并到这条 CI。
 
 ## .NET 边界
+
+独立的 [`Test-LinuxTransport.ps1`](../../scripts/ci/Test-LinuxTransport.ps1) 必须在 Linux
+运行，只构建共享 Transport 并执行完整 `QuickerRpc.Transport.Test`；不将 Windows TFM 的
+Runtime.Test 或 Console 全套搬入 Ubuntu。既有双 fake-host、完整绑定、取消和隔离合同保留。
+新增用例通过生产 server factory 与客户端，在本次 GUID 管道上实际完成同 UID 的握手、
+绑定和 Ping，并检查预取消不会连接。它们不证明不同 UID 的拒绝行为。
+
+该门禁另运行强制消费 netstandard2.0 Transport 的 net10 console smoke，运行时核验
+程序集 TargetFrameworkAttribute，防止误测默认 net10 产物；实际连接自有 CurrentUserOnly
+对端。专用 MSBuild hook 仅在该 consumer 构建时收窄 Transport 的 restore/build 目标，
+使 NuGet 图与显式 ProjectReference 一致；前面的全目标编译与 net10 合同测试不受影响。它核验
+完整绑定、Ping 和零 fake 写入。Windows owner/SID/ACL 专属测试在 Ubuntu 明确
+报告 unsupported。Transport 的 netstandard 目标直接声明公开会话所实现的 async interface
+依赖，避免消费应用选择其它框架的传递资产时丢失该程序集版本。测试不为 smoke 单独补包。
+这些 Windows 用例不能计为 Linux 覆盖；其它意外非通过结果阻断。实际测试数量和名称写入
+本轮 TRX/receipt。net472 只编译，引用程序集由 SDK/NuGet 恢复，不代表在 Linux 执行了
+.NET Framework，也不需要安装 Quicker。既有 Windows .NET 门禁保持原样。
 
 [`Test-OfflineDotNet.ps1`](../../scripts/ci/Test-OfflineDotNet.ps1) 只执行明确项目，
 不执行整个 solution。先检查生成知识，再禁止 MSBuild 自动生成，避免构建修复生成物
@@ -130,5 +148,5 @@ pwsh -NoProfile -File scripts/ci/Test-OfflineDotNet.ps1
 只要安装成功，扩展回归也会在显式离线检查失败后运行并报告结果，原失败仍然阻断 job。
 `.NET` job 即使失败也上传已有 `.tmp/ci-results/**/*.trx`，保留 7 天。
 仓库管理员可把 `Generated knowledge`、两个 `Offline Agent (...)` 和
-`Host-independent .NET`、`Designer DOM (Windows Edge)`、`Static SPA (Windows Edge)` 配成 required checks。工作流文件本身不修改分支保护；
+`Host-independent .NET`、`Transport contracts (Ubuntu)`、`Designer DOM (Windows Edge)`、`Static SPA (Windows Edge)` 配成 required checks。工作流文件本身不修改分支保护；
 原工作流名称的 required checks 需要相应替换。
