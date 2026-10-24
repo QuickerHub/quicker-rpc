@@ -114,7 +114,9 @@ NSIS 两条正式打包入口共用固定版本模板适配与 .NET Framework 4.
 目录迁移、身份不明、case-sensitive/重定向/云端占位路径或仍运行的程序明确拒绝。
 包与现有目标共用程序资源分类，用户 local/plugins/cache 目录不进入覆盖或递归检查。
 Overlay 会保留过时程序文件，部分复制失败也不具有事务回滚语义。
-本片的仅读模板、纯策略与专属隐藏窗口验证后，仍需隔离安装/升级和真实旧资料验收。
+Windows CI 编译生产 helper 并运行纯进程策略 fixture；它不会运行安装器或关闭应用。
+专属隐藏窗口 fixture 已验证精确根程序关闭、同名外部进程隔离和后端阻塞，
+仍需隔离安装/升级和真实旧资料验收。
 
 浏览器单次调用现已把 turn abortSignal 传到独立 request owner 与按 session 串行的原生
 操作尾部，实际自建 Edge/HTTP 取消、排队、迟到结果及原 context/ref 复用另有验证；

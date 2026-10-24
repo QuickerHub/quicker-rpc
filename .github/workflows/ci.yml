@@ -61,6 +61,22 @@ jobs:
       - name: TypeScript and explicit offline Agent checks
         working-directory: agent-gui
         run: node scripts/check-agent-offline.mjs
+      - name: Compile installer helper and verify pure ownership policy
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && runner.os == 'Windows' }}
+        shell: pwsh
+        working-directory: agent-gui
+        run: |
+          node --input-type=module -e "import {buildInstallerOwnershipHelper} from './scripts/build-installer-ownership-helper.mjs'; await buildInstallerOwnershipHelper(process.cwd());"
+          if ($LASTEXITCODE -ne 0) { throw 'Installer helper compilation failed' }
+          $fixtureOutput = Join-Path (Resolve-Path '..').Path '.tmp/installer-policy-ci'
+          New-Item -ItemType Directory -Force -Path $fixtureOutput | Out-Null
+          $policyExecutable = Join-Path $fixtureOutput 'ProcessOwnershipPolicy.Tests.exe'
+          $policySource = Join-Path $PWD 'electron\build\installer-helper\ProcessOwnershipPolicy.cs'
+          $fixtureSource = Join-Path $PWD 'electron\build\installer-helper\ProcessOwnershipPolicy.Tests.cs'
+          & "$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe" /nologo /target:exe /optimize+ "/out:$policyExecutable" $policySource $fixtureSource
+          if ($LASTEXITCODE -ne 0) { throw 'Installer policy fixture compilation failed' }
+          & $policyExecutable
+          if ($LASTEXITCODE -ne 0) { throw 'Installer policy fixture failed' }
       - name: Guarded tool, eval, authoring and trace regressions
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/ci/check-agent-regressions.mjs
