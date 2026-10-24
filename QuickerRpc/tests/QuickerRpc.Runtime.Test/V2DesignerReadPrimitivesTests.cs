@@ -14,6 +14,44 @@ namespace QuickerRpc.Runtime.Test;
 [TestClass]
 public sealed class V2DesignerReadPrimitivesTests
 {
+    [TestMethod]
+    public async Task Agent_knowledge_and_search_use_the_current_native_producer_through_the_actual_host_Async()
+    {
+        var native = new KnowledgeNative();
+        KnowledgeStorage.StepRunnerService = native;
+        try
+        {
+            QuickerRpc.Plugin.Services.StepRunnerKnowledgeProvider.ReadResult Read() =>
+                QuickerV2StepRunnerCatalogBuilder.ReadCurrentKnowledge(typeof(KnowledgeStorage), typeof(IKnowledgeNative));
+            var programs = new V2HeadlessActionProgramService(() => Read().Catalog, () => true, Read);
+            var host = new V2StepRunnerHost(programs, new FakePort());
+            var first = JObject.Parse((await host.GetDetailAsync("fixture:new")).SchemaJson!);
+            Assert.AreEqual("runtime-definition", first["knowledge"]!["source"]!.Value<string>("kind"));
+            Assert.AreEqual(native.Rows[0].HelpLink, first["knowledge"]!.Value<string>("nativeHelpLink"));
+            Assert.AreEqual(1, native.Reads);
+            native.Rows[0].Name = "Current definition";
+            var changed = JObject.Parse((await host.GetDetailAsync("fixture:new")).SchemaJson!);
+            Assert.AreNotEqual(first["knowledge"]!["schema"]!.Value<string>("revision"), changed["knowledge"]!["schema"]!.Value<string>("revision"));
+            native.Rows.Add(new StepRunnerKnowledgeProviderTests.NativeRunner { Key = "fixture:added", Name = "Added" });
+            Assert.AreEqual("fixture:added", (await host.SearchAsync("fixture:added", 10)).Items.Single().Key);
+            Assert.AreEqual(3, native.Reads);
+            var ui = JObject.Parse((await host.GetUiDetailAsync("fixture:new")).SchemaJson!);
+            Assert.IsNull(ui["knowledge"]);
+            Assert.AreEqual("Current definition", ui.Value<string>("name"));
+            Assert.AreEqual(4, native.Reads);
+        }
+        finally { KnowledgeStorage.StepRunnerService = null; }
+    }
+
+    public interface IKnowledgeNative { IEnumerable<object> GetAllRunners(); }
+    public static class KnowledgeStorage { public static IKnowledgeNative? StepRunnerService { get; set; } }
+    private sealed class KnowledgeNative : IKnowledgeNative
+    {
+        internal List<StepRunnerKnowledgeProviderTests.NativeRunner> Rows = new() { new() };
+        internal int Reads;
+        public IEnumerable<object> GetAllRunners() { Reads++; return Rows.ToArray(); }
+    }
+
     private static IList<QuickerRpcActionStepSummaryInput> Steps => [new() { StepId = "fixture", StepRunnerKey = "sys:fixture", StepJson = "{\"note\":\"fixture\"}" }];
     private static V2StepRunnerHost Host(IV2DesignerSummaryNativePort? port = null) => new(new V2HeadlessActionProgramService(), port ?? new FakePort());
 
@@ -34,7 +72,10 @@ public sealed class V2DesignerReadPrimitivesTests
         var agent = await host.GetDetailAsync("sys:fixture", "copy");
         var expected = StepRunnerCatalogMapper.GetDetail(catalog, "sys:fixture", "copy").Schema!;
         Assert.AreEqual(StepRunnerUiSchemaJson.Serialize(expected), ui.SchemaJson);
-        Assert.AreEqual(StepRunnerAgentSchemaJson.Serialize(expected), agent.SchemaJson);
+        var agentSchema = JObject.Parse(agent.SchemaJson!);
+        Assert.AreEqual("unknown", agentSchema["knowledge"]!["source"]!.Value<string>("kind"));
+        agentSchema.Remove("knowledge");
+        Assert.AreEqual(StepRunnerAgentSchemaJson.Serialize(expected), agentSchema.ToString(Newtonsoft.Json.Formatting.None));
         Assert.AreNotEqual(agent.SchemaJson, ui.SchemaJson);
         var full = JObject.Parse(ui.SchemaJson!);
         Assert.AreEqual("fa:Light_Test", full.Value<string>("icon"));

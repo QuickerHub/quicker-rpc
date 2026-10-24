@@ -11,37 +11,11 @@ namespace QuickerRpc.Plugin.Catalog.Designer;
 /// <summary>Builds UI step-runner catalog (keywords + control sub-items) from Quicker runners.</summary>
 internal static class StepRunnerUiCatalogBuilder
 {
-    private static DesignerStepRunnerUiCatalog? _cachedCatalog;
-    private static int _cachedGeneration = -1;
-    private static readonly object CacheLock = new();
-
-    internal static DesignerStepRunnerUiCatalog Build()
-    {
-        var generation = StepRunnerCatalogGeneration.Current;
-        lock (CacheLock)
-        {
-            if (_cachedCatalog is not null && _cachedGeneration == generation)
-            {
-                return CloneCatalog(_cachedCatalog);
-            }
-        }
-
-        var built = BuildCore();
-        lock (CacheLock)
-        {
-            _cachedCatalog = built;
-            _cachedGeneration = generation;
-            return CloneCatalog(built);
-        }
-    }
+    internal static DesignerStepRunnerUiCatalog Build() => BuildCore();
 
     internal static void InvalidateCache()
     {
-        lock (CacheLock)
-        {
-            _cachedCatalog = null;
-            _cachedGeneration = -1;
-        }
+        // Kept for existing plugin-registration callers; native reads are no longer cached.
     }
 
     private static DesignerStepRunnerUiCatalog BuildCore()
@@ -96,40 +70,6 @@ internal static class StepRunnerUiCatalogBuilder
         }
 
         return catalog;
-    }
-
-    private static DesignerStepRunnerUiCatalog CloneCatalog(DesignerStepRunnerUiCatalog source)
-    {
-        var clone = new DesignerStepRunnerUiCatalog();
-        foreach (var item in source.Items)
-        {
-            var copy = new DesignerStepRunnerUiItem
-            {
-                Key = item.Key,
-                Name = item.Name,
-                Description = item.Description,
-                Icon = item.Icon,
-            };
-            foreach (var kw in item.Keywords)
-            {
-                copy.Keywords.Add(kw);
-            }
-
-            foreach (var sub in item.SubItems)
-            {
-                copy.SubItems.Add(
-                    new DesignerStepRunnerUiSubItem
-                    {
-                        Key = sub.Key,
-                        Name = sub.Name,
-                        Description = sub.Description,
-                    });
-            }
-
-            clone.Items.Add(copy);
-        }
-
-        return clone;
     }
 
     private static IEnumerable? TryGetAllRunners()

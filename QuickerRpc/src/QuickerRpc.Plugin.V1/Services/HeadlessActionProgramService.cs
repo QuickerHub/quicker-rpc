@@ -994,21 +994,8 @@ public sealed class HeadlessActionProgramService
             };
         }
 
-        var catalog = StepRunnerCatalogFromQuicker.Build();
-        var mapped = StepRunnerCatalogMapper.GetDetail(
-            catalog,
-            stepRunnerKey ?? string.Empty,
-            controlFieldValue);
-        return new QuickerRpcStepRunnerDetailResult
-        {
-            Success = mapped.Success,
-            ErrorMessage = mapped.ErrorMessage,
-            SchemaJson = mapped.Schema is null
-                ? null
-                : forAgent
-                    ? StepRunnerAgentSchemaJson.Serialize(mapped.Schema)
-                    : StepRunnerUiSchemaJson.Serialize(mapped.Schema),
-        };
+        return StepRunnerKnowledgeProvider.GetDetail(StepRunnerCatalogFromQuicker.BuildForKnowledge(),
+            stepRunnerKey ?? string.Empty, controlFieldValue, forAgent);
     }
 
     public QuickerRpcDesignerSearchPageResult SearchStepQuickInsert(
