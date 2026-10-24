@@ -151,6 +151,7 @@ import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
 import type { LiveProgramDocumentPin, LiveProgramDocumentRegistryFailure } from "@/lib/live-program-document";
+import { useLiveProgramDocumentRegistry } from "@/lib/live-program-document.client";
 import {
   registerChatComposerActions,
   unregisterChatComposerActions,
@@ -349,6 +350,9 @@ function ChatPanel({
     llmSelection,
     onPersist,
   });
+  const liveProgramDocuments = useLiveProgramDocumentRegistry();
+  useLayoutEffect(() => liveProgramDocuments ? registerLiveProgramDocumentRegistry(liveProgramDocuments) : undefined,
+    [liveProgramDocuments, registerLiveProgramDocumentRegistry]);
 
   useActionProjectImportFromMessages(messages, !ephemeral && visible);
   useReloadProgramDataFromToolMessages(messages, !ephemeral && visible);
@@ -1585,7 +1589,7 @@ export function Chat() {
               <EmbeddedTerminalTabsProvider>
               <EmbeddedTerminalProvider>
               <EmbeddedBrowserTabsProvider>
-              <WorkspaceDocumentHost onLiveProgramDocumentRegistry={registerLiveProgramDocumentRegistry}>
+              <WorkspaceDocumentHost>
               {showMainChrome ? (
                 <ThreadSidePanelSync activeThreadId={activeThread.id} />
               ) : null}
