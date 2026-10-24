@@ -17,36 +17,65 @@ function entities(value, file) {
   }).replace(/&[a-z][a-z\d]+;/gi, () => fail(file, "Unsupported named HTML entity"));
 }
 
+function escapedOpening(text, start) {
+  let count = 0;
+  for (let i = start - 1; i >= 0 && text[i] === "\\"; i--) count++;
+  return count % 2 === 1;
+}
+function codeSpanEnd(text, start) {
+  let end = start; while (text[end] === "`") end++;
+  const marker = text.slice(start, end);
+  const blank = text.slice(end).search(/\n[ \t]*\n/), limit = blank < 0 ? text.length : end + blank;
+  for (let close = end; (close = text.indexOf(marker, close)) !== -1; close += marker.length) {
+    if (close > limit) return;
+    if (text[close - 1] !== "`" && text[close + marker.length] !== "`") return close + marker.length;
+  }
+}
 function withoutBlocks(text, file) {
   text = text.replace(/\r\n?/g, "\n");
-  text = text.replace(/<!--[^]*?-->/g, (value) => value.replace(/[^\n]/g, " "));
-  if (text.includes("<!--")) fail(file, "Unclosed HTML comment");
-  let fence;
-  const lines = text.split("\n").map((line) => {
-    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-    if (fence) {
-      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = undefined;
-      return "";
+  let result = "", fence;
+  for (let i = 0; i < text.length;) {
+    if (i === 0 || text[i - 1] === "\n") {
+      const end = text.indexOf("\n", i), next = end < 0 ? text.length : end + 1;
+      const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(text.slice(i, end < 0 ? text.length : end));
+      if (fence || marker) {
+        if (fence) { if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = undefined; }
+        else {
+          if (marker[1][0] === "`" && marker[2].includes("`")) fail(file, "Backticks in backtick fence info are unsupported");
+          fence = marker[1];
+        }
+        result += text.slice(i, next).replace(/[^\n]/g, " "); i = next; continue;
+      }
     }
-    if (marker) { fence = marker[1]; return ""; }
-    return line;
-  });
+    if (text[i] === "`" && !escapedOpening(text, i)) {
+      const end = codeSpanEnd(text, i);
+      if (end !== undefined) { result += text.slice(i, end); i = end; continue; }
+    }
+    if (text.startsWith("<!--", i) && !escapedOpening(text, i)) {
+      const end = text.indexOf("-->", i + 4);
+      if (end < 0) fail(file, "Unclosed HTML comment");
+      result += text.slice(i, end + 3).replace(/[^\n]/g, " "); i = end + 3; continue;
+    }
+    result += text[i++];
+  }
   if (fence) fail(file, "Unclosed fenced code block");
-  return lines.join("\n");
+  return result;
 }
-function withoutCode(text) {
+function withoutCode(text, file, preserveDestinations = false) {
   let result = "";
   for (let i = 0; i < text.length;) {
-    if (text[i] !== "`") { result += text[i++]; continue; }
-    let end = i; while (text[end] === "`") end++;
-    const marker = text.slice(i, end);
-    let close = end;
-    while ((close = text.indexOf(marker, close)) !== -1) {
-      if (text[close - 1] !== "`" && text[close + marker.length] !== "`") break;
-      close += marker.length;
+    if (preserveDestinations && (i === 0 || text[i - 1] === "\n") && /^ {0,3}\[((?:\\.|[^\]\\])+)\]:/.test(text.slice(i))) {
+      const end = text.indexOf("\n", i), next = end < 0 ? text.length : end;
+      result += text.slice(i, next); i = next; continue;
     }
-    if (close < 0) { result += marker; i = end; }
-    else { result += text.slice(i, close + marker.length).replace(/[^\n]/g, " "); i = close + marker.length; }
+    if (preserveDestinations && text[i] === "]" && text[i + 1] === "(") {
+      const parsed = destination(text, i + 2, true, file);
+      result += text.slice(i, parsed.end); i = parsed.end; continue;
+    }
+    if (text[i] !== "`" || escapedOpening(text, i)) { result += text[i++]; continue; }
+    const end = codeSpanEnd(text, i);
+    if (end === undefined) result += text[i++];
+    else { result += text.slice(i, end).replace(/[^\n]/g, " "); i = end; }
   }
   return result;
 }
@@ -59,7 +88,9 @@ function headingText(text, file) {
 }
 function anchors(text, file) {
   const body = withoutBlocks(text, file), found = new Set(), headingIds = new Set();
-  for (const tag of withoutCode(body).matchAll(/<([a-z][\w-]*)\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi)) {
+  const anchorBody = withoutCode(body);
+  for (const tag of anchorBody.matchAll(/<([a-z][\w-]*)\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi)) {
+    if (escapedOpening(anchorBody, tag.index)) continue;
     for (const attribute of tag[2].matchAll(/([a-z][\w:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
       if (!["id", "name"].includes(attribute[1].toLowerCase())) continue;
       if (attribute[1].toLowerCase() === "name" && tag[1].toLowerCase() !== "a") continue;
@@ -111,6 +142,7 @@ function destination(text, offset, inline, file) {
     if (depth) fail(file, "Unbalanced link destination parentheses");
   }
   const beforeSpace = i;
+  if (value.includes("`")) fail(file, "Backticks in link destinations are unsupported");
   if (!inline && !value) fail(file, "Empty or multiline reference destinations are unsupported");
   while (/\s/.test(text[i] ?? "") && i < text.length) i++;
   if (text[i] === '"' || text[i] === "'" || text[i] === "(") {
@@ -124,7 +156,7 @@ function destination(text, offset, inline, file) {
   return { value: entities(value.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\]\\^_`{|}~])/g, "$1"), file), end: i + (inline ? 1 : 0) };
 }
 function links(text, file) {
-  let body = withoutCode(withoutBlocks(text, file));
+  let body = withoutCode(withoutBlocks(text, file), file, true);
   if (/\[\[|\[\^|<\s*(?:a|img)\b[^>]*\b(?:href|src)\s*=/i.test(body)) fail(file, "Unsupported wiki, footnote or HTML link syntax");
   if (/^(?: {4}|\t).*\[/m.test(body)) fail(file, "Indented code or list link syntax is unsupported; use an explicit fenced block or unindented link");
   const references = new Map(), results = [];
@@ -147,7 +179,12 @@ function links(text, file) {
     }
     if (depth) continue;
     const textLabel = body.slice(i + 1, close - 1);
-    if (body[close] === "(") { results.push(destination(body, close + 1, true, file).value); continue; }
+    if (body[close] === "(") {
+      const parsed = destination(body, close + 1, true, file);
+      results.push(parsed.value);
+      body = body.slice(0, close) + " ".repeat(parsed.end - close) + body.slice(parsed.end);
+      continue;
+    }
     if (body[close] === "[") {
       const end = body.indexOf("]", close + 1);
       if (end < 0) fail(file, "Unclosed Markdown reference link");

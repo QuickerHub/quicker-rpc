@@ -29,6 +29,11 @@
 - `agent-gui/DESIGN.md`
 - `docs/engineering/ci.md`
 
+[`链接检查器`](../../scripts/ci/check-documentation-links.mjs) 检查本地文件/目录及 Markdown
+标题或显式锚点，不请求外部 URL、不执行文档内容。它只读取这五份源及 fragment 目标，
+拒绝仓外路径和 symlink，每份读取至多 1 MiB、总计至多 8 MiB。常用 inline/reference 链接
+与 code/comment 上下文有回归；明显不支持的 HTML 链接或 Markdown 扩展会明确报错。
+
 这不是 `docs/**` 或 `*.md` 白名单。`docs/action-authoring-src/**` 是 MSBuild 生成输入，
 生成的 `docs/action-authoring/cli/*.md` 与 `docs/authoring-references/**/*.md` 嵌入 AgentModel；
 `docs/skills`、`docs/authoring-references`、`docs/knowledge` 还会复制进静态运行目录，
@@ -189,6 +194,7 @@ pwsh -NoProfile -File scripts/ci/Test-OfflineDotNet.ps1
 所有安装、类型、文档、构建和测试失败均阻断 job；矩阵不提前取消其它平台结果。
 只要安装成功，扩展回归也会在显式离线检查失败后运行并报告结果，原失败仍然阻断 job。
 `.NET` job 即使失败也上传已有 `.tmp/ci-results/**/*.trx`，保留 7 天。
-仓库管理员可把 `Generated knowledge`、两个 `Offline Agent (...)` 和
-`Host-independent .NET`、`Transport contracts (Ubuntu)`、`Designer DOM (Windows Edge)`、`Static SPA (Windows Edge)` 配成 required checks。工作流文件本身不修改分支保护；
-统一结果使用始终运行的 `CI required`；原有检查名称继续保留。
+仓库管理员应把始终运行的 `CI required` 配为统一 required check。它汇总
+`Generated knowledge`、两个 `Offline Agent (...)`、`Host-independent .NET`、
+`Transport contracts (Ubuntu)`、`Designer DOM (Windows Edge)` 与 `Static SPA (Windows Edge)`，
+不能仅用会因纯说明文档跳过的 job 作为门禁。原有检查名称保留；工作流本身不修改分支保护或 ruleset。

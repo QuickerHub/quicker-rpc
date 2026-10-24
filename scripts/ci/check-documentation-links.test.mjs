@@ -69,6 +69,64 @@ test("CRLF Markdown retains heading fragments and closed fences", (t) => {
   assert.equal(f.check().ok, true);
 });
 
+test("backtick destinations cannot be erased into an accepted self link", (t) => {
+  const f = fixture(t);
+  for (const content of ['[broken](`missing.md`)', '[broken](<`missing.md`>)', '[broken][ref]\n[ref]: `missing.md`']) {
+    f.file("docs/source.md", content);
+    assert.throws(f.check, /Backticks in link destinations are unsupported/);
+  }
+});
+
+test("HTML comment markers inside inline and fenced code are literal examples", (t) => {
+  const f = fixture(t);
+  f.file("docs/source.md", '# Real\n`<!--`\n```html\n<!--\n```\n~~~html\n<!--\n~~~\n<!-- actual comment with ``` inside -->\n[self](#real)\n');
+  assert.equal(f.check().links, 1);
+  f.file("docs/source.md", '# Real\n<!-- actual comment\n```html\n[ignored](absent.md)\n-->\n[self](#real)\n');
+  assert.equal(f.check().links, 1);
+});
+
+test("only unescaped opening backticks mask links, while backslashes inside code do not escape its closing delimiter", (t) => {
+  const f = fixture(t), slash = String.fromCharCode(92), tick = String.fromCharCode(96);
+  for (const count of [1, 3]) {
+    f.file("docs/source.md", slash.repeat(count) + tick + "[broken](missing.md)" + slash.repeat(count) + tick);
+    assert.throws(f.check, /missing\.md.*ENOENT/);
+  }
+  for (const count of [2, 4]) {
+    f.file("docs/source.md", slash.repeat(count) + tick + "[example](missing.md)" + tick);
+    assert.equal(f.check().links, 0);
+  }
+  f.file("docs/source.md", tick + "[example](missing.md)" + slash + tick);
+  assert.equal(f.check().links, 0);
+});
+
+test("escaped HTML openings neither hide links as comments nor invent anchors", (t) => {
+  const f = fixture(t), slash = String.fromCharCode(92);
+  f.file("docs/source.md", slash + "<!-- [broken](missing.md) -->");
+  assert.throws(f.check, /missing\.md.*ENOENT/);
+  f.file("docs/source.md", slash + '<a id="ghost"></a>\n[ghost](#ghost)');
+  assert.throws(f.check, /Missing Markdown fragment/);
+  f.file("docs/source.md", slash.repeat(2) + "<!-- [ignored](missing.md) -->");
+  assert.equal(f.check().links, 0);
+  f.file("docs/source.md", slash.repeat(2) + '<a id="present"></a>\n[present](#present)');
+  assert.equal(f.check().links, 1);
+});
+
+test("inline code cannot span a blank paragraph and hide a real link", (t) => {
+  const f = fixture(t), tick = String.fromCharCode(96);
+  f.file("docs/source.md", tick + "\n\n[broken](missing.md)\n\n" + tick);
+  assert.throws(f.check, /missing\.md.*ENOENT/);
+  f.file("docs/source.md", tick + "\n[example](missing.md)\n" + tick);
+  assert.equal(f.check().links, 0);
+});
+
+test("a backtick opening fence with backticks in its info fails closed", (t) => {
+  const f = fixture(t);
+  f.file("docs/source.md", "```info`unsupported\n[broken](missing.md)\n```\n");
+  assert.throws(f.check, /Backticks in backtick fence info are unsupported/);
+  f.file("docs/source.md", "~~~info`allowed\n[example](missing.md)\n~~~\n");
+  assert.equal(f.check().links, 0);
+});
+
 test("missing targets and fragments fail, including reference links", (t) => {
   const f = fixture(t); f.file("docs/target.md", "# Existing\n");
   for (const content of ["[bad](absent.md)", "[bad](target.md#absent)", "[bad][alias]\n[alias]: absent.md", "[bad][missing]"]) {
