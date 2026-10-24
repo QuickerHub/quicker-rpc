@@ -33,14 +33,43 @@ function fixture() {
         ? { ...common, ok: true, action: "read_live", complete: true, revision: 3, dirty: true, content: '{"note":"human unsaved"}', steps: [] }
         : { ...common, ok: true, action: "edit_live", applied: true, changed: true, revisionBefore: 3, revisionAfter: 4, dirty: true, undoable: true };
     },
+    async executeAsync(scope, command, options) { return this.execute(scope, command, options); },
     revokeScope() { revocations++; }, dispose() {},
   };
   const turn = createLiveProgramDocumentTurn({ threadId, getRegistry: () => registry });
   const begin = (id = "user-one", mode: "ask" | "agent" = "agent") => turn.begin({ userMessageId: id,
     text: `modify ${formatProgramStepTagMarkup(tag)}`, cwd, chatMode: mode, enabledTools: ["workspace_program"] });
   const pin = () => turn.rememberPin(tag.tagId, { pinId: "pin-one", tagId: tag.tagId, threadId });
-  return { tag, cwd, threadId, target, turn, begin, pin, stats: () => ({ captures, executions, revocations }) };
+  return { tag, cwd, threadId, target, turn, begin, pin, registry, stats: () => ({ captures, executions, revocations }) };
 }
+
+test("a delayed schema read aborts with its manual owner and never records into a later turn", async (t) => {
+  const f = fixture(); f.pin();
+  const selected = f.begin()!.liveProgramDocument;
+  assert.equal(selected.state, "ready"); if (selected.state !== "ready") return;
+  let complete!: (value: LiveProgramDocumentReceipt) => void, signal: AbortSignal | undefined;
+  const delayed = new Promise<LiveProgramDocumentReceipt>((resolve) => { complete = resolve; });
+  t.mock.method(f.registry, "executeAsync", (_scope, _command, execution) => { signal = execution?.abortSignal; return delayed; });
+  const pending = f.turn.executeAsync("late-schema", { scopeId: selected.scope.scopeId, action: "read_live", stepSchemaFor: "step-one" });
+  assert.equal(signal?.aborted, false);
+  f.turn.stop(); assert.equal(signal?.aborted, true);
+  f.pin(); f.begin("replacement");
+  complete(f.registry.execute(selected.scope, { scopeId: selected.scope.scopeId, operationId: "late-schema", input: { action: "read_live" } }));
+  const result = await pending;
+  assert.equal(result.ok, false); assert.equal((result.data as any).code, "LIVE_DOCUMENT_TURN_CHANGED");
+  assert.equal(f.turn.getResult("late-schema"), undefined, "the replacement turn has no receipt from the old read");
+});
+
+test("an asynchronous SDK entry retains synchronous edit facts before yielding or stopping", async () => {
+  const f = fixture(); f.pin(); const selected = f.begin()!.liveProgramDocument;
+  assert.equal(selected.state, "ready"); if (selected.state !== "ready") return;
+  const pending = f.turn.executeAsync("immediate-edit", { scopeId: selected.scope.scopeId, action: "edit_live",
+    readOperationId: "prior-read", expectedRevision: 3, stepId: "step-one", note: "confirmed" });
+  assert.equal(f.turn.getResult("immediate-edit")?.ok, true, "the immutable commit receipt predates the SDK await");
+  f.turn.stop();
+  assert.equal((await pending).ok, true, "stopping cannot undo an already committed edit fact");
+  assert.equal(f.turn.getResult("immediate-edit")?.ok, true);
+});
 
 test("only a fresh private step pin grants a manual turn; old, typed and malformed chips never restore disk mode", () => {
   const f = fixture();

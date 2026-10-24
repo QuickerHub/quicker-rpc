@@ -668,13 +668,13 @@ export function ActionProjectDataEditor({
   useLayoutEffect(() => {
     if (!liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
       || liveOwner.cwd !== cwd || liveOwner.path.replace(/\\/g, "/") !== path.replace(/\\/g, "/")) return;
-    const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController,
+    const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController, catalogPort,
       isCurrent: () => sessionRef.current === session && liveAvailability.current.session === session && liveAvailability.current.available
         && !(liveSyncBusy.current?.key === syncOwnerRef.current.key && liveSyncBusy.current.busy),
       flushPendingEdits: () => workspaceRef.current?.flushPendingEdits(),
     });
     return liveDocuments.register(liveOwner, endpoint);
-  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path]);
+  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, catalogPort]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
   }, []);

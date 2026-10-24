@@ -1,5 +1,6 @@
 import type { ProgramDocumentEditResult, ProgramDocumentIdentity, ProgramDocumentSession } from "../document/programDocumentSession";
 import { applyProgramDocumentSubProgramProperties, type SubProgramPropertiesPatch } from "../document/programDocumentSubProgramProperties";
+import { applyProgramDocumentStepInputs, type ProgramDocumentStepInputsRequest } from "../document/programDocumentStepInputs";
 import { createProgramDocumentSubProgram, deleteProgramDocumentSubProgram, prepareProgramDocumentSubProgramDelete,
   type CreateDocumentSubProgramResult, type PreparedSubProgramDelete, type PrepareSubProgramDeleteResult } from "../document/programDocumentSubPrograms";
 import type { ActionSubProgram } from "../types/common";
@@ -37,6 +38,12 @@ export function createProgramDocumentEditorController(
     getSnapshot: () => session.readSnapshot(),
     getIdentity: () => session.getState().identity,
     getHistoryState: () => session.getHistoryState(),
+    applyAgentStepInputs(input: ProgramDocumentStepInputsRequest): ProgramDocumentEditResult {
+      if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "The original program document is no longer current.", state: session.getState() };
+      const result = applyProgramDocumentStepInputs(session, input);
+      options.onChange(result);
+      return result;
+    },
     applyAgentStepNote(input: { expectedRevision: number; expectedIdentity: ProgramDocumentIdentity; stepId: string; note: string }): ProgramDocumentEditResult {
       const reject = (error: string): ProgramDocumentEditResult => ({ ok: false, code: "identity_conflict", error, state: session.getState() });
       if (!options.isCurrent()) return reject("The original program document is no longer current.");

@@ -4,6 +4,7 @@ import type { ProgramDocumentSession } from "../document/programDocumentSession"
 import type { ActionProgramSnapshot } from "./assembleActionProgramSnapshot";
 import type { ProgramDocumentEditorController } from "./programDocumentEditorController";
 import type { ActionStep, ActionSubProgram } from "../types/common";
+import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
 
 function collectSteps(snapshot: ActionProgramSnapshot): LiveProgramDocumentStep[] {
   const result: LiveProgramDocumentStep[] = [];
@@ -22,6 +23,7 @@ export function createProgramDocumentLiveEndpoint(options: {
   sessionId: string;
   session: ProgramDocumentSession;
   controller: ProgramDocumentEditorController;
+  catalogPort?: DesignerCatalogPort;
   isCurrent(): boolean;
   flushPendingEdits(): void;
 }): LiveProgramDocumentEndpoint {
@@ -39,6 +41,20 @@ export function createProgramDocumentLiveEndpoint(options: {
       if (!current()) return failure();
       const state = options.session.getState(), steps = collectSteps(options.session.readSnapshot());
       return { ok: true, snapshot: { revision: state.revision, dirty: state.dirty, content: state.content, steps } };
+    },
+    ...(options.catalogPort ? { async readInputContract(input: { stepRunnerKey: string; controlFieldValue?: string }, signal?: AbortSignal) {
+      if (!current()) throw Error(failure().error);
+      const contract = await options.catalogPort!.readInputContract(input, signal);
+      signal?.throwIfAborted();
+      if (!current()) throw Error(failure().error);
+      return contract;
+    } } : {}),
+    setStepInputs(input) {
+      if (!current()) return failure();
+      const revisionBefore = options.session.getState().revision;
+      const result = options.controller.applyAgentStepInputs(input);
+      if (!result.ok) return { ok: false, code: result.code, error: result.error, revision: result.state.revision };
+      return { ok: true, changed: result.changed, revisionBefore, revisionAfter: result.state.revision, dirty: result.state.dirty };
     },
     setStepNote(input) {
       if (!current()) return failure();
