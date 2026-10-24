@@ -161,6 +161,15 @@ Agent 输出因预算省略旧格式 `schemaJson` 时，继续保留实际返回
 完整原始输出留在 `displayData` 供查看。该摘要不是编辑合同；不得补造 provenance，或因
 持有来源与指纹就推断被省略的默认值、类型、约束与写权限。
 
+StepRunner 结果还受 24,000 字符的全局摘要与最终模型 JSON 8,192 字符预算约束。
+两层省略都保留有界的 `data.knowledgeProjection`：`schemaComplete:false`，metadata 状态为
+`preserved`、`partial` 或 `unknown`，仅复制当前结果中可识别的实际来源、指纹、身份和控制值。
+`preserved` 只说明这些 metadata 被保留，不证明原生支持或新鲜度；超长字段整项省略并标记，
+不截断成另一个身份。失败、缺失或畸形来源不能补成当前原生证明。投影自身最多 3 Ki 字符，
+计入原最终预算，包含 JSON 转义与外壳开销。其它 provider 不因此获得同样的完整性保证。
+`displayData` 供 UI/历史查看，不是模型可用的完整 schema。StepRunner 尚无原文 artifact 或
+完整 schema 定向读取入口；省略时不再建议重复同一次 get 取得全文，不自动读取或新增存储。
+
 迁移首片先移除按 thread/key 无限复用的模块结果，以及按固定技能组合阻断重新发现的规则。
 后续接 native provenance/fresh reader、统一查询与失效、codec/文档来源和升级场景验收。
 相同模块更新字段、同宿主更新定义、换会话、先空后有、来源不可用及旧查询晚到分别验证。

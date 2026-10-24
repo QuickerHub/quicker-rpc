@@ -60,6 +60,7 @@ const tests = [
   "lib/program-turn-context.test.ts",
   "lib/qkrpc-connectivity-gate.test.ts",
   "lib/step-runner-knowledge-tools.server.test.ts",
+  "lib/tool-knowledge-budget.test.ts",
   "lib/quicker-knowledge-tool.server.test.ts",
   "lib/quicker-knowledge/index-provider.server.test.ts",
   "lib/quicker-knowledge/store.server.test.ts",
