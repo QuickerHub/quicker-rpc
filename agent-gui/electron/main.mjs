@@ -11,7 +11,7 @@ import {
   resolveResourceRoot,
   waitForBundledFile,
 } from "./paths.mjs";
-import { shutdownBackends, startProductionBackends } from "./backend-spawn.mjs";
+import { BackendStartupCancelledError, shutdownBackends, startProductionBackends } from "./backend-spawn.mjs";
 import {
   gracefulExit,
   isMainWindowClosePermitted,
@@ -483,6 +483,7 @@ async function main() {
       globalShortcutCommands?.initDefault();
     }
   } catch (err) {
+    if (err instanceof BackendStartupCancelledError) return;
     const message = err instanceof Error ? err.message : String(err);
     writeBootLog(`startup failed: ${message}`);
     console.error("[electron] startup failed:", message);
