@@ -183,6 +183,11 @@ FA 分页仅接受完整文档绑定，复用原 catalog port、项目 lease 和
 take、totalCount、hasMore；旧搜索/resolve 不变。分页与其它 catalog 共享 256 项 LRU
 及按 waiter 取消的 pending 请求。CLI/serve 使用 page 专用 JSON 输出保留 null style，
 不改变全局省略策略或放松前端事实校验。
+共享图标选择器消费同一文档 port，首次/后续页的 geometry 按已有批次获取，选色仅本地
+投影。每次打开拥有草稿和请求；隐藏即取消 waiter，旧结果不能发布。Regular/Brands
+组合页保留两类完整 total，翻页错误停止 observer 自动请求，显式重试成功才清除错误。
+属性选择分别进入现有文档事务或属性草稿，不新增 Session/history。既有 workspace
+投影可见性与键盘 owner，颜色 portal 在 layout 阶段释放全局监听，不抢下一文档输入。
 `ensureParamValue` 的纯值转换与参数 UI 分离，catalog/draft helpers 不再为该函数导入整条
 参数编辑器及图标组件；这只关闭该处依赖边界，不表示其它混层已全部清理。
 多宿主选择、完整资源目录与 Agent/UI 共享实时 revision 仍待接线；

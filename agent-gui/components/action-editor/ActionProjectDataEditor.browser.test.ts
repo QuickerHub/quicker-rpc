@@ -8,7 +8,7 @@ import { chromium, type Browser, type Page } from "playwright";
 // The complete editor/controller graph is real. Only host/file/chrome boundaries
 // are replaced, and browser requests can never reach a server or user workspace.
 const fixture = `
-import React, { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
+import React, { StrictMode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ActionProjectDataEditor } from '@/components/action-editor/ActionProjectDataEditor';
 import { StepRunnerItem } from '@/lib/action-editor/types/action_query';
@@ -27,6 +27,8 @@ state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.
 state.documentCalls=[];state.documentPending=[];state.documentMode='success';
 state.syncCalls=[];state.syncPending=[];state.syncMode='success';
 state.catalogRequests=[];state.catalogPending=[];
+state.faRequests=[];state.faPending=[];state.geometryRequests=[];state.faMode='success';
+state.resolveFaPending=(index,tag)=>state.faPending[index].resolve(tag);
 state.syncStatusMode='success';state.statusPending=[];
 state.deferInfoRead=false;state.infoPending=[];state.infoReadError=null;
 state.syncStatus={state:'in_sync',message:'fixture in sync',localEditVersion:1,remoteEditVersion:1};
@@ -68,6 +70,25 @@ window.fetch = async (input, init) => {
  else if(url.pathname==='/api/step-runner/toolbox-search') value={ok:true,json:JSON.stringify({items:[{kind:'runner',id:'r:sys:fixture_capability:copy',label:'Copy fixture',parentLabel:'Fixture capability',payload:{stepRunnerKey:'sys:fixture_capability',name:'Fixture capability',controlFieldValue:'copy',inputPresets:{mode:'copy',text:'preset text'}}}],totalCount:1,hasMore:false})};
  else if(url.pathname==='/api/step-runner/summaries') {const request=JSON.parse(init?.body||'{}');value={ok:true,items:(request.steps||[]).map(row=>({stepId:row.stepId,summary:'Fixture summary'}))};}
  else if(url.pathname==='/api/subprogram/list') value={ok:true,items:[]};
+ else if(url.pathname==='/api/fa/page') {
+   if(!catalogRequest.catalogContext?.expectedProjectBinding){state.unexpected.push('unbound fa page');throw new Error('Unbound FA page');}
+   const letter=catalogRequest.catalogContext.expectedProjectBinding.hostBinding.hostInstanceId.endsWith('-b')?'b':'a';
+   const q=catalogRequest.query,style=catalogRequest.style,skip=catalogRequest.skip,take=catalogRequest.take;
+   const namesFor=(prefix,count)=>Array.from({length:q==='empty'?0:count},(_,i)=>prefix+'_'+letter+'_'+q+'_'+i);
+   const catalogs={Solid:namesFor('Solid',2),Regular:namesFor('Regular',98),Brands:namesFor('Brands',5),Light:namesFor('Light',210)};
+   const all=style?catalogs[style]||[]:Object.values(catalogs).flat();
+   const result={ok:true,query:q,style,skip,take,names:all.slice(skip,skip+take),totalCount:all.length,hasMore:skip+take<all.length};
+   const row={body:catalogRequest,aborted:false};state.faRequests.push(row);
+   init.signal?.addEventListener('abort',()=>{row.aborted=true},{once:true});
+   if(state.faMode==='more-fail'&&skip>0)return new Response(JSON.stringify({ok:false,code:'PAGE_READ_FAILED',error:'fixture next page failed',retryable:false}),{status:503,headers:{'Content-Type':'application/json'}});
+   if(state.faMode==='unsupported')return new Response(JSON.stringify({ok:false,code:'UNSUPPORTED_HOST',error:'fixture page unsupported',retryable:false}),{status:503,headers:{'Content-Type':'application/json'}});
+   value=state.faMode==='defer'?await new Promise(resolve=>state.faPending.push({row,resolve:tag=>resolve(tag?{...result,names:result.names.map(name=>name.replace('_'+letter+'_','_'+tag+'_'))}:result)})):result;
+ }
+ else if(url.pathname==='/api/fa/resolve') {
+   if(!catalogRequest.catalogContext?.expectedProjectBinding){state.unexpected.push('unbound fa geometry');throw new Error('Unbound FA geometry');}
+   state.geometryRequests.push(catalogRequest);
+   value={ok:true,items:catalogRequest.specs.map(spec=>({spec,enumName:spec.slice(3).split(':')[0],path:'M0 0H20V20H0Z',width:20,height:20,color:spec.split(':')[2]||null})),errors:[]};
+ }
  else {state.unexpected.push(url.pathname+url.search+(url.pathname==='/api/step-runner/get'?':'+catalogRequest.key:''));throw new Error('Unexpected fixture request: '+url.pathname+url.search);}
  if(syncRequest?.expectedProjectBinding&&value.ok)value={...value,projectBinding:syncRequest.expectedProjectBinding,projectDirectory:syncRequest.projectDirectory};
  return new Response(JSON.stringify(value),{status:200,headers:{'Content-Type':'application/json'}});
@@ -76,6 +97,13 @@ function Fixture(){
  const [document,setDocument]=useState({path:pathFor('a'),content:makeDocument('a')});
  const [documentSaveEnabled,setDocumentSaveEnabled]=useState(false);
  const [generation,setGeneration]=useState(0);
+ const [visible,setVisible]=useState(true);
+ useLayoutEffect(()=>{
+   if(visible||!state.probeHiddenColorOwner)return;
+   const escape=new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});
+   globalThis.document.body.dispatchEvent(escape);
+   state.hiddenColorOwnerProbe={prevented:escape.defaultPrevented};
+ },[visible]);
  const documentRef=useRef(document);documentRef.current=document;
  const onSave=useCallback(async content=>{
    const call={path:document.path,content};state.calls.push(call);
@@ -100,12 +128,13 @@ function Fixture(){
    state.echoPending=index=>{const pending=state.pending[index];setDocument(current=>current.path===pending.call.path?{...current,content:pending.call.content}:current)};
    state.resolvePending=(index,outcome)=>state.pending[index].resolve(outcome);
    state.enableDocumentSave=()=>setDocumentSaveEnabled(true);
+   state.setActive=setVisible;
    state.remountEditor=()=>setGeneration(value=>value+1);
    state.resolveDocumentPending=(index,outcome)=>state.documentPending[index].resolve(outcome);
  },[]);
- const editor=<ActionProjectDataEditor key={generation} path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaveDocument={documentSaveEnabled?onSaveDocument:undefined} onSaved={onSaved}/>;
+ const editor=<ActionProjectDataEditor key={generation} active={!window.fixtureOptions?.exclusiveDocuments||visible} path={document.path} content={document.content} cwd="C:/fixture-workspace" onSave={onSave} onSaveDocument={documentSaveEnabled?onSaveDocument:undefined} onSaved={onSaved}/>;
  return window.fixtureOptions?.dualDocuments?<div className="fixture-shell" style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:12}}>
-  <div data-fixture-document="a">{editor}</div><div data-fixture-document="b"><ActionProjectDataEditor path={pathFor('b')} content={makeDocument('b')} cwd="C:/fixture-workspace" onSave={async()=>({ok:true})}/></div>
+  <div data-fixture-document="a" hidden={window.fixtureOptions?.exclusiveDocuments&&!visible}>{editor}</div><div data-fixture-document="b" hidden={window.fixtureOptions?.exclusiveDocuments&&visible}><ActionProjectDataEditor active={!window.fixtureOptions?.exclusiveDocuments||!visible} path={pathFor('b')} content={makeDocument('b')} cwd="C:/fixture-workspace" onSave={async()=>({ok:true})} onSaveDocument={window.fixtureOptions?.exclusiveDocuments&&documentSaveEnabled?onSaveDocument:undefined}/></div>
  </div>:<div className="fixture-shell" data-fixture-path={document.path}>{editor}</div>;
 }
 createRoot(document.getElementById('root')).render(<StrictMode><Fixture/></StrictMode>);
@@ -170,6 +199,7 @@ before(async () => {
         if (args.path.endsWith("workspace-explorer")) return { contents: "export const workspaceExplorerActionsRef={current:{notifyProjectRemoved(){}}};", loader: "js" };
         if (args.path.endsWith("IconControl")) return { contents: `
           import React from 'react';
+          import { IconControl as ActualIconControl } from '@/lib/action-editor/shared/IconControl.tsx';
           import { IconifyIconSlot } from '@/lib/action-editor/shared/IconifyIconSlot';
           import { parseIconifyIconId } from '@/lib/action-editor/shared/parseIconifySpec';
           import { parseQuickerAssetIcon } from '@/lib/action-editor/shared/parseQuickerAssetIcon';
@@ -177,6 +207,7 @@ before(async () => {
           import { faVectorSpecToBundledIconifyId } from '@/lib/action-editor/shared/faVectorToIconifyFallback';
           // Use the production bundled SVG renderer/assets, isolating only host/raster resolution.
           export function IconControl(props) {
+            if(window.fixtureOptions?.realIcons)return <ActualIconControl {...props}/>;
             const spec = props.spec?.trim() || '';
             const asset = parseQuickerAssetIcon(spec);
             const iconId = parseIconifyIconId(spec) || (asset && resolveResIconToIconifyId(asset.path))
@@ -213,7 +244,7 @@ afterEach(async () => {
 });
 after(async () => { if (caseOwnsBrowser) { closingBrowsers.add(browser); await browser.close(); } });
 
-async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean }): Promise<{ page: Page; errors: string[] }> {
+async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean; exclusiveDocuments?: boolean; realIcons?: boolean }): Promise<{ page: Page; errors: string[] }> {
   pageSequence += 1;
   diagnose("create-page");
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -282,6 +313,268 @@ async function prepareInternalDelete(page: Page, name: string): Promise<void> {
   await page.keyboard.press("Enter");
   await page.getByRole("alertdialog").waitFor();
 }
+
+const iconDialog = (page: Page) => page.getByRole("dialog", { name: "选择图标", exact: true });
+async function openAppearancePicker(page: Page) {
+  await page.evaluate(() => (window as any).fixture.enableDocumentSave());
+  await page.getByRole("tab", { name: "属性", exact: true }).click();
+  await page.getByRole("button", { name: "选择动作图标", exact: true }).click();
+  await iconDialog(page).waitFor();
+}
+
+test("shared FA picker applies an icon-only appearance transaction with real scoped SVG and one document undo", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await editNote(page, "body retained while choosing an icon");
+    await page.evaluate(() => { const f = (window as any).fixture; f.enableDocumentSave(); f.documentMode = "defer"; });
+    await waitSaveEnabled(page); await saveButton(page).click();
+    await page.waitForFunction(() => (window as any).fixture.documentPending.length === 1);
+    await openAppearancePicker(page);
+    const picker = iconDialog(page);
+    await picker.getByRole("option", { name: "Light_a__2", exact: true }).click();
+    await picker.getByTitle("#ef4444", { exact: true }).click();
+    assert.match(await picker.getByLabel("所选图标预览").innerText(), /fa:Light_a__2:#EF4444/);
+    assert.equal(await picker.getByRole("option", { name: "Light_a__2", exact: true }).locator("svg path").getAttribute("d"), "M0 0H20V20H0Z");
+    assert.equal(await picker.getByRole("option", { name: "Light_a__2", exact: true }).locator("svg path").evaluate((element) => getComputedStyle(element).fill), "rgb(239, 68, 68)");
+    await picker.getByTitle("自由选色", { exact: true }).click();
+    const alpha = page.getByRole("dialog", { name: "自由颜色选择", exact: true });
+    await alpha.getByLabel("十六进制颜色").fill("#80112233"); await alpha.getByLabel("十六进制颜色").press("Enter");
+    await page.keyboard.press("Escape"); await alpha.waitFor({ state: "detached" });
+    assert.match(await picker.getByLabel("所选图标预览").innerText(), /fa:Light_a__2:#80112233/);
+    const rgba = await picker.getByRole("option", { name: "Light_a__2", exact: true }).locator("svg path").evaluate((element) => getComputedStyle(element).fill);
+    assert.match(rgba, /^rgba\(17, 34, 51, /); assert.ok(Math.abs(Number(rgba.split(",").at(-1)!.replace(")", "")) - 128 / 255) < .002);
+    assert.equal(await page.evaluate(() => (window as any).fixture.documentCalls.length), 1, "the picker itself never starts another save");
+    await picker.getByRole("button", { name: "使用此图标", exact: true }).click();
+    await picker.waitFor({ state: "detached" });
+    assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "fa:Light_a__2:#80112233");
+    await page.waitForFunction(() => document.querySelector('[aria-label="图标预览"] svg path')?.getAttribute("d") === "M0 0H20V20H0Z");
+    const appliedFill = await page.getByLabel("图标预览", { exact: true }).locator("svg path").evaluate((element) => getComputedStyle(element).fill);
+    assert.match(appliedFill, /^rgba\(17, 34, 51, /, "the applied appearance keeps the same native alpha color after the picker closes");
+    assert.ok(Math.abs(Number(appliedFill.split(",").at(-1)!.replace(")", "")) - 128 / 255) < .002);
+    await page.evaluate(() => { const f = (window as any).fixture; f.resolveDocumentPending(0, { ok: true }); f.documentMode = "success"; });
+    await waitSaveEnabled(page);
+    assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "fa:Light_a__2:#80112233", "an older save cannot acknowledge the picker draft");
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => (window as any).fixture.documentCalls.at(-1));
+    assert.ok(saved.metadata.content.includes('"icon":"fa:Light_a__2:#80112233"'));
+    assert.ok(saved.metadata.content.includes("9223372036854775807")); assert.ok(saved.metadata.content.includes("9007199254740993"));
+    await page.getByRole("toolbar", { name: "文档历史" }).getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "iconify:mdi:code-tags");
+    await page.getByRole("tab", { name: "主程序", exact: true }).click();
+    assert.equal(await currentNote(page).inputValue(), "body retained while choosing an icon");
+    const calls = await page.evaluate(() => (window as any).fixture.geometryRequests);
+    assert.ok(calls.length > 0); assert.ok(calls.every((call: any) => call.catalogContext.expectedProjectBinding.hostBinding.hostInstanceId === "instance-a"));
+    assert.ok(calls.some((call: any) => call.specs.length === 80), "the grid uses native batched geometry");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker keeps nested subprogram drafts and applies properties plus literal calls in one history entry", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await loadPropertiesDocument(page); await openProperties(page, "Child");
+    const properties = propertiesDialog(page);
+    await properties.getByLabel("名称", { exact: true }).fill("Picked child");
+    await properties.getByRole("button", { name: "选择子程序图标", exact: true }).click();
+    await iconDialog(page).getByRole("option", { name: "Light_a__0", exact: true }).waitFor();
+    await iconDialog(page).getByLabel("搜索图标").press("Escape");
+    await iconDialog(page).waitFor({ state: "detached" });
+    assert.equal(await properties.getByLabel("名称", { exact: true }).inputValue(), "Picked child");
+    assert.equal(await properties.getByLabel("图标", { exact: true }).inputValue(), "iconify:mdi:plus");
+    assert.equal(await properties.getByRole("button", { name: "选择子程序图标", exact: true }).evaluate((element) => element === document.activeElement), true);
+    await properties.getByRole("button", { name: "选择子程序图标", exact: true }).click();
+    await iconDialog(page).getByRole("option", { name: "Light_a__3", exact: true }).dblclick();
+    await iconDialog(page).waitFor({ state: "detached" });
+    assert.equal(await properties.getByLabel("图标", { exact: true }).inputValue(), "fa:Light_a__3");
+    assert.equal(await saveButton(page).isDisabled(), true, "picker selection is only the property popup's draft");
+    await properties.getByRole("button", { name: "确定", exact: true }).click();
+    await properties.waitFor({ state: "detached" });
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const body = JSON.parse(await page.evaluate(() => (window as any).fixture.documentCalls.at(-1).content));
+    assert.equal(body.subPrograms[0].icon, "fa:Light_a__3"); assert.equal(body.subPrograms[0].name, "Picked child");
+    assert.equal(body.steps[0].inputParams.subProgram, "Picked child");
+    await page.getByRole("toolbar", { name: "文档历史" }).getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    await openProperties(page, "Child");
+    assert.equal(await propertiesDialog(page).getByLabel("图标", { exact: true }).inputValue(), "iconify:mdi:plus");
+    await propertiesDialog(page).getByRole("button", { name: "取消", exact: true }).click();
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker composes the Regular Brands page seam and retains visible controls in narrow light and dark themes", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await openAppearancePicker(page); const picker = iconDialog(page);
+    await picker.getByRole("button", { name: "普通/商标", exact: true }).click();
+    await picker.getByRole("option", { name: "Regular_a__95", exact: true }).waitFor();
+    await picker.getByRole("listbox", { name: "图标列表" }).evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await picker.getByRole("option", { name: "Brands_a__4", exact: true }).waitFor();
+    const names = await picker.getByRole("option").evaluateAll((elements) => elements.map((element) => element.getAttribute("aria-label")));
+    assert.equal(names.length, 103); assert.equal(new Set(names).size, 103); assert.equal(names[97], "Regular_a__97"); assert.equal(names[98], "Brands_a__0");
+    const calls = await page.evaluate(() => (window as any).fixture.faRequests.map((row: any) => row.body));
+    assert.ok(calls.some((call: any) => call.style === "Regular" && call.skip === 96));
+    assert.ok(calls.some((call: any) => call.style === "Brands" && call.skip === 0 && call.take === 94));
+    await page.setViewportSize({ width: 420, height: 720 });
+    await page.mouse.move(1, 1);
+    for (const theme of ["light", "dark"] as const) {
+      await capture(page, `icon-picker-narrow-${theme}.png`, theme);
+      const bounds = await picker.boundingBox(), button = await picker.getByRole("button", { name: "使用此图标", exact: true }).boundingBox();
+      assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 420 && bounds.y + bounds.height <= 720);
+      assert.ok(button && button.y + button.height <= 720);
+      const vectors = await picker.getByRole("option").locator("svg").evaluateAll((elements) => elements.map((element) => {
+        const bounds = element.getBoundingClientRect(); return { width: bounds.width, height: bounds.height };
+      }));
+      assert.ok(vectors.every((bounds) => Math.abs(bounds.width - bounds.height) < 1), JSON.stringify(vectors));
+      const layout = await picker.getByRole("listbox").evaluate((element) => ({ rows: getComputedStyle(element).gridTemplateRows,
+        cells: [...element.querySelectorAll('[role="option"]')].slice(-20).map((cell) => {
+          const bounds = cell.getBoundingClientRect(), vector = cell.querySelector("svg")?.getBoundingClientRect();
+          return { y: bounds.y, height: bounds.height, width: bounds.width, vectorY: vector?.y, vectorHeight: vector?.height };
+        }) }));
+      if (browserDiagnostics) console.error(JSON.stringify({ phase: "icon-picker-grid-bounds", theme, ...layout }));
+      const rowBounds = [...new Map(layout.cells.map((cell) => [cell.y, cell])).values()];
+      for (let index = 1; index < rowBounds.length; index++) assert.ok(rowBounds[index].y >= rowBounds[index - 1].y + rowBounds[index - 1].height + 7.5,
+        "Responsive cell hit areas must fit their grid tracks and preserve the row gap");
+    }
+    await picker.getByRole("button", { name: "使用此图标", exact: true }).focus(); await page.keyboard.press("Tab");
+    assert.equal(await picker.getByRole("tab", { name: "内置矢量图", exact: true }).evaluate((element) => element === document.activeElement), true);
+    await picker.getByLabel("搜索图标").fill("empty");
+    await picker.getByText("没有匹配的图标", { exact: true }).waitFor();
+    assert.equal(await picker.getByRole("option").count(), 0);
+    await picker.getByRole("button", { name: "取消", exact: true }).click();
+    assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "iconify:mdi:code-tags");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker pauses automatic pagination after an error until an explicit retry", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await page.evaluate(() => { (window as any).fixture.faMode = "more-fail"; });
+    await openAppearancePicker(page); const picker = iconDialog(page);
+    await picker.getByRole("option", { name: "Light_a__95", exact: true }).waitFor();
+    const grid = picker.getByRole("listbox", { name: "图标列表" });
+    await grid.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await picker.getByRole("alert").filter({ hasText: "fixture next page failed" }).waitFor();
+    await picker.getByRole("button", { name: "加载更多", exact: true }).scrollIntoViewIfNeeded();
+    // A visible observer gets several delivery frames; a failed page must not recreate an automatic retry loop.
+    await page.evaluate("new Promise(resolve=>{let frames=0;const next=()=>{if(++frames===5)resolve();else requestAnimationFrame(next)};requestAnimationFrame(next)})");
+    const moreCalls = () => page.evaluate(() => (window as any).fixture.faRequests.filter((row: any) => row.body.skip > 0).length);
+    assert.equal(await moreCalls(), 1, "a visible sentinel cannot retry a failed page without a user action");
+    assert.equal(await picker.getByRole("option").count(), 96, "the first page remains usable");
+    await page.evaluate(() => { (window as any).fixture.faMode = "success"; });
+    await picker.getByRole("button", { name: "加载更多", exact: true }).click();
+    await picker.getByRole("option", { name: "Light_a__191", exact: true }).waitFor();
+    assert.equal(await moreCalls(), 2, "one explicit retry dispatches the next page once");
+    assert.equal(await picker.getByRole("alert").count(), 0, "a successful retry clears the earlier page error");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker manual preview uses its own colored geometry without rewriting the spec", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await openAppearancePicker(page); const picker = iconDialog(page);
+    await picker.getByRole("option", { name: "Light_a__0", exact: true }).waitFor();
+    await picker.getByTitle("#4f9bd8", { exact: true }).click();
+    await picker.getByRole("tab", { name: "URL / 图标规格", exact: true }).click();
+    const spec = "fa:Light_Manual:#ff0000";
+    await picker.getByLabel("图片 URL 或图标规格").fill(spec);
+    await page.waitForFunction(() => document.querySelector('.icon-picker-dialog__preview svg path')?.getAttribute('fill')?.toLowerCase() === '#ff0000');
+    assert.equal(await picker.getByLabel("所选图标预览").locator("svg path").evaluate((element) => getComputedStyle(element).fill), "rgb(255, 0, 0)",
+      "manual geometry cannot inherit the FA tab's earlier color selection");
+    await picker.getByRole("button", { name: "使用此图标", exact: true }).click();
+    assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), spec, "manual spec spelling stays unchanged");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker keeps IME queries and nested color keyboard ownership local without consuming document undo", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await editNote(page, "body history must survive picker keys");
+    await openAppearancePicker(page); const picker = iconDialog(page), search = picker.getByLabel("搜索图标");
+    await picker.getByRole("option", { name: "Light_a__0", exact: true }).waitFor();
+    await page.clock.install();
+    await search.dispatchEvent("compositionstart"); await search.fill("文件夹");
+    await page.clock.runFor(500);
+    assert.equal(await page.evaluate(() => (window as any).fixture.faRequests.some((row: any) => row.body.query === "文件夹")), false);
+    await search.dispatchEvent("compositionend", { data: "文件夹" }); await page.clock.runFor(220); await page.clock.resume();
+    await picker.getByRole("option", { name: "Light_a_文件夹_0", exact: true }).waitFor();
+    await search.focus(); await page.keyboard.press("Control+a"); await page.keyboard.insertText("native undo draft"); await page.keyboard.press("Control+z");
+    assert.equal(await search.inputValue(), "文件夹");
+    await picker.getByTitle("自由选色", { exact: true }).click();
+    const color = page.getByRole("dialog", { name: "自由颜色选择", exact: true });
+    await color.getByLabel("十六进制颜色").fill("#123456");
+    await color.getByLabel("十六进制颜色").press("Enter");
+    await page.keyboard.press("Control+s");
+    assert.equal(await page.evaluate(() => (window as any).fixture.documentCalls.length), 0, "nested color shortcuts cannot save the underlying document");
+    await color.getByRole("button", { name: "默认", exact: true }).focus(); await page.keyboard.press("Tab");
+    assert.equal(await color.getByLabel("十六进制颜色").evaluate((element) => element === document.activeElement), true);
+    await page.keyboard.press("Escape"); await color.waitFor({ state: "detached" });
+    assert.equal(await picker.count(), 1); assert.match(await picker.getByLabel("所选图标预览").innerText(), /#123456/);
+    await picker.getByLabel("搜索图标").press("Escape"); await picker.waitFor({ state: "detached" });
+    await page.getByRole("tab", { name: "主程序", exact: true }).click(); assert.equal(await currentNote(page).inputValue(), "body history must survive picker keys");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker makes zero FA requests for loading or unbound documents while manual specs and native undo stay available", { timeout: 45_000 }, async () => {
+  for (const targetMode of ["defer", "unbound"]) {
+    const { page, errors } = await openFixture({ realIcons: true, targetMode });
+    try {
+      await openAppearancePicker(page); const picker = iconDialog(page);
+      assert.match(await picker.getByRole("alert").innerText(), /尚未绑定/);
+      assert.equal(await picker.getByRole("button", { name: "使用此图标", exact: true }).isDisabled(), true);
+      await picker.getByRole("tab", { name: "URL / 图标规格", exact: true }).click();
+      const manual = picker.getByLabel("图片 URL 或图标规格"); await manual.focus(); await page.keyboard.press("Control+a"); await page.keyboard.insertText("fa:Light_Manual");
+      await page.keyboard.press("Control+z"); assert.equal(await manual.inputValue(), "iconify:mdi:code-tags");
+      await manual.fill("fa:Light_Manual"); await picker.getByRole("button", { name: "使用此图标", exact: true }).click();
+      assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "fa:Light_Manual");
+      assert.equal(await page.evaluate(() => (window as any).fixture.faRequests.length), 0);
+      assert.equal(await page.evaluate(() => (window as any).fixture.geometryRequests.length), 0);
+      await assertIsolated(page, errors);
+    } finally { await page.close(); }
+  }
+});
+
+test("shared FA picker rejects stale A B A pages and unsupported errors without losing the hidden document draft", { timeout: 60_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true, dualDocuments: true, exclusiveDocuments: true });
+  try {
+    await page.evaluate(() => { (window as any).fixture.faMode = "defer"; });
+    await openAppearancePicker(page);
+    await iconDialog(page).getByLabel("搜索图标").fill("alpha");
+    await page.waitForFunction(() => (window as any).fixture.faPending.some((item: any) => item.row.body.query === "alpha"));
+    await iconDialog(page).getByTitle("自由选色", { exact: true }).click();
+    await page.getByRole("dialog", { name: "自由颜色选择", exact: true }).waitFor();
+    await page.evaluate(() => { const f = (window as any).fixture; f.probeHiddenColorOwner = true; f.setActive(false); });
+    await page.waitForFunction(() => (window as any).fixture.hiddenColorOwnerProbe);
+    assert.equal(await page.evaluate(() => (window as any).fixture.hiddenColorOwnerProbe.prevented), false,
+      "A color listener must relinquish B Escape during layout, before passive cleanup");
+    await iconDialog(page).waitFor({ state: "hidden" });
+    const b = page.locator('[data-fixture-document="b"]');
+    await b.getByRole("tab", { name: "属性", exact: true }).click(); await b.getByRole("button", { name: "选择动作图标", exact: true }).click();
+    await page.waitForFunction(() => (window as any).fixture.faPending.some((item: any) => item.row.body.catalogContext.expectedProjectBinding.hostBinding.hostInstanceId === "instance-b"));
+    await page.evaluate(() => (window as any).fixture.setActive(true));
+    await iconDialog(page).getByLabel("搜索图标").waitFor(); assert.equal(await iconDialog(page).getByLabel("搜索图标").inputValue(), "alpha");
+    await page.waitForFunction(() => (window as any).fixture.faPending.filter((item: any) => item.row.body.query === "alpha").length === 2);
+    await page.evaluate(() => {
+      const f = (window as any).fixture; f.faPending.slice(0, -1).forEach((item: any) => item.resolve("stale")); f.faPending.at(-1).resolve();
+    });
+    await iconDialog(page).getByRole("option", { name: "Light_a_alpha_0", exact: true }).waitFor();
+    assert.equal(await iconDialog(page).getByRole("option", { name: /stale/ }).count(), 0);
+    const rows = await page.evaluate(() => (window as any).fixture.faRequests); assert.ok(rows.slice(0, -1).every((row: any) => row.aborted));
+    await iconDialog(page).getByRole("button", { name: "使用此图标", exact: true }).click();
+    assert.equal(await page.locator('[data-fixture-document="a"]').getByLabel("图标", { exact: true }).inputValue(), "fa:Light_a_alpha_0");
+    await page.evaluate(() => (window as any).fixture.setActive(false));
+    await iconDialog(page).getByLabel("搜索图标").waitFor(); await iconDialog(page).getByLabel("搜索图标").press("Escape");
+    assert.equal(await b.getByLabel("图标", { exact: true }).inputValue(), "iconify:mdi:code-tags");
+    await page.evaluate(() => { const f = (window as any).fixture; f.faMode = "unsupported"; f.faPending.forEach((item: any) => item.resolve()); });
+    await b.getByRole("button", { name: "选择动作图标", exact: true }).click();
+    await iconDialog(page).getByRole("alert").waitFor(); assert.match(await iconDialog(page).getByRole("alert").innerText(), /fixture page unsupported/);
+    assert.equal(await iconDialog(page).getByRole("option").count(), 0);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
 
 test("internal subprogram root create opens stable tabs and close only changes the view", { timeout: 45_000 }, async () => {
   const { page, errors } = await openFixture();

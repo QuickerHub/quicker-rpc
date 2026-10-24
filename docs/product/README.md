@@ -247,7 +247,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；动作/子程序完整目录、分页和操作仍待迁移，不能以受限搜索冒充完整目录 |
-| `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。完整图标选择器及其它字段须补原生 catalog/presentation 契约后开放，仍属于完整迁移范围 |
+| `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。主动作/子程序共用 FA 搜索、风格分页、选色和手填规格；上传图标库及其它属性仍待原生契约 |
 | 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | V1 source 与磁盘保真已有基础；metadata 原始字段、V2 codec 和 UI source 接入继续验收 |
 | 运行/诊断 bridge | 已确认范围内的 run/trace、失败定位、取消与结果展示 | 复用现有 RPC/Agent 服务；新版设计器调用侧与宿主能力逐项接线 |
 
@@ -442,13 +442,24 @@ LRU，取消和关闭后不发布迟到缓存。独立审查及真实 CLI/fake p
 启用。`0.14.8.166` 已完成整次构建安装，540 个安装文件哈希与发布源一致；真实 V1 的
 CLI 与设计器分页链通过，默认 null style、中文/品牌/越界，以及缺失、loading、unbound、
 完整目标失配和非法窗口分别验收。专用动作版本与导出正文未变，零宿主写入和动作执行，
-主产品 frontend check 通过。共享图标选择器与 V2 活进程继续验收。
+主产品 frontend check 通过。共享选择器的当前边界见下文，V2 活进程继续验收。
 
 FA 颜色校验已在原有三/六位 hex 上补原生 `#AARRGGBB`，属性写入与 geometry 的
 spec/color 保留原文。设计器、聊天、输入标签和两个旧向量入口共用显示转换；优先读取
 spec 的显式原生颜色，缺少该字面值时保留 adapter 已产生的 CSS，避免 V2 alpha 二次转换。
 缓存和 Sync 不存 CSS 替代值，四位 hex 与 named/semantic 语法仍未开放。离线回归覆盖
-实际 Sync route、V1 属性校验及 geometry、React/DOM 与旧接口；真实宿主写回单独验收。
+实际 Sync route、V1 属性校验及 geometry、React/DOM 与旧接口。167 整次热更已完成，
+540 个安装文件与发布源一致；真实 V1 的绑定 geometry 和专用动作 ARGB 属性写入/读回
+通过，原图标已恢复，原生 body hash 与外置资源不变，零正文写入和动作执行。该验收是
+属性端口链，不冒充真实 GUI Sync 或 V2 活进程。
+
+共享图标选择器已接主动作外观与内部子程序属性，复用文档绑定的分页/geometry port，
+提供中文/英文搜索、Regular/Brands 组合页、选色及手填 URL/规格。动作选中仅修改图标；
+子程序选中先进入属性草稿，确认才与名称、说明及字面引用进入同一历史。加载中/未绑定
+不请求远端，隐藏保留草稿并释放请求/键盘，IME、焦点、文字 undo 和迟到保存各有 owner。
+翻页失败停止自动请求并保留已有页；手填规格的预览不继承旧选色。三/六/八位 hex 共用
+显示转换，关闭弹窗后颜色保持一致，存储仍是原生值。32 项真实 Edge DOM、深浅/窄窗、
+15 项纯 helper 与独立审查通过；上传资源库、V2 活进程及其它完整目录继续迁移。
 
 R5 文件实例首片已接生产 Chat/dock：已访问文件由工作台保活，切文件、browser/trace、
 折叠面板、切聊天/cwd 不卸载 APDE Session、属性草稿或 pending save。active 管理快捷键

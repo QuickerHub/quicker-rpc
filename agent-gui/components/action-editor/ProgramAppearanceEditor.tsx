@@ -1,8 +1,10 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useLayoutEffect, useState } from "react";
 import type { ProgramDocumentMetadata, ProgramDocumentMetadataPatch } from "@/lib/action-editor/document/programDocumentMetadata";
 import { IconControl } from "@/lib/action-editor/shared/IconControl";
+import IconPickerDialog from "@/lib/action-editor/shared/IconPickerDialog";
+import { useProgramEditorModalOwner } from "@/lib/action-editor/shared/ProgramEditorModalContext";
 import "./program-appearance-editor.css";
 
 type ProgramAppearanceEditorProps = {
@@ -15,6 +17,10 @@ type ProgramAppearanceEditorProps = {
 /** Appearance section adapted from Quicker.Headless ActionMetaEditor; the document owns every draft. */
 export function ProgramAppearanceEditor({ value, onChange, onSave, disabled = false }: ProgramAppearanceEditorProps) {
   const id = useId();
+  const owner = useProgramEditorModalOwner();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  useLayoutEffect(() => () => owner?.setPickerOpen(false), [owner?.setPickerOpen]);
+  const closePicker = () => { setPickerOpen(false); owner?.setPickerOpen(false); };
   const titleMissing = !value.title.trim();
   return <section className="program-appearance-editor" aria-label="动作属性" onKeyDown={(event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
@@ -45,6 +51,15 @@ export function ProgramAppearanceEditor({ value, onChange, onSave, disabled = fa
       <label htmlFor={`${id}-icon`}>图标</label>
       <input id={`${id}-icon`} value={value.icon} spellCheck={false}
         onChange={(event) => onChange({ icon: event.target.value })} />
+      <button type="button" className="step-editor-popup-btn secondary" aria-label="选择动作图标" onClick={() => {
+        if (disabled || owner?.active === false) return;
+        setPickerOpen(true); owner?.setPickerOpen(true);
+      }}>选择图标…</button>
     </fieldset>
+    <IconPickerDialog open={pickerOpen} active={!disabled && (owner?.active ?? true)} keyboardOwnerId={owner?.keyboardOwnerId}
+      value={value.icon} onClose={closePicker} onSelect={(icon) => {
+        if (disabled || owner?.active === false) return;
+        onChange({ icon }); closePicker();
+      }} />
   </section>;
 }
