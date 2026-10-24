@@ -62,7 +62,8 @@ export async function loadSkillInstructions(
     body = cached.body;
   } else {
     body = await readTier2Body(record.skillDir, record.name, skillMdRaw);
-    bodyCache.set(cacheKey, { mtimeMs: bodyMtime, body });
+    // A request-local fresh snapshot may complete after a newer cached read.
+    if (!options?.fresh) bodyCache.set(cacheKey, { mtimeMs: bodyMtime, body });
   }
 
   return { ...record, parsed, body };
