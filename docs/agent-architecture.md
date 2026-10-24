@@ -225,8 +225,10 @@ V2 绑定精确 native SearchPage/七字段 DTO，经既有 dispatcher 调用并
 未保存 Designer 草稿和云端未加载项目。摘要保留原始标题、说明、图标、字符串 editVersion，
 不求值标题/图标表达式，不读取正文，不触发搜索、索引构建或持久化。
 
-V1 仅为已审计 native module 开放能力；未知构建或 metadata 不足时关闭。capture 在真实
-Application dispatcher 的同步段内用原生同步锁 TryEnter(0)，拒绝同线程重入，核验
+V1 仅为已加载且 MVID 匹配的 Quicker/Quicker.Common 开放能力；未知构建或 metadata
+不足时关闭。首个 native 静态字段读取前，只从已存在的 exact Quicker.App 实例读取
+启动标记字段，要求其为已记录启动位置的 BCL List，避免目录读取触发 AppState 首次初始化。
+capture 在真实 Application dispatcher 的同步段内用原生同步锁 TryEnter(0)，拒绝同线程重入，核验
 loaded、退出账号标记、固定账号及服务/锁引用前后未变，再复制标量；忙、退出、缺少状态、
 枚举异常均失败。独立 hosted observer 只用 Interlocked 记录原生同步消息，不能当作
 原生账号 epoch；Stop 先失效 owner 再退订，同一组件再次 Start 使用新 owner。分页身份
