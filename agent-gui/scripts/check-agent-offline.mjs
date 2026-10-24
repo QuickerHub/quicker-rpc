@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Audited, synthetic tests only. Live agent-eval and Electron smoke are separate opt-ins.
 const tests = [
+  "scripts/check-designer-document-dependencies.test.mjs",
   "scripts/agent-offline-network-guard.test.mjs",
   "scripts/check-agent-backend-dependencies.test.mjs",
   "electron/smoke-isolation.test.mjs",
