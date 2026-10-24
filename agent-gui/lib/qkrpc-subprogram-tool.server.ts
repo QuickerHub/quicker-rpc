@@ -17,6 +17,7 @@ import {
 } from "@/lib/qkrpc-subprogram-tool";
 import {
   formatQkrpcResultForAgent,
+  formatQkrpcReadOnlyGetResultForAgent,
   qkrpcValidationError,
   runQkrpcForTool,
   runQkrpcReadOnlyGetForTool,
@@ -188,7 +189,7 @@ export async function executeQkrpcSubprogramGetReadOnly(
   const args = ["subprogram", "get", "--id", input.id];
   if (input.returnMode) args.push("--return-mode", input.returnMode);
   const result = await runQkrpcReadOnlyGetForTool(args, options);
-  return formatToolResultForAgent(QKRPC_SUBPROGRAM_GET_TOOL, input, formatQkrpcResultForAgent(result));
+  return formatToolResultForAgent(QKRPC_SUBPROGRAM_GET_TOOL, input, formatQkrpcReadOnlyGetResultForAgent(result));
 }
 
 export async function executeQkrpcSubprogramIdTool(

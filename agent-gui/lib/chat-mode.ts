@@ -60,24 +60,17 @@ export type LauncherToolId = (typeof LAUNCHER_TOOL_IDS)[number];
 /**
  * Ask tools: read-only exploration (Cursor-style Ask mode).
  * Excludes writes, shell, runs, patches, deletes, and subagents.
+ * Remote reads require an explicit non-bootstrapping port; only program get has one today.
  */
 export const ASK_TOOL_IDS = [
   "docs",
   "ask_question",
   "web_search",
-  "qkrpc_wait",
   "Read",
   "Grep",
   "workspace_program",
-  "qkrpc_action_query",
   "qkrpc_action_get",
-  "qkrpc_subprogram_query",
   "qkrpc_subprogram_get",
-  "qkrpc_step_runner_search",
-  "qkrpc_step_runner_get",
-  "qkrpc_fa",
-  "launcher_resolve",
-  "quicker_settings",
 ] as const;
 
 export type AskToolId = (typeof ASK_TOOL_IDS)[number];

@@ -16,6 +16,8 @@ import {
   type ParsedWorkspaceProgramInput,
 } from "@/lib/workspace-program-target";
 import { coerceProgramDataContent } from "@/lib/program-data-input";
+import { getRequestChatMode } from "@/lib/qkrpc-request-context";
+import type { WorkspaceProgramReadOptions } from "@/lib/workspace-program-resolve.server";
 import {
   executeWorkspaceProgramEditData,
   executeWorkspaceProgramFileEdit,
@@ -271,19 +273,34 @@ async function executeDiagnostics(
   );
 }
 
+const READ_ONLY_WORKSPACE_ACTIONS = new Set(["projects_list", "read_data", "file_read", "file_info", "file_search"]);
+
+/** This policy is supplied by the execution boundary, never by model input. */
+export async function executeWorkspaceProgramReadOnly(input: WorkspaceProgramToolInput) {
+  return formatToolResultForAgent(WORKSPACE_PROGRAM_TOOL, input,
+    await executeWorkspaceProgramTool(input, { readOnly: true }));
+}
+
 export async function executeWorkspaceProgramTool(
   input: WorkspaceProgramToolInput,
+  options?: WorkspaceProgramReadOptions,
 ): Promise<Record<string, unknown>> {
+  const readOnly = options?.readOnly === true || getRequestChatMode() === "ask";
+  const readOptions = { readOnly };
+  if (readOnly && !READ_ONLY_WORKSPACE_ACTIONS.has(input.action)) {
+    return formatLocalToolResult({ errorCode: "tool_mode_denied", toolId: WORKSPACE_PROGRAM_TOOL, mode: "ask", action: input.action },
+      false, "Ask workspace reads cannot modify a project or request remote diagnostics.", { retryable: false });
+  }
   switch (input.action) {
     case "projects_list":
       return executeWorkspaceProgramProjects({
         target: (input.target as "action" | "global_subprogram" | "all" | undefined)
           ?? "all",
-      });
+      }, readOptions);
     case "read_data": {
       const resolved = resolveProgramToolInput(input);
       if (!resolved.ok) return programInputError(resolved.error);
-      return executeWorkspaceProgramReadData({ ...input, ...resolved.parsed });
+      return executeWorkspaceProgramReadData({ ...input, ...resolved.parsed }, readOptions);
     }
     case "write_data": {
       const resolved = resolveProgramToolInput(input);
@@ -318,7 +335,7 @@ export async function executeWorkspaceProgramTool(
       const resolved = resolveProgramToolInput(input);
       if (!resolved.ok) return programInputError(resolved.error);
       if (!input.path?.trim()) return programInputError("path is required for file_read.");
-      return executeWorkspaceProgramFileRead({ ...input, ...resolved.parsed, path: input.path });
+      return executeWorkspaceProgramFileRead({ ...input, ...resolved.parsed, path: input.path }, readOptions);
     }
     case "file_write": {
       const resolved = resolveProgramToolInput(input);
@@ -352,7 +369,7 @@ export async function executeWorkspaceProgramTool(
       const resolved = resolveProgramToolInput(input);
       if (!resolved.ok) return programInputError(resolved.error);
       if (!input.path?.trim()) return programInputError("path is required for file_info.");
-      return executeWorkspaceProgramFileInfo({ ...input, ...resolved.parsed, path: input.path });
+      return executeWorkspaceProgramFileInfo({ ...input, ...resolved.parsed, path: input.path }, readOptions);
     }
     case "file_search": {
       const resolved = resolveProgramToolInput(input);
@@ -364,7 +381,7 @@ export async function executeWorkspaceProgramTool(
         query: input.query,
         maxMatches: input.maxMatches,
         caseInsensitive: input.caseInsensitive,
-      });
+      }, readOptions);
     }
     case "patch": {
       const resolved = resolveProgramToolInput(input);

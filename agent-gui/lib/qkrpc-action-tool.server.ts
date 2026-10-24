@@ -39,6 +39,7 @@ import {
 } from "@/lib/qkrpc-action-tool";
 import {
   formatQkrpcResultForAgent,
+  formatQkrpcReadOnlyGetResultForAgent,
   qkrpcValidationError,
   runQkrpcForTool,
   runQkrpcReadOnlyGetForTool,
@@ -534,7 +535,7 @@ export async function executeQkrpcActionGetReadOnly(
   const result = await runQkrpcReadOnlyGetForTool([
     "action", "get", "--id", input.id, "--return-mode", input.returnMode ?? "structure",
   ], options);
-  return formatToolResultForAgent(QKRPC_ACTION_GET_TOOL, input, formatQkrpcResultForAgent(result));
+  return formatToolResultForAgent(QKRPC_ACTION_GET_TOOL, input, formatQkrpcReadOnlyGetResultForAgent(result));
 }
 
 export async function executeQkrpcActionIdTool(

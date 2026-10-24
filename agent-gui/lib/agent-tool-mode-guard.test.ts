@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { tool, type ToolExecutionOptions } from "ai";
+import { convertToModelMessages, generateText, tool, type ToolExecutionOptions, type UIMessage } from "ai";
+import { MockLanguageModelV3 } from "ai/test";
 import { z } from "zod";
 import { applyToolModeGuards } from "./agent-tool-mode-guard";
 import { applyToolCallPolicies } from "./agent-tool-policy";
@@ -15,7 +16,7 @@ test("Ask rejects mixed-tool writes and unknown operations before the adapter", 
   const tools = applyToolModeGuards({
     workspace_program: tool({ inputSchema: z.object({ action: z.string() }), execute }),
     quicker_settings: tool({ inputSchema: z.object({ action: z.string() }), execute }),
-  }, "ask");
+  }, "ask", { workspace_program: execute });
   for (const [id, action] of [
     ["workspace_program", "write_data"], ["workspace_program", "patch"],
     ["workspace_program", "file_edit"], ["workspace_program", "future_action"],
@@ -29,8 +30,80 @@ test("Ask rejects mixed-tool writes and unknown operations before the adapter", 
   }
   assert.equal(adapterCalls, 0);
   assert.equal(await tools.workspace_program.execute!({ action: "read_data" }, options), "adapter result");
-  assert.equal(await tools.quicker_settings.execute!({ action: "get" }, options), "adapter result");
-  assert.equal(adapterCalls, 2);
+  assert.equal(adapterCalls, 1);
+});
+
+test("Ask denies startup-capable remote reads before the adapter, including inherited and restored approvals", async () => {
+  let adapterCalls = 0;
+  const ids = [
+    "qkrpc_wait", "qkrpc_action_query", "qkrpc_subprogram_query",
+    "qkrpc_step_runner_search", "qkrpc_step_runner_get", "qkrpc_fa",
+    "launcher_resolve", "quicker_settings", "workspace_program_diagnostics",
+  ];
+  const base = Object.fromEntries(ids.map((id) => [id, tool({
+    inputSchema: z.object({ action: z.string().optional() }).passthrough(),
+    needsApproval: true,
+    execute: async () => { adapterCalls += 1; return "adapter"; },
+  })]));
+  const guarded = applyToolModeGuards(base, "ask");
+  const parent = applyToolCallPolicies(guarded);
+  const child = selectSubagentTools(parent, ids);
+  for (const id of ids) {
+    assert.equal(child[id], parent[id]);
+    assert.equal(child[id].needsApproval, true);
+    for (const input of [{}, { action: "get", noBootstrap: true, readOnly: true }]) {
+      const result = await guarded[id].execute!(input, options);
+      assert.ok(isStructuredToolResult(result));
+      assert.equal(result.ok, false);
+      assert.equal((result.data as { errorCode: string }).errorCode, "tool_mode_denied");
+      assert.equal(result.retryable, false);
+    }
+    const inherited = await child[id].execute!({}, options);
+    assert.ok(isStructuredToolResult(inherited));
+    assert.equal((inherited.data as { errorCode: string }).errorCode, "tool_mode_denied");
+  }
+
+  const resumed = applyToolCallPolicies(guarded);
+  const messages = await convertToModelMessages([{ id: "saved", role: "assistant", parts: ids.map((id) => ({
+    type: `tool-${id}`, toolCallId: `saved-${id}`, state: "approval-responded",
+    input: {}, approval: { id: `approval-${id}`, approved: true },
+  })) }] as UIMessage[], { tools: resumed });
+  let prompt = "";
+  await generateText({ messages, tools: resumed, model: new MockLanguageModelV3({ doGenerate: async (input) => {
+    prompt = JSON.stringify(input.prompt);
+    return {
+      content: [{ type: "text", text: "offline boundary" }],
+      finishReason: { unified: "stop", raw: "stop" },
+      usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } }, warnings: [],
+    };
+  } }) });
+  assert.match(prompt, /tool_mode_denied/);
+  assert.equal(adapterCalls, 0);
+  for (const mode of ["agent", "launcher"] as const) {
+    assert.equal(applyToolModeGuards(base, mode), base);
+    for (const id of ids) assert.equal(await base[id].execute!({}, options), "adapter");
+  }
+  assert.equal(adapterCalls, ids.length * 2);
+});
+
+test("Ask keeps local workspace observations but cannot enter remote diagnostics", async () => {
+  const calls: string[] = [];
+  const base = { workspace_program: tool({ inputSchema: z.object({ action: z.string() }),
+    execute: async ({ action }) => { calls.push(action); return action; },
+  }) };
+  const unavailable = applyToolModeGuards(base, "ask");
+  const missingPort = await unavailable.workspace_program.execute!({ action: "read_data" }, options);
+  assert.ok(isStructuredToolResult(missingPort));
+  assert.equal(missingPort.ok, false);
+  assert.deepEqual(calls, []);
+  const tools = applyToolModeGuards(base, "ask", { workspace_program: base.workspace_program.execute });
+  const denied = await tools.workspace_program.execute!({ action: "diagnostics" }, options);
+  assert.ok(isStructuredToolResult(denied));
+  assert.equal(denied.ok, false);
+  for (const action of ["projects_list", "read_data", "file_read", "file_info", "file_search"]) {
+    assert.equal(await tools.workspace_program.execute!({ action }, options), action);
+  }
+  assert.deepEqual(calls, ["projects_list", "read_data", "file_read", "file_info", "file_search"]);
 });
 
 test("Agent keeps existing execution and inherited Ask guards cannot be widened", async () => {
