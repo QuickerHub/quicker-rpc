@@ -128,6 +128,7 @@ schema 等待可取消，迟到结果不进入新轮；未确认编辑弹窗返�
 - Skill 通过 `skill_load` 按名称和 offset 渐进加载；不把全部正文塞入初始 prompt。
 - `task` 子代理使用允许工具列表且不递归暴露自身。
 - 外部 MCP 从 user/workspace `mcp.json` 加载，server 必须显式 enabled；工具 namespaced、可 allowlist/审批/限流，并在 turn 结束关闭连接。配置入口暂按实验性管理。
+- MCP 工具定义每 turn 有界读取全部页；循环 cursor、重复定义或超限使该来源本轮不可用，保留原权限与关闭流程。内部来源记录保留实际上报版本，未知为 `null`，不按产品版本缓存或授予能力。`list_tools` 的 get/bundle 输出规范 JSON Schema；统一 knowledge HTTP 入口和持久缓存尚未新增。
 
 验证使用 LLM、agent-defs/skills/task 和外部 MCP 对应测试。资源边界见 [用户数据与安装资源](../agent-gui-plugin-storage.md)。
 
@@ -219,7 +220,7 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 |---|---|---|
 | 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | Node、Console/serve/MCP 与 V1/V2 后端读取路径已合入，移除永久目录与结果复用；跨 turn/同 turn 更新、先空后有、移除模块、定义变化、精确控制值及失败回归通过。173 待安装和真实重验 |
 | Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | Agent 模块结果已带 SchemaJson.knowledge，区分 runtime-definition、bundled-adapter 和 unknown，保留原生 HelpLink；内置引用另标 bundled-fallback 与包版本/索引指纹。原 schema 数值/日期文本保持不变；UI 投影尚未附此 metadata |
-| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。UI 目录/详情/弹窗消费者与 MCP 分页/schema 完整传递正在独立切片中实现；旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
+| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。Agent 超限投影保留原有 knowledge，省略的 schema 内容不能用参数名摘要代替；UI 目录/详情/弹窗与 MCP 分页/schema 完整传递继续独立迁移。旧/迟到结果不得覆盖当前来源或掩盖读取失败 |
 | codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 本地 guide 已提供实际 codec 格式/实现 descriptor 与 bundled 文档内容指纹，原生能力保持 unknown。Node 与统一路由/刷新及网站 corpus 来源继续迁移；公开网站 corpus 不替代当前模块 schema，不把本地读取时间当在线更新时间 |
 
 固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，

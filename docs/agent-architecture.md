@@ -151,6 +151,10 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
 `runtime-definition`、`bundled-adapter` 和 `unknown` 是不同来源，均不等同于写权限；
 缺少来源的旧插件结果保持 unknown，不用客户端时间补成原生读取证明。
 
+Agent 输出因预算省略旧格式 `schemaJson` 时，继续保留实际返回的 knowledge 和参数名，
+完整原始输出留在 `displayData` 供查看。该摘要不是编辑合同；不得补造 provenance，或因
+持有来源与指纹就推断被省略的默认值、类型、约束与写权限。
+
 迁移首片先移除按 thread/key 无限复用的模块结果，以及按固定技能组合阻断重新发现的规则。
 后续接 native provenance/fresh reader、统一查询与失效、codec/文档来源和升级场景验收。
 本地 codec 的首片沿现有 `guide.get(program-source)` / CLI guide / MCP docs 输出 `codec`
@@ -691,6 +695,20 @@ Agent 作为 MCP client 时使用同一优先级读取配置：
 shell；密钥只允许通过 `${ENV_NAME}` 展开；可写/外部工具建议设置 `requireApproval` 和 `tools`
 allowlist。Launcher、title test 与 benchmark 不加载 MCP。实现位于 `lib/agent-mcp/`，客户端依赖锁定
 到与 AI SDK 6 同代的 `@ai-sdk/mcp`，不引入第二套 Agent 框架。
+
+每次 turn 在同一连接内读取 `tools/list` 的全部页；cursor 保持原值，重复 cursor、重复工具名
+或规范化 ID 冲突均使该 server 本轮加载失败，不发布已读部分。目录读取受 64 页、2048 个
+工具、累计 4 MiB 序列化描述及整段 15 秒限制；失败关闭该 client 并记录诊断，其它 server
+仍可加载。调用方取消则收口整个 owner，迟到页不能进入新 turn。
+
+`LoadedAgentMcpTools.catalogs` 只保留通过原 allowlist/Ask 筛选的协议数据和当前连接来源，
+不包含 execute 闭包、headers、env 或命令参数。实际 server name/version 未报告时保留
+`null`；上报 version 只是来源描述，不作为工具 revision、权限证明或跨 turn 缓存键。
+下一 turn 仍重新连接、读取。该内部目录尚未新增 HTTP knowledge 入口或持久缓存。
+
+本地 `list_tools` 的 get/bundle 通过既有 `ai.asSchema` 等待并输出规范 JSON Schema，保留
+嵌套字段和约束；不把 Zod/SDK wrapper 本身交给 JSON 序列化。转换不执行 validator、审批
+或工具，失败不返回伪 schema 或半个 bundle。统一 knowledge 查询仍按前述来源契约接线。
 
 ## 9. 验证门槛
 
