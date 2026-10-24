@@ -8,6 +8,7 @@ import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
 import { prepareRemoteCipherPepper } from "./embed-remote-cipher-pepper.mjs";
 import { resolveRuntimeEntry } from "../electron/runtime-entry.mjs";
 import { writeRuntimeMode } from "../electron/runtime-mode.mjs";
+import { cleanupRetiredStaticResourceMarkers } from "./electron-static-resource-cleanup.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -20,6 +21,7 @@ export async function prepareStaticElectronBundle(options = {}, dependencies = {
   } else {
     await (dependencies.buildProductionRuntime ?? buildAgentProductionRuntime)({ outputDirectory: appDirectory, allowOutput: true });
   }
+  cleanupRetiredStaticResourceMarkers(resourcesDir);
   (dependencies.prepareBundledLlmRuntime ?? prepareBundledLlmRuntime)(appDirectory);
   (dependencies.prepareRemoteCipherPepper ?? prepareRemoteCipherPepper)(appDirectory);
   (dependencies.ensureBundledNode ?? ensureBundledNode)(ctx);

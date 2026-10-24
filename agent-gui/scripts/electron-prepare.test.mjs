@@ -149,6 +149,25 @@ test("valid static reuse validates the actual artifact and never calls the build
   assert.equal(JSON.parse(readFileSync(join(f.appDirectory, "runtime-mode.json"), "utf8")).mode, "static");
 });
 
+for (const reuseApp of [false, true]) {
+  test(`static ${reuseApp ? "reuse" : "fresh build"} cleans retired root markers before secret/tool stages`, async (t) => {
+    const f = fixture(t), calls = [];
+    const retired = ["voice-plugin-channel.json", "voice-plugin-manifest.json", "voice-sensevoice-model-identity.json", "plugin-registry-bootstrap.json"];
+    for (const name of retired) write(f.resourcesDir, name, "retired generated fixture");
+    write(f.resourcesDir, "user-data/preserve.json", "generated user-data sentinel");
+    if (reuseApp) stageStatic(f.appDirectory);
+    await prepareStaticElectronBundle({ ...f, reuseApp }, staticDependencies(calls, {
+      prepareBundledLlmRuntime(path) {
+        for (const name of retired) assert.equal(existsSync(join(f.resourcesDir, name)), false);
+        assert.equal(readFileSync(join(f.resourcesDir, "user-data/preserve.json"), "utf8"), "generated user-data sentinel");
+        calls.push(["llm", path]);
+      },
+    }));
+    assert.equal(calls.some(([step]) => step === "verify"), true);
+    assert.equal(JSON.parse(readFileSync(join(f.appDirectory, "runtime-mode.json"), "utf8")).mode, "static");
+  });
+}
+
 for (const setup of [
   ["missing app", () => {}],
   ["only an old Next server", (app) => write(app, "server.js")],
@@ -158,10 +177,12 @@ for (const setup of [
   test(`invalid static reuse (${setup[0]}) reaches no tool/secret stage or common version work`, async (t) => {
     const f = fixture(t), calls = [];
     setup[1](f.appDirectory);
+    write(f.resourcesDir, "voice-plugin-channel.json", "preserve until runtime preflight succeeds");
     const marker = join(f.appDirectory, "runtime-mode.json"), before = existsSync(marker) ? readFileSync(marker, "utf8") : null;
     const dependencies = commonDependencies(calls, { prepareStatic: prepareStaticElectronBundle, staticDependencies: staticDependencies(calls) });
     await assert.rejects(prepareElectronBundle({ ...f, reuseApp: true }, dependencies), /Static|static/);
     assert.deepEqual(calls, []);
+    assert.equal(readFileSync(join(f.resourcesDir, "voice-plugin-channel.json"), "utf8"), "preserve until runtime preflight succeeds");
     assert.equal(existsSync(marker) ? readFileSync(marker, "utf8") : null, before);
     assert.deepEqual(JSON.parse(readFileSync(join(f.agentGuiRoot, "package.json"), "utf8")), f.packageData);
   });
