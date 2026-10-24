@@ -68,7 +68,8 @@ internal sealed class QkrpcRpcSessionPool : IAsyncDisposable
 
     public async Task InvalidateDisconnectedAsync()
     {
-        await _gate.WaitAsync().ConfigureAwait(false);
+        // Failure cleanup does not own another request's in-flight connection attempt.
+        if (!await _gate.WaitAsync(0).ConfigureAwait(false)) return;
         try
         {
             if (_session is not null && _session.JsonRpc.Completion.IsCompleted)

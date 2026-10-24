@@ -18,23 +18,47 @@ internal static class ServeInvokeDispatcher
         CancellationToken cancellationToken,
         QuickerRpcHostBinding? binding = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var normalized = (op ?? string.Empty).Trim().ToLowerInvariant();
         if (string.IsNullOrEmpty(normalized))
         {
             return Fail("MISSING_OP", "Provide op (e.g. ping, wait, action.list).");
         }
 
+        var requestAbort = cancellationToken;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(requestAbort);
+        ServeInvokeResponse TimedOut() => new()
+        {
+            Ok = false, Error = "RPC_TIMEOUT", Message = $"RPC timed out after {timeoutSeconds}s.",
+            HostBinding = pool.Binding ?? binding,
+        };
+        ServeInvokeResponse Complete(ServeInvokeResponse response)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return response;
+        }
+        async Task<ServeInvokeResponse> FailureAsync(ServeInvokeResponse failure)
+        {
+            requestAbort.ThrowIfCancellationRequested();
+            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
+            requestAbort.ThrowIfCancellationRequested();
+            return deadline.IsCancellationRequested ? TimedOut() : failure;
+        }
+
         try
         {
+            deadline.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
+            cancellationToken = deadline.Token;
+            cancellationToken.ThrowIfCancellationRequested();
             if (normalized == "action.binding")
             {
                 var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty);
-                return Ok(new { hostBinding = prepared.HostBinding, prepared.ActionId, prepared.EditVersion });
+                return Complete(Ok(new { hostBinding = prepared.HostBinding, prepared.ActionId, prepared.EditVersion }));
             }
             if (normalized == "action.save" && ServeJsonArgs.GetBool(args, "dryRun"))
-                return await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false);
+                return Complete(await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false));
             if (normalized == "host.list")
-                return Ok(new { service = "qkrpc", candidates = await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false) });
+                return Complete(Ok(new { service = "qkrpc", candidates = await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false) }));
             if (binding is null && args.ValueKind == JsonValueKind.Object && args.TryGetProperty("hostBinding", out var bindingJson))
                 binding = JsonSerializer.Deserialize<QuickerRpcHostBinding>(bindingJson.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             var selectedSession = ServeJsonArgs.GetString(args, "hostSessionId");
@@ -54,7 +78,7 @@ internal static class ServeInvokeDispatcher
                 if (project is not null)
                 {
                     if (binding is not null && !binding.SameDestination(project.HostBinding))
-                        return Fail(QuickerRpcBindingErrors.Mismatch, "Requested host differs from the disk project.");
+                        return Complete(Fail(QuickerRpcBindingErrors.Mismatch, "Requested host differs from the disk project."));
                     binding = project.HostBinding;
                     if (string.IsNullOrWhiteSpace(ServeJsonArgs.GetString(args, "dir")))
                     {
@@ -67,19 +91,19 @@ internal static class ServeInvokeDispatcher
             if (normalized == "action.save" && !ServeJsonArgs.GetBool(args, "dryRun"))
             {
                 var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty);
-                if (prepared.HostBinding is null) return Fail(QuickerRpcBindingErrors.Required, "This bundle has no verified host binding. Reopen explicitly.");
+                if (prepared.HostBinding is null) return Complete(Fail(QuickerRpcBindingErrors.Required, "This bundle has no verified host binding. Reopen explicitly."));
                 if (binding is not null && !binding.SameDestination(prepared.HostBinding))
-                    return Fail(QuickerRpcBindingErrors.Mismatch, "Requested host differs from the source bundle.");
+                    return Complete(Fail(QuickerRpcBindingErrors.Mismatch, "Requested host differs from the source bundle."));
                 binding = prepared.HostBinding;
             }
             if (binding is not null && !string.IsNullOrWhiteSpace(selectedSession) && selectedSession != binding.HostSessionId)
-                return Fail(QuickerRpcBindingErrors.Mismatch, "Requested session differs from the bound document/connection.");
+                return Complete(Fail(QuickerRpcBindingErrors.Mismatch, "Requested session differs from the bound document/connection."));
             if (binding is null && !string.IsNullOrWhiteSpace(selectedSession))
                 binding = QuickerRpcHostDiscovery.Select(await QuickerRpcHostDiscovery.DiscoverAsync(cancellationToken: cancellationToken).ConfigureAwait(false), selectedSession);
             if (binding is not null) pool = pool.ForBinding(binding);
             var response = normalized switch
             {
-                "ping" => await PingAsync(pool, timeoutSeconds, cancellationToken).ConfigureAwait(false),
+                "ping" => await PingAsync(pool, cancellationToken).ConfigureAwait(false),
                 "wait" => await WaitAsync(args, cancellationToken).ConfigureAwait(false),
                 "guide.get" => GuideGet(args),
                 "guide.search" => GuideSearch(args),
@@ -87,27 +111,26 @@ internal static class ServeInvokeDispatcher
                     await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false),
                 _ when normalized.StartsWith("guide.", StringComparison.Ordinal) =>
                     Fail("UNKNOWN_OP", $"Unknown guide op: {op}"),
-                _ => await RpcOpAsync(pool, normalized, args, timeoutSeconds, cancellationToken)
+                _ => await RpcOpAsync(pool, normalized, args, cancellationToken)
                     .ConfigureAwait(false),
             };
             response.HostBinding = pool.Binding ?? binding;
-            return response;
+            return Complete(response);
         }
         catch (QuickerRpcClientException ex)
         {
-            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
-            return new ServeInvokeResponse { Ok = false, Error = ex.ErrorCode, Message = ex.Message, HostBinding = pool.Binding ?? binding };
+            return await FailureAsync(new ServeInvokeResponse { Ok = false, Error = ex.ErrorCode, Message = ex.Message, HostBinding = pool.Binding ?? binding }).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (requestAbort.IsCancellationRequested)
         {
-            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
-            return Fail("RPC_TIMEOUT", $"RPC timed out after {timeoutSeconds}s.");
+            requestAbort.ThrowIfCancellationRequested();
+            throw;
         }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested) { return TimedOut(); }
+        catch (OperationCanceledException) { return await FailureAsync(TimedOut()).ConfigureAwait(false); }
         catch (Exception ex)
         {
-            await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
-            return Fail("INVOKE_FAILED", ex.Message);
+            return await FailureAsync(Fail("INVOKE_FAILED", ex.Message)).ConfigureAwait(false);
         }
     }
 
@@ -115,14 +138,11 @@ internal static class ServeInvokeDispatcher
         QkrpcRpcSessionPool pool,
         string op,
         JsonElement args,
-        int timeoutSeconds,
         CancellationToken cancellationToken)
     {
         var rpc = await pool.GetRpcAsync(cancellationToken,
             op == "action.open" ? new[] { QuickerRpcHostCapabilityNames.ActionSourceRead } : null).ConfigureAwait(false);
-        using var rpcTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        rpcTimeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
-        var token = rpcTimeout.Token;
+        var token = cancellationToken;
 
         return op switch
         {
@@ -218,14 +238,10 @@ internal static class ServeInvokeDispatcher
 
     private static async Task<ServeInvokeResponse> PingAsync(
         QkrpcRpcSessionPool pool,
-        int timeoutSeconds,
         CancellationToken cancellationToken)
     {
         var rpc = await pool.GetRpcAsync(cancellationToken).ConfigureAwait(false);
-        using var rpcTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        rpcTimeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
-        var token = rpcTimeout.Token;
-        var health = await ServeHealthQuery.ReadAsync(rpc, token).ConfigureAwait(false);
+        var health = await ServeHealthQuery.ReadAsync(rpc, cancellationToken).ConfigureAwait(false);
         return Ok(new
         {
             ok = true,
