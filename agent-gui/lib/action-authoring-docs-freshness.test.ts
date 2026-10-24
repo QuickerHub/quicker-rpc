@@ -8,11 +8,17 @@ import { build } from "esbuild";
 
 const repo = resolve(import.meta.dirname, "../..");
 let owned: string;
-let api: typeof import("./action-authoring-docs") & { executeDocsTool(input: unknown): Promise<any>; setRoot(root: string, standalone?: boolean): void; networkCalls(): number; manifestReadsValue: number };
+let api: typeof import("./action-authoring-docs") & { executeDocsTool(input: unknown): Promise<any>; setRoot(root: string, standalone?: boolean): void; networkCalls(): number; manifestReadsValue: number;
+  loadSkillInstructions: typeof import("./agent-skills/load").loadSkillInstructions;
+  holdNextRead(path: string): { captured: Promise<void>; release(): void };
+};
 before(async () => {
   await mkdir(join(repo, ".tmp"), { recursive: true });
   owned = await mkdtemp(join(repo, ".tmp/node-docs-test-"));
   const modules: Record<string, string> = {
+    fs: `import * as real from 'fixture-real-fs';export const stat=real.stat,readdir=real.readdir;
+      let held;export function holdNextRead(path){let captured,release;const read=new Promise(resolve=>captured=resolve),released=new Promise(resolve=>release=resolve);held={path,captured,release,released};return {captured:read,release}}
+      export async function readFile(path,...args){const bytes=await real.readFile(path,...args);if(held&&String(path)===held.path){const current=held;held=undefined;current.captured();await current.released}return bytes}`,
     skills: `import {readFile,stat} from 'node:fs/promises'; import {join} from 'node:path';
       export let root='';export let reads=0;export let standalone=false;export function setRoot(value,bundle=false){root=value;standalone=bundle;reads=0;process.env.QKRPC_REPO_ROOT=value;process.env.AGENT_GUI_ROOT=bundle?value:join(value,'agent-gui');}
       export function resolveSkillDir(name){return join(root,'docs/skills',name)}
@@ -32,13 +38,13 @@ before(async () => {
     turn: `export function incrementDocsCallCountThisTurn(){}`,
     ai: `export const tool=value=>value`, empty: "",
   };
-  const aliases: Record<string, string> = { "@/lib/agent-skills": "skills", "@/lib/agent-skills/discover": "skills", "@/lib/qkrpc-http": "http",
+  const aliases: Record<string, string> = { "node:fs/promises": "fs", "@/lib/agent-skills": "skills", "@/lib/agent-skills/discover": "skills", "@/lib/qkrpc-http": "http",
     "@/lib/qkrpc-request-context": "context", "@/lib/tool-result": "feedback", "@/lib/tool-result-agent-view": "view",
     "@/lib/agent-turn-state": "state", "@/lib/agent-skills/skill-intent-preload": "preload", "@/lib/program-turn-context": "turn", "@/lib/repo-root": "repo", ai: "ai", "server-only": "empty" };
   const output = join(owned, "fixture.mjs");
-  await build({ stdin: { contents: `export * from ${JSON.stringify(join(repo, "agent-gui/lib/action-authoring-docs.ts"))};export {executeDocsTool} from ${JSON.stringify(join(repo, "agent-gui/lib/docs-tool.server.ts"))};export {setRoot,reads as manifestReadsValue} from 'fixture:skills';export {networkCalls} from 'fixture:http';`, resolveDir: join(repo, "agent-gui") },
+  await build({ stdin: { contents: `export * from ${JSON.stringify(join(repo, "agent-gui/lib/action-authoring-docs.ts"))};export {executeDocsTool} from ${JSON.stringify(join(repo, "agent-gui/lib/docs-tool.server.ts"))};export {loadSkillInstructions} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-skills/load.ts"))};export {setRoot,reads as manifestReadsValue} from 'fixture:skills';export {networkCalls} from 'fixture:http';export {holdNextRead} from 'fixture:fs';`, resolveDir: join(repo, "agent-gui") },
     outfile: output, bundle: true, platform: "node", format: "esm", tsconfig: join(repo, "agent-gui/tsconfig.json"), plugins: [{ name: "owned-docs-ports", setup(builder) {
-      builder.onResolve({ filter: /.*/ }, args => { const key = args.path.startsWith("fixture:") ? args.path.slice(8) : aliases[args.path]; return key ? { path: key, namespace: "docs-fixture" } : undefined; });
+      builder.onResolve({ filter: /.*/ }, args => { if (args.path === "fixture-real-fs") return { path: "node:fs/promises", external: true }; const key = args.path.startsWith("fixture:") ? args.path.slice(8) : aliases[args.path]; return key ? { path: key, namespace: "docs-fixture" } : undefined; });
       builder.onLoad({ filter: /.*/, namespace: "docs-fixture" }, args => ({ contents: modules[args.path], resolveDir: join(repo, "agent-gui"), loader: "js" }));
     } }] });
   api = await import(pathToFileURL(output).href);
@@ -114,9 +120,33 @@ test("standalone bundles read their explicitly located local schema and never co
 test("on-demand docs bypass the skill body mtime cache without changing the default skill loader", async () => {
   const {root}=await fixture(); const folder=join(root,"docs/skills/quicker-run"); await mkdir(folder);
   const path=join(folder,"SKILL.md"); await writeFile(path,"---\nname: quicker-run\ndescription: fixture\n---\nold on-demand body");
+  await utimes(path,new Date("2030-01-01"),new Date("2030-01-01"));
+  assert.equal((await api.loadSkillInstructions("quicker-run"))?.body,"old on-demand body");
   const first=await api.getActionAuthoringDoc("quicker-run"); assert.ok(first.ok);
   const time=await stat(path); await writeFile(path,"---\nname: quicker-run\ndescription: fixture\n---\nnew on-demand body"); await utimes(path,time.atime,time.mtime);
   const current=await api.getActionAuthoringDoc("quicker-run"); assert.ok(current.ok); assert.match(current.doc.markdown,/new on-demand/);
+  assert.equal((await api.loadSkillInstructions("quicker-run"))?.body,"old on-demand body","fresh docs reads leave the default mtime-cache policy unchanged");
+});
+
+test("a held old fresh skill read cannot overwrite a newer default cache at the same mtime", { timeout: 5000 }, async () => {
+  const { root } = await fixture();
+  const folder = join(root, "docs/skills/quicker-run"); await mkdir(folder);
+  const path = join(folder, "SKILL.md");
+  const skill = (body: string) => `---\nname: quicker-run\ndescription: fixture\n---\n${body}`;
+  await writeFile(path, skill("old captured body"));
+  await utimes(path, new Date("2030-01-01"), new Date("2030-01-01"));
+  const time = await stat(path);
+  const held = api.holdNextRead(path);
+  const older = api.loadSkillInstructions("quicker-run", undefined, { fresh: true });
+  try {
+    await held.captured;
+    await writeFile(path, skill("new default body")); await utimes(path, time.atime, time.mtime);
+    assert.equal((await stat(path)).mtimeMs, time.mtimeMs, "the cache key's mtime stays identical");
+    assert.equal((await api.loadSkillInstructions("quicker-run"))?.body, "new default body");
+    held.release();
+    assert.equal((await older)?.body, "old captured body", "fresh keeps its own completed snapshot");
+    assert.equal((await api.loadSkillInstructions("quicker-run"))?.body, "new default body", "late fresh completion must not publish to the default/preload cache");
+  } finally { held.release(); await older; }
 });
 test("explicit legacy roots remain readable when no unified catalog exists", async () => {
   const {root,skill}=await fixture(); await unlink(join(skill,"topics.json"));
