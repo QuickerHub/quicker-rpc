@@ -136,8 +136,9 @@ run(["scripts/generate-service-routes.mjs", "--check"]);
 run(["node_modules/typescript/bin/tsc", "--noEmit", "--incremental", "false"]);
 run([
   "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",
-  // Bound cold tsx startup without weakening the existing per-file timeout.
-  "--test-concurrency=4",
+  // Cold tsx processes compete for CPU on Windows CI; keep each file's timeout
+  // and assertions intact while limiting simultaneous compiler startup.
+  `--test-concurrency=${process.platform === "win32" ? 2 : 4}`,
   "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
   ...tests,
 ]);
