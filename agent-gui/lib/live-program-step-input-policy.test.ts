@@ -25,6 +25,10 @@ test("native value conditions use the prior Value; a nonempty mode3 literal can 
   const policy = inspectLiveProgramStepInputPolicy(content, "one", "sys:fixture", { ...native, inputs: rows });
   assert.equal(policy.editableInputKeys.includes("empty"), false);
   assert.doesNotThrow(() => policy.validateChanges([{ key: "text", value: "" }]));
+  (rows[1] as { variableMode: number }).variableMode = 2;
+  (rows[1] as { literalPolicy: string }).literalPolicy = "existing-literal-only";
+  assert.doesNotThrow(() => inspectLiveProgramStepInputPolicy(content, "one", "sys:fixture", { ...native, inputs: rows })
+    .validateChanges([{ key: "empty", value: "now nonempty" }]));
   for (const value of ["$", "$=1", "$$hi", "＄=1", "a\u200db", "\ufeffword", "50$"])
     assert.equal(isSupportedLiveStepLiteral(value), false, value);
 });

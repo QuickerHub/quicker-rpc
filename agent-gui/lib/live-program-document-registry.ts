@@ -122,7 +122,7 @@ export function createLiveProgramDocumentRegistry(options: {
         if (done) return; done = true;
         execution?.abortSignal?.removeEventListener("abort", onAbort);
         pending.waiters.delete(waiter);
-        resolve(structuredClone(cancelled(execution) ? fail(scope.descriptor, pending.command, "REQUEST_ABORTED", "The metadata observer was cancelled.") : receipt));
+        resolve(structuredClone(receipt.ok && cancelled(execution) ? fail(scope.descriptor, pending.command, "REQUEST_ABORTED", "The metadata observer was cancelled.") : receipt));
         if (!pending.waiters.size && scope.pending.get(pending.command.operationId) === pending)
           abortPending(scope, pending, "REQUEST_ABORTED", "The metadata observer was cancelled.");
       } };
@@ -199,6 +199,8 @@ export function createLiveProgramDocumentRegistry(options: {
     const existing = scope.pending.get(command.operationId);
     if (existing) return existing.fingerprint === fingerprint ? observe(scope, existing, execution)
       : Promise.resolve(fail(descriptor, command, "LIVE_OPERATION_CONFLICT", "This operation id already belongs to a different input."));
+    if (scope.operations.size + scope.pending.size >= 128)
+      return Promise.resolve(fail(descriptor, command, "LIVE_OPERATION_LIMIT", "The receipt ledger is full; prior outcomes were retained."));
     const pending: PendingRead = { command: captured, fingerprint, controller: new AbortController(), waiters: new Set() };
     scope.pending.set(command.operationId, pending);
     const observer = observe(scope, pending, execution);
@@ -357,7 +359,7 @@ export function createLiveProgramDocumentRegistry(options: {
       for (const pin of selected) pins.delete(pin.ref.pinId);
       return { state: "ready", scope: descriptor };
     },
-    execute: executeCommand,
+    execute: (descriptor, command, execution) => executeCommand(descriptor, command, execution),
     executeAsync,
     revokeScope(scopeId, reason) { const scope = scopes.get(scopeId); if (scope) closeScope(scope, reason ?? "The manual turn was closed."); },
     dispose() { disposed = true; for (const scope of scopes.values()) closeScope(scope, "The document host was disposed."); entries.clear(); pins.clear(); },
