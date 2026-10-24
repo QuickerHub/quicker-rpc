@@ -13,14 +13,27 @@ const ASK_READ_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   qkrpc_action_open: new Set(),
   qkrpc_action_save: new Set(),
 };
+const ASK_PROGRAM_GET_TOOL_IDS = new Set(["qkrpc_action_get", "qkrpc_subprogram_get"]);
+export type ReadOnlyToolExecutors = Readonly<Record<string, NonNullable<Tool["execute"]> | undefined>>;
 
 /** Enforce the operation boundary of mixed read/write tools independently of the model. */
-export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode): T {
+export function applyToolModeGuards<T extends ToolSet>(tools: T, mode: ChatMode, readOnlyExecutors: ReadOnlyToolExecutors = {}): T {
   if (mode !== "ask") return tools;
   const guarded = { ...tools };
   for (const [toolId, definition] of Object.entries(tools)) {
     const allowedActions = ASK_READ_ACTIONS[toolId];
     const toolDefinition = definition as Tool;
+    if (ASK_PROGRAM_GET_TOOL_IDS.has(toolId)) {
+      (guarded as ToolSet)[toolId] = {
+        ...toolDefinition,
+        execute: readOnlyExecutors[toolId] ?? (() => formatLocalToolResult(
+          { errorCode: "tool_mode_denied", toolId, mode }, false,
+          `Ask mode requires a read-only execution port for ${toolId}; workspace export is unavailable.`,
+          { retryable: false },
+        )),
+      } as Tool;
+      continue;
+    }
     if (!allowedActions || !toolDefinition.execute) continue;
     const execute = toolDefinition.execute;
     (guarded as ToolSet)[toolId] = {

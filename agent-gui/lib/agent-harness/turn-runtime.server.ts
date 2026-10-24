@@ -32,6 +32,8 @@ import { loadConfiguredMcpTools } from "@/lib/agent-mcp/load.server";
 import { restrictComposedTools } from "@/lib/chat-tool-selection";
 import { createTaskToolForParent, TASK_TOOL } from "@/lib/task-tool.server";
 import { applyToolModeGuards } from "@/lib/agent-tool-mode-guard";
+import { executeQkrpcActionGetReadOnly } from "@/lib/qkrpc-action-tool.server";
+import { executeQkrpcSubprogramGetReadOnly } from "@/lib/qkrpc-subprogram-tool.server";
 import { createTurnExecutionState, type TurnExecutionState } from "./turn-execution-state";
 
 export type ResolvedAgentTurnScope = {
@@ -133,7 +135,10 @@ export async function prepareAgentTurnRuntime(params: {
       { ...staticTools, ...mcp.tools } as ToolSet,
       request.slashCommand.overrides.toolAllowlist,
     );
-    const guardedTools = applyToolModeGuards(composedTools, request.chatMode);
+    const guardedTools = applyToolModeGuards(composedTools, request.chatMode, {
+      qkrpc_action_get: (input, options) => executeQkrpcActionGetReadOnly(input as Parameters<typeof executeQkrpcActionGetReadOnly>[0], { abortSignal: options.abortSignal }),
+      qkrpc_subprogram_get: (input, options) => executeQkrpcSubprogramGetReadOnly(input as Parameters<typeof executeQkrpcSubprogramGetReadOnly>[0], { abortSignal: options.abortSignal }),
+    });
     let fullTools: ToolSet;
     if (guardedTools[TASK_TOOL]) {
       guardedTools[TASK_TOOL] = createTaskToolForParent(

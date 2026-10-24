@@ -41,6 +41,7 @@ import {
   formatQkrpcResultForAgent,
   qkrpcValidationError,
   runQkrpcForTool,
+  runQkrpcReadOnlyGetForTool,
   runQkrpcWithXactionForTool,
 } from "@/lib/qkrpc";
 import { attachActionTraceArtifactToDebugResult } from "@/lib/action-trace-artifact.server";
@@ -519,6 +520,23 @@ export async function executeQkrpcActionRunTool(
   }
 }
 
+/** Explicit Ask execution port: preserve the remote read without workspace extraction. */
+export async function executeQkrpcActionGetReadOnly(
+  input: Omit<Extract<QkrpcActionIdToolInput, { action: "get" }>, "action">,
+  options?: { abortSignal?: AbortSignal },
+): Promise<Record<string, unknown>> {
+  options?.abortSignal?.throwIfAborted();
+  try { await pinExistingActionProjectBinding(input.id); }
+  catch (error) {
+    const failure = actionProjectBindingFailure(error);
+    return formatLocalToolResult({ success: false, errorMessage: failure.error, errorCode: failure.code, retryable: false }, false, failure.error, { retryable: false });
+  }
+  const result = await runQkrpcReadOnlyGetForTool([
+    "action", "get", "--id", input.id, "--return-mode", input.returnMode ?? "structure",
+  ], options);
+  return formatToolResultForAgent(QKRPC_ACTION_GET_TOOL, input, formatQkrpcResultForAgent(result));
+}
+
 export async function executeQkrpcActionIdTool(
   input: QkrpcActionIdToolInput,
 ): Promise<Record<string, unknown>> {
@@ -530,6 +548,7 @@ export async function executeQkrpcActionIdTool(
   }
   switch (input.action) {
     case "get": {
+      if (getRequestChatMode() === "ask") return executeQkrpcActionGetReadOnly(input);
       try { await pinExistingActionProjectBinding(input.id); }
       catch (error) {
         const failure = actionProjectBindingFailure(error);
@@ -969,7 +988,7 @@ export const QKRPC_ACTION_QUERY_TOOL_DEF = tool({
 
 export const QKRPC_ACTION_GET_TOOL_DEF = tool({
   description:
-    "Compatibility JSON: sync one action from Quicker to .quicker/actions/{id}/ (first time only). "
+    "Read one action. In Agent mode, sync compatibility JSON to .quicker/actions/{id}/ (first time only); in Ask mode, read only without exporting workspace files. "
     + "Existing V1 action body edits default to qkrpc_action_open/save YAML instead. "
     + "After qkrpc_action_create skip get — use workspace_program. NOT run — qkrpc_action_run.",
   inputSchema: z.object({
