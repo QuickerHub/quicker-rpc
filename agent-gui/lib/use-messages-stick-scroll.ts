@@ -7,6 +7,7 @@ import {
   useRef,
   type RefObject,
 } from "react";
+import { createMessageScrollFrameOwner, type CancelMessageScrollFrame } from "./message-scroll-frame-owner";
 
 /** Within this distance from the bottom we treat the user as following the stream. */
 const STICK_THRESHOLD_PX = 64;
@@ -57,10 +58,22 @@ export function useMessagesStickScroll(
 } {
   const stickToBottomRef = useRef(true);
   const prevScrollHeightRef = useRef(0);
-  const followFrameRef = useRef(0);
   const pinToLastTurnPromptRef = useRef(false);
   const turnRefSlot = useRef(turnRef);
   turnRefSlot.current = turnRef;
+  const frameOwner = useRef<ReturnType<typeof createMessageScrollFrameOwner> | null>(null);
+
+  useLayoutEffect(() => {
+    const owner = visible ? createMessageScrollFrameOwner(requestAnimationFrame, cancelAnimationFrame) : null;
+    frameOwner.current = owner;
+    return () => {
+      owner?.dispose();
+      if (frameOwner.current === owner) frameOwner.current = null;
+    };
+  }, [threadId, visible]);
+
+  const scheduleFrame = useCallback((callback: () => void): CancelMessageScrollFrame =>
+    frameOwner.current?.schedule(callback) ?? (() => {}), []);
 
   const snapToBottom = useCallback(() => {
     const container = containerRef.current;
@@ -73,9 +86,10 @@ export function useMessagesStickScroll(
     stickToBottomRef.current = true;
     prevScrollHeightRef.current = 0;
     pinToLastTurnPromptRef.current = false;
+    if (!frameOwner.current?.active) return;
     snapToBottom();
-    requestAnimationFrame(snapToBottom);
-  }, [snapToBottom]);
+    scheduleFrame(snapToBottom);
+  }, [snapToBottom, scheduleFrame]);
 
   /** After the next layout revision, snap the last turn prompt to the scrollport top. */
   const pinToLastTurnPrompt = useCallback(() => {
@@ -105,19 +119,19 @@ export function useMessagesStickScroll(
     prevScrollHeightRef.current = 0;
 
     snapMessagesScrollToBottom(container, prevScrollHeightRef);
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
+    let cancelSecond: CancelMessageScrollFrame | undefined;
+    const cancelFirst = scheduleFrame(() => {
       snapMessagesScrollToBottom(container, prevScrollHeightRef);
-      raf2 = requestAnimationFrame(() => {
+      cancelSecond = scheduleFrame(() => {
         snapMessagesScrollToBottom(container, prevScrollHeightRef);
       });
     });
 
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
+      cancelFirst();
+      cancelSecond?.();
     };
-  }, [containerRef, threadId, visible]);
+  }, [containerRef, threadId, visible, scheduleFrame]);
 
   useEffect(() => {
     if (!visible) return;
@@ -130,21 +144,22 @@ export function useMessagesStickScroll(
       stickToBottomRef.current = distance <= STICK_THRESHOLD_PX;
     };
 
-    let rafId = 0;
     const attach = () => {
       updateStick();
       container.addEventListener("scroll", updateStick, { passive: true });
     };
 
-    rafId = requestAnimationFrame(() => {
-      requestAnimationFrame(attach);
+    let cancelAttach: CancelMessageScrollFrame | undefined;
+    const cancelFirst = scheduleFrame(() => {
+      cancelAttach = scheduleFrame(attach);
     });
 
     return () => {
-      cancelAnimationFrame(rafId);
+      cancelFirst();
+      cancelAttach?.();
       container.removeEventListener("scroll", updateStick);
     };
-  }, [containerRef, visible, threadId]);
+  }, [containerRef, visible, threadId, scheduleFrame]);
 
   useLayoutEffect(() => {
     if (!visible) return;
@@ -153,14 +168,14 @@ export function useMessagesStickScroll(
 
     const scrollHeight = container.scrollHeight;
 
-    cancelAnimationFrame(followFrameRef.current);
-    followFrameRef.current = requestAnimationFrame(() => {
+    let cancelPrompt: CancelMessageScrollFrame | undefined;
+    const cancelFollow = scheduleFrame(() => {
       if (pinToLastTurnPromptRef.current) {
         pinToLastTurnPromptRef.current = false;
         const turn = turnRefSlot.current?.current;
         if (turn) {
           snapMessagesScrollToTurnPrompt(container, turn, prevScrollHeightRef);
-          requestAnimationFrame(() => {
+          cancelPrompt = scheduleFrame(() => {
             snapMessagesScrollToTurnPrompt(container, turn, prevScrollHeightRef);
           });
           return;
@@ -171,8 +186,8 @@ export function useMessagesStickScroll(
       if (scrollHeight === prevScrollHeightRef.current) return;
       snapMessagesScrollToBottom(container, prevScrollHeightRef);
     });
-    return () => cancelAnimationFrame(followFrameRef.current);
-  }, [containerRef, revision, visible, threadId]);
+    return () => { cancelFollow(); cancelPrompt?.(); };
+  }, [containerRef, revision, visible, threadId, scheduleFrame]);
 
   return {
     pinToBottom,

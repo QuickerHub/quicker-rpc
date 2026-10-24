@@ -337,6 +337,12 @@ snapshot/etag 先复用。先保持当前请求/响应与聊天 SSE，测量 cat
 
 框架组件为纯展示组合，不启动 Agent、不持久化会话、不注册模型工具。保留现有分栏 DOM 与 refs，拖动、消息滚动和面板状态继续由原有组件负责。功能定义是界面入口目录；运行时工具目录与策略仍由 `TurnPlan` 和工具层负责。
 
+消息滚动的动画帧由 `use-messages-stick-scroll.ts` 的当前 thread/可见生命周期持有，
+`message-scroll-frame-owner.ts` 统一取消手动 pin、激活对齐、监听器安装和流式 prompt 的
+二段回调。隐藏、切 thread 或卸载先关闭 owner；即使浏览器已经捕获回调批次，也不能再
+安装监听器或移动旧滚动容器。同一 thread 的布局更新额外取消上次 prompt 的第二帧，
+不影响另一个会话的帧，也不改变既有前台跟随策略。
+
 工作台文件实例由 Explorer provider 的私有 registry 持有，以 cwd、tab ID 与实例代次
 标识；它只保存 owner、基线描述与读请求 token，不存第二份编辑 present/history。
 所有 ChatPanel 外有唯一 `WorkspaceDocumentHost`，其 portal target 保持不变，切换时仅
