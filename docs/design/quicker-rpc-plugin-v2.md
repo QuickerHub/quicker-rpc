@@ -84,6 +84,15 @@ Debug/Release binary 均不能替代实际加载及双宿主验收。
 
 ## V2 Designer 只读基础
 
+`stepRunner.inputContract.read` 另有可选的原生输入契约端口。它要求已加载的精确
+`Quicker.StepEngine` API、现有 `ActionStep.StepRunnerService` 和 UI dispatcher；每次在
+该 dispatcher 上调用当前 service 的 `GetRunner`，读取原始定义，再复用共享 policy
+builder。没有对应 API、service 或 dispatcher 的宿主继续 unavailable，不从 UI/Agent
+目录或缓存补权限。返回 provenance 为 `hostKind=v2`；旧 V1 builder 入口保持原样。
+原生默认控制值、精确空值、变量模式、输入来源、封闭选项和未知可见性均保留原有
+严格边界。该代码已有真实 DTO/API shape 与取消、DI/manual、序列化的离线回归，
+实际 LAN V2 的绑定读取和能力声明仍待部署验证，不代表运行时类型转换或完整 parity。
+
 `GetUiDetailAsync` 使用 `StepRunnerUiSchemaJson`，保留图标、control field、变量模式和
 参数 UI 信息；Agent `GetDetailAsync` 保持现有压缩格式。两条路径共用 catalog mapper，
 不把压缩 Agent schema 充作完整 Designer schema。
