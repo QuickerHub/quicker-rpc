@@ -1,13 +1,15 @@
 "use client";
 
 // Resource tabs/list adapted from Quicker.Headless/Web features/editor at 574556d76b0b10bd9a8a7951277435649650fab8.
-// Summary selection is read-only until the document's open/edit host session is migrated.
+// Action opens reuse the workbench's document instances; summaries do not grant a body read capability.
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useDesignerCatalogPort } from "@/lib/action-editor/catalog/DesignerCatalogProvider";
-import type { DesignerCatalogPort } from "@/lib/action-editor/catalog/designerCatalogPort";
+import { createResourceActionOpenRequestId, type DesignerCatalogPort } from "@/lib/action-editor/catalog/designerCatalogPort";
 import { appendDesignerResourcePage, fetchDesignerResourcePage, RESOURCE_PAGE_CAPABILITIES,
   type DesignerResourceKind, type DesignerResourcePage } from "@/lib/action-editor/catalog/designerResourcePage";
 import { useImeSafeDebouncedQuery } from "@/lib/action-editor/shared/useImeSafeDebouncedQuery";
+import { useWorkspaceDocumentNavigation } from "@/lib/workspace-document-navigation";
+import type { DesignerResourceActionOpenResult } from "@/lib/designer-resource-action-open";
 
 const tabs = [{ id: "modules", label: "模块" }, { id: "action", label: "动作" }, { id: "global_subprogram", label: "子程序" }] as const;
 type Tab = typeof tabs[number]["id"];
@@ -37,12 +39,16 @@ export function EditorResourcePane({ active, modules }: { active: boolean; modul
 }
 
 type View = { owner: DesignerCatalogPort; query: string; page?: DesignerResourcePage; valid: boolean; loading: boolean; error?: string };
+type OpenRequest = { port: DesignerCatalogPort; actionId: string; requestId: string; pending: boolean; result?: DesignerResourceActionOpenResult; presented?: boolean };
 function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerResourceKind }) {
   const port = useDesignerCatalogPort(), search = useImeSafeDebouncedQuery(220);
+  const navigation = useWorkspaceDocumentNavigation();
+  const opens = useRef(new Map<string, OpenRequest>());
+  const [, updateOpenView] = useState(0);
   const [view, setView] = useState<View>(), [selectedId, setSelectedId] = useState(""), [refresh, setRefresh] = useState(0);
   const operation = useRef<{ controller: AbortController; port: DesignerCatalogPort; query: string } | null>(null);
-  const live = useRef({ active, port, query: search.committedValue });
-  live.current = { active, port, query: search.committedValue };
+  const live = useRef({ active, port, query: search.committedValue, selectedId });
+  live.current = { active, port, query: search.committedValue, selectedId };
   const supported = port?.supportsCapability(RESOURCE_PAGE_CAPABILITIES[kind]) === true;
   const current = (controller: AbortController) => !controller.signal.aborted && operation.current?.controller === controller
     && live.current.active && live.current.port === operation.current.port && live.current.query === operation.current.query;
@@ -85,6 +91,27 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
     }
   };
   const selected = page?.items.find((item) => item.id === selectedId);
+  const selectedOpenKey = port && selected && navigation
+    ? JSON.stringify([navigation.owner.key, navigation.owner.instanceId, port.key, selected.id]) : "";
+  const selectedOpen = opens.current.get(selectedOpenKey);
+  const openUnavailable = kind !== "action" ? "子程序打开尚未接入。"
+    : !port?.resourceActionOpenAvailable ? "绑定宿主未提供 V1 动作正文读取能力，当前只能浏览摘要。"
+    : !navigation ? "请从工作区文件实例打开动作。" : undefined;
+  const openSelected = async () => {
+    if (!selected || !port || !active || !visible?.valid || visible.loading || openUnavailable || selectedOpen?.pending) return;
+    const ticket = navigation?.capture();
+    if (!ticket || ticket.cwd !== port.workspaceCwd) return;
+    const operation: OpenRequest = { port, actionId: selected.id, pending: true,
+      requestId: selectedOpen?.result && selectedOpen.result.localPersistence !== "none" && selectedOpen.result.localPersistence !== "unchanged"
+        ? selectedOpen.requestId : createResourceActionOpenRequestId() };
+    opens.current.set(selectedOpenKey, operation); updateOpenView((value) => value + 1);
+    const result = await port.openResourceAction(selected.id, operation.requestId, ticket.owner);
+    operation.pending = false; operation.result = result;
+    if (opens.current.get(selectedOpenKey) !== operation) return;
+    if (result.ok && live.current.active && live.current.port === port && live.current.selectedId === operation.actionId && ticket.isCurrent())
+      operation.presented = ticket.openFile(result.path, selected.title || selected.id);
+    updateOpenView((value) => value + 1);
+  };
   return <section className="designer-resource-explorer" aria-label={kind === "action" ? "动作目录" : "全局子程序目录"}>
     <div className="designer-resource-toolbar"><input type="search" aria-label="筛选资源" placeholder="筛选资源" {...search.inputProps} />
       <button type="button" aria-label="刷新资源目录" title="刷新资源目录" disabled={!active || !supported || visible?.loading} onClick={() => setRefresh((value) => value + 1)}>↻</button></div>
@@ -108,7 +135,16 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
       {page && !page.totalCount ? <p>没有匹配的资源。</p> : null}
       {selected ? <dl className="designer-resource-summary"><dt>名称</dt><dd>{selected.title || selected.id}</dd><dt>标识</dt><dd>{selected.id}</dd>
         <dt>版本</dt><dd>{selected.editVersion}</dd>{selected.callIdentifier ? <><dt>调用标识</dt><dd>{selected.callIdentifier}</dd></> : null}
-        <dt>说明</dt><dd>{selected.description || "无"}</dd><dt>操作</dt><dd>当前仅浏览摘要，打开与编辑尚未接入。</dd></dl> : null}
+        <dt>说明</dt><dd>{selected.description || "无"}</dd><dt>操作</dt><dd>{openUnavailable ?? <>
+          <button type="button" disabled={!active || !visible?.valid || visible.loading || selectedOpen?.pending} onClick={() => void openSelected()}>
+            {selectedOpen?.pending ? "正在打开…" : selectedOpen?.result && !selectedOpen.result.ok && selectedOpen.result.localPersistence !== "none" ? "核对本地结果" : "在工作区打开"}
+          </button><p>复用已有工作区项目；首次打开会导出到新目录。</p>
+        </>}
+        {selectedOpen?.result ? selectedOpen.result.ok ? <p role="status">{selectedOpen.result.localPersistence === "confirmed" ? "本地导出已确认" : "已找到本地项目"}
+          {!selectedOpen.presented ? "，未切换当前文档；可再次打开。" : "。"} {selectedOpen.result.projectDirectory}</p>
+          : <p role="alert">{selectedOpen.result.error} {selectedOpen.result.projectDirectory ?? ""}
+            {selectedOpen.result.localPersistence !== "none" ? " 已保留本地结果；核对只读取原目录，不重新导出。" : ""}</p> : null}
+        </dd></dl> : null}
     </>}
   </section>;
 }

@@ -19,8 +19,10 @@ const action='11111111-1111-4111-8111-111111111111';
 const file='.quicker/actions/'+action+'/data.json';
 const second='.quicker/actions/22222222-2222-4222-8222-222222222222/data.json';
 const body=label=>JSON.stringify({steps:[{stepId:'step',stepRunnerKey:'sys:fixture',note:label,inputParams:{}}],variables:[],subPrograms:[],future:'__int64__'}).replace('"__int64__"','9007199254740993');
-const state=window.fixture={file,second,body,calls:[],pins:[],unexpected:[],pending:[],defer:false,deferReads:false,readPending:[],files:new Map(),deletedProjects:new Set(),reads:[],syncCalls:[],syncPending:[],syncMode:'success',syncState:'in_sync',deletePending:[],projectRemoved:owner=>workspaceExplorerActionsRef.current.notifyProjectRemoved(owner)};
+const state=window.fixture={file,second,body,calls:[],pins:[],unexpected:[],pending:[],defer:false,deferReads:false,readPending:[],files:new Map(),deletedProjects:new Set(),reads:[],syncCalls:[],syncPending:[],syncMode:'success',syncState:'in_sync',deletePending:[],bound:false,resourceOpens:[],openPending:[],openMode:'success',exportCount:0,bindings:new Map(),projectRemoved:owner=>workspaceExplorerActionsRef.current.notifyProjectRemoved(owner)};
 const key=(cwd,path)=>cwd+'::'+path;
+const hostBinding={hostInstanceId:'fixture-v1',hostSessionId:'a'.repeat(32),endpoint:'QuickerRpc_User_'+'A'.repeat(24)+'_'+'a'.repeat(32),protocolVersion:1,schemaVersion:1,hostKind:'v1',quickerVersion:'fixture',capabilities:{'resource.action.page.read':true,'action.legacyBody.read':true}};
+const record=(cwd,directory)=>state.bindings.get(key(cwd,directory))??{schemaVersion:1,kind:'action',actionId:directory.split('/').at(-1),hostBinding};
 for(const cwd of ['C:/fixture/a','C:/fixture/b'])for(const p of [file,second])state.files.set(key(cwd,p),body(cwd+(p===second?' second':' initial')));
 const tree=rootPath=>({rootPath,children:[]});
 window.EventSource=class{close(){}};
@@ -28,12 +30,12 @@ window.fetch=async(input,init)=>{
  const url=new URL(typeof input==='string'?input:input.url,'http://fixture.invalid');
  const request=init?.body?JSON.parse(init.body):Object.fromEntries(url.searchParams);
  if(url.pathname==='/api/workspace'){
-  if(request.op==='program-document-target')return Response.json({ok:true,projectDirectory:request.path.replace(/\\/data.json$/,''),projectBinding:null});
+  if(request.op==='program-document-target'){const dir=request.path.replace(/\\/data.json$/,'');return Response.json({ok:true,projectDirectory:dir,projectBinding:state.bound?record(request.cwd,dir):null});}
   if(request.op==='tree')return Response.json({ok:true,tree:tree('.quicker/actions'),subprogramTree:tree('.quicker/subprograms')});
   if(request.op==='read'){
     state.reads.push(request);
     if([...state.deletedProjects].some(project=>key(request.cwd,request.path).startsWith(project+'/')))return Response.json({ok:false,error:'fixture deleted project'});
-    const content=state.files.get(key(request.cwd,request.path))??(/info.json$/.test(request.path)?JSON.stringify({kind:'action',id:action,title:'Fixture',icon:'iconify:mdi:code-tags',editVersion:1}):'');
+    const content=state.files.get(key(request.cwd,request.path))??(/info.json$/.test(request.path)?JSON.stringify({kind:'action',id:state.bound?record(request.cwd,request.path.replace(/\\/info.json$/,'')).actionId:action,title:'Fixture',icon:'iconify:mdi:code-tags',editVersion:1}):'');
     if(state.deferReads&&/data.json$/.test(request.path))return await new Promise(resolve=>state.readPending.push({cwd:request.cwd,path:request.path,finish:()=>resolve(Response.json({ok:true,path:request.path,content,truncated:false}))}));
     return Response.json({ok:true,path:request.path,content,truncated:false});
   }
@@ -52,6 +54,23 @@ window.fetch=async(input,init)=>{
   const result=state.syncMode==='defer'?await new Promise(resolve=>state.syncPending.push(()=>resolve({ok:true,message:'fake synced',editVersion:2}))):{ok:true,message:'fake synced',editVersion:2};
   return Response.json(result);
  }
+ if(state.bound&&url.pathname==='/api/designer/resources/page'){
+   const ids=['22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444'];
+   return Response.json({ok:true,kind:'action',scope:'runtimeCatalog',query:request.query,skip:0,take:100,totalCount:3,hasMore:false,snapshotId:'resource-snapshot',
+    items:ids.map((id,index)=>({id,title:'Target '+['B','C','D'][index],description:'raw summary',icon:'',editVersion:'1',actionType:'XAction',callIdentifier:null}))});
+ }
+ if(state.bound&&url.pathname==='/api/designer/resources/open-action'){
+   state.resourceOpens.push(request);
+   const dir=request.actionId.startsWith('2222')?second.replace(/\\/data.json$/,''):'.quicker/actions/open-'+request.requestId;
+   const existing=request.actionId.startsWith('2222');
+   const result=state.openMode==='unknown'?{ok:false,code:'RESOURCE_OPEN_RESULT_UNKNOWN',error:'Export result unknown',retryable:false,localPersistence:'unknown',projectDirectory:dir}
+    :{ok:true,actionId:request.actionId,projectDirectory:dir,path:dir+'/data.json',projectBinding:{schemaVersion:1,kind:'action',actionId:request.actionId,hostBinding},origin:existing?'existing':'exported',localPersistence:existing?'unchanged':'confirmed'};
+   if(!existing&&!state.resourceOpens.slice(0,-1).some(r=>r.requestId===request.requestId))state.exportCount++;
+   if(result.ok&&!existing){state.files.set(key(request.catalogContext.cwd,dir+'/data.json'),body('exported target'));state.bindings.set(key(request.catalogContext.cwd,dir),result.projectBinding);}
+   if(state.openMode==='defer')return await new Promise(resolve=>state.openPending.push(()=>resolve(Response.json(result))));
+   return Response.json(result,{status:result.ok?200:409});
+ }
+ if(state.bound&&url.pathname.startsWith('/api/step-runner/'))return Response.json({ok:true,items:[]});
  state.unexpected.push(url.pathname+':'+request.op);throw new Error('Unexpected fake request '+url.pathname);
 };
 function Controls({setCwd,setThread}){
@@ -140,6 +159,69 @@ async function captureNarrow(page: Page, name: string) {
   }
   await page.setViewportSize({ width: 1280, height: 900 });
 }
+
+test("resource action opens reuse dirty file instances and do not let late export receipts steal a new presentation", { timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await ownedFixture();
+  try {
+    await page.evaluate(() => { const f = (window as any).fixture; f.bound = true; f.open(f.file); });
+    await note(page).waitFor(); await edit(page, "A unsaved");
+    await page.evaluate(() => { const f = (window as any).fixture; f.open(f.second); });
+    await page.waitForFunction(() => document.querySelector<HTMLInputElement>('[data-workspace-document]:not([hidden]) .step-form-note-input')?.value?.includes("second"));
+    await edit(page, "B unsaved");
+    await page.evaluate(() => { const f = (window as any).fixture; f.targetElement = document.querySelector('[data-workspace-document]:not([hidden]) .step-form-note-input');
+      f.readsBeforeOpen = f.reads.filter(r => r.path === f.second).length; f.open(f.file); });
+    await page.waitForFunction(() => document.querySelector<HTMLInputElement>('[data-workspace-document]:not([hidden]) .step-form-note-input')?.value === "A unsaved");
+    await page.locator('[data-workspace-document]:visible').getByRole("tab", { name: "动作", exact: true }).click();
+    const resource = () => page.locator('[data-workspace-document]:visible').getByRole("region", { name: "动作目录", exact: true });
+    await resource().getByRole("option", { name: "Target B" }).click();
+    await resource().getByRole("button", { name: "在工作区打开" }).click();
+    await page.waitForFunction(() => document.querySelector('[data-workspace-document]:not([hidden]) .step-form-note-input') === (window as any).fixture.targetElement);
+    assert.equal(await note(page).inputValue(), "B unsaved");
+    assert.equal(await page.evaluate(() => { const f = (window as any).fixture; return f.reads.filter(r => r.path === f.second).length === f.readsBeforeOpen; }), true,
+      "focusing an existing project does not reload its file or replace its baseline");
+    assert.equal(await page.evaluate(() => (window as any).fixture.exportCount), 0);
+    await page.locator('[data-workspace-document]:visible [title="撤销 (Ctrl+Z)"]').click();
+    assert.match(await note(page).inputValue(), /second/);
+    await page.locator('[data-workspace-document]:visible [title="重做 (Ctrl+Y / Ctrl+Shift+Z)"]').click();
+    assert.equal(await note(page).inputValue(), "B unsaved");
+
+    await page.evaluate(() => { const f = (window as any).fixture; f.openMode = 'defer'; f.open(f.file); });
+    await page.locator('[data-workspace-document]:visible').getByRole("tab", { name: "动作", exact: true }).click();
+    await resource().getByRole("option", { name: "Target C" }).click();
+    await resource().getByRole("button", { name: "在工作区打开" }).click();
+    await page.waitForFunction(() => (window as any).fixture.openPending.length === 1);
+    await call(page, "setThread", "chat-b");
+    await page.evaluate(() => (window as any).fixture.openPending.shift()());
+    await resource().getByRole("status").filter({ hasText: "本地导出已确认" }).waitFor();
+    assert.equal(await page.evaluate(() => { const f = (window as any).fixture; return f.active().path === f.file; }), true);
+    assert.equal(await note(page).inputValue(), "A unsaved");
+    assert.equal(await page.evaluate(() => (window as any).fixture.exportCount), 1);
+    await page.evaluate(() => { (window as any).fixture.openMode = 'success'; });
+    await resource().getByRole("button", { name: "在工作区打开" }).click();
+    await page.waitForFunction(() => (window as any).fixture.active().path.includes('/open-'));
+    assert.equal(await page.evaluate(() => { const calls = (window as any).fixture.resourceOpens; return calls.at(-1).requestId === calls.at(-2).requestId; }), true);
+    assert.equal(await page.evaluate(() => (window as any).fixture.exportCount), 1, "confirmed export recovery never dispatches another export");
+
+    await page.evaluate(() => { const f = (window as any).fixture; f.openMode = 'unknown'; f.open(f.file); });
+    await page.locator('[data-workspace-document]:visible').getByRole("tab", { name: "动作", exact: true }).click();
+    await resource().getByRole("option", { name: "Target D" }).click();
+    await resource().getByRole("button", { name: "在工作区打开" }).click();
+    await resource().getByRole("alert").filter({ hasText: "Export result unknown" }).waitFor();
+    await resource().getByRole("button", { name: "核对本地结果" }).click();
+    await page.waitForFunction(() => (window as any).fixture.resourceOpens.length === 5);
+    assert.equal(await page.evaluate(() => { const calls = (window as any).fixture.resourceOpens; return calls.at(-1).requestId === calls.at(-2).requestId; }), true);
+    assert.equal(await page.evaluate(() => (window as any).fixture.exportCount), 2);
+    assert.equal(await page.evaluate(() => { const f = (window as any).fixture; return f.active().path === f.file; }), true);
+    assert.equal(await note(page).inputValue(), "A unsaved");
+    assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 0, "opening resources never saves either document");
+    assert.deepEqual(errors, []);
+  } catch (error) {
+    console.log("resource-open fixture", { errors, state: await page.evaluate(() => ({ active: (window as any).fixture.active()?.path,
+      opens: (window as any).fixture.resourceOpens, alerts: [...document.querySelectorAll('[role="alert"]')].map(item => item.textContent),
+      summary: document.querySelector('[data-workspace-document]:not([hidden]) .designer-resource-summary')?.textContent })) });
+    throw error;
+  } finally { await browser.close(); }
+});
 
 async function ownedFixture() {
   const compiled = await (compilation ??= compile());
