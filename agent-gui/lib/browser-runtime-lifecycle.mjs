@@ -1,6 +1,7 @@
 import { runtimeHttpOrigin } from "./runtime-http-origin.mjs";
 import { requestOwnedChildTreeStop } from "./owned-child-stop.mjs";
 import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   existsSync,
   mkdirSync,
@@ -98,7 +99,11 @@ export async function fetchBrowserRuntimeHealth(
       headers: { Accept: "application/json" },
     });
     abortSignal?.throwIfAborted();
-    if (!res.ok) return { ok: false };
+    if (!res.ok) {
+      await res.body?.cancel();
+      abortSignal?.throwIfAborted();
+      return { ok: false };
+    }
     const body = await res.json();
     abortSignal?.throwIfAborted();
     return {
@@ -118,8 +123,8 @@ export async function fetchBrowserRuntimeHealth(
 }
 
 /** @param {string} base e.g. http://127.0.0.1:6017 */
-export async function checkBrowserRuntimeHealth(base, timeoutMs = 3000) {
-  const health = await fetchBrowserRuntimeHealth(base, timeoutMs);
+export async function checkBrowserRuntimeHealth(base, timeoutMs = 3000, abortSignal) {
+  const health = await fetchBrowserRuntimeHealth(base, timeoutMs, abortSignal);
   return health.ok === true && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
@@ -129,11 +134,12 @@ export function isBrowserRuntimeVersionCurrent(health) {
     && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
-async function waitForBrowserRuntimeHealth(base, maxMs = 45_000) {
+async function waitForBrowserRuntimeHealth(base, maxMs = 45_000, abortSignal) {
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
-    if (await checkBrowserRuntimeHealth(base, 2500)) return;
-    await new Promise((r) => setTimeout(r, 300));
+    abortSignal?.throwIfAborted();
+    if (await checkBrowserRuntimeHealth(base, 2500, abortSignal)) return;
+    await delay(300, undefined, { signal: abortSignal });
   }
   throw new Error(`browser runtime did not become ready at ${base}/health`);
 }
@@ -261,7 +267,8 @@ export async function stopOwnedBrowserRuntimes() {
  * @param {string} host
  * @returns {Promise<import('node:child_process').ChildProcess | null>}
  */
-export async function ensureBrowserRuntime(agentGuiRoot, host) {
+export async function ensureBrowserRuntime(agentGuiRoot, host, abortSignal) {
+  abortSignal?.throwIfAborted();
   if (process.env.AGENT_GUI_SKIP_BROWSER_RUNTIME === "1") {
     return null;
   }
@@ -270,7 +277,8 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
   const port = resolveBrowserPort();
   const base = runtimeHttpOrigin(host, port);
 
-  const health = await fetchBrowserRuntimeHealth(base);
+  const health = await fetchBrowserRuntimeHealth(base, undefined, abortSignal);
+  abortSignal?.throwIfAborted();
   if (health.ok && isBrowserRuntimeVersionCurrent(health)
     && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
     console.log(`browser: reusing runtime ${health.runtimeVersion} at ${base}/health`);
@@ -338,10 +346,12 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
   trackBrowserRuntimeChild(runtimeRoot, child, { port });
 
   try {
-    await waitForBrowserRuntimeHealth(base);
+    await waitForBrowserRuntimeHealth(base, undefined, abortSignal);
     console.log(`browser: ready at ${base}/health`);
     return child;
   } catch (err) {
+    // A request owns its wait, not the shared runtime child retained by this service.
+    abortSignal?.throwIfAborted();
     console.warn(
       `browser: ${err instanceof Error ? err.message : String(err)} — browser tool may be unavailable`,
     );

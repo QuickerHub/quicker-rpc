@@ -15,12 +15,15 @@ const tests = [
   "service/action-explorer-watch.integration.test.ts",
   "lib/db/writer-lease.process.test.ts",
   "lib/db/client.process.test.ts",
+  "service/runtime-start-abort.integration.test.ts",
+  "service/runtime-health-body.integration.test.ts",
 ];
 for (const path of tests) {
   if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing service test: ${path}`);
 }
 const result = spawnSync(process.execPath, [
-  "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test", "--test-timeout=15000", ...tests,
+  "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",
+  `--test-concurrency=${process.platform === "win32" ? 2 : 4}`, "--test-timeout=15000", ...tests,
 ], { cwd: root, stdio: "inherit" });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

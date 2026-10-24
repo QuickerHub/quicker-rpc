@@ -109,6 +109,10 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
+      - name: Runtime startup cancellation and rejected health body ownership
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: agent-gui
+        run: node --conditions=react-server --import tsx --test --test-timeout=15000 service/runtime-start-abort.integration.test.ts service/runtime-health-body.integration.test.ts
       - name: Guarded tool, eval, authoring and trace regressions
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/ci/check-agent-regressions.mjs
