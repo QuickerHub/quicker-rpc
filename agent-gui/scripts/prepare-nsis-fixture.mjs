@@ -143,8 +143,25 @@ export function fixtureBuilderConfig(manifest, version) {
       deleteAppDataOnUninstall: false, differentialPackage: false } };
 }
 const AUDIT_DONE = "NSIS_FIXTURE_PREPROCESS_COMPLETE";
+function assertNoOldUninstallerDispatch(script) {
+  const functions = [...script.matchAll(/^Function ["']?uninstallOldVersion["']?\r?\n([^]*?)^FunctionEnd\s*$/gim)];
+  if (functions.length > 1 || /^\s*(?:Call\s+["']?uninstallOldVersion["']?(?:\s|$)|GetFunctionAddress\s+\S+\s+["']?uninstallOldVersion["']?(?:\s|$))/im.test(script))
+    throw new Error("Fixture retained an old-uninstaller dispatch/address or duplicate function");
+  const knownWaits = [
+    'ExecWait \'"$uninstallerFileNameTemp" /S /KEEP_APP_DATA $0 _?=$installationDir\' $R0',
+    'ExecWait \'"$uninstallerFileName" /S /KEEP_APP_DATA $0 _?=$installationDir\' $R0',
+  ];
+  const fn = functions[0];
+  const waits = [...script.matchAll(/^\s*ExecWait[^\r\n]*/gim)].filter((match) => /uninstall/i.test(match[0]));
+  if (waits.length && (!fn || waits.length !== 2 || waits.some((wait, index) => wait.index < fn.index || wait.index >= fn.index + fn[0].length || wait[0].trim() !== knownWaits[index])))
+    throw new Error("Fixture retained an unknown or reachable old-uninstaller wait");
+}
 export function assertFixturePreprocessed(script, manifest, { stub, uninstallerOutput } = {}) {
-  if (/CreateShortCut|WinShell::|SHChangeNotify|ExecShellAsUser|ExecWait[^\r\n]*[Uu]ninstall/.test(script)) throw new Error("Fixture preprocessing retained shell/start/old-uninstaller effects");
+  if (/CreateShortCut|WinShell::|SHChangeNotify|ExecShellAsUser/.test(script)) throw new Error("Fixture preprocessing retained shell/start effects");
+  // Upstream emits this unreferenced function into PPO; NSIS subsequently
+  // removes it. Only its two exact existing waits are allowed, with no address
+  // or Call referencing the function. This never authorizes executing it.
+  assertNoOldUninstallerDispatch(script);
   for (const match of script.matchAll(/^\s*(?:WriteReg\w+|DeleteRegKey)\s+\S+\s+"([^"]+)"/gm))
     if (!manifest.registryKeys.includes(match[1])) throw new Error("Fixture preprocessing retained a foreign registry write");
   const initialization = /Function \.onInit\r?\n([^]*?)FunctionEnd/.exec(script)?.[1];

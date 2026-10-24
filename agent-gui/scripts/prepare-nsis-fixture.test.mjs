@@ -55,3 +55,16 @@ test("shared shell staging rejects a fresh child beneath a junction before creat
     assert.equal(calls, 0); assert.equal(existsSync(join(outside, "fresh-shell")), false);
   } finally { unlinkSync(junction); }
 });
+test("preprocessing recognizes only the two existing waits inside the unique uncalled upstream function", () => {
+  const manifest = { directory: "D:\\repo\\.tmp\\fixture\\installed", registryKeys: [] };
+  const startup = `Function .onInit\nStrCpy $INSTDIR "${manifest.directory}"\nSetOutPath $INSTDIR\nFunctionEnd\n`;
+  const one = 'ExecWait \'"$uninstallerFileNameTemp" /S /KEEP_APP_DATA $0 _?=$installationDir\' $R0';
+  const two = 'ExecWait \'"$uninstallerFileName" /S /KEEP_APP_DATA $0 _?=$installationDir\' $R0';
+  const fn = `Function uninstallOldVersion\n${one}\n${two}\nFunctionEnd\n`, source = startup + fn;
+  assert.doesNotThrow(() => assertFixturePreprocessed(source, manifest));
+  for (const changed of [source + 'Call uninstallOldVersion\n', source + 'GetFunctionAddress $R1 uninstallOldVersion\n',
+    source + fn, startup + one + '\n' + fn.replace(one + '\n', ''), source.replace('/KEEP_APP_DATA', '/UNKNOWN'),
+    source.replace(two, two + '\n' + two), source.replace(one, 'ExecWait \'"$uninstallerFileNameTemp" /S\' $R0'),
+    startup + fn.replace('Function uninstallOldVersion', 'Function renamedFunction')])
+    assert.throws(() => assertFixturePreprocessed(changed, manifest));
+});
