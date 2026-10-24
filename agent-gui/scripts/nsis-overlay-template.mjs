@@ -8,6 +8,7 @@ export const PINNED_NSIS_HASHES = Object.freeze({
   assisted: "8aa1230e9717b428664d613fcc5c6a060883410b34cb7853b517fe11b4ee0a76",
   multiUser: "afa9046492317e72e79e022cdb1f42edba4687ea605300bfc01c002f3106201c",
   uninstaller: "cf22e42a863c186e281e208abd7574af2863c080f1fb6567fe6ee05c439c0f24",
+  utilities: "97bd546b5cd2aaf16b77bc9e2be8a18962dd74ab5c4d23b35b163ca89bf4dd2a",
 });
 const normalize = (value) => value.replaceAll("\r\n", "\n");
 const hash = (value) => createHash("sha256").update(normalize(value)).digest("hex");
@@ -41,7 +42,7 @@ function includePath(path) {
 }
 
 /** No runtime undef, registry edits, old uninstaller execution or node_modules mutation. */
-export function createPinnedNsisOverlay({ builderVersion, mainTemplate, installSection, generatedSectionPath }) {
+export function createPinnedNsisOverlay({ builderVersion, mainTemplate, installSection, generatedSectionPath, installUtilities, generatedInstallUtilitiesPath }) {
   if (builderVersion !== PINNED_NSIS_BUILDER || hash(mainTemplate) !== PINNED_NSIS_HASHES.main || hash(installSection) !== PINNED_NSIS_HASHES.section)
     throw new Error("NSIS upstream version/template mismatch; review the overlay adapter before building");
   const main = normalize(mainTemplate), section = normalize(installSection), path = includePath(generatedSectionPath);
@@ -49,10 +50,16 @@ export function createPinnedNsisOverlay({ builderVersion, mainTemplate, installS
   const close = section.indexOf("!insertmacro CHECK_APP_RUNNING"), before = section.indexOf(oldUninstall), files = section.indexOf("!insertmacro installApplicationFiles");
   if (close < 0 || before <= close || files <= before) throw new Error("NSIS final-target/file-overlay ordering changed");
   const generatedSection = section.replace(oldUninstall, overlay);
+  const generatedInstallUtilities = installUtilities === undefined ? undefined : createPinnedNsisInstallUtilities({ builderVersion, installUtilities });
+  const utilityPath = generatedInstallUtilities === undefined ? undefined : includePath(generatedInstallUtilitiesPath);
   return Object.freeze({
-    generatedSection,
+    generatedSection, generatedInstallUtilities,
     replaceFinalScript(finalScript) {
       exactlyOnce(finalScript, include, "final include");
+      if (utilityPath) {
+        const anchor = '  !include "installUtil.nsh"'; exactlyOnce(finalScript, anchor, "verified overlay utilities include");
+        finalScript = finalScript.replace(anchor, `  !include "${utilityPath}"`);
+      }
       return '!define QA_VERIFIED_OVERLAY_BUILD "25.1.8-v1"\n' + finalScript.replace(include, `    !include "${path}"`);
     },
   });
@@ -70,10 +77,25 @@ export function installPinnedNsisOverlayAdapter(Target, inputs) {
     return layout ? layout.replaceFinalScript(section) : section;
   }
   prototype.computeFinalScript = wrapped;
-  return Object.freeze({ generatedSection: adapted.generatedSection, generatedLayout: layout?.files, restore() {
+  return Object.freeze({ generatedSection: adapted.generatedSection, generatedInstallUtilities: adapted.generatedInstallUtilities, generatedLayout: layout?.files, restore() {
     if (prototype.computeFinalScript !== wrapped) throw new Error("NSIS adapter ownership changed");
     prototype.computeFinalScript = original;
   } });
+}
+
+/** Legacy uninstall dispatch is gone; emit only utilities still used by the
+ * normal extraction/cache/shortcut flow. Dead functions otherwise fail /WX. */
+export function createPinnedNsisInstallUtilities({ builderVersion, installUtilities }) {
+  if (builderVersion !== PINNED_NSIS_BUILDER || hash(installUtilities) !== PINNED_NSIS_HASHES.utilities)
+    throw new Error("NSIS install utilities template mismatch; review the utility adapter");
+  const source = normalize(installUtilities), blocks = [];
+  for (const name of ["moveFile", "copyFile", "setIsTryToKeepShortcuts"]) {
+    const pattern = new RegExp(`^!macro ${name}(?: [^\\n]+)?\\n[^]*?^!macroend$`, "gm"), matches = [...source.matchAll(pattern)];
+    if (matches.length !== 1) throw new Error("NSIS live utility macro anchor changed");
+    blocks.push(matches[0][0]);
+  }
+  const variable = "Var /GLOBAL isTryToKeepShortcuts"; exactlyOnce(source, variable, "live shortcut state");
+  return blocks.slice(0, 2).join("\n\n") + "\n\n" + variable + "\n\n" + blocks[2] + "\n";
 }
 
 /** Keep the final user/registered /D target; do not append a new product subfolder. */
@@ -82,6 +104,9 @@ export function createPinnedNsisLayout(inputs) {
     || hash(inputs.uninstaller) !== PINNED_NSIS_HASHES.uninstaller)
     throw new Error("NSIS layout template mismatch; review the layout adapter");
   let assisted = normalize(inputs.assistedInstaller), multiUser = normalize(inputs.multiUser);
+  const unusedDirectoryHelper = "    !include StrContains.nsh\n\n";
+  exactlyOnce(assisted, unusedDirectoryHelper, "obsolete directory helper");
+  assisted = assisted.replace(unusedDirectoryHelper, "");
   const pre = assisted.match(/    Function instFilesPre\n[^]*?    FunctionEnd/)?.[0];
   if (!pre) throw new Error("NSIS final-directory callback missing");
   exactlyOnce(assisted, pre, "directory callback");

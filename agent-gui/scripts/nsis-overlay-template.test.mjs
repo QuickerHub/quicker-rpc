@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { createPinnedNsisOverlay, installPinnedNsisOverlayAdapter } from "./nsis-overlay-template.mjs";
+import { createPinnedNsisOverlay, createPinnedNsisLayout, createPinnedNsisInstallUtilities, installPinnedNsisOverlayAdapter } from "./nsis-overlay-template.mjs";
 
 const require = createRequire(import.meta.url), directory = dirname(require.resolve("app-builder-lib/package.json"));
 const input = { builderVersion: JSON.parse(readFileSync(join(directory, "package.json"), "utf8")).version,
@@ -49,4 +49,28 @@ test("adapter delegates both original final-script passes without bypassing sign
   assert.ok(calls.every(([owner]) => owner === target));
   await assert.rejects(target.computeFinalScript(input.mainTemplate + "\n; changed", true, []));
   adapter.restore(); assert.equal(Target.prototype.computeFinalScript, original);
+});
+test("final-directory layout removes the obsolete StrContains function which fails real NSIS /WX", () => {
+  const layout = createPinnedNsisLayout({ ...input,
+    assistedInstaller: readFileSync(join(directory, "templates/nsis/assistedInstaller.nsh"), "utf8"),
+    multiUser: readFileSync(join(directory, "templates/nsis/multiUser.nsh"), "utf8"),
+    uninstaller: readFileSync(join(directory, "templates/nsis/uninstaller.nsh"), "utf8"),
+  });
+  assert.doesNotMatch(layout.files.assisted, /!include StrContains\.nsh/);
+  assert.doesNotMatch(layout.files.assisted.match(/Function instFilesPre[^]*?FunctionEnd/)?.[0] ?? "", /StrCpy|StrContains/);
+});
+test("verified overlay utility copy preserves live file/shortcut macros and removes unreachable legacy execution functions", () => {
+  const installUtilities = readFileSync(join(directory, "templates/nsis/include/installUtil.nsh"), "utf8");
+  const source = createPinnedNsisInstallUtilities({ builderVersion: input.builderVersion, installUtilities });
+  for (const name of ["moveFile", "copyFile", "setIsTryToKeepShortcuts"]) {
+    const pattern = new RegExp(`!macro ${name}(?: [^\\n]+)?\\n[^]*?!macroend`, "m");
+    assert.equal(source.match(pattern)?.[0], installUtilities.replaceAll("\r\n", "\n").match(pattern)?.[0]);
+  }
+  assert.match(source, /Var \/GLOBAL isTryToKeepShortcuts/);
+  assert.doesNotMatch(source, /Function |ExecWait|GetInQuotes|GetFileParent|uninstallOldVersion|handleUninstallResult|readReg/);
+  for (const changed of [{ builderVersion: "25.1.9" }, { installUtilities: installUtilities + "\n; drift" }]) assert.throws(() => createPinnedNsisInstallUtilities({ builderVersion: input.builderVersion, installUtilities, ...changed }));
+  const complete = { ...input, installUtilities, generatedInstallUtilitiesPath: "D:/repo/.tmp/nsis-utilities/installUtil.nsh" };
+  const result = createPinnedNsisOverlay(complete);
+  assert.equal(result.generatedInstallUtilities, source);
+  assert.ok(result.replaceFinalScript(input.mainTemplate).includes('!include "D:\\repo\\.tmp\\nsis-utilities\\installUtil.nsh"'));
 });

@@ -7,11 +7,13 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  lstatSync,
   readdirSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -19,6 +21,28 @@ const electronRoot = join(agentGuiRoot, "electron");
 const shellAppRoot = join(electronRoot, "shell-app");
 
 const SKIP_DIRS = new Set(["resources", "dist", "build", "shell-app"]);
+
+function assertAlternateShellOutput(targetRoot) {
+  const repository = resolve(agentGuiRoot, ".."), temporary = join(repository, ".tmp");
+  const difference = relative(temporary, targetRoot);
+  if (!difference || difference === ".." || difference.startsWith("..\\") || difference.startsWith("../") || isAbsolute(difference))
+    throw new Error("Alternate Electron shell output must be a new repository .tmp directory");
+  const canonicalRepository = realpathSync(repository);
+  // The destination may not exist yet. Inspect every existing ancestor before
+  // the first mkdir/copy, including dangling links which existsSync hides.
+  for (let cursor = targetRoot; ; cursor = dirname(cursor)) {
+    let metadata;
+    try { metadata = lstatSync(cursor); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    if (metadata) {
+      if (metadata.isSymbolicLink() || !metadata.isDirectory()) throw new Error("Alternate Electron shell output has a redirected or non-directory ancestor");
+      const actual = realpathSync(cursor), expected = resolve(canonicalRepository, relative(repository, cursor));
+      if (actual !== expected) throw new Error("Alternate Electron shell output escaped its real repository ancestry");
+      if (cursor === targetRoot) throw new Error("Alternate Electron shell output must be a new repository .tmp directory");
+    }
+    if (cursor === repository) break;
+  }
+}
 
 /** Shared pure path policy is needed by both app.asar/electron and browser-runtime. */
 export function stageShellProfileModule(sourceRoot, targetRoot) {
@@ -28,9 +52,9 @@ export function stageShellProfileModule(sourceRoot, targetRoot) {
 }
 
 /** @param {string} agentGuiRoot */
-function stageBrowserRuntimeForShell(agentGuiRoot) {
+function stageBrowserRuntimeForShell(agentGuiRoot, targetRoot) {
   const src = join(agentGuiRoot, "browser-runtime");
-  const dest = join(shellAppRoot, "browser-runtime");
+  const dest = join(targetRoot, "browser-runtime");
   if (!existsSync(src)) {
     throw new Error(`Missing browser-runtime sources: ${src}`);
   }
@@ -69,9 +93,9 @@ function copyElectronSources(srcDir, destDir) {
 }
 
 /** @param {string} version */
-function writeShellPackageJson(version) {
+function writeShellPackageJson(version, targetRoot, packageName) {
   const pkg = {
-    name: "quicker-agent-electron-shell",
+    name: packageName,
     version,
     private: true,
     description: "QuickerAgent desktop shell",
@@ -81,16 +105,16 @@ function writeShellPackageJson(version) {
       "electron-updater": "^6.8.9",
     },
   };
-  writeFileSync(join(shellAppRoot, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+  writeFileSync(join(targetRoot, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
-function installShellDeps() {
+function installShellDeps(targetRoot) {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(
     npm,
     ["install", "--omit=dev", "--no-package-lock", "--no-fund", "--no-audit"],
     {
-      cwd: shellAppRoot,
+      cwd: targetRoot,
       stdio: "inherit",
       shell: process.platform === "win32",
     },
@@ -101,18 +125,24 @@ function installShellDeps() {
 }
 
 /**
- * @param {{ version?: string }} [opts]
+ * Explicit alternate output is fresh-only and remains within this repository's
+ * .tmp. Callers can stage the already installed dependency graph without npm.
+ * @param {{ version?: string, outputDirectory?: string, packageName?: string, installDependencies?: (root: string) => void }} [opts]
  */
-export function stageElectronShell({ version = "0.1.0" } = {}) {
+export function stageElectronShell({ version = "0.1.0", outputDirectory, packageName = "quicker-agent-electron-shell", installDependencies = installShellDeps } = {}) {
+  const targetRoot = outputDirectory ? resolve(outputDirectory) : shellAppRoot;
+  if (outputDirectory) assertAlternateShellOutput(targetRoot);
   console.log("electron-shell-staging: preparing minimal shell app...");
-  if (existsSync(shellAppRoot)) {
-    rmSync(shellAppRoot, { recursive: true, force: true });
+  if (existsSync(targetRoot)) {
+    if (resolve(targetRoot) !== resolve(shellAppRoot)) throw new Error("Unknown shell cleanup target");
+    rmSync(targetRoot, { recursive: true, force: true });
   }
-  mkdirSync(shellAppRoot, { recursive: true });
-  copyElectronSources(electronRoot, join(shellAppRoot, "electron"));
-  stageShellProfileModule(agentGuiRoot, shellAppRoot);
-  stageBrowserRuntimeForShell(agentGuiRoot);
-  writeShellPackageJson(version);
-  installShellDeps();
-  console.log(`electron-shell-staging: done -> ${shellAppRoot}`);
+  mkdirSync(targetRoot, { recursive: true });
+  copyElectronSources(electronRoot, join(targetRoot, "electron"));
+  stageShellProfileModule(agentGuiRoot, targetRoot);
+  stageBrowserRuntimeForShell(agentGuiRoot, targetRoot);
+  writeShellPackageJson(version, targetRoot, packageName);
+  installDependencies(targetRoot);
+  console.log(`electron-shell-staging: done -> ${targetRoot}`);
+  return targetRoot;
 }

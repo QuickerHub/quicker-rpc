@@ -13,6 +13,8 @@ const tests = [
   "electron/backend-smoke.test.mjs",
   "electron/installer-process-ownership.test.mjs",
   "scripts/nsis-overlay-template.test.mjs",
+  "scripts/nsis-fixture-template.test.mjs",
+  "scripts/prepare-nsis-fixture.test.mjs",
   "scripts/build-electron-installer.test.mjs",
   "scripts/build-installer-ownership-helper.test.mjs",
   "scripts/electron-shell-staging.test.mjs",
