@@ -30,6 +30,7 @@ const tests = [
   "lib/agent-service/application.test.ts",
   "lib/agent-service/production-runtime.test.ts",
   "lib/agent-service/background-config.test.ts",
+  "lib/action-explorer-watch.test.ts",
   "lib/agent-service/node-http.test.ts",
   "lib/agent-service/api-router.test.ts",
   "lib/agent-service/static-renderer.test.ts",

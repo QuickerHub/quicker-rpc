@@ -1,4 +1,5 @@
 import { watch, type FSWatcher } from "node:fs";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { buildActionExplorerTree } from "@/lib/action-explorer-server";
@@ -32,6 +33,8 @@ type WatchSubscriber = {
 };
 
 type WatchSession = {
+  owner: WatchOwnerState;
+  disposed: boolean;
   cwd: string;
   rootKey: string;
   watchers: FSWatcher[];
@@ -55,9 +58,40 @@ const REBUILD_COOLDOWN_MS = 400;
 /** Skip redundant rebuild when a new SSE client connects shortly after the last build. */
 const SUBSCRIBE_REBUILD_MAX_AGE_MS = 8_000;
 
-const sessions = new Map<string, WatchSession>();
+type WatchOwnerState = {
+  sessions: Map<string, WatchSession>;
+  rebuilds: Set<Promise<void>>;
+  closed: boolean;
+};
 
-function sessionKey(cwd: string): string {
+const watchOwnerContext = new AsyncLocalStorage<WatchOwnerState>();
+// Next keeps its existing process-lifetime cache; Node services bind their own owner.
+const nextWatchOwner: WatchOwnerState = { sessions: new Map(), rebuilds: new Set(), closed: false };
+
+/** One runtime owns its watchers, timers and outstanding tree reads, including idle sessions. */
+export function createActionExplorerWatchOwner() {
+  const owner: WatchOwnerState = { sessions: new Map(), rebuilds: new Set(), closed: false };
+  let disposing: Promise<void> | undefined;
+  return {
+    run<T>(callback: () => T): T {
+      return watchOwnerContext.run(owner, callback);
+    },
+    dispose(): Promise<void> {
+      if (!disposing) {
+        owner.closed = true;
+        disposing = Promise.resolve().then(async () => {
+          for (const session of owner.sessions.values()) disposeSession(session);
+          const results = await Promise.allSettled([...owner.rebuilds]);
+          const errors = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+          if (errors.length) throw new AggregateError(errors.map((result) => result.reason), "Explorer watch cleanup failed");
+        });
+      }
+      return disposing;
+    },
+  };
+}
+
+function sessionKey(): string {
   return resolveWorkspaceRoot().replace(/\\/g, "/").toLowerCase();
 }
 
@@ -122,15 +156,20 @@ function stopWatchers(session: WatchSession): void {
 }
 
 function disposeSession(session: WatchSession): void {
+  if (session.disposed) return;
+  session.disposed = true;
   stopWatchers(session);
   if (session.idleTimer) {
     clearTimeout(session.idleTimer);
     session.idleTimer = null;
   }
-  sessions.delete(session.rootKey);
+  session.subscribers.clear();
+  session.pendingProgramDataPaths.clear();
+  session.owner.sessions.delete(session.rootKey);
 }
 
 function scheduleIdleDispose(session: WatchSession): void {
+  if (session.disposed || session.owner.closed) return;
   if (session.idleTimer) clearTimeout(session.idleTimer);
   session.idleTimer = setTimeout(() => {
     if (session.subscribers.size === 0) {
@@ -144,6 +183,7 @@ function notifySubscribers(
   event: ActionExplorerWatchEvent,
 ): void {
   for (const subscriber of session.subscribers) {
+    if (session.disposed || session.owner.closed) return;
     subscriber.send(event);
   }
 }
@@ -168,6 +208,7 @@ function notifyProgramDataChanges(
 }
 
 async function rebuildAndNotify(session: WatchSession): Promise<void> {
+  if (session.disposed || session.owner.closed) return;
   if (session.rebuildInFlight) {
     await session.rebuildInFlight;
     return;
@@ -175,13 +216,14 @@ async function rebuildAndNotify(session: WatchSession): Promise<void> {
 
   const changedProgramDataPaths = takePendingProgramDataPaths(session);
 
-  session.rebuildInFlight = runWithQkrpcCwdAsync(session.cwd, async () => {
+  const pending = runWithQkrpcCwdAsync(session.cwd, async () => {
     session.rebuilding = true;
     try {
       const [actionResult, subprogramResult] = await Promise.all([
         buildActionExplorerTree(),
         buildSubProgramExplorerTree(),
       ]);
+      if (session.disposed || session.owner.closed) return;
       if (!actionResult.ok) {
         notifySubscribers(session, {
           ok: false,
@@ -222,16 +264,20 @@ async function rebuildAndNotify(session: WatchSession): Promise<void> {
       session.rebuildCooldownUntil = Date.now() + REBUILD_COOLDOWN_MS;
     }
   }).finally(() => {
+    session.owner.rebuilds.delete(pending);
     session.rebuildInFlight = null;
     if (session.pendingProgramDataPaths.size > 0) {
       scheduleRebuild(session);
     }
   });
 
-  await session.rebuildInFlight;
+  session.rebuildInFlight = pending;
+  session.owner.rebuilds.add(pending);
+  await pending;
 }
 
 function scheduleRebuild(session: WatchSession): void {
+  if (session.disposed || session.owner.closed) return;
   if (session.rebuilding) return;
   if (Date.now() < session.rebuildCooldownUntil) return;
   if (session.debounceTimer) clearTimeout(session.debounceTimer);
@@ -269,6 +315,7 @@ function ensureWatchers(session: WatchSession): void {
         target,
         { recursive: true },
         (_eventType, filename) => {
+          if (session.disposed || session.owner.closed) return;
           if (!shouldHandleWatchFilename(filename)) return;
           const programDataPath = resolveProgramDataPathFromWatch(rootRel, filename);
           if (programDataPath) {
@@ -289,9 +336,9 @@ function ensureWatchers(session: WatchSession): void {
   }
 }
 
-function getOrCreateSession(cwd: string): WatchSession {
-  const rootKey = sessionKey(cwd);
-  const existing = sessions.get(rootKey);
+function getOrCreateSession(owner: WatchOwnerState, cwd: string): WatchSession {
+  const rootKey = sessionKey();
+  const existing = owner.sessions.get(rootKey);
   if (existing) {
     if (existing.idleTimer) {
       clearTimeout(existing.idleTimer);
@@ -301,6 +348,8 @@ function getOrCreateSession(cwd: string): WatchSession {
   }
 
   const session: WatchSession = {
+    owner,
+    disposed: false,
     cwd,
     rootKey,
     watchers: [],
@@ -316,7 +365,7 @@ function getOrCreateSession(cwd: string): WatchSession {
     subscribers: new Set(),
     idleTimer: null,
   };
-  sessions.set(rootKey, session);
+  owner.sessions.set(rootKey, session);
   return session;
 }
 
@@ -325,6 +374,11 @@ export function subscribeActionExplorerWatch(
   cwd: string,
   send: (event: ActionExplorerWatchEvent) => void,
 ): () => void {
+  const owner = watchOwnerContext.getStore() ?? nextWatchOwner;
+  if (owner.closed) {
+    send({ ok: false, type: "error", error: "Explorer watch service is stopped" });
+    return () => {};
+  }
   const trimmed = cwd.trim();
   if (!trimmed) {
     send({ ok: false, type: "error", error: "未设置工作目录" });
@@ -340,8 +394,8 @@ export function subscribeActionExplorerWatch(
   } = { disposed: false, session: null };
 
   void runWithQkrpcCwdAsync(trimmed, async () => {
-    if (state.disposed) return;
-    state.session = getOrCreateSession(trimmed);
+    if (state.disposed || owner.closed) return;
+    state.session = getOrCreateSession(owner, trimmed);
     state.session.subscribers.add(subscriber);
     ensureWatchers(state.session);
     // New SSE clients need the latest tree even when rebuild dedupes by signature.
@@ -365,8 +419,9 @@ export function subscribeActionExplorerWatch(
   });
 
   return () => {
+    if (state.disposed) return;
     state.disposed = true;
-    if (!state.session) return;
+    if (!state.session || state.session.disposed) return;
     state.session.subscribers.delete(subscriber);
     if (state.session.subscribers.size === 0) {
       scheduleIdleDispose(state.session);

@@ -11,6 +11,7 @@ const tests = [
   "lib/designer-resource-action-open.lifecycle.integration.test.ts",
   "lib/agent-service/service.integration.test.ts",
   "service/cli.integration.test.ts",
+  "service/action-explorer-watch.integration.test.ts",
   "lib/db/writer-lease.process.test.ts",
   "lib/db/client.process.test.ts",
 ];
