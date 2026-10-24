@@ -248,7 +248,7 @@ async function loadPropertiesDocument(page: Page): Promise<void> {
     f.setDocument("a", content);
   }, JSON.stringify(programBody).replaceAll('"__fixture_int64__"', "9223372036854775807"));
   await page.waitForFunction(() => document.querySelector('[data-step-id="s-a"]')?.textContent?.includes("properties fixture"));
-  await page.locator('[aria-label="打开嵌入子程序"]').click();
+  await page.locator('[aria-label="打开或新建内部子程序"]').click();
   assert.equal(await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Foreign cached child", exact: true }).count(), 0);
   await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Child", exact: true }).click();
   await page.getByRole("tab", { name: "Child", exact: true }).waitFor();
@@ -260,6 +260,175 @@ async function openProperties(page: Page, name: string): Promise<void> {
   await page.getByRole("tab", { name, exact: true }).dblclick();
   await propertiesDialog(page).getByLabel("名称", { exact: true }).waitFor();
 }
+
+async function openInternalTab(page: Page, name: string): Promise<void> {
+  await page.getByLabel("打开或新建内部子程序", { exact: true }).click();
+  await page.locator(".program-editor-tab-menu").getByRole("button", { name, exact: true }).click();
+}
+
+async function createInternalTab(page: Page): Promise<void> {
+  await page.getByLabel("打开或新建内部子程序", { exact: true }).click();
+  await page.locator(".program-editor-tab-menu").getByRole("button", { name: "新建内部子程序", exact: true }).click();
+}
+
+async function prepareInternalDelete(page: Page, name: string): Promise<void> {
+  const tab = page.getByRole("tab", { name, exact: true });
+  await tab.focus();
+  await tab.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "属性…", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  const remove = page.getByRole("menuitem", { name: "删除子程序…", exact: true });
+  assert.equal(await remove.evaluate((node) => node === document.activeElement), true);
+  await page.keyboard.press("Enter");
+  await page.getByRole("alertdialog").waitFor();
+}
+
+test("internal subprogram root create opens stable tabs and close only changes the view", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      const body = JSON.parse(f.makeDocument("a")); body.subPrograms = []; body.futureNumber = "__int64__";
+      f.setDocument("a", JSON.stringify(body).replace('"__int64__"', "9223372036854775807"));
+    });
+    await createInternalTab(page);
+    await page.getByRole("tab", { name: "子程序1", exact: true }).waitFor();
+    await page.evaluate(() => { (window as any).fixture.mainNode = document.querySelector('[data-step-id="s-a"]'); });
+    await page.getByRole("button", { name: "关闭子程序1标签", exact: true }).click();
+    await page.getByRole("tab", { name: "主程序", exact: true }).waitFor();
+    await openInternalTab(page, "子程序1");
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const first = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    assert.equal(first.subPrograms.length, 1);
+    assert.equal(first.subPrograms[0].kind, 1);
+    assert.ok(first.subPrograms[0].id);
+    const originalId = first.subPrograms[0].id;
+    await createInternalTab(page);
+    await page.getByRole("tab", { name: "子程序2", exact: true }).waitFor();
+    const history = page.getByRole("toolbar", { name: "文档历史", exact: true });
+    await history.getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    assert.equal(await page.getByRole("tab", { name: "子程序2", exact: true }).count(), 0);
+    await history.getByTitle("重做 (Ctrl+Y / Ctrl+Shift+Z)", { exact: true }).click();
+    await openInternalTab(page, "子程序2");
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const content = await page.evaluate(() => (window as any).fixture.calls.at(-1).content);
+    const saved = JSON.parse(content);
+    assert.equal(saved.subPrograms[0].id, originalId);
+    assert.equal(new Set(saved.subPrograms.map((row: { id: string }) => row.id)).size, 2);
+    assert.ok(content.includes("9223372036854775807"));
+    assert.equal(saved.steps[0].inputParams["script.file"], "files/script.cs");
+    assert.equal(await page.evaluate(() => (window as any).fixture.mainNode === document.querySelector('[data-step-id="s-a"]')), true);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("internal subprogram delete flushes the editor and one undo restores its entire owned subtree", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await openInternalTab(page, "Child");
+    await currentNote(page).fill("child draft before delete");
+    await prepareInternalDelete(page, "Child");
+    const dialog = page.getByRole("alertdialog", { name: "删除内部子程序", exact: true });
+    assert.equal(await dialog.getByRole("button", { name: "取消", exact: true }).evaluate((node) => node === document.activeElement), true);
+    await capture(page, "subprogram-delete-confirm-light.png", "light");
+    await capture(page, "subprogram-delete-confirm-dark.png", "dark");
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(await currentNote(page).inputValue(), "child draft before delete");
+    await prepareInternalDelete(page, "Child");
+    await dialog.getByRole("button", { name: "确定删除", exact: true }).click();
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(await page.getByRole("tab", { name: "Child", exact: true }).count(), 0);
+    assert.equal(await currentNote(page).inputValue(), "a initial");
+    await page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    await openInternalTab(page, "Child");
+    assert.equal(await currentNote(page).inputValue(), "child draft before delete");
+    await openInternalTab(page, "Child / Nested");
+    assert.equal(await currentNote(page).inputValue(), "nested initial");
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const body = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    assert.equal(body.subPrograms[0].id, "child");
+    assert.equal(body.subPrograms[0].steps[0].note, "child draft before delete");
+    assert.equal(body.subPrograms[0].subPrograms[0].id, "nested");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("used subprogram deletion refuses with human reference locations and traps narrow dialog keyboard", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await loadPropertiesDocument(page);
+    await page.setViewportSize({ width: 420, height: 600 });
+    await prepareInternalDelete(page, "Child");
+    const dialog = page.getByRole("alertdialog", { name: "无法删除子程序", exact: true });
+    assert.equal(await dialog.getByRole("button", { name: "确定删除", exact: true }).count(), 0);
+    const locations = dialog.getByRole("list", { name: "子程序引用位置", exact: true });
+    assert.match(await locations.innerText(), /主程序 · 第 1 步/);
+    assert.match(await locations.innerText(), /Nested · 第 1 步/);
+    const bounds = await dialog.boundingBox();
+    assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 420 && bounds.y + bounds.height <= 600);
+    await capture(page, "subprogram-delete-references-narrow-light.png", "light");
+    await capture(page, "subprogram-delete-references-narrow-dark.png", "dark");
+    const close = dialog.getByRole("button", { name: "关闭", exact: true });
+    await close.focus(); await page.keyboard.press("Tab");
+    assert.equal(await dialog.locator("summary").first().evaluate((node) => node === document.activeElement), true);
+    await page.keyboard.press("Control+z");
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(await page.getByRole("tab", { name: "Child", exact: true }).count(), 1);
+    await waitClean(page);
+    assert.equal(await page.evaluate(() => (window as any).fixture.documentCalls.length), 0);
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("subprogram deletion rejects stale confirmations and a late save never restores the removed definition", { timeout: 60_000 }, async () => {
+  const { page, errors } = await openFixture({ targetMode: "defer" });
+  try {
+    await openInternalTab(page, "Child"); await prepareInternalDelete(page, "Child");
+    const dialog = page.getByRole("alertdialog", { name: "删除内部子程序", exact: true });
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.targetMode = "bound";
+      f.targetPending.forEach((pending: { resolve(): void }) => pending.resolve());
+    });
+    await page.waitForFunction(() => (window as any).fixture.catalogRequests.length > 0);
+    await dialog.getByRole("button", { name: "确定删除", exact: true }).click();
+    assert.match(await dialog.getByRole("alert").innerText(), /identity|revision|身份|目标|版本|修订/i);
+    assert.equal(await dialog.getByRole("button", { name: "确定删除", exact: true }).isDisabled(), true);
+    await dialog.getByRole("button", { name: "取消", exact: true }).click();
+    await prepareInternalDelete(page, "Child");
+    // An owner can hide the workspace while a modal is open; ordinary pointer input remains blocked.
+    await page.getByRole("tab", { name: "源码 JSON", exact: true }).evaluate((node: HTMLButtonElement) => node.click());
+    await dialog.waitFor({ state: "detached" });
+    await page.getByRole("tab", { name: /^可视化/ }).click();
+    assert.equal(await page.getByRole("alertdialog").count(), 0);
+    await prepareInternalDelete(page, "Child");
+    await page.evaluate(() => (window as any).fixture.setDocument("b"));
+    await page.waitForSelector('[data-step-id="s-b"]');
+    await dialog.waitFor({ state: "detached" });
+    await page.evaluate(() => (window as any).fixture.setDocument("a"));
+    await page.waitForSelector('[data-step-id="s-a"]');
+    await openInternalTab(page, "Child");
+    await editNote(page, "saved child before deletion");
+    await page.evaluate(() => { (window as any).fixture.mode = "defer"; });
+    await waitSaveEnabled(page); await saveButton(page).click();
+    await page.waitForFunction(() => (window as any).fixture.pending.length === 1);
+    await prepareInternalDelete(page, "Child");
+    await dialog.getByRole("button", { name: "确定删除", exact: true }).click();
+    await dialog.waitFor({ state: "detached" });
+    await page.evaluate(() => (window as any).fixture.resolvePending(0, { ok: true }));
+    await waitSaveEnabled(page);
+    await page.evaluate(() => { (window as any).fixture.mode = "success"; });
+    await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => JSON.parse((window as any).fixture.calls.at(-1).content));
+    assert.deepEqual(saved.subPrograms, []);
+    await page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    await openInternalTab(page, "Child");
+    assert.equal(await currentNote(page).inputValue(), "saved child before deletion");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
 
 test("subprogram properties reject duplicate drafts then rename every owned literal in one document undo", { timeout: 45_000 }, async () => {
   const { page, errors } = await openFixture();
@@ -508,7 +677,7 @@ test("StrictMode starts clean; real compact/variable edits and nested tabs retai
     await page.getByRole("button", { name: "打开变量面板", exact: true }).click();
     await page.locator('.variable-form input[title="备注"]').fill("variable latest");
     await page.locator(".variable-toolbar-btn--close").click();
-    const addTab = page.locator('summary[aria-label="打开嵌入子程序"]');
+    const addTab = page.locator('summary[aria-label="打开或新建内部子程序"]');
     const nestedChoice = page.locator(".program-editor-tab-menu button").filter({ hasText: "Child / Nested" });
     await addTab.click();
     await nestedChoice.focus();
@@ -537,7 +706,7 @@ test("StrictMode starts clean; real compact/variable edits and nested tabs retai
     assert.equal(await nestedTab.getAttribute("aria-selected"), "true");
     assert.equal(await currentNote(page).inputValue(), "nested latest");
     await page.getByRole("button", { name: "关闭Nested标签", exact: true }).click();
-    await page.locator('summary[aria-label="打开嵌入子程序"]').click();
+    await page.locator('summary[aria-label="打开或新建内部子程序"]').click();
     await page.locator(".program-editor-tab-menu button").filter({ hasText: "Child / Nested" }).click();
     assert.equal(await currentNote(page).inputValue(), "nested latest");
     await page.locator(".program-editor-surface:visible .step-row").first().focus();
@@ -673,7 +842,7 @@ test("module catalog inserts a capability through the real popup, undo and contr
     await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 1);
     await page.keyboard.press("Control+y");
     await page.waitForFunction(() => document.querySelectorAll(".program-editor-surface:not([hidden]) .step-row").length === 2);
-    await page.getByLabel("打开嵌入子程序", { exact: true }).click();
+    await page.getByLabel("打开或新建内部子程序", { exact: true }).click();
     await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Child / Nested", exact: true }).click();
     await toolbox.locator(".toolbox-sub-item").filter({ hasText: "Copy fixture" }).dblclick();
     await popup.waitFor();
@@ -920,7 +1089,7 @@ test("document catalog schemas and late responses remain owned by their target a
   try {
     await page.waitForFunction(() => (window as any).fixture.catalogPending.length > 0);
     await editNote(page, "A draft with pending catalog");
-    await page.getByLabel("打开嵌入子程序", { exact: true }).click();
+    await page.getByLabel("打开或新建内部子程序", { exact: true }).click();
     await page.locator(".program-editor-tab-menu").getByRole("button", { name: "Child", exact: true }).click();
     await page.waitForSelector('[data-step-id="s-child"]');
     assert.equal(await page.evaluate(() => (window as any).fixture.catalogRequests.filter((row: any) => row.body.catalogContext?.expectedProjectBinding?.hostBinding.hostInstanceId !== "instance-a").length), 0);
@@ -967,7 +1136,7 @@ test("one document history orders main, variable, nested and property edits with
     await page.getByRole("button", { name: "打开变量面板", exact: true }).click();
     await page.locator('.variable-form input[title="备注"]').fill("unified variable");
     await page.locator(".variable-toolbar-btn--close").click();
-    await page.locator('summary[aria-label="打开嵌入子程序"]').click();
+    await page.locator('summary[aria-label="打开或新建内部子程序"]').click();
     await page.locator(".program-editor-tab-menu button").filter({ hasText: "Child / Nested" }).click();
     await editNote(page, "unified nested");
     await page.evaluate(() => { (window as any).historyNestedRow = document.querySelector('[data-step-id="s-nested"]'); });

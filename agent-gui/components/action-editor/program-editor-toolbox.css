@@ -54,6 +54,15 @@
 .program-editor-catalog .toolbox-error button {
   margin-left: 6px; color: var(--ad-fg-primary); background: var(--ad-bg-panel); border: 1px solid var(--ad-border-default); border-radius: 3px;
 }
+.program-editor-tab-menu-heading { padding: 6px 9px; color: var(--ad-fg-muted); font-size: 11px; border-top: 1px solid var(--ad-border-default); }
+.sub-program-delete-backdrop { z-index: 1300; }
+.sub-program-delete-dialog { width: min(480px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }
+.sub-program-delete-dialog .step-editor-popup-body { overflow: auto; }
+.sub-program-delete-references { margin: 8px 0; padding-left: 20px; }
+.sub-program-delete-references li { margin: 8px 0; overflow-wrap: anywhere; }
+.sub-program-delete-references details { margin-top: 4px; color: var(--ad-fg-muted); font-size: 11px; }
+.sub-program-delete-references code { display: block; white-space: pre-wrap; }
+.sub-program-delete-error { color: var(--ad-fg-error-text); }
 @media (max-width: 760px) {
   .program-editor-catalog-layout { grid-template-columns: minmax(0, 1fr); }
   .program-editor-catalog { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--ad-border-default); }
