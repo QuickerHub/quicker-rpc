@@ -10,6 +10,7 @@ import {
   buildActionLinkCardPromptMessage,
 } from "@/lib/action-link-card-prompts";
 import { executeActionLinkOp } from "@/lib/action-link-execute";
+import { useManualTracePresentation } from "@/lib/action-trace-presentation";
 import { useIsActionFocusedInSidePanel } from "@/lib/action-side-panel-focus";
 import {
   useOptionalWorkspaceExplorerEditor,
@@ -44,6 +45,7 @@ export function ActionLinkCompactStrip({
   const [busy, setBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const cardBusy = busy || deleteBusy;
+  const tracePresentation = useManualTracePresentation();
 
   const openOrFocusWorkspace = useCallback(async () => {
     if (cardBusy) return;
@@ -77,12 +79,13 @@ export function ActionLinkCompactStrip({
         await executeActionLinkOp(actionId, op, {
           cwd: workingDirectory?.trim() || undefined,
           param: runParam.trim() || undefined,
+          tracePresentation,
         });
       } finally {
         setBusy(false);
       }
     },
-    [actionId, cardBusy, runParam, workingDirectory],
+    [actionId, cardBusy, runParam, workingDirectory, tracePresentation],
   );
 
   const insertPrompt = useCallback(

@@ -8,14 +8,11 @@ import { currentQkrpcTarget, bindingFailure } from "./qkrpc-host-binding";
 import { qkrpcRequestContext } from "./qkrpc-request-context";
 import { resolveRequestAbortSignal } from "./request-abort-signal";
 import type { QkrpcRunResult } from "./qkrpc-types";
+import type { InlineXActionProgram } from "./action-trace-inline-programs";
+export type OwnedTraceInput = { id: string; param?: string; xaction?: InlineXActionProgram };
+export type TraceExecutionOptions = { toolCallId?: string; abortSignal?: AbortSignal };
 /** Each request keeps the native dedicated pipe/progress/logger invocation intact. */
-export async function runActionTraceForAgentTool(input: {
-  id: string;
-  param?: string;
-}, options?: {
-  toolCallId?: string;
-  abortSignal?: AbortSignal;
-}): Promise<QkrpcRunResult> {
+export async function prepareOwnedActionTrace(input: OwnedTraceInput, options?: TraceExecutionOptions) {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
   const context = qkrpcRequestContext.getStore();
@@ -39,10 +36,13 @@ export async function runActionTraceForAgentTool(input: {
     toolCallId: options?.toolCallId, invocationPath: context.traceInvocationPath ?? [] })!;
   if (!owner)
     return bindingFailure("TRACE_OWNER_REQUIRED", "Invalid trace execution identity.");
+  let started = false, dispatched = false;
+  return { owner, didDispatch: () => dispatched, run: async (): Promise<QkrpcRunResult> => {
+  if (started) throw new Error("Trace execution has already started.");
+  started = true;
   traceBridge.start(owner);
   context.traceRuns?.push(owner);
   let terminal: Record<string, unknown> | undefined;
-  let dispatched = false;
   const finish = (data: Record<string, unknown>) => {
     if (terminal)
       return;
@@ -56,7 +56,7 @@ export async function runActionTraceForAgentTool(input: {
     dispatched = true;
     const response = await fetch(`${base}/v1/action/trace/stream`, {
       method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify({ id: actionId, param, timeoutSeconds: 300, hostBinding: owner.hostBinding }), signal, cache: "no-store",
+      body: JSON.stringify({ id: actionId, param, ...(input.xaction ? { xaction: input.xaction } : {}), timeoutSeconds: 300, hostBinding: owner.hostBinding }), signal, cache: "no-store",
     });
     signal.throwIfAborted();
     await consumeActionTraceSseResponse(response, signal, {
@@ -87,4 +87,9 @@ export async function runActionTraceForAgentTool(input: {
   const payload = terminal!;
   return { ok: payload.ok === true, exitCode: payload.ok === true ? 0 : 1,
     stdout: JSON.stringify(payload), stderr: payload.ok === true ? "" : String(payload.message ?? "trace failed"), parsed: payload, truncated: false };
+  } };
+}
+export async function runActionTraceForAgentTool(input: { id: string; param?: string }, options?: TraceExecutionOptions): Promise<QkrpcRunResult> {
+  const prepared = await prepareOwnedActionTrace(input, options);
+  return "run" in prepared ? prepared.run() : prepared;
 }

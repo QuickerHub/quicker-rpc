@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { startActionTrace } from "@/lib/action-trace-client";
+import { useManualTracePresentation } from "@/lib/action-trace-presentation";
 import {
   ACTION_TRACE_SETUP_CASES,
   ACTION_TRACE_STANDALONE_CASES,
@@ -21,9 +22,10 @@ export function ToolTestActionTracePanel({
   );
   const [customParam, setCustomParam] = useState("");
   const [busy, setBusy] = useState(false);
+  const presentation = useManualTracePresentation();
 
   const runTrace = useCallback(
-    (options: {
+    async (options: {
       actionId: string;
       param?: string;
       actionTitle?: string;
@@ -32,13 +34,15 @@ export function ToolTestActionTracePanel({
     }) => {
       if (disabled || busy) return;
       setBusy(true);
-      const result = startActionTrace({
+      const result = await startActionTrace({
         actionId: options.actionId,
         param: options.param,
         actionTitle: options.actionTitle,
         xaction: options.xaction,
+        presentation,
       });
       setBusy(false);
+      if (!result.presented) return;
       if (!result.ok) {
         pushAppMessage({
           id: "tool-test-trace",
@@ -55,7 +59,7 @@ export function ToolTestActionTracePanel({
         autoDismissMs: 4000,
       });
     },
-    [busy, disabled],
+    [busy, disabled, presentation],
   );
 
   const runPreset = useCallback(

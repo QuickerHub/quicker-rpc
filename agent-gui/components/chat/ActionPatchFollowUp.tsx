@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { startActionTrace } from "@/lib/action-trace-client";
 import { invokeActionCommand } from "@/lib/action-command-client";
+import { useManualTracePresentation } from "@/lib/action-trace-presentation";
 import {
   formatActionIdShort,
   type ActionPatchFollowUpContext,
@@ -24,6 +25,7 @@ export function ActionPatchFollowUp({
   const [statusText, setStatusText] = useState<string | null>(null);
 
   const busy = runState === "loading" || disabled;
+  const presentation = useManualTracePresentation();
 
   const run = useCallback(
     async (opts: { trace: boolean }) => {
@@ -35,7 +37,9 @@ export function ActionPatchFollowUp({
           actionId: context.actionId,
           param: param.trim() || undefined,
           actionTitle: context.actionTitle,
+          presentation,
         });
+        if (!result.presented) { setRunState("idle"); return; }
         if (result.ok) {
           setRunState("ok");
           setStatusText("已启动调试（见侧栏面板）");
@@ -59,7 +63,7 @@ export function ActionPatchFollowUp({
         setStatusText(result.error ?? "运行失败");
       }
     },
-    [busy, context.actionId, context.actionTitle, param],
+    [busy, context.actionId, context.actionTitle, param, presentation],
   );
 
   const edit = useCallback(async () => {

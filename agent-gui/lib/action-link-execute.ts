@@ -7,13 +7,14 @@ import type { ActionLinkOp } from "@/lib/action-link-markup";
 import { defaultActionLinkLabel } from "@/lib/action-link-markup";
 import { pushAppMessage } from "@/lib/app-messages";
 import { workspaceExplorerActionsRef } from "@/lib/workspace-explorer";
+import type { ManualTracePresentationPort } from "./action-trace-presentation";
 
 const TOAST_ID = "action-link-chip";
 
 export async function executeActionLinkOp(
   actionId: string,
   op: ActionLinkOp,
-  options?: { cwd?: string; param?: string },
+  options?: { cwd?: string; param?: string; tracePresentation?: ManualTracePresentationPort },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const cwd = options?.cwd?.trim() ?? "";
 
@@ -56,7 +57,9 @@ export async function executeActionLinkOp(
     const result = await startActionTrace({
       actionId,
       param,
+      presentation: options?.tracePresentation,
     });
+    if (!result.presented) return result.ok ? { ok: true } : { ok: false, error: result.error };
     if (result.ok) {
       pushAppMessage({
         id: TOAST_ID,

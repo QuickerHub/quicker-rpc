@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { startActionTrace } from "@/lib/action-trace-client";
 import { invokeActionCommand } from "@/lib/action-command-client";
 import { pushAppMessage } from "@/lib/app-messages";
+import { useManualTracePresentation } from "@/lib/action-trace-presentation";
 
 type ActionProjectToolbarProps = {
   actionId: string;
@@ -24,6 +25,7 @@ export function ActionProjectToolbar({
 }: ActionProjectToolbarProps) {
   const [param, setParam] = useState("");
   const [runBusy, setRunBusy] = useState(false);
+  const presentation = useManualTracePresentation();
 
   const runCommand = useCallback(
     async (
@@ -73,8 +75,10 @@ export function ActionProjectToolbar({
         const result = await startActionTrace({
           actionId,
           param: param.trim() || undefined,
+          presentation,
         });
         setRunBusy(false);
+        if (!result.presented) return;
         if (result.ok) {
           pushAppMessage({
             id: TOOLBAR_MESSAGE_ID,
@@ -101,7 +105,7 @@ export function ActionProjectToolbar({
         }),
       );
     },
-    [actionId, param, runBusy, runCommand, disabledReason],
+    [actionId, param, runBusy, runCommand, disabledReason, presentation],
   );
 
   const paramInput = layout === "inline" ? (

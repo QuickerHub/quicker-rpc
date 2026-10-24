@@ -69,6 +69,7 @@ import {
 } from "@/components/tool-test/ToolTestLauncherPanel";
 import { ToolTestLauncherResultPane } from "@/components/tool-test/ToolTestLauncherResultPane";
 import { ToolTestActionTracePanel } from "@/components/tool-test/ToolTestActionTracePanel";
+import { ManualTracePresentationProvider } from "@/lib/action-trace-presentation";
 import { ToolTestActionTraceMain } from "@/components/tool-test/ToolTestActionTraceMain";
 import {
   ToolTestPromptChatPane,
@@ -851,6 +852,7 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
     );
 
   return (
+    <ManualTracePresentationProvider threadId="tool-test" cwd={workingDirectory}>
     <WorkspaceExplorerShellProvider>
     <WorkspaceExplorerPanelProvider
       cwd={workingDirectory}
@@ -1007,5 +1009,6 @@ export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
       </DocsViewerProvider>
     </WorkspaceExplorerPanelProvider>
     </WorkspaceExplorerShellProvider>
+    </ManualTracePresentationProvider>
   );
 }

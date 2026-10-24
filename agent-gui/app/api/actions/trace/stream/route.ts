@@ -1,55 +1,28 @@
-import { resolveQkrpcHttpBase } from "@/lib/qkrpc-http";
+import { readManualTraceRequest, ManualTraceError } from "@/lib/action-trace-manual-contract";
+import { manualTraceManager } from "@/lib/action-trace-manual.server";
+import { ActionProjectBindingError } from "@/lib/action-project-binding";
+import { GET as observeTrace } from "../feed/route";
 
 export const runtime = "nodejs";
-
-const TRACE_TIMEOUT_SECONDS = 300;
-
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const actionId = url.searchParams.get("id")?.trim();
-  if (!actionId) {
-    return Response.json({ ok: false, error: "缺少 id" }, { status: 400 });
-  }
-
-  const param = url.searchParams.get("param")?.trim() || undefined;
-  const base = resolveQkrpcHttpBase();
-
-  let upstream: Response;
+/** GET observes a known run; reading history must never dispatch an action. */
+export const GET = observeTrace;
+export async function POST(req: Request) {
+  let accepted: Awaited<ReturnType<typeof manualTraceManager.start>> | undefined;
   try {
-    upstream = await fetch(`${base}/v1/action/trace/stream`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-      },
-      body: JSON.stringify({
-        id: actionId,
-        param,
-        timeoutSeconds: TRACE_TIMEOUT_SECONDS,
-      }),
-      cache: "no-store",
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return Response.json(
-      { ok: false, error: `无法连接 qkrpc serve：${message}` },
-      { status: 502 },
-    );
+    req.signal.throwIfAborted();
+    let body: unknown;
+    try { body = await req.json(); } catch (error) { req.signal.throwIfAborted(); throw new ManualTraceError("INVALID_JSON", error instanceof Error ? error.message : "Invalid JSON", 400); }
+    accepted = await manualTraceManager.start(readManualTraceRequest(body), req.signal);
+    req.signal.throwIfAborted();
+    const response = Response.json({ ok: true, owner: accepted.owner }, { status: 202 });
+    // After acceptance, normal response completion does not own the invocation lifetime.
+    accepted.acknowledge();
+    return response;
+  } catch (error) {
+    const possibleDispatch = accepted?.didDispatch() === true;
+    const facts = { dispatchStatus: possibleDispatch ? "possibly-dispatched" : "not-dispatched", ...(accepted ? { owner: accepted.owner } : {}) };
+    if (req.signal.aborted) return Response.json({ ok: false, code: possibleDispatch ? "WRITE_RESULT_UNKNOWN" : "REQUEST_ABORTED", error: req.signal.reason instanceof Error ? req.signal.reason.message : "Request aborted", ...facts, retryable: false }, { status: 499 });
+    const code = error instanceof ManualTraceError || error instanceof ActionProjectBindingError ? error.code : "TRACE_START_FAILED";
+    return Response.json({ ok: false, code, error: error instanceof Error ? error.message : String(error), ...facts, retryable: false }, { status: error instanceof ManualTraceError ? error.status : error instanceof ActionProjectBindingError ? 409 : 500 });
   }
-
-  if (!upstream.ok || !upstream.body) {
-    const text = await upstream.text().catch(() => "");
-    return new Response(text || "trace stream failed", {
-      status: upstream.status || 502,
-    });
-  }
-
-  return new Response(upstream.body, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
 }

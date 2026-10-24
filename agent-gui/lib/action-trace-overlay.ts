@@ -1,24 +1,12 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import {
-  buildActionTraceCommandLine,
-  buildInlineXActionTraceCommandLine,
-} from "@/lib/action-trace-command-line";
-import type { InlineXActionProgram } from "@/lib/action-trace-inline-programs";
+import { buildActionTraceCommandLine, buildInlineXActionTraceCommandLine } from "@/lib/action-trace-command-line";
 import {
   formatTraceEventsToText,
   parseActionTraceEvents,
   type ActionTraceEvent,
 } from "@/lib/action-trace-format";
-import {
-  consumeActionTraceSse,
-  consumeActionTraceSsePost,
-} from "@/lib/action-trace-sse";
-import {
-  resolveActionTraceStreamPost,
-  resolveActionTraceStreamUrl,
-} from "@/lib/action-trace-stream-url";
 import {
   buildActionTraceTabId,
   formatActionTraceTabLabel,
@@ -476,83 +464,6 @@ export function hydrateActionTraceFromToolOutput(
   focusTraceTab(tabId);
 }
 
-export function startActionTraceStream(params: {
-  actionId: string;
-  param?: string;
-  actionTitle?: string;
-  xaction?: InlineXActionProgram;
-}): void {
-  const actionId = params.actionId.trim();
-  const param = params.param?.trim() || undefined;
-  const tabId = buildActionTraceTabId(actionId, param);
-  cancelTabStream(tabId);
-
-  const commandLine = params.xaction
-    ? buildInlineXActionTraceCommandLine(param)
-    : buildActionTraceCommandLine(actionId, param);
-
-  upsertTab(tabId, {
-    actionId,
-    param,
-    actionTitle: params.actionTitle ?? params.xaction?.title,
-    commandLine,
-    output: "",
-    events: [],
-    viewMode: "timeline",
-    status: "running",
-    lineCount: 0,
-  });
-
-  focusTraceTab(tabId);
-
-  const abort = new AbortController();
-  streamAbortByTab.set(tabId, abort);
-
-  const handlers = {
-    onLine: (line: string) => {
-      appendOutput(tabId, `${line}\n`);
-    },
-    onTrace: (event: ActionTraceEvent) => {
-      appendEvent(tabId, event);
-    },
-    onDone: (data: Record<string, unknown>) => {
-      finishTabRun(tabId, {
-        ok: data.ok === true,
-        message: typeof data.message === "string" ? data.message : undefined,
-        returnResult:
-          typeof data.returnResult === "string" ? data.returnResult : undefined,
-        errorMessage:
-          typeof data.errorMessage === "string" ? data.errorMessage : undefined,
-        eventCount:
-          typeof data.eventCount === "number" ? data.eventCount : undefined,
-        durationMs:
-          typeof data.durationMs === "number" ? data.durationMs : undefined,
-      });
-    },
-    onError: (message: string) => {
-      if (abort.signal.aborted) return;
-      const tab = findTab(tabId);
-      if (tab?.status === "running") {
-        failTabRun(tabId, message);
-      }
-    },
-  };
-
-  if (params.xaction) {
-    const ephemeralId =
-      actionId || params.xaction.title?.trim() || `ephemeral:${Date.now()}`;
-    const post = resolveActionTraceStreamPost({
-      ephemeralId,
-      xaction: params.xaction,
-      param,
-    });
-    void consumeActionTraceSsePost(post.url, post.body, abort.signal, handlers);
-    return;
-  }
-
-  const streamUrl = resolveActionTraceStreamUrl(actionId, param);
-  void consumeActionTraceSse(streamUrl, abort.signal, handlers);
-}
 
 function subscribe(onStoreChange: () => void): () => void {
   listeners.add(onStoreChange);
@@ -607,7 +518,8 @@ function mutateThread(threadId: string, update: (current: StoreState) => StoreSt
 }
 
 /** A view observes one immutable run and survives presentation changes. Closing never stops native work. */
-function createTraceView(params: { tabId: string; threadId: string; cwd: string; actionId: string; param?: string; owner?: TraceRunOwner; focus?: boolean }): TraceViewLease | null {
+type TraceDisplayMetadata = { actionTitle?: string; commandLine?: string };
+function createTraceView(params: { tabId: string; threadId: string; cwd: string; actionId: string; param?: string; owner?: TraceRunOwner; focus?: boolean; display?: TraceDisplayMetadata }): TraceViewLease | null {
   const { tabId, threadId, cwd, owner } = params;
   if (closedTraceViews.has(tabId)) return null;
   const existing = traceViews.get(tabId);
@@ -670,14 +582,14 @@ function createTraceView(params: { tabId: string; threadId: string; cwd: string;
   };
   traceViews.set(tabId, lease);
   mutateThread(threadId, (store) => ({ tabs: [...store.tabs, { tabId, actionId: params.actionId, param: params.param, owner,
-    commandLine: buildActionTraceCommandLine(params.actionId, params.param), output: "", events: [], viewMode: "timeline", status: "running", lineCount: 0 }] }));
+    actionTitle: params.display?.actionTitle, commandLine: params.display?.commandLine ?? buildActionTraceCommandLine(params.actionId, params.param), output: "", events: [], viewMode: "timeline", status: "running", lineCount: 0 }] }));
   if (params.focus && activeTraceThreadId === threadId) focusTraceTab(tabId);
   return lease;
 }
-export function prepareOwnedTraceView(owner: TraceRunOwner, focus = false, presentation?: { threadId: string; messageId: string }): TraceViewLease | null {
+export function prepareOwnedTraceView(owner: TraceRunOwner, focus = false, presentation?: { threadId: string; messageId: string }, display?: TraceDisplayMetadata): TraceViewLease | null {
   const replay = presentation && presentation.threadId !== owner.threadId;
   const tabId = traceRunTabId(owner) + (replay ? `:replay:${encodeURIComponent(presentation.threadId)}:${encodeURIComponent(presentation.messageId)}` : "");
-  return createTraceView({ tabId, threadId: presentation?.threadId ?? owner.threadId, cwd: owner.cwd, actionId: owner.actionId, param: owner.param, owner, focus });
+  return createTraceView({ tabId, threadId: presentation?.threadId ?? owner.threadId, cwd: owner.cwd, actionId: owner.actionId, param: owner.param, owner, focus, display });
 }
 export function prepareHistoricalTraceView(params: { threadId: string; cwd: string; messageId: string; partKey: string; actionId: string; param?: string }): TraceViewLease | null {
   return createTraceView({ ...params, tabId: `__trace__:history:${encodeURIComponent(params.threadId)}:${encodeURIComponent(params.messageId)}:${encodeURIComponent(params.partKey)}` });
@@ -686,4 +598,19 @@ export function releaseActionTraceThread(threadId: string): void {
   for (const view of traceViews.values()) if (view.threadId === threadId) view.close();
   traceStateByThread.delete(threadId);
   if (activeTraceThreadId === threadId) setState(emptyStore);
+}
+
+let manualPresentationSequence = 0;
+export function prepareManualTracePendingView(params: { threadId: string; cwd: string; actionId: string; param?: string; focus: boolean; actionTitle?: string; inline?: boolean }): TraceViewLease {
+  return createTraceView({ ...params, display: { actionTitle: params.actionTitle,
+    commandLine: params.inline ? buildInlineXActionTraceCommandLine(params.param) : buildActionTraceCommandLine(params.actionId, params.param) },
+    tabId: `__trace__:pending:${encodeURIComponent(params.threadId)}:${++manualPresentationSequence}` })!;
+}
+export function promoteManualTraceView(pending: TraceViewLease, owner: TraceRunOwner, focus: boolean): TraceViewLease | null {
+  if (!pending.isCurrent()) return null;
+  const previous = threadState(pending.threadId).tabs.find((tab) => tab.tabId === pending.tabId);
+  const display = { actionTitle: previous?.actionTitle, commandLine: previous?.commandLine };
+  pending.close();
+  mutateThread(pending.threadId, (store) => ({ tabs: store.tabs.filter((tab) => tab.tabId !== pending.tabId) }));
+  return prepareOwnedTraceView(owner, focus, { threadId: pending.threadId, messageId: pending.tabId }, display);
 }
