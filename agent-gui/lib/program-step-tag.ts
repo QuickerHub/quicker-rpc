@@ -213,8 +213,8 @@ export function programStepTagFromAttrs(
   };
 }
 
-export function expandProgramStepTagForModel(tag: ProgramStepTag): string {
-  return formatProgramStepTagPrompt(tag);
+export function expandProgramStepTagForModel(tag: ProgramStepTag, liveDocument = false): string {
+  return formatProgramStepTagPrompt(tag, liveDocument);
 }
 
 export function findProgramStepTagMarkupHits(text: string): Array<{

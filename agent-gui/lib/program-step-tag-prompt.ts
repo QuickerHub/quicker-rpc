@@ -8,7 +8,7 @@ function escapeXmlText(value: string): string {
 }
 
 /** Model-facing expansion for a pinned program step slice. */
-export function formatProgramStepTagPrompt(tag: ProgramStepTag): string {
+export function formatProgramStepTagPrompt(tag: ProgramStepTag, liveDocument = false): string {
   const attrs = [
     `target="${escapeXmlText(tag.programTarget)}"`,
     `program-id="${escapeXmlText(tag.programId)}"`,
@@ -28,7 +28,15 @@ export function formatProgramStepTagPrompt(tag: ProgramStepTag): string {
     attrs.push(`designer-step-id="${escapeXmlText(tag.designerStepId.trim())}"`);
   }
 
-  const body = [
+  const body = (liveDocument ? [
+    "【实时设计器步骤范围 — 此标签是添加时的快照，先读取当前文档】",
+    "编辑协议：使用 workspace_program read_live 获取当前未保存正文和 revision。",
+    `仅可对本次真实标签授权的 designer-step-id (${tag.designerStepId ?? "不可用"}) 使用 edit_live 修改备注。`,
+    "edit_live 需要该 read_live 的实际 toolCallId、返回 revision 和本轮 scopeId；修改进入原文档撤销历史，保持未保存。",
+    "目标不可用或发生冲突时保留失败，不改磁盘文件、不导出或切换其它动作。",
+    "以下为添加标签时的只读上下文；当前内容以 read_live 为准。",
+    "", "```json", tag.content, "```",
+  ] : [
     "【单步编辑范围 — 仅允许修改下方 JSON 对象，禁止改动其他步骤或整文件重写】",
     "",
     "编辑协议：",
@@ -40,7 +48,7 @@ export function formatProgramStepTagPrompt(tag: ProgramStepTag): string {
     "```json",
     tag.content,
     "```",
-  ].join("\n");
+  ]).join("\n");
 
   return `<qkrpc-program-step ${attrs.join(" ")}>\n${escapeXmlText(body)}\n</qkrpc-program-step>`;
 }

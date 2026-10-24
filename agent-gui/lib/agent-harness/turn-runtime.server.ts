@@ -36,6 +36,8 @@ import { executeQkrpcActionGetReadOnly } from "@/lib/qkrpc-action-tool.server";
 import { executeQkrpcSubprogramGetReadOnly } from "@/lib/qkrpc-subprogram-tool.server";
 import { executeWorkspaceProgramReadOnly } from "@/lib/workspace-program-tool.server";
 import { createTurnExecutionState, type TurnExecutionState } from "./turn-execution-state";
+import { composeLiveProgramTools } from "@/lib/live-program-tool-composition";
+import { createLiveProgramDocumentTool } from "@/lib/live-program-document-tool";
 
 export type ResolvedAgentTurnScope = {
   actionScope: ReturnType<typeof extractActionScopeFromMessages>;
@@ -111,6 +113,8 @@ export async function prepareAgentTurnRuntime(params: {
   abortSignal?: AbortSignal;
 }): Promise<PreparedAgentTurnRuntime> {
   const { request, scope, model, modelId, abortSignal } = params;
+  const liveSelection = request.liveProgramDocument ?? { state: "none" as const };
+  const liveIntent = liveSelection.state !== "none";
   abortSignal?.throwIfAborted();
   const staticTools = selectChatTools({
     chatMode: request.chatMode,
@@ -120,6 +124,7 @@ export async function prepareAgentTurnRuntime(params: {
   });
   // An explicit empty command selection must not initialize external transports.
   const shouldLoadMcp = !request.titleTest
+    && !liveIntent
     && !request.benchMode
     && request.chatMode !== CHAT_MODE_LAUNCHER
     && request.slashCommand.overrides.toolAllowlist?.length !== 0;
@@ -134,16 +139,19 @@ export async function prepareAgentTurnRuntime(params: {
 
   try {
     abortSignal?.throwIfAborted();
+    const liveComposition = composeLiveProgramTools({ ...staticTools, ...mcp.tools } as ToolSet, liveSelection,
+      createLiveProgramDocumentTool(liveSelection.state === "ready" ? liveSelection.scope.mode : "read",
+        liveSelection.state === "ready" ? liveSelection.scope.scopeId : "unavailable"));
     const composedTools = restrictComposedTools(
-      { ...staticTools, ...mcp.tools } as ToolSet,
+      liveComposition.tools,
       request.slashCommand.overrides.toolAllowlist,
     );
     const readOnlyExecutors: ReadOnlyToolExecutors = {
-      workspace_program: (input) => executeWorkspaceProgramReadOnly(input as Parameters<typeof executeWorkspaceProgramReadOnly>[0]),
+      ...(liveIntent ? {} : { workspace_program: (input: unknown) => executeWorkspaceProgramReadOnly(input as Parameters<typeof executeWorkspaceProgramReadOnly>[0]) }),
       qkrpc_action_get: (input, options) => executeQkrpcActionGetReadOnly(input as Parameters<typeof executeQkrpcActionGetReadOnly>[0], { abortSignal: options.abortSignal }),
       qkrpc_subprogram_get: (input, options) => executeQkrpcSubprogramGetReadOnly(input as Parameters<typeof executeQkrpcSubprogramGetReadOnly>[0], { abortSignal: options.abortSignal }),
     };
-    const guardedTools = applyToolModeGuards(composedTools, request.chatMode, readOnlyExecutors);
+    const guardedTools = applyToolModeGuards(composedTools, request.chatMode, readOnlyExecutors, liveComposition);
     let fullTools: ToolSet;
     if (guardedTools[TASK_TOOL]) {
       guardedTools[TASK_TOOL] = createTaskToolForParent(
@@ -160,7 +168,8 @@ export async function prepareAgentTurnRuntime(params: {
       actionScope: scope.actionScope,
       chatMode: request.chatMode,
       enabledToolIds: enabledRuntimeToolIds,
-      readOnlyExecutorToolIds: Object.keys(readOnlyExecutors).filter((id) => typeof readOnlyExecutors[id] === "function"),
+      readOnlyExecutorToolIds: [...Object.keys(readOnlyExecutors).filter((id) => typeof readOnlyExecutors[id] === "function"), ...liveComposition.clientReadonlyTools],
+      operationConstraints: liveComposition.operationConstraints,
       messages: request.repairedMessages,
       userText: request.lastUserText,
       actionDesigner: request.actionDesigner,
@@ -168,6 +177,7 @@ export async function prepareAgentTurnRuntime(params: {
     const fullSchemaToolIds = new Set([
       ...turnPlan.fullSchemaToolIds,
       ...Object.keys(mcp.tools),
+      ...(liveIntent && fullTools.workspace_program ? ["workspace_program"] : []),
     ]);
     const modelTools = slimToolsForModel(fullTools, fullSchemaToolIds);
     const contextLimit = resolveModelContextLimit(modelId).tokens;
@@ -228,8 +238,11 @@ export async function prepareAgentTurnRuntime(params: {
       );
     }
     const mcpSystemBlock = mcpSystemLines.join("\n");
+    const liveSystemBlock = !liveIntent ? "" : liveSelection.state === "ready"
+      ? `## Live Designer document\nThis manual user turn targets the original pinned live document ${liveSelection.scope.target.identity.documentKey}. Use workspace_program read_live before edit_live and retain scopeId ${liveSelection.scope.scopeId}. The visible file or cwd may change during automatic continuation; never substitute it. Changes are memory transactions in the existing editor and remain unsaved. This first slice only changes a uniquely identified step's note. Disk/native authoring, Shell and external MCP are unavailable in this scope.`
+      : `## Live Designer document unavailable\n${liveSelection.state === "unavailable" ? liveSelection.error : "The target is unavailable."}\nDo not substitute legacy disk or native editing. Report this scope failure and request a fresh step pin if the user wants live editing.`;
     const buildSystemForPreparedContext = (context: PreparedChatContext) =>
-      [baseSystemBuilder(context), mcpSystemBlock].filter(Boolean).join("\n\n");
+      [baseSystemBuilder(context), mcpSystemBlock, liveSystemBlock].filter(Boolean).join("\n\n");
 
     return {
       abortSignal,

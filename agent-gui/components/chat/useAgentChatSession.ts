@@ -1,6 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { convertFileListToFileUIParts } from "ai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatMode } from "@/lib/chat-mode";
@@ -18,6 +19,10 @@ import {
 } from "@/lib/chat-store";
 import { isChatStoreHydrated } from "@/lib/use-chat-store";
 import { replaceChatMessagesIfCurrent } from "@/lib/chat-message-edit-branch";
+import { createLiveProgramDocumentTurn } from "@/lib/live-program-document-turn";
+import type { LiveProgramDocumentRegistry, LiveProgramDocumentPin, LiveProgramDocumentRegistryFailure } from "@/lib/live-program-document";
+import { resolveEnabledToolsForChatMode } from "@/lib/chat-mode";
+import { loadStoredEnabledTools } from "@/lib/tool-registry";
 
 const CHAT_PERSIST_DEBOUNCE_MS = 400;
 const CHAT_PERSIST_MAX_INTERVAL_MS = 5000;
@@ -87,6 +92,9 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
   const actionDesignerRef = useRef(actionDesigner);
   actionDesignerRef.current = designerEmbedScoped ? actionDesigner : undefined;
   const messagesForPersistRef = useRef<AgentUIMessage[]>(initialMessages);
+  const liveRegistryRef = useRef<LiveProgramDocumentRegistry | null>(null);
+  const liveTurn = useMemo(() => createLiveProgramDocumentTurn({ threadId, getRegistry: () => liveRegistryRef.current }), [threadId]);
+  const addLiveToolOutputRef = useRef<((input: { tool: string; toolCallId: string; output: unknown }) => Promise<void>) | null>(null);
 
   const chatTransport = useMemo(
     () =>
@@ -100,8 +108,9 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
         designerEmbedScoped: designerEmbedScopedRef,
         actionDesigner: actionDesignerRef,
         benchMode: benchModeRef,
+        liveProgramDocumentTurn: liveTurn.getBody,
       }),
-    [threadId],
+    [threadId, liveTurn],
   );
 
   const {
@@ -110,7 +119,7 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     setMessages,
     status,
     error,
-    stop,
+    stop: stopSdk,
     clearError,
     addToolApprovalResponse,
     addToolOutput,
@@ -119,8 +128,28 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     messages: finalizeStreamingReasoningParts(initialMessages),
     transport: chatTransport,
     experimental_throttle: 100,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithClientResponses,
+    sendAutomaticallyWhen: (input) => !(liveTurn.getBody() && liveTurn.isStopped()) && lastAssistantMessageIsCompleteWithClientResponses(input),
+    onToolCall: ({ toolCall }) => {
+      if (toolCall.toolName !== "workspace_program" || !liveTurn.getBody() || liveTurn.isStopped()) return;
+      const output = liveTurn.execute(toolCall.toolCallId, toolCall.input);
+      // The SDK is processing this stream. Awaiting its automatic continuation
+      // here would wait on the same stream callback; record first, publish once.
+      void addLiveToolOutputRef.current?.({ tool: "workspace_program", toolCallId: toolCall.toolCallId, output }).catch(() => {
+        // The immutable receipt remains available to stop/repair; never replay an edit.
+      });
+    },
   });
+  addLiveToolOutputRef.current = addToolOutput as typeof addLiveToolOutputRef.current;
+
+  useEffect(() => () => liveTurn.dispose(), [liveTurn]);
+  const registerLiveProgramDocumentRegistry = useCallback((registry: LiveProgramDocumentRegistry) => {
+    liveRegistryRef.current = registry;
+    return () => { if (liveRegistryRef.current === registry) liveRegistryRef.current = null; };
+  }, []);
+  const rememberLiveProgramDocumentPin = useCallback((tagId: string, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => {
+    liveTurn.rememberPin(tagId, pin);
+  }, [liveTurn]);
+  const stop = useCallback(() => { liveTurn.stop(); return stopSdk(); }, [liveTurn, stopSdk]);
 
   messagesForPersistRef.current = messages;
 
@@ -150,15 +179,30 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
   }, [threadId]);
 
   const repairToolCalls = useCallback(() => {
-    setMessages((prev) => repairInterruptedToolCalls(prev));
-  }, [setMessages]);
+    setMessages((prev) => repairInterruptedToolCalls(prev, liveTurn.getResult));
+  }, [setMessages, liveTurn]);
 
   const sendMessageSafe = useCallback(
-    (payload: Parameters<typeof sendMessage>[0]) => {
+    async (payload: Parameters<typeof sendMessage>[0]) => {
       repairToolCalls();
-      sendMessage(payload);
+      if (!payload) return sendMessage();
+      const id = payload.messageId ?? ("id" in payload && typeof payload.id === "string" ? payload.id : crypto.randomUUID());
+      const text = "text" in payload ? payload.text ?? "" : "parts" in payload
+        ? payload.parts?.filter((part) => part.type === "text").map((part) => part.text).join("\n") ?? "" : "";
+      liveTurn.begin({ userMessageId: id, text, cwd: workingDirectoryRef.current.trim(), chatMode: chatModeRef.current,
+        enabledTools: resolveEnabledToolsForChatMode(chatModeRef.current, enabledToolsRef.current, loadStoredEnabledTools) });
+      // The SDK's shorthand {text, files} branch discards a supplied id. Send
+      // parts so the grant and the actual original user message share one ID.
+      if ("text" in payload || "files" in payload) {
+        const generation = liveTurn.getGeneration();
+        const files = !payload.files ? [] : Array.isArray(payload.files) ? payload.files : await convertFileListToFileUIParts(payload.files);
+        if (liveTurn.isStopped() || liveTurn.getGeneration() !== generation) return;
+        return sendMessage({ id, role: "user", parts: [...files, ...(text ? [{ type: "text" as const, text }] : [])],
+          metadata: payload.metadata, messageId: payload.messageId });
+      }
+      return sendMessage({ ...payload, id });
     },
-    [repairToolCalls, sendMessage],
+    [repairToolCalls, sendMessage, liveTurn],
   );
 
   useEffect(() => {
@@ -228,5 +272,7 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     addToolOutput,
     repairToolCalls,
     busyPersist,
+    registerLiveProgramDocumentRegistry,
+    rememberLiveProgramDocumentPin,
   };
 }

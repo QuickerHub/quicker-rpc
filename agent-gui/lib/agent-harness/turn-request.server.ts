@@ -18,6 +18,8 @@ import { extractLastUserMessageText } from "@/lib/launcher/launcher-command-cach
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 import { defaultEnabledToolIds } from "@/lib/tool-registry";
 import type { ChatPostBody } from "@/lib/agent-harness/types";
+import { parseLiveProgramDocumentSelection } from "@/lib/live-program-document-selection";
+import type { LiveProgramDocumentSelection } from "@/lib/live-program-document";
 import { prepareTurnMessagesForModel } from "@/lib/agent-harness/turn-message-preparation";
 import { resolveEffectiveTurnSelection } from "@/lib/agent-harness/turn-selection";
 import {
@@ -41,6 +43,7 @@ export type ResolvedAgentTurnRequest = {
   llmSelectionRaw?: string;
   threadId?: string;
   actionDesigner?: ActionDesignerChatContext;
+  liveProgramDocument?: LiveProgramDocumentSelection;
 };
 
 /** Resolve transport/UI details before model or tool execution begins. */
@@ -52,6 +55,10 @@ export async function resolveAgentTurnRequest(
     body.workingDirectory ?? body.workspaceRoot,
   );
   const repairedMessages = repairInterruptedToolCalls(body.messages);
+  const liveProgramDocument = parseLiveProgramDocumentSelection(body.liveProgramDocument, {
+    cwd, threadId: body.threadId, chatMode,
+    userMessageId: repairedMessages.findLast((message) => message.role === "user")?.id,
+  });
   const titleTest = body.titleTestOnly === true;
   const benchMode = body.benchMode === true && !titleTest;
   const modeEnabledTools = resolveEnabledToolsForChatMode(
@@ -78,6 +85,7 @@ export async function resolveAgentTurnRequest(
     messagesForModel: prepareTurnMessagesForModel({
       messages: repairedMessages,
       expandedSlashUserText: slashCommand.expandedUserText,
+      liveProgramDocument: liveProgramDocument.state !== "none",
     }),
     titleTest,
     benchMode,
@@ -87,6 +95,7 @@ export async function resolveAgentTurnRequest(
     lastUserText: extractLastUserMessageText(repairedMessages),
     llmSelectionRaw,
     threadId: body.threadId,
-    actionDesigner: resolveActionDesignerForChatTurn(body),
+    actionDesigner: liveProgramDocument.state === "none" ? resolveActionDesignerForChatTurn(body) : undefined,
+    liveProgramDocument,
   };
 }

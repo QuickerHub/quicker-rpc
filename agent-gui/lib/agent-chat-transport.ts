@@ -3,6 +3,7 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatMode } from "@/lib/chat-mode";
 import { resolveEnabledToolsForChatMode } from "@/lib/chat-mode";
 import { loadStoredEnabledTools } from "@/lib/tool-registry";
+import type { LiveProgramDocumentTurnBody } from "./live-program-document-turn";
 
 type RefLike<T> = { current: T };
 
@@ -21,6 +22,7 @@ export type AgentChatTransportRefs = {
   designerEmbedScoped: RefLike<boolean>;
   actionDesigner: RefLike<ActionDesignerChatRef | undefined>;
   benchMode?: RefLike<boolean>;
+  liveProgramDocumentTurn?: () => LiveProgramDocumentTurnBody | undefined;
 };
 
 /** Stable DefaultChatTransport for main chat — body reads latest composer state via refs. */
@@ -44,6 +46,7 @@ export function createAgentChatTransport(refs: AgentChatTransportRefs): DefaultC
         ? refs.actionDesigner.current
         : undefined,
       ...(refs.benchMode?.current === true ? { benchMode: true } : {}),
+      ...refs.liveProgramDocumentTurn?.(),
     }),
   });
 }

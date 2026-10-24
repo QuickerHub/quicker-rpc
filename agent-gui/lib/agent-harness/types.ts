@@ -26,6 +26,8 @@ export type PreparedModelContext = {
 
 export type ChatPostBody = {
   messages: AgentUIMessage[];
+  /** Renderer-issued descriptor; validated against the original manual message. */
+  liveProgramDocument?: unknown;
   enabledTools?: string[];
   workingDirectory?: string;
   /** @deprecated use workingDirectory */

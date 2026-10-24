@@ -65,6 +65,8 @@ export function resolveProgramDiskPathFromWorkspaceTool(
   input: unknown,
   output?: unknown,
 ): string | undefined {
+  const result = readRecord(output);
+  if (result?.source === "live_document" || readRecord(result?.data)?.source === "live_document") return undefined;
   const outputPath = readPathFromToolOutput(output);
   if (outputPath) {
     return normalizeWorkspaceRelativePath(outputPath);
