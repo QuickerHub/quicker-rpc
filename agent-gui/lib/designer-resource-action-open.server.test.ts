@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
+import fsPromises from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, link, symlink } from "node:fs/promises";
@@ -11,7 +12,7 @@ import type { DesignerResourceActionOpenRequest, DesignerResourceActionOpenResul
 import { parseActionProjectBinding, type ActionProjectBinding } from "./action-project-binding";
 import { workspaceDocumentKey } from "./workspace-document-instances";
 import { previewTabId } from "./workbench/preview-tab-id";
-import { getRequestAbortSignal } from "./qkrpc-request-context";
+import { getRequestAbortSignal, getRequestCwd } from "./qkrpc-request-context";
 import type { QkrpcRunResult } from "./qkrpc-types";
 
 const sourceId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", targetId = "11111111-2222-3333-4444-555555555555";
@@ -66,6 +67,12 @@ class Fixture {
 }
 function success(result: DesignerResourceActionOpenResult) { assert.equal(result.ok, true, JSON.stringify(result)); if (!result.ok) throw new Error(result.error); return result; }
 function failure(result: DesignerResourceActionOpenResult, code: string) { assert.equal(result.ok, false); if (result.ok) throw new Error("Expected failure"); assert.equal(result.code, code); assert.equal(result.retryable, false); return result; }
+const pendingOwners = () => (globalThis as Record<symbol, Map<string, Promise<unknown>>>)[Symbol.for("qkrpc.designerResourceActionOpenOwners.v2")];
+async function until(check: () => boolean) {
+  const deadline = Date.now() + 2_000;
+  while (!check() && Date.now() < deadline) await new Promise<void>((done) => setImmediate(done));
+  assert.ok(check(), "The owned request did not reach the fixture barrier.");
+}
 
 test("open validates explicit source cwd/file owner, request ids and cancellation before transport", async () => fixture(async (f) => {
   const valid = f.request();
@@ -96,9 +103,12 @@ test("a unique exact-bound local project is reused without reload/export; foreig
   assert.equal(result.projectDirectory, ".quicker/actions/local"); assert.equal(result.origin, "existing"); assert.equal(result.localPersistence, "unchanged");
   assert.equal(await readFile(join(f.root, result.path), "utf8"), body);
   assert.equal(await readFile(join(f.root, sourceDirectory, "data.json"), "utf8"), body);
-  // An immutable prior claim with no owned export output never becomes permission to export on retry.
-  const repeated = failure(await openDesignerResourceAction(f.request(), { run: missingRun }), "OPEN_RESULT_UNKNOWN");
-  assert.equal(repeated.localPersistence, "unknown");
+  // Rechecking an unchanged local project needs neither a new claim nor an export output directory.
+  const repeated = success(await openDesignerResourceAction(f.request(), { run: missingRun }));
+  assert.equal(repeated.origin, "existing"); assert.equal(repeated.localPersistence, "unchanged");
+  assert.equal(repeated.projectDirectory, result.projectDirectory);
+  assert.equal(await readFile(join(f.root, repeated.path), "utf8"), body);
+  assert.equal(existsSync(join(f.root, `.quicker/actions/open-${requestId}`)), false);
   assert.equal(success(await openDesignerResourceAction(f.request(bind(), targetId, requestTwo), { run: missingRun })).origin, "existing");
 }));
 
@@ -226,6 +236,105 @@ test("concurrent opens serialize per complete target and reuse the first project
   assert.equal(success(one).origin, "exported"); assert.equal(success(two).origin, "existing");
   assert.equal(success(one).path, success(two).path); assert.equal(calls, 1);
 }));
+
+test("queued different owners retain their own non-dispatch fact and explicitly associate the original unknown or partial receipt", async () => fixture(async (f) => {
+  await f.project(".quicker/actions/another-source", bind());
+  for (const partial of [false, true]) {
+    const id = partial ? nextId : targetId;
+    const operationIds = partial ? ["bbbbbbbb-1111-2222-3333-444444444441", "bbbbbbbb-1111-2222-3333-444444444442", "bbbbbbbb-1111-2222-3333-444444444443"]
+      : [requestId, requestTwo, "12345678-1234-1234-1234-123456789014"];
+    let begin!: () => void, finish!: () => void, calls = 0;
+    const started = new Promise<void>((done) => { begin = done; }), wait = new Promise<void>((done) => { finish = done; });
+    const firstRequest = f.request(bind(), id, operationIds[0]);
+    const secondRequest = f.request(bind(), id, operationIds[1], ".quicker/actions/another-source");
+    const thirdRequest = { ...secondRequest, requestId: operationIds[2], sourceOwner: { ...secondRequest.sourceOwner, instanceId: 2 } };
+    const first = openDesignerResourceAction(firstRequest, { run: async () => {
+      calls++; begin(); await wait;
+      return { ok: false, exitCode: 1, stdout: "", stderr: "original export acknowledgement lost", truncated: false,
+        parsed: { error: "WRITE_RESULT_UNKNOWN", ...(partial ? { data: { persistedParts: { localProject: true, binding: false } } } : {}) } };
+    } });
+    await started;
+    const firstHeld = [...pendingOwners().values()][0];
+    const second = openDesignerResourceAction(secondRequest, { run: missingRun });
+    let third: Promise<DesignerResourceActionOpenResult> | undefined;
+    try {
+      await until(() => [...pendingOwners().values()][0] !== firstHeld);
+      const secondHeld = [...pendingOwners().values()][0];
+      third = openDesignerResourceAction(thirdRequest, { run: missingRun });
+      await until(() => [...pendingOwners().values()][0] !== secondHeld);
+    } catch (error) {
+      finish(); await Promise.allSettled([first, second, third]); throw error;
+    } finally { finish(); }
+    const [one, two, three] = await Promise.all([first, second, third!]);
+    const original = failure(one, "WRITE_RESULT_UNKNOWN");
+    assert.equal(original.localPersistence, partial ? "partial" : "unknown");
+    for (const [request, result] of [[secondRequest, two], [thirdRequest, three]] as const) {
+      const blocked = failure(result, "RESOURCE_OPEN_BLOCKED");
+      assert.equal(blocked.localPersistence, "none"); assert.equal(blocked.projectDirectory, undefined); assert.equal(blocked.persistedParts, undefined);
+      assert.deepEqual(blocked.blockedBy, { requestId: firstRequest.requestId, actionId: id, sourceOwner: firstRequest.sourceOwner,
+        code: original.code, error: original.error, projectDirectory: original.projectDirectory, localPersistence: original.localPersistence,
+        ...(partial ? { persistedParts: { localProject: true, binding: false } } : {}) });
+      assert.equal(existsSync(f.claim(request.requestId)), false); assert.equal(existsSync(join(f.root, `.quicker/actions/open-${request.requestId}`)), false);
+    }
+    assert.equal(calls, 1);
+  }
+}));
+
+test("a cancelled queued waiter cannot discard the preceding unknown receipt and permit a later export", async () => fixture(async (f) => {
+  let begin!: () => void, finish!: () => void, calls = 0;
+  const started = new Promise<void>((done) => { begin = done; }), wait = new Promise<void>((done) => { finish = done; });
+  const abort = new AbortController(), reason = new Error("second source closed while queued");
+  const first = openDesignerResourceAction(f.request(), { run: async () => {
+    calls++; begin(); await wait; return { ok: false, exitCode: 1, stdout: "", stderr: "first export receipt lost", parsed: null, truncated: false };
+  } });
+  await started;
+  const firstHeld = [...pendingOwners().values()][0];
+  const second = openDesignerResourceAction(f.request(bind(), targetId, requestTwo), { signal: abort.signal, run: missingRun });
+  let third: Promise<DesignerResourceActionOpenResult> | undefined;
+  const thirdId = "12345678-1234-1234-1234-123456789014";
+  try {
+    await until(() => [...pendingOwners().values()][0] !== firstHeld);
+    const secondHeld = [...pendingOwners().values()][0];
+    third = openDesignerResourceAction(f.request(bind(), targetId, thirdId), { run: missingRun });
+    await until(() => [...pendingOwners().values()][0] !== secondHeld);
+    abort.abort(reason);
+  } catch (error) {
+    finish(); await Promise.allSettled([first, second, third]); throw error;
+  } finally { finish(); }
+  const [one, two, three] = await Promise.all([first, second, third!]);
+  const original = failure(one, "OPEN_RESULT_UNKNOWN");
+  const cancelled = failure(two, "REQUEST_ABORTED"); assert.equal(cancelled.localPersistence, "none"); assert.equal(cancelled.error, reason.message);
+  const blocked = failure(three, "RESOURCE_OPEN_BLOCKED"); assert.equal(blocked.localPersistence, "none");
+  assert.equal(blocked.blockedBy?.requestId, requestId); assert.equal(blocked.blockedBy?.projectDirectory, original.projectDirectory);
+  assert.equal(existsSync(f.claim(requestTwo)), false); assert.equal(existsSync(f.claim(thirdId)), false); assert.equal(calls, 1);
+}));
+
+test("distinct case-sensitive canonical workspace entities never share an inflight export or receipt", async () => fixture(async (one) => fixture(async (two) => {
+  // The physical fixture roots are separate on any filesystem. Simulate canonical entity names from a
+  // case-sensitive Windows directory; path guards continue to inspect each real physical fixture.
+  const realpath = fsPromises.realpath;
+  const canonical = new Map([[one.root, resolve(one.root, "../CaseWorkspace")], [two.root, resolve(one.root, "../caseWorkspace")]]);
+  const probe = mock.method(fsPromises, "realpath", async (path, ...args) => !getRequestCwd() && canonical.has(String(path))
+    ? canonical.get(String(path))! : realpath(path, ...args));
+  syncBuiltinESMExports();
+  let begin!: () => void, finish!: () => void, calls = 0;
+  const started = new Promise<void>((done) => { begin = done; }), wait = new Promise<void>((done) => { finish = done; });
+  let first: Promise<DesignerResourceActionOpenResult> | undefined, second: Promise<DesignerResourceActionOpenResult> | undefined;
+  try {
+    first = openDesignerResourceAction(one.request(), { run: async () => {
+      begin(); await wait; return { ok: false, exitCode: 1, stdout: "", stderr: "first workspace lost its receipt", truncated: false, parsed: null };
+    } });
+    await started;
+    second = openDesignerResourceAction(two.request(), { run: async (args) => { calls++; return two.exported(args); } });
+    await until(() => calls === 1);
+    const opened = success(await second); assert.equal(opened.origin, "exported");
+    assert.equal(await readFile(join(two.root, opened.path), "utf8"), body);
+    assert.equal(existsSync(join(one.root, opened.path, "data.json")), false);
+    finish(); assert.equal(failure(await first, "OPEN_RESULT_UNKNOWN").localPersistence, "unknown");
+  } finally {
+    finish(); await Promise.allSettled([first, second]); probe.mock.restore(); syncBuiltinESMExports();
+  }
+})));
 
 test("the actual API preserves an unknown HTTP export result and never falls back to a CLI child", async () => fixture(async (f) => {
   let calls = 0; const originalFetch = globalThis.fetch;

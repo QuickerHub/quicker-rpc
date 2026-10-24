@@ -18,6 +18,16 @@ export type DesignerResourceActionOpenSuccess = Readonly<{
   localPersistence: "unchanged" | "confirmed";
   origin: "existing" | "exported" | "recovered";
 }>;
+export type DesignerResourceActionOpenBlockingReceipt = Readonly<{
+  requestId: string;
+  actionId: string;
+  sourceOwner: WorkspaceDocumentOwner;
+  code: string;
+  error: string;
+  projectDirectory?: string;
+  localPersistence: "unknown" | "partial";
+  persistedParts?: Readonly<{ localProject?: boolean; binding?: boolean }>;
+}>;
 export type DesignerResourceActionOpenFailure = Readonly<{
   ok: false;
   code: string;
@@ -26,5 +36,7 @@ export type DesignerResourceActionOpenFailure = Readonly<{
   projectDirectory?: string;
   localPersistence: "none" | "unknown" | "partial" | "confirmed";
   persistedParts?: Readonly<{ localProject?: boolean; binding?: boolean }>;
+  /** Another request owns these facts; this request has not dispatched an export. */
+  blockedBy?: DesignerResourceActionOpenBlockingReceipt;
 }>;
 export type DesignerResourceActionOpenResult = DesignerResourceActionOpenSuccess | DesignerResourceActionOpenFailure;

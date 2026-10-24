@@ -94,11 +94,13 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
   const selectedOpenKey = port && selected && navigation
     ? JSON.stringify([navigation.owner.key, navigation.owner.instanceId, port.key, selected.id]) : "";
   const selectedOpen = opens.current.get(selectedOpenKey);
+  const blockedBy = selectedOpen?.result && !selectedOpen.result.ok ? selectedOpen.result.blockedBy : undefined;
   const openUnavailable = kind !== "action" ? "子程序打开尚未接入。"
+    : selected?.actionType !== "XAction" ? "当前仅支持打开组合动作（XAction）；其它或未知类型保留只读摘要。"
     : !port?.resourceActionOpenAvailable ? "绑定宿主未提供 V1 动作正文读取能力，当前只能浏览摘要。"
     : !navigation ? "请从工作区文件实例打开动作。" : undefined;
   const openSelected = async () => {
-    if (!selected || !port || !active || !visible?.valid || visible.loading || openUnavailable || selectedOpen?.pending) return;
+    if (!selected || !port || !active || !visible?.valid || visible.loading || openUnavailable || selectedOpen?.pending || blockedBy) return;
     const ticket = navigation?.capture();
     if (!ticket || ticket.cwd !== port.workspaceCwd) return;
     const operation: OpenRequest = { port, actionId: selected.id, pending: true,
@@ -136,14 +138,15 @@ function ResourceExplorer({ active, kind }: { active: boolean; kind: DesignerRes
       {selected ? <dl className="designer-resource-summary"><dt>名称</dt><dd>{selected.title || selected.id}</dd><dt>标识</dt><dd>{selected.id}</dd>
         <dt>版本</dt><dd>{selected.editVersion}</dd>{selected.callIdentifier ? <><dt>调用标识</dt><dd>{selected.callIdentifier}</dd></> : null}
         <dt>说明</dt><dd>{selected.description || "无"}</dd><dt>操作</dt><dd>{openUnavailable ?? <>
-          <button type="button" disabled={!active || !visible?.valid || visible.loading || selectedOpen?.pending} onClick={() => void openSelected()}>
-            {selectedOpen?.pending ? "正在打开…" : selectedOpen?.result && !selectedOpen.result.ok && selectedOpen.result.localPersistence !== "none" ? "核对本地结果" : "在工作区打开"}
+          <button type="button" disabled={!active || !visible?.valid || visible.loading || selectedOpen?.pending || Boolean(blockedBy)} onClick={() => void openSelected()}>
+            {blockedBy ? "请先核对前置结果" : selectedOpen?.pending ? "正在打开…" : selectedOpen?.result && !selectedOpen.result.ok && selectedOpen.result.localPersistence !== "none" ? "核对本地结果" : "在工作区打开"}
           </button><p>复用已有工作区项目；首次打开会导出到新目录。</p>
         </>}
         {selectedOpen?.result ? selectedOpen.result.ok ? <p role="status">{selectedOpen.result.localPersistence === "confirmed" ? "本地导出已确认" : "已找到本地项目"}
           {!selectedOpen.presented ? "，未切换当前文档；可再次打开。" : "。"} {selectedOpen.result.projectDirectory}</p>
           : <p role="alert">{selectedOpen.result.error} {selectedOpen.result.projectDirectory ?? ""}
             {selectedOpen.result.localPersistence !== "none" ? " 已保留本地结果；核对只读取原目录，不重新导出。" : ""}</p> : null}
+        {blockedBy ? <p role="alert">本次未派发导出。请先核对前置请求的本地结果：{blockedBy.projectDirectory ?? blockedBy.requestId}。</p> : null}
         </dd></dl> : null}
     </>}
   </section>;

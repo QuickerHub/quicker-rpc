@@ -111,7 +111,17 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
         }
         if (result?.ok === false && typeof result.code === "string" && typeof result.error === "string"
           && result.retryable === false && ["none", "partial", "unknown", "confirmed"].includes(result.localPersistence)
-          && (result.projectDirectory === undefined || safeDirectory(result.projectDirectory))) return result;
+          && (result.projectDirectory === undefined || safeDirectory(result.projectDirectory))) {
+          const blocked = result.blockedBy;
+          if (blocked === undefined) return result;
+          if (result.code === "RESOURCE_OPEN_BLOCKED" && result.localPersistence === "none" && result.projectDirectory === undefined && result.persistedParts === undefined
+            && blocked && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(blocked.requestId)
+            && typeof blocked.actionId === "string" && blocked.actionId.toLowerCase() === actionId.toLowerCase() && typeof blocked.code === "string" && typeof blocked.error === "string"
+            && ["partial", "unknown"].includes(blocked.localPersistence) && (blocked.projectDirectory === undefined || safeDirectory(blocked.projectDirectory))
+            && blocked.sourceOwner && typeof blocked.sourceOwner.cwd === "string" && typeof blocked.sourceOwner.path === "string"
+            && typeof blocked.sourceOwner.key === "string" && typeof blocked.sourceOwner.tabId === "string"
+            && Number.isSafeInteger(blocked.sourceOwner.instanceId) && blocked.sourceOwner.instanceId > 0) return result;
+        }
         return failed("RESOURCE_OPEN_RESULT_UNKNOWN", "The open receipt is invalid. The export will not be repeated.", "unknown");
       } catch (error) {
         return failed("RESOURCE_OPEN_RESULT_UNKNOWN", `The local export result is unknown: ${error instanceof Error ? error.message : String(error)}. It will not be repeated.`, "unknown");

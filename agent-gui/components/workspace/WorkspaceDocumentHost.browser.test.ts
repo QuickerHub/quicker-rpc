@@ -55,17 +55,19 @@ window.fetch=async(input,init)=>{
   return Response.json(result);
  }
  if(state.bound&&url.pathname==='/api/designer/resources/page'){
-   const ids=['22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444'];
-   return Response.json({ok:true,kind:'action',scope:'runtimeCatalog',query:request.query,skip:0,take:100,totalCount:3,hasMore:false,snapshotId:'resource-snapshot',
-    items:ids.map((id,index)=>({id,title:'Target '+['B','C','D'][index],description:'raw summary',icon:'',editVersion:'1',actionType:'XAction',callIdentifier:null}))});
+   const ids=['22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555','66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777'];
+   return Response.json({ok:true,kind:'action',scope:'runtimeCatalog',query:request.query,skip:0,take:100,totalCount:6,hasMore:false,snapshotId:'resource-snapshot',
+    items:ids.map((id,index)=>({id,title:'Target '+['B','C','D','keys','unknown','waiting'][index],description:'raw summary',icon:'',editVersion:'1',actionType:index===4?null:index===3?'SendKeys':'XAction',callIdentifier:null}))});
  }
  if(state.bound&&url.pathname==='/api/designer/resources/open-action'){
    state.resourceOpens.push(request);
    const dir=request.actionId.startsWith('2222')?second.replace(/\\/data.json$/,''):'.quicker/actions/open-'+request.requestId;
    const existing=request.actionId.startsWith('2222');
-   const result=state.openMode==='unknown'?{ok:false,code:'RESOURCE_OPEN_RESULT_UNKNOWN',error:'Export result unknown',retryable:false,localPersistence:'unknown',projectDirectory:dir}
+   const result=state.openMode==='blocked'?{ok:false,code:'RESOURCE_OPEN_BLOCKED',error:'Preceding result needs checking',retryable:false,localPersistence:'none',
+     blockedBy:{actionId:request.actionId,requestId:'88888888-8888-4888-8888-888888888888',sourceOwner:{...request.sourceOwner,instanceId:999},code:'WRITE_RESULT_UNKNOWN',error:'Prior acknowledgement lost',localPersistence:'unknown',projectDirectory:'.quicker/actions/open-88888888-8888-4888-8888-888888888888'}}
+    :state.openMode==='unknown'?{ok:false,code:'RESOURCE_OPEN_RESULT_UNKNOWN',error:'Export result unknown',retryable:false,localPersistence:'unknown',projectDirectory:dir}
     :{ok:true,actionId:request.actionId,projectDirectory:dir,path:dir+'/data.json',projectBinding:{schemaVersion:1,kind:'action',actionId:request.actionId,hostBinding},origin:existing?'existing':'exported',localPersistence:existing?'unchanged':'confirmed'};
-   if(!existing&&!state.resourceOpens.slice(0,-1).some(r=>r.requestId===request.requestId))state.exportCount++;
+   if(state.openMode!=='blocked'&&!existing&&!state.resourceOpens.slice(0,-1).some(r=>r.requestId===request.requestId))state.exportCount++;
    if(result.ok&&!existing){state.files.set(key(request.catalogContext.cwd,dir+'/data.json'),body('exported target'));state.bindings.set(key(request.catalogContext.cwd,dir),result.projectBinding);}
    if(state.openMode==='defer')return await new Promise(resolve=>state.openPending.push(()=>resolve(Response.json(result))));
    return Response.json(result,{status:result.ok?200:409});
@@ -214,6 +216,23 @@ test("resource action opens reuse dirty file instances and do not let late expor
     assert.equal(await page.evaluate(() => { const f = (window as any).fixture; return f.active().path === f.file; }), true);
     assert.equal(await note(page).inputValue(), "A unsaved");
     assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 0, "opening resources never saves either document");
+    for (const type of ["keys", "unknown"]) {
+      await resource().getByRole("option", { name: `Target ${type}` }).click();
+      await resource().getByText("当前仅支持打开组合动作（XAction）；其它或未知类型保留只读摘要。").waitFor();
+      assert.equal(await resource().getByRole("button", { name: "在工作区打开" }).count(), 0);
+      assert.equal(await page.evaluate(() => (window as any).fixture.resourceOpens.length), 5, `${type} selection never dispatches an action open`);
+    }
+    await page.evaluate(() => { (window as any).fixture.openMode = 'blocked'; });
+    await resource().getByRole("option", { name: "Target waiting" }).click();
+    await resource().getByRole("button", { name: "在工作区打开" }).click();
+    await resource().getByRole("alert").filter({ hasText: "本次未派发导出" }).waitFor();
+    const blocked = resource().getByRole("button", { name: "请先核对前置结果" });
+    assert.equal(await blocked.isDisabled(), true);
+    assert.equal(await resource().getByRole("button", { name: "核对本地结果" }).count(), 0);
+    assert.match(await resource().getByRole("alert").filter({ hasText: "本次未派发导出" }).innerText(), /open-88888888-8888-4888-8888-888888888888/);
+    await blocked.evaluate((button: HTMLButtonElement) => button.click());
+    assert.equal(await page.evaluate(() => (window as any).fixture.resourceOpens.length), 6);
+    assert.equal(await page.evaluate(() => (window as any).fixture.exportCount), 2);
     assert.deepEqual(errors, []);
   } catch (error) {
     console.log("resource-open fixture", { errors, state: await page.evaluate(() => ({ active: (window as any).fixture.active()?.path,

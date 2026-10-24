@@ -58,3 +58,23 @@ test("a malformed receipt or a destination with different full binding is never 
     assert.equal(result.ok, false); assert.equal(result.localPersistence, "unknown");
   }
 });
+
+test("a blocked open retains the prior owner's associated receipt without claiming persistence or recovery for this request", async () => {
+  const blocked = { ok: false, code: "RESOURCE_OPEN_BLOCKED", error: "Not dispatched", retryable: false, localPersistence: "none",
+    blockedBy: { actionId, requestId: "44444444-4444-4444-8444-444444444444", sourceOwner: { ...owner, instanceId: 2 },
+      code: "WRITE_RESULT_UNKNOWN", error: "Prior acknowledgement lost", projectDirectory: ".quicker/actions/open-44444444-4444-4444-8444-444444444444", localPersistence: "unknown" } };
+  let calls = 0;
+  const port = createDesignerCatalogPort(context(), async () => { calls++; return Response.json(blocked, { status: 409 }); });
+  assert.deepEqual(await port.openResourceAction(actionId, requestId, owner), blocked); assert.equal(calls, 1);
+  const caseId = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+  const caseBlocked = { ...blocked, blockedBy: { ...blocked.blockedBy, actionId: caseId } };
+  const casePort = createDesignerCatalogPort(context(), async () => Response.json(caseBlocked, { status: 409 }));
+  assert.deepEqual(await casePort.openResourceAction(caseId.toUpperCase(), requestId, owner), caseBlocked);
+  for (const invalid of [{ localPersistence: "unknown" }, { projectDirectory: directory }, { blockedBy: { ...blocked.blockedBy, actionId: "other" } },
+    { blockedBy: { ...blocked.blockedBy, projectDirectory: "../outside" } }]) {
+    const invalidPort = createDesignerCatalogPort(context(), async () => Response.json({ ...blocked, ...invalid }, { status: 409 }));
+    const result = await invalidPort.openResourceAction(actionId, requestId, owner);
+    assert.equal(result.ok, false); if (result.ok) throw Error("Expected rejected receipt");
+    assert.equal(result.code, "RESOURCE_OPEN_RESULT_UNKNOWN"); assert.equal(result.blockedBy, undefined);
+  }
+});

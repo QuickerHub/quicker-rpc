@@ -13,7 +13,7 @@ import { resolveWorkspacePath, resolveWorkspaceRoot } from "./workspace-fs";
 import { resolveWorkspacePathChain } from "./workspace-path-chain";
 import { workspaceDocumentKey, type WorkspaceDocumentOwner } from "./workspace-document-instances";
 import { previewTabId } from "./workbench/preview-tab-id";
-import { DESIGNER_RESOURCE_ACTION_OPEN_CAPABILITY, type DesignerResourceActionOpenFailure, type DesignerResourceActionOpenResult,
+import { DESIGNER_RESOURCE_ACTION_OPEN_CAPABILITY, type DesignerResourceActionOpenBlockingReceipt, type DesignerResourceActionOpenFailure, type DesignerResourceActionOpenResult,
   type DesignerResourceActionOpenSuccess } from "./designer-resource-action-open";
 
 const guid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -22,23 +22,36 @@ type Run = (args: string[], options?: QkrpcRunOptions) => Promise<QkrpcRunResult
 type Input = { actionId: string; requestId: string; sourceOwner: WorkspaceDocumentOwner;
   context: DesignerCatalogContext & { cwd: string; expectedProjectBinding: ActionProjectBinding } };
 export type DesignerResourceActionOpenDependencies = { signal?: AbortSignal; run?: Run };
-const ownersSymbol = Symbol.for("qkrpc.designerResourceActionOpenOwners.v1");
-const ownerGlobal = globalThis as typeof globalThis & { [ownersSymbol]?: Map<string, Promise<DesignerResourceActionOpenResult>> };
-const owners = ownerGlobal[ownersSymbol] ??= new Map<string, Promise<DesignerResourceActionOpenResult>>();
+type OwnedResult = { input: Input; result: DesignerResourceActionOpenResult; blockedBy?: DesignerResourceActionOpenBlockingReceipt };
+const ownersSymbol = Symbol.for("qkrpc.designerResourceActionOpenOwners.v2");
+const ownerGlobal = globalThis as typeof globalThis & { [ownersSymbol]?: Map<string, Promise<OwnedResult>> };
+const owners = ownerGlobal[ownersSymbol] ??= new Map<string, Promise<OwnedResult>>();
 
-async function withOpenOwner(key: string, run: () => Promise<DesignerResourceActionOpenResult>, failure: (error: unknown) => DesignerResourceActionOpenFailure): Promise<DesignerResourceActionOpenResult> {
+async function withOpenOwner(key: string, input: Input, signal: AbortSignal | undefined, run: () => Promise<DesignerResourceActionOpenResult>, failure: (error: unknown) => DesignerResourceActionOpenFailure): Promise<DesignerResourceActionOpenResult> {
   const previous = owners.get(key);
-  let release!: (result: DesignerResourceActionOpenResult) => void;
-  const held = new Promise<DesignerResourceActionOpenResult>((resolveHeld) => { release = resolveHeld; });
+  let release!: (result: OwnedResult) => void;
+  const held = new Promise<OwnedResult>((resolveHeld) => { release = resolveHeld; });
   owners.set(key, held);
   let result: DesignerResourceActionOpenResult;
+  let blockedBy: DesignerResourceActionOpenBlockingReceipt | undefined;
   try {
     const preceding = await previous;
-    // A queued click cannot replay another export whose local outcome is still unknown.
-    result = preceding && !preceding.ok && (preceding.localPersistence === "unknown" || preceding.localPersistence === "partial")
-      ? preceding : await run();
+    const prior = preceding?.result;
+    blockedBy = preceding?.blockedBy;
+    if (!blockedBy && prior && !prior.ok) {
+      if (prior.blockedBy) blockedBy = prior.blockedBy;
+      else if (prior.localPersistence === "unknown" || prior.localPersistence === "partial") blockedBy = {
+        requestId: preceding.input.requestId, actionId: preceding.input.actionId, sourceOwner: preceding.input.sourceOwner,
+        code: prior.code, error: prior.error, localPersistence: prior.localPersistence,
+        ...(prior.projectDirectory ? { projectDirectory: prior.projectDirectory } : {}),
+        ...(prior.persistedParts ? { persistedParts: prior.persistedParts } : {}),
+      };
+    }
+    signal?.throwIfAborted();
+    // The queued request owns no export or persistence facts. Keep the prior receipt explicitly associated.
+    result = blockedBy ? fail("RESOURCE_OPEN_BLOCKED", "This open was not dispatched because a preceding export needs its local result checked.", { blockedBy }) : await run();
   } catch (error) { result = failure(error); }
-  release(result);
+  release({ input, result, ...(blockedBy ? { blockedBy } : {}) });
   if (owners.get(key) === held) owners.delete(key);
   return result;
 }
@@ -174,7 +187,7 @@ export async function openDesignerResourceAction(value: unknown, dependencies: D
   });
   try {
     const canonical = await realpath(input.context.cwd);
-    const ownerKey = JSON.stringify([process.platform === "win32" ? canonical.toLowerCase() : canonical, fingerprintActionProjectBinding(targetRecord(input))]);
+    const ownerKey = JSON.stringify([canonical, fingerprintActionProjectBinding(targetRecord(input))]);
     return await runWithAgentRequestContextAsync({ cwd: input.context.cwd, abortSignal: dependencies.signal, executionState }, async () => {
       dependencies.signal?.throwIfAborted();
       await requireActionProjectBinding(input.context.expectedProjectBinding.actionId, { projectDirectory: input.context.projectDirectory, projectBinding: input.context.expectedProjectBinding });
@@ -184,10 +197,10 @@ export async function openDesignerResourceAction(value: unknown, dependencies: D
       dependencies.signal?.throwIfAborted();
       const ownedDirectory = `.quicker/actions/open-${input.requestId}`;
       const ownedAbsolute = await validateActionProjectPaths(ownedDirectory);
+      dependencies.signal?.throwIfAborted();
+      return withOpenOwner(ownerKey, input, dependencies.signal, async () => {
       directory = ownedDirectory;
       const requestClaim = await claimRequest(input, canonical, ownedDirectory);
-      dependencies.signal?.throwIfAborted();
-      return withOpenOwner(ownerKey, async () => {
       await requestClaim.verify(); await currentSource(input); dependencies.signal?.throwIfAborted();
       const recover = async (): Promise<DesignerResourceActionOpenResult> => {
         directory = ownedDirectory;
@@ -204,15 +217,15 @@ export async function openDesignerResourceAction(value: unknown, dependencies: D
       };
       if (await lstat(ownedAbsolute).then(() => true, (error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return false; throw error; }))
         return recover();
-      if (!requestClaim.created) return fail("OPEN_RESULT_UNKNOWN", "This request was already claimed but its output is unavailable. No export was repeated.", {
-        projectDirectory: ownedDirectory, localPersistence: "unknown",
-      });
       const existing = await existingProject(input);
       if (existing) {
         const record = await completedProject(existing.directory, targetRecord(input));
         await requestClaim.verify(); await currentSource(input); dependencies.signal?.throwIfAborted();
         return success(input, existing.directory, record, "existing");
       }
+      if (!requestClaim.created) return fail("OPEN_RESULT_UNKNOWN", "This request was already claimed but its output is unavailable. No export was repeated.", {
+        projectDirectory: ownedDirectory, localPersistence: "unknown",
+      });
       directory = ownedDirectory;
       const absolute = ownedAbsolute;
       dependencies.signal?.throwIfAborted();
