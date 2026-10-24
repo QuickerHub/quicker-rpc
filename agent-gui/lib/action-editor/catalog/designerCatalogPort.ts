@@ -1,12 +1,19 @@
 import {
   DesignerCatalogError,
   designerCatalogTargetKey,
+  readDesignerCatalogContext,
   withDesignerCatalogContext,
   type DesignerCatalogScope,
 } from "./designerCatalogContext";
 import { parseActionProjectBinding, sameActionProjectBinding } from "../../action-project-binding";
 import { DESIGNER_RESOURCE_ACTION_OPEN_CAPABILITY, type DesignerResourceActionOpenResult } from "../../designer-resource-action-open";
 import type { WorkspaceDocumentOwner } from "../../workspace-document-instances";
+import {
+  readStepRunnerInputContract,
+  STEP_RUNNER_INPUT_CONTRACT_CAPABILITY,
+  StepRunnerInputContractError,
+  type StepRunnerInputContract,
+} from "../../step-runner-input-contract";
 
 type Pending = { controller: AbortController; promise: Promise<unknown>; waiters: number };
 const MAX_CACHED_VALUES = 256;
@@ -137,6 +144,39 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
     },
     supportsCapability(name: string): boolean {
       return !closed && documentBound && context?.expectedProjectBinding?.hostBinding.capabilities[name] === true;
+    },
+    /** Fresh native facts only; the shared request belongs to this document, not one observer. */
+    async readInputContract(input: { stepRunnerKey: string; controlFieldValue?: string }, signal?: AbortSignal): Promise<StepRunnerInputContract> {
+      if (closed) throw new DesignerCatalogError("STALE_CATALOG_OWNER", "The document catalog has closed.");
+      signal?.throwIfAborted();
+      if (!documentBound || !context?.expectedProjectBinding)
+        throw new DesignerCatalogError("HOST_BINDING_REQUIRED", "A resolved document target is required for input contracts.");
+      const target = readDesignerCatalogContext({ catalogContext: context });
+      const host = target?.expectedProjectBinding?.hostBinding;
+      if (!host || (host.hostKind !== "v1" && host.hostKind !== "v2")
+        || host.capabilities[STEP_RUNNER_INPUT_CONTRACT_CAPABILITY] !== true)
+        throw new DesignerCatalogError("INPUT_CONTRACT_UNSUPPORTED", "The bound host does not provide runtime input contracts.", 503);
+      if (!input || typeof input.stepRunnerKey !== "string" || !input.stepRunnerKey.trim()
+        || input.stepRunnerKey !== input.stepRunnerKey.trim() || input.stepRunnerKey.length > 1024 || input.stepRunnerKey.includes("\0")
+        || (input.controlFieldValue !== undefined && (typeof input.controlFieldValue !== "string" || input.controlFieldValue.length > 100_000)))
+        throw new DesignerCatalogError("INVALID_INPUT_CONTRACT_REQUEST", "A runner key and optional literal control value are required.", 400);
+      const { stepRunnerKey, controlFieldValue } = input;
+      const reply = await this.request<{ ok?: unknown; source?: unknown; contract?: unknown }>(
+        "/api/step-runner/input-contract", { key: stepRunnerKey, ...(controlFieldValue === undefined ? {} : { controlField: controlFieldValue }) }, signal);
+      if (closed) throw new DesignerCatalogError("STALE_CATALOG_OWNER", "The document catalog has closed.");
+      signal?.throwIfAborted();
+      if (!reply || reply.ok !== true || reply.source !== "live")
+        throw new DesignerCatalogError("INVALID_INPUT_CONTRACT_RESPONSE", "The bound host did not confirm a live input contract.", 503);
+      try {
+        const contract = readStepRunnerInputContract(reply.contract, { hostKind: host.hostKind, stepRunnerKey });
+        if (controlFieldValue !== undefined && contract.appliedControlFieldValue !== controlFieldValue)
+          throw new StepRunnerInputContractError("The native contract did not apply the exact requested control value.");
+        return contract;
+      } catch (error) {
+        if (error instanceof StepRunnerInputContractError)
+          throw new DesignerCatalogError("INVALID_INPUT_CONTRACT_RESPONSE", error.message, 503);
+        throw error;
+      }
     },
     get<T>(cacheKey: string): T | undefined {
       if (closed || !values.has(cacheKey)) return undefined;

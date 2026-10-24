@@ -38,6 +38,7 @@ import { executeWorkspaceProgramReadOnly } from "@/lib/workspace-program-tool.se
 import { createTurnExecutionState, type TurnExecutionState } from "./turn-execution-state";
 import { composeLiveProgramTools } from "@/lib/live-program-tool-composition";
 import { createLiveProgramDocumentTool } from "@/lib/live-program-document-tool";
+import { describeLiveProgramDocumentOperations } from "@/lib/live-program-document-protocol";
 
 export type ResolvedAgentTurnScope = {
   actionScope: ReturnType<typeof extractActionScopeFromMessages>;
@@ -239,7 +240,7 @@ export async function prepareAgentTurnRuntime(params: {
     }
     const mcpSystemBlock = mcpSystemLines.join("\n");
     const liveSystemBlock = !liveIntent ? "" : liveSelection.state === "ready"
-      ? `## Live Designer document\nThis manual user turn targets the original pinned live document ${liveSelection.scope.target.identity.documentKey}. Use workspace_program read_live before edit_live and retain scopeId ${liveSelection.scope.scopeId}. The visible file or cwd may change during automatic continuation; never substitute it. Changes are memory transactions in the existing editor and remain unsaved. This first slice only changes a uniquely identified step's note. Disk/native authoring, Shell and external MCP are unavailable in this scope.`
+      ? `## Live Designer document\nThis manual user turn targets the original pinned live document ${liveSelection.scope.target.identity.documentKey}. Retain scopeId ${liveSelection.scope.scopeId}. The visible file or cwd may change during automatic continuation; never substitute it. ${describeLiveProgramDocumentOperations(liveSelection.scope.mode)} Disk/native authoring, Shell and external MCP are unavailable in this scope.`
       : `## Live Designer document unavailable\n${liveSelection.state === "unavailable" ? liveSelection.error : "The target is unavailable."}\nDo not substitute legacy disk or native editing. Report this scope failure and request a fresh step pin if the user wants live editing.`;
     const buildSystemForPreparedContext = (context: PreparedChatContext) =>
       [baseSystemBuilder(context), mcpSystemBlock, liveSystemBlock].filter(Boolean).join("\n\n");

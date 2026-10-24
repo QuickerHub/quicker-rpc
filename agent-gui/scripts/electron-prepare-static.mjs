@@ -8,12 +8,14 @@ import { generateElectronInstallerAssets } from "./generate-electron-installer-a
 import { verifyStaticRuntime } from "./verify-static-runtime.mjs";
 import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
 import { prepareRemoteCipherPepper } from "./embed-remote-cipher-pepper.mjs";
+import { cleanupRetiredStaticResourceMarkers } from "./electron-static-resource-cleanup.mjs";
 
 const agentGuiRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(agentGuiRoot, "..");
 const resourcesDir = join(agentGuiRoot, "electron/resources");
 const ctx = { resourcesDir, agentGuiRoot, repoRoot };
 await buildStaticRuntime({ outputDirectory: join(resourcesDir, "app"), allowOutput: true });
+cleanupRetiredStaticResourceMarkers(resourcesDir);
 prepareBundledLlmRuntime(join(resourcesDir, "app"));
 prepareRemoteCipherPepper(join(resourcesDir, "app"));
 ensureBundledNode(ctx);

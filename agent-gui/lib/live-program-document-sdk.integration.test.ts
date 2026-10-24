@@ -9,6 +9,9 @@ import type { LiveProgramDocumentRegistry, LiveProgramDocumentScope, LiveProgram
 import { createProgramDocumentSession } from "./action-editor/document/programDocumentSession";
 import { createProgramDocumentEditorController } from "./action-editor/program/programDocumentEditorController";
 import { createProgramDocumentLiveEndpoint } from "./action-editor/program/liveProgramDocumentEndpoint";
+import { createDesignerCatalogPort } from "./action-editor/catalog/designerCatalogPort";
+import type { ActionProjectBinding } from "./action-project-binding";
+import type { StepRunnerInputContract } from "./step-runner-input-contract";
 import { createLiveProgramDocumentRegistry } from "./live-program-document-registry";
 import { createProgramStepTag, formatProgramStepTagMarkup } from "./program-step-tag";
 import { workspaceDocumentKey } from "./workspace-document-instances";
@@ -18,18 +21,59 @@ import type { StructuredToolResult } from "./tool-result";
 
 const threadId = "sdk-live-thread", cwd = "D:\\sdk-fixture\\original", stepId = "sdk-original-step";
 const content = JSON.stringify({ retained: { native: true }, steps: [{ stepId, stepRunnerKey: "sys:delay", note: "baseline", inputParams: { ms: "10" } }], variables: [] });
+const inputContent = `{"retained":{"int64":9223372036854775807,"decimal":0.1234567890123456789012345},"steps":[{"stepId":"${stepId}","stepRunnerKey":"sys:notify","note":"baseline","inputParams":{"type":"Info","style":"Default","msg":"before"},"outputParams":{"errMessage":"original_error"}}],"variables":[]}`;
+// Explicit runtime-definition facts, without a runtime dependency on a local host export.
+const inputContract: StepRunnerInputContract = {
+  version: 1, source: "runtime-definition", hostKind: "v1", stepRunnerKey: "sys:notify",
+  controlFieldKey: "style", appliedControlFieldValue: "Default", visibilityResolved: true,
+  reservedBindings: ["file", "varKey", ".file", ".var"], inputs: [
+    { key: "type", policyKnown: true, varType: 9, variableMode: 0, allowInput: false, isControlField: false,
+      visibilityResolved: true, visible: true, literalPolicy: "allowed", literalValueRestriction: "none", blockedReason: null,
+      options: ["Success", "Info", "Warning", "Error", "WindowsToast"] },
+    { key: "msg", policyKnown: true, varType: 0, variableMode: 0, allowInput: false, isControlField: false,
+      visibilityResolved: true, visible: true, literalPolicy: "allowed", literalValueRestriction: "none", blockedReason: null, options: [] },
+    { key: "style", policyKnown: true, varType: 9, variableMode: 1, allowInput: false, isControlField: true,
+      visibilityResolved: true, visible: true, literalPolicy: "never", literalValueRestriction: "unknown",
+      blockedReason: "CONTROL_FIELD_NOT_EDITABLE", options: ["Default", "Style2"] },
+  ],
+};
+type InputFixtureOptions = { beforeContract?: (signal: AbortSignal) => Promise<void> };
 
 /** The real renderer owner chain, without disk, host, model, network listener or
  * an independent Agent loop. Wrappers below observe calls without deciding them. */
-function documentFixture() {
-  const identity = { documentKey: "sdk-original-document", projectBinding: null };
-  const session = createProgramDocumentSession({ content, identity });
+function documentFixture(input?: InputFixtureOptions) {
+  const projectBinding: ActionProjectBinding | null = input ? {
+    schemaVersion: 1, kind: "action", actionId: "11111111-1111-4111-8111-111111111111",
+    hostBinding: { hostInstanceId: "sdk-fixture-host", hostSessionId: "a".repeat(32), endpoint: `QuickerRpc_User_${"A".repeat(24)}_${"a".repeat(32)}`,
+      protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fake-only", capabilities: { "stepRunner.inputContract.read": true } },
+  } : null;
+  const identity = { documentKey: "sdk-original-document", projectBinding };
+  const session = createProgramDocumentSession({ content: input ? inputContent : content, identity });
   const owner = { key: workspaceDocumentKey(cwd, "file-original"), instanceId: 1, cwd, tabId: "file-original", path: ".quicker/actions/sdk/data.json" };
   const target = { owner, sessionId: "sdk-original-session", identity };
   const controller = createProgramDocumentEditorController(session, { isCurrent: () => true, onChange() {} });
   const present = controller.getSurface("main").getPresent(); present.steps[0]!.note = "human unsaved note";
-  controller.getSurface("main").commit(present);
-  const endpoint = createProgramDocumentLiveEndpoint({ owner, sessionId: target.sessionId, session, controller, isCurrent: () => true, flushPendingEdits() {} });
+  let pendingHumanDraft = input ? present : undefined, humanFlushes = 0;
+  if (!input) controller.getSurface("main").commit(present);
+  const catalogRequests: { url: string; body: Record<string, unknown>; signal: AbortSignal }[] = [];
+  const catalogScope = { cwd, projectDirectory: ".quicker/actions/sdk", expectedProjectBinding: structuredClone(projectBinding) };
+  const expectedScope = structuredClone(catalogScope);
+  const catalogPort = input ? createDesignerCatalogPort(catalogScope, async (url, init) => {
+    assert.equal(url, "/api/step-runner/input-contract", "no UI schema, static fallback, disk, host write, save or sync endpoint is permitted");
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    assert.deepEqual(body, { key: "sys:notify", catalogContext: expectedScope }, "the exact cloned binding is used and the first native-default read omits controlField");
+    assert.ok(init?.signal instanceof AbortSignal);
+    catalogRequests.push({ url: String(url), body, signal: init.signal });
+    await input.beforeContract?.(init.signal);
+    return Response.json({ ok: true, source: "live", contract: structuredClone(inputContract) });
+  }) : undefined;
+  // Mutating the caller's object must not retarget the document-owned catalog.
+  catalogScope.cwd = "D:\\sdk-fixture\\later-catalog-owner";
+  if (catalogScope.expectedProjectBinding) catalogScope.expectedProjectBinding.hostBinding = {
+    ...catalogScope.expectedProjectBinding.hostBinding, capabilities: { "stepRunner.inputContract.read": false },
+  };
+  const endpoint = createProgramDocumentLiveEndpoint({ owner, sessionId: target.sessionId, session, controller, catalogPort, isCurrent: () => true,
+    flushPendingEdits() { if (pendingHumanDraft) { controller.getSurface("main").commit(pendingHumanDraft); pendingHumanDraft = undefined; humanFlushes++; } } });
   const otherOwner = { ...owner, key: workspaceDocumentKey(cwd, "file-other"), tabId: "file-other", instanceId: 2, path: ".quicker/actions/other/data.json" };
   const otherSession = createProgramDocumentSession({ content, identity: { ...identity, documentKey: "sdk-other-document" } });
   const otherController = createProgramDocumentEditorController(otherSession, { isCurrent: () => true, onChange() {} });
@@ -50,11 +94,15 @@ function documentFixture() {
       executions.push(structuredClone({ scope, command }));
       return original.execute(scope, command, options);
     },
+    executeAsync(scope, command, options) {
+      executions.push(structuredClone({ scope, command }));
+      return original.executeAsync(scope, command, options);
+    },
     revokeScope(scope, reason) { revocations.push(scope); original.revokeScope(scope, reason); },
   };
   const tag = createProgramStepTag({ tagId: "sdk-live-chip", programTarget: "action", programId: "11111111-1111-4111-8111-111111111111",
-    dataJsonPath: owner.path, nodePath: "0", stepRunnerKey: "sys:delay", content: '{"note":"stale chip snapshot"}', startLine: 1, endLine: 1, designerStepId: stepId });
-  return { session, controller, otherSession, registry, captures, executions, revocations, target, tag };
+    dataJsonPath: owner.path, nodePath: "0", stepRunnerKey: input ? "sys:notify" : "sys:delay", content: '{"note":"stale chip snapshot"}', startLine: 1, endLine: 1, designerStepId: stepId });
+  return { session, controller, otherSession, registry, captures, executions, revocations, target, tag, catalogPort, catalogRequests, humanFlushes: () => humanFlushes };
 }
 
 type WireBody = Record<string, unknown> & { messages: AgentUIMessage[]; liveProgramDocument: { state: "ready"; scope: LiveProgramDocumentScope } };
@@ -80,8 +128,9 @@ function stream(chunks: WireChunk[], signal?: AbortSignal | null, holdOpen = fal
 
 function harness(t: TestContext, response: (body: WireBody, index: number, signal?: AbortSignal | null) => Response, options: {
   messages?: AgentUIMessage[]; afterTool?: (id: string, output: StructuredToolResult, current: { stop(): Promise<void> }) => void;
+  input?: InputFixtureOptions;
 } = {}) {
-  const document = documentFixture();
+  const document = documentFixture(options.input);
   let registry = document.registry;
   const turn = createLiveProgramDocumentTurn({ threadId, getRegistry: () => registry });
   const refs: AgentChatTransportRefs = { threadId, chatMode: { current: "agent" }, enabledTools: { current: ["workspace_program", "docs"] },
@@ -100,18 +149,20 @@ function harness(t: TestContext, response: (body: WireBody, index: number, signa
   chat = new Chat<AgentUIMessage>({ id: threadId, messages: options.messages, transport: createAgentChatTransport(refs),
     sendAutomaticallyWhen: (input) => !(turn.getBody() && turn.isStopped()) && lastAssistantMessageIsCompleteWithClientResponses(input),
     onError: (error) => { errors.push(error); },
-    onToolCall: ({ toolCall }) => {
+    onToolCall: async ({ toolCall }) => {
       seenToolCalls.push(toolCall.toolCallId);
       if (toolCall.toolName !== "workspace_program" || !turn.getBody() || turn.isStopped()) return;
       callbacks.push(toolCall.toolCallId);
-      const output = turn.execute(toolCall.toolCallId, toolCall.input);
+      const generation = turn.getGeneration();
+      const output = await turn.executeAsync(toolCall.toolCallId, toolCall.input);
       options.afterTool?.(toolCall.toolCallId, output, { stop });
+      if (turn.getGeneration() !== generation || turn.isStopped()) return;
       // Same SDK callback contract as useAgentChatSession: never await the
       // SDK's queued addToolOutput job from inside its active streaming job.
-      outputs.push(chat.addToolOutput({ tool: "workspace_program", toolCallId: toolCall.toolCallId, output }));
+      outputs.push(Promise.resolve(chat.addToolOutput({ tool: "workspace_program", toolCallId: toolCall.toolCallId, output })));
     },
   });
-  t.after(async () => { turn.dispose(); document.registry.dispose(); await chat.stop(); });
+  t.after(async () => { turn.dispose(); document.registry.dispose(); document.catalogPort?.dispose(); await chat.stop(); });
   const text = `Edit this live step ${formatProgramStepTagMarkup(document.tag)}`;
   const sendManual = (id: string) => {
     const pin = document.registry.pin(document.target.owner, document.tag.tagId, stepId, threadId);
@@ -263,4 +314,130 @@ test("an old scope arriving through a real later SDK stream cannot edit the new 
   assert.equal(receipt, undefined);
   const output = f.chat.messages.flatMap((message) => message.parts).find((part) => "toolCallId" in part && part.toolCallId === "late-old-scope-call") as { output: StructuredToolResult };
   assert.equal(output.output.ok, false); assert.equal((output.output.data as { code: string }).code, "LIVE_DOCUMENT_SCOPE_CHANGED");
+});
+
+function toolOutput(body: WireBody, operationId: string): StructuredToolResult {
+  const part = body.messages.flatMap((message) => message.parts).find((item) => "toolCallId" in item && item.toolCallId === operationId) as { output?: StructuredToolResult } | undefined;
+  assert.ok(part?.output, `the real SDK continuation must carry the ${operationId} tool output`);
+  return part.output;
+}
+
+test("real AI SDK native input schema read continues into one original-Session parameter transaction", { timeout: 10000 }, async (t) => {
+  let humanDraft = "";
+  const f = harness(t, (body, index) => {
+    const scopeId = body.liveProgramDocument.scope.scopeId;
+    if (index === 0) return stream(toolChunks("sdk-input-read", { scopeId, action: "read_live", stepSchemaFor: stepId }));
+    if (index === 1) {
+      const output = toolOutput(body, "sdk-input-read"); assert.equal(output.ok, true);
+      const read = output.data as Extract<LiveProgramDocumentReceipt, { ok: true; action: "read_live" }>;
+      assert.equal(read.operationId, "sdk-input-read"); assert.equal(read.revision, 1);
+      assert.equal(read.stepInputSchema?.stepId, stepId);
+      assert.deepEqual(read.stepInputSchema.contract, { ...inputContract, reservedBindings: [...inputContract.reservedBindings].sort() }, "the decoder retains every explicit native fact and canonicalizes only reserved binding order");
+      assert.ok(read.stepInputSchema.editableInputKeys.includes("msg")); assert.ok(!read.stepInputSchema.editableInputKeys.includes("style"));
+      assert.match(read.content, /human unsaved note/); humanDraft = read.content;
+      return stream(toolChunks("sdk-input-edit", { scopeId, action: "edit_step_inputs_live", readOperationId: read.operationId,
+        expectedRevision: read.revision, stepId, changes: [{ key: "msg", value: "Agent changed the existing message" }] }));
+    }
+    assert.equal(index, 2);
+    const output = toolOutput(body, "sdk-input-edit"); assert.equal(output.ok, true);
+    const receipt = output.data as Extract<LiveProgramDocumentReceipt, { ok: true; applied: true }>;
+    assert.equal(receipt.operationId, "sdk-input-edit"); assert.equal(receipt.applied, true); assert.equal(receipt.persisted, false);
+    assert.equal(receipt.revisionBefore, 1); assert.equal(receipt.revisionAfter, 2); assert.equal(receipt.undoable, true);
+    return stream(finalChunks);
+  }, { input: {} });
+  assert.equal(f.session.getState().revision, 0, "the human control draft has not blurred or committed yet");
+  await f.sendManual("manual-input-transaction"); await Promise.all(f.outputs);
+  assert.deepEqual(f.errors, []); assert.equal(f.chat.status, "ready"); assert.equal(f.requests.length, 3);
+  assert.deepEqual(f.callbacks, ["sdk-input-read", "sdk-input-edit"]);
+  assert.deepEqual(f.executions.map(({ command }) => command.operationId), ["sdk-input-read", "sdk-input-edit"]);
+  assert.equal(f.captures.length, 1); assert.equal(f.humanFlushes(), 1); assert.equal(f.catalogRequests.length, 1, "the exact stored Default matches the native default, so no second lookup is needed");
+  assert.deepEqual(f.requests.map((body) => body.liveProgramDocument.scope.userMessageId), Array(3).fill("manual-input-transaction"));
+  const state = f.session.getState(), updated = JSON.parse(state.content);
+  assert.equal(state.revision, 2); assert.equal(state.lastChangeSource, "agent"); assert.equal(state.dirty, true);
+  assert.equal(updated.steps[0].inputParams.msg, "Agent changed the existing message"); assert.equal(updated.steps[0].inputParams.style, "Default");
+  assert.equal(updated.steps[0].note, "human unsaved note"); assert.equal(updated.steps[0].outputParams.errMessage, "original_error");
+  assert.match(state.content, /9223372036854775807/); assert.match(state.content, /0\.1234567890123456789012345/);
+  assert.equal(f.session.getHistoryState().undoDepth, 2); assert.equal(f.otherSession.getState().revision, 0);
+  f.controller.undo();
+  assert.equal(f.session.getState().content, humanDraft, "one human undo removes the entire Agent batch and retains the unblurred human draft");
+  assert.equal(f.session.getHistoryState().undoDepth, 1); assert.equal(f.session.getHistoryState().redoDepth, 1);
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test("stop while a real SDK input-schema read is pending aborts it without a late edit or continuation", { timeout: 10000 }, async (t) => {
+  const started = deferred<AbortSignal>(), late = deferred<void>();
+  t.after(() => late.resolve());
+  const f = harness(t, (body, index) => {
+    assert.equal(index, 0, "a cancelled metadata read cannot automatically request an edit");
+    return stream(toolChunks("sdk-pending-input-read", { scopeId: body.liveProgramDocument.scope.scopeId, action: "read_live", stepSchemaFor: stepId }));
+  }, { input: { async beforeContract(signal) { started.resolve(signal); await late.promise; } } });
+  const sending = f.sendManual("manual-pending-input-stop");
+  const signal = await started.promise;
+  await f.stop();
+  assert.equal(signal.aborted, true, "Stop reaches the actual bound catalog request");
+  await sending; await Promise.all(f.outputs);
+  assert.equal(f.chat.status, "ready", "the SDK drains without waiting for the ignored late fetch response");
+  const revision = f.session.getState().revision;
+  late.resolve(); await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(f.errors, []); assert.equal(f.requests.length, 1); assert.equal(f.outputs.length, 0);
+  assert.equal(revision, 1); assert.equal(f.session.getState().revision, revision); assert.equal(f.session.getHistoryState().undoDepth, 1);
+  assert.equal(JSON.parse(f.session.getState().content).steps[0].inputParams.msg, "before");
+  assert.equal(f.catalogRequests.length, 1); assert.deepEqual(f.executions.map(({ command }) => command.operationId), ["sdk-pending-input-read"]);
+  const messages = f.chat.messages, repaired = f.turn.repairAfterStoppedDrain(messages, f.chat.status);
+  if (messages !== repaired) f.chat.messages = repaired;
+  const pending = f.chat.messages.flatMap((message) => message.parts).find((part) => "toolCallId" in part && part.toolCallId === "sdk-pending-input-read") as { state: string; output?: StructuredToolResult };
+  assert.ok(pending.state === "output-available" || pending.state === "output-error");
+  if (pending.output) assert.equal(pending.output.ok, false);
+});
+
+test("stopping after a real SDK input edit retains its applied receipt and never replays or continues", { timeout: 10000 }, async (t) => {
+  let applied: StructuredToolResult | undefined;
+  const f = harness(t, (body, index, signal) => {
+    const scopeId = body.liveProgramDocument.scope.scopeId;
+    if (index === 0) return stream(toolChunks("sdk-read-input-before-stop", { scopeId, action: "read_live", stepSchemaFor: stepId }));
+    assert.equal(index, 1, "Stop after application must prevent the next model request");
+    const read = toolOutput(body, "sdk-read-input-before-stop").data as Extract<LiveProgramDocumentReceipt, { ok: true; action: "read_live" }>;
+    return stream(toolChunks("sdk-edit-input-before-stop", { scopeId, action: "edit_step_inputs_live", readOperationId: read.operationId,
+      expectedRevision: read.revision, stepId, changes: [{ key: "msg", value: "applied input before stop" }] }).slice(0, 3), signal, true);
+  }, { input: {}, afterTool(id, output, current) { if (id === "sdk-edit-input-before-stop") { applied = output; void current.stop(); } } });
+  await f.sendManual("manual-applied-input-stop"); await Promise.all(f.outputs);
+  assert.deepEqual(f.errors, []); assert.equal(f.requests.length, 2); assert.equal(f.chat.status, "ready");
+  assert.ok(applied?.ok); assert.equal(f.turn.getResult("sdk-edit-input-before-stop"), applied);
+  const receipt = applied.data as Extract<LiveProgramDocumentReceipt, { ok: true; applied: true }>;
+  assert.equal(receipt.applied, true); assert.equal(receipt.persisted, false); assert.equal(receipt.revisionAfter, 2);
+  assert.equal(f.session.getState().revision, 2); assert.equal(f.session.getHistoryState().undoDepth, 2);
+  assert.equal(JSON.parse(f.session.getState().content).steps[0].inputParams.msg, "applied input before stop");
+  const messages = f.chat.messages, repaired = f.turn.repairAfterStoppedDrain(messages, f.chat.status);
+  if (messages !== repaired) f.chat.messages = repaired;
+  const edit = f.chat.messages.flatMap((message) => message.parts).find((part) => "toolCallId" in part && part.toolCallId === "sdk-edit-input-before-stop") as { state: string; output: unknown };
+  assert.equal(edit.state, "output-available"); assert.equal(edit.output, applied);
+  await f.chat.addToolOutput({ tool: "workspace_program", toolCallId: "sdk-edit-input-before-stop", output: applied });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(f.requests.length, 2); assert.equal(f.executions.length, 2); assert.equal(f.session.getState().revision, 2);
+});
+
+test("a pending SDK input read from the old generation cannot acknowledge a new manual turn", { timeout: 10000 }, async (t) => {
+  const started = deferred<AbortSignal>(), late = deferred<void>();
+  t.after(() => late.resolve());
+  const f = harness(t, (body, index) => {
+    if (index === 0) return stream(toolChunks("sdk-old-input-read", { scopeId: body.liveProgramDocument.scope.scopeId, action: "read_live", stepSchemaFor: stepId }));
+    assert.equal(index, 1); assert.equal(body.liveProgramDocument.scope.userMessageId, "manual-new-input-turn");
+    return stream(finalChunks);
+  }, { input: { async beforeContract(signal) { started.resolve(signal); await late.promise; } } });
+  const oldSend = f.sendManual("manual-old-input-turn");
+  const signal = await started.promise;
+  const newSend = f.sendManual("manual-new-input-turn");
+  assert.equal(signal.aborted, true);
+  await oldSend; await newSend; await Promise.all(f.outputs);
+  late.resolve(); await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(f.errors, []); assert.equal(f.requests.length, 2); assert.equal(f.chat.status, "ready");
+  assert.equal(f.captures.length, 2); assert.equal(f.outputs.length, 0, "the old callback never publishes addToolOutput into the new generation");
+  assert.equal(f.turn.getResult("sdk-old-input-read"), undefined); assert.equal(f.session.getState().revision, 1);
+  assert.equal(JSON.parse(f.session.getState().content).steps[0].inputParams.msg, "before");
+  assert.equal(f.catalogRequests.length, 1); assert.equal(f.executions.length, 1);
 });

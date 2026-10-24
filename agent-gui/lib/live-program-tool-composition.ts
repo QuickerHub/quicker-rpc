@@ -2,7 +2,7 @@ import type { Tool, ToolSet } from "ai";
 import type { ToolOperationConstraint, ToolOperationConstraints } from "./agent-tool-mode-guard";
 import type { LiveProgramDocumentSelection } from "./live-program-document";
 
-// First live-document slice supplies local memory edits and these companion
+// Live-document tools supply local memory edits and these companion
 // capabilities only. Shell, MCP and native/disk authoring are separate ports.
 const companionTools = new Set([
   "docs", "skill_load", "list_tools", "set_thread_title", "ask_question",
@@ -16,7 +16,7 @@ export type LiveProgramToolComposition = Readonly<{
 }>;
 
 const readOperations: ToolOperationConstraint = Object.freeze({ allowedActions: Object.freeze(["read_live"]) });
-const editOperations: ToolOperationConstraint = Object.freeze({ allowedActions: Object.freeze(["read_live", "edit_live"]) });
+const editOperations: ToolOperationConstraint = Object.freeze({ allowedActions: Object.freeze(["read_live", "edit_live", "edit_step_inputs_live"]) });
 
 /** The renderer and server composition consume the same operation subset. */
 export function liveProgramOperationConstraint(mode: "read" | "edit"): ToolOperationConstraint {
