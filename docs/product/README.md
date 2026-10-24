@@ -124,6 +124,11 @@ CLI、MCP 和 HTTP 共用 Contracts/Runtime/Transport，Quicker 版本差异只�
 
 V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。外部接入见 [MCP/CLI 集成](../agent-mcp-integration.md)。
 
+serve invoke 的超时预算覆盖发现、绑定预检、排队、连接握手与 RPC；不在连接成功后
+重置计时。单个 waiter 到期不取消另一请求的连接，错误清理也不阻塞在其 gate 后。
+调用方取消保留原 token，已返回的写入或未知写入收据不被取消覆盖；不承诺撤销已派发
+原生操作。真实隔离管道与现有绑定、分页和 health 回归已验证这些边界。
+
 ## 当前规划缺口
 
 ### Agent 与工作台持续重构
