@@ -59,6 +59,24 @@ public sealed class V1ResourceCatalogCaptureTests
     }
 
     [TestMethod]
+    public void Application_initialization_guard_reads_only_an_existing_exact_instance_and_BCL_marker_field()
+    {
+        var marker = typeof(ApplicationMarkerFixture).GetField(nameof(ApplicationMarkerFixture.Markers))!;
+        var fixture = new ApplicationMarkerFixture();
+        ApplicationMarkerFixture.NativeStaticGetterReads = 0;
+        Assert.IsFalse(V1ResourceCatalogNativeBinding.HasInitializedApplication(null, typeof(ApplicationMarkerFixture), marker));
+        Assert.IsFalse(V1ResourceCatalogNativeBinding.HasInitializedApplication(new object(), typeof(ApplicationMarkerFixture), marker));
+        Assert.IsFalse(V1ResourceCatalogNativeBinding.HasInitializedApplication(fixture, typeof(ApplicationMarkerFixture), marker));
+        fixture.Markers = null!;
+        Assert.IsFalse(V1ResourceCatalogNativeBinding.HasInitializedApplication(fixture, typeof(ApplicationMarkerFixture), marker));
+        fixture.Markers = new MarkerListSubclass { new("startup", 1) };
+        Assert.IsFalse(V1ResourceCatalogNativeBinding.HasInitializedApplication(fixture, typeof(ApplicationMarkerFixture), marker));
+        fixture.Markers = new List<KeyValuePair<string, double>> { new("startup", 1) };
+        Assert.IsTrue(V1ResourceCatalogNativeBinding.HasInitializedApplication(fixture, typeof(ApplicationMarkerFixture), marker));
+        Assert.AreEqual(0, ApplicationMarkerFixture.NativeStaticGetterReads);
+    }
+
+    [TestMethod]
     public Task Runtime_capture_returns_detached_raw_summaries_and_preserves_a_true_empty_catalog() => Ui(async dispatcher =>
     {
         var native = new NativeSession(); native.Rows.Add(Row("a"));
@@ -311,6 +329,14 @@ public sealed class V1ResourceCatalogCaptureTests
         try { await complete.Task; }
         finally { Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(5)), "The owned WPF fixture thread did not exit."); }
     }
+
+    private sealed class ApplicationMarkerFixture
+    {
+        public IList<KeyValuePair<string, double>> Markers = new List<KeyValuePair<string, double>>();
+        public static int NativeStaticGetterReads;
+        public static bool Loaded { get { NativeStaticGetterReads++; throw new AssertFailedException("Native static getter was invoked."); } }
+    }
+    private sealed class MarkerListSubclass : List<KeyValuePair<string, double>> { }
 
     private sealed class NativeBinding : IV1ResourceCatalogNativeBinding
     {

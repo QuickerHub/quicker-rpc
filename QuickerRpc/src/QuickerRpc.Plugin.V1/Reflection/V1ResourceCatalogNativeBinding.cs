@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Windows;
 using Quicker.Common;
 using Quicker.Domain.Actions.X;
-using Quicker.Domain.Actions.X.SubPrograms;
 using Quicker.Domain.Messages;
 using Quicker.Utilities._3rd;
 using QuickerRpc.AgentModel.Catalog;
@@ -20,11 +20,20 @@ internal sealed class V1ResourceCatalogNativeBinding : IV1ResourceCatalogNativeB
     // Product source 73597b433950693b504f5e908bdf512deea37927. A version string alone is insufficient.
     internal static readonly Guid SupportedModuleId = new("1379c179-2a75-4249-8c0d-320e8ed054fc");
     internal static readonly Guid SupportedCommonModuleId = new("91b3fb2e-8be3-4484-9457-cf0031d10870");
+    // Audited ldstr in GetGlobalSubProgramIdentifier. Avoid that helper's obfuscator-added static initializer.
+    private const string GlobalSubProgramPrefix = "%%";
     private readonly FieldInfo _dataService, _loaded, _exiting, _syncRoot, _hub, _globalPrograms, _userInfo, _userId;
+    private readonly Type _applicationType;
+    private readonly FieldInfo _startupMarkers;
     private readonly MethodInfo _actions;
 
     private V1ResourceCatalogNativeBinding(Module module)
     {
+        _applicationType = module.GetType("Quicker.App", throwOnError: true, ignoreCase: false)!;
+        _startupMarkers = Field(module, 0x0400145C, "Quicker.App", isStatic: false);
+        if (_startupMarkers.DeclaringType != _applicationType
+            || _startupMarkers.FieldType != typeof(IList<KeyValuePair<string, double>>))
+            throw new InvalidOperationException("The native application startup marker contract changed.");
         _dataService = Field(module, 0x04005295, "Quicker.Domain.AppState", isStatic: true);
         _loaded = Field(module, 0x040052C4, "Quicker.Domain.AppState", isStatic: true);
         _exiting = Field(module, 0x040052BC, "Quicker.Domain.AppState", isStatic: true);
@@ -65,6 +74,12 @@ internal sealed class V1ResourceCatalogNativeBinding : IV1ResourceCatalogNativeB
     public bool TryGetSession(out IV1ResourceCatalogNativeSession? session, out string? code, out string? error)
     {
         session = null; code = null; error = null;
+        // AppState's initializer constructs native services. Never cause its first execution to read a catalog.
+        // LogPosition reads AppState.startupWatch before appending to this existing instance's BCL list.
+        if (!HasInitializedApplication(Application.Current, _applicationType, _startupMarkers))
+        {
+            code = "ACCOUNT_CONTEXT_UNAVAILABLE"; error = "An initialized native application instance is required."; return false;
+        }
         if (_loaded.GetValue(null) is not true || _exiting.GetValue(null) is not false)
         {
             code = "ACCOUNT_CONTEXT_UNAVAILABLE"; error = "The native account is loading or exiting."; return false;
@@ -81,6 +96,16 @@ internal sealed class V1ResourceCatalogNativeBinding : IV1ResourceCatalogNativeB
         }
         session = new NativeSession(this, service, syncRoot, hub);
         return true;
+    }
+
+    internal static bool HasInitializedApplication(object? application, Type applicationType, FieldInfo startupMarkers)
+    {
+        if (application is null || application.GetType() != applicationType || startupMarkers.IsStatic
+            || startupMarkers.DeclaringType != applicationType || startupMarkers.Module != applicationType.Module
+            || startupMarkers.FieldType != typeof(IList<KeyValuePair<string, double>>)) return false;
+        var value = startupMarkers.GetValue(application);
+        return value is List<KeyValuePair<string, double>> markers
+            && value.GetType() == typeof(List<KeyValuePair<string, double>>) && markers.Count > 0;
     }
 
     private static FieldInfo Field(Module module, int token, string declaringType, bool isStatic)
@@ -133,7 +158,7 @@ internal sealed class V1ResourceCatalogNativeBinding : IV1ResourceCatalogNativeB
                     if (value is not SubProgram program) throw new InvalidOperationException("The native global subprogram catalog contains an invalid record.");
                     yield return new ResourceCatalogEntry(program.Id ?? string.Empty, program.Name ?? string.Empty,
                         program.Description ?? string.Empty, program.Icon ?? string.Empty, Version(program.LastEditTimeUtc ?? program.CreateTimeUtc),
-                        callIdentifier: SubProgramHelper.GetGlobalSubProgramIdentifier(program));
+                        callIdentifier: GlobalSubProgramPrefix + program.Id);
                 }
             }
             else throw new ArgumentException("Unknown resource kind.", nameof(kind));
