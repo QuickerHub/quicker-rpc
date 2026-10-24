@@ -1,6 +1,6 @@
 import type { PinnedAction } from "@/lib/action-context";
 import type { FaIconGeometry } from "@/lib/fa-icon";
-import { isFaIconSpec, isHttpIconUrl } from "@/lib/fa-icon";
+import { faIconGeometryFill, isFaIconSpec, isHttpIconUrl } from "@/lib/fa-icon";
 import {
   ensureFaIconsResolved,
   getFaIconFromCache,
@@ -43,7 +43,7 @@ function createFaSvgIcon(
   svg.setAttribute("viewBox", `0 0 ${geometry.width} ${geometry.height}`);
   svg.setAttribute("aria-hidden", "true");
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("fill", geometry.color ?? "currentColor");
+  path.setAttribute("fill", faIconGeometryFill(geometry));
   path.setAttribute("d", geometry.path);
   svg.append(path);
   return svg;

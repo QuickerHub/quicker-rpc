@@ -1,3 +1,5 @@
+import { nativeIconHexToCss } from "./icon-color";
+
 export type FaIconGeometry = {
   spec: string;
   enumName: string;
@@ -8,6 +10,12 @@ export type FaIconGeometry = {
   label?: string;
   unicode?: number;
 };
+
+/** V1 retains native color tokens; V2's geometry color is already CSS. The spec disambiguates them. */
+export function faIconGeometryFill(geometry: { spec?: string; color?: string }): string {
+  const literal = /^fa:[a-z][a-z0-9_]*_[a-z0-9_]*:(#[0-9a-f]+)$/iu.exec(geometry.spec?.trim() ?? "")?.[1];
+  return (literal ? nativeIconHexToCss(literal) : undefined) ?? (geometry.color?.trim() || "currentColor");
+}
 
 export function isFaIconSpec(spec: string | undefined): boolean {
   return Boolean(spec?.trim().toLowerCase().startsWith("fa:"));
