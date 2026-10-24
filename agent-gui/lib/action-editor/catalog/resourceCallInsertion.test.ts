@@ -4,6 +4,8 @@ import { buildResourceCallPayload, resourceCallMatchesOrigin } from "./resourceC
 import type { DesignerResourceItem } from "./designerResourcePage";
 import { StepRunnerItem } from "../types/action_query";
 import { prepareToolboxStep } from "../toolbox/prepareToolboxStep";
+// Keep action-call coverage on the existing explicit offline test entry point.
+import "./actionResourceCallInsertion.test";
 
 const origin = { documentKey: "cwd/source/data.json#sub-child", catalogKey: "complete-binding", ownerId: "visible-instance:1" };
 const item: DesignerResourceItem = { id: "native-id", title: "Display name", description: "", icon: "", editVersion: "9223372036854775807",
