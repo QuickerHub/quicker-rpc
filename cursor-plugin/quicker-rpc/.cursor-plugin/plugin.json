@@ -4,11 +4,11 @@
   "description": "Quicker action authoring in Cursor: qkrpc MCP tools, authoring skills, and hard rules aligned with QuickerAgent.",
   "version": {
     "Major": 0,
-    "Minor": 14,
-    "Build": 8,
-    "Revision": 174,
+    "Minor": 15,
+    "Build": 0,
+    "Revision": 0,
     "MajorRevision": 0,
-    "MinorRevision": 174
+    "MinorRevision": 0
   },
   "author": {
     "name": "QuickerHub"
