@@ -80,7 +80,9 @@ export function createLiveProgramDocumentTurn(options: {
       const previous = results.get(operationId);
       if (stopped && !previous) return fail("LIVE_DOCUMENT_TURN_STOPPED", "本轮已停止，未修改文档。");
       const receipt = owner.execute(selected.scope, { scopeId: selected.scope.scopeId, operationId, input: input.input }, { isCancelled: () => stopped });
-      const result = formatLocalToolResult(receipt, receipt.ok, receipt.ok ? undefined : receipt.error, { retryable: false });
+      const summary = !receipt.ok ? receipt.error : receipt.action === "read_live" ? "已读取设计器当前文档，包含未保存修改。"
+        : receipt.changed ? "已修改设计器中的步骤备注，尚未保存。" : "步骤备注无需修改，文档未变。";
+      const result = formatLocalToolResult(receipt, receipt.ok, receipt.ok ? undefined : receipt.error, { retryable: false, summary });
       if (!previous) results.set(operationId, result);
       return result;
     },

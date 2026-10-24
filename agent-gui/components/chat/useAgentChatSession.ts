@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { convertFileListToFileUIParts } from "ai";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatMode } from "@/lib/chat-mode";
 import { lastAssistantMessageIsCompleteWithClientResponses } from "@/lib/chat-auto-submit";
@@ -141,7 +141,7 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
   });
   addLiveToolOutputRef.current = addToolOutput as typeof addLiveToolOutputRef.current;
 
-  useEffect(() => () => liveTurn.dispose(), [liveTurn]);
+  useLayoutEffect(() => () => liveTurn.dispose(), [liveTurn]);
   const registerLiveProgramDocumentRegistry = useCallback((registry: LiveProgramDocumentRegistry) => {
     liveRegistryRef.current = registry;
     return () => { if (liveRegistryRef.current === registry) liveRegistryRef.current = null; };
