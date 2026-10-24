@@ -13,6 +13,7 @@ const result = spawnSync(process.execPath, [
   "lib/action-editor/program/XProgramEditor.browser.test.ts",
   "components/action-editor/ActionProjectDataEditor.browser.test.ts",
   "components/workspace/WorkspaceDocumentHost.browser.test.ts",
+  "components/workspace/WorkspaceNestedStepPin.browser.test.ts",
 ], { cwd: root, stdio: "inherit" });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

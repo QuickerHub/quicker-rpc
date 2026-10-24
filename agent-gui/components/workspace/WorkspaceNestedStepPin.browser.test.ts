@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { test } from "node:test";
@@ -76,11 +77,11 @@ async function openFixture(duplicate = false) {
     page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
     await page.route("**/*", (route) => { errors.push(`network:${route.request().url()}`); return route.abort(); });
     await page.setContent('<html data-theme="dark"><body><div id="root"></div></body></html>');
-    await page.evaluate((value) => {
-      (window as any).fixtureDuplicate = value;
+    await page.evaluate((value) => { (window as any).fixtureDuplicate = value; }, duplicate);
+    await page.addScriptTag({ content: `(() => {
       const entries = new Map(); Object.defineProperty(window, "localStorage", { configurable: true, value: {
-        getItem: (key: string) => entries.get(key) ?? null, setItem: (key: string, entry: string) => entries.set(key, entry), removeItem: (key: string) => entries.delete(key) } });
-    }, duplicate);
+        getItem: key => entries.get(key) ?? null, setItem: (key, entry) => entries.set(key, entry), removeItem: key => entries.delete(key) } });
+    })();` });
     await page.addStyleTag({ content: compiled.css + "\nhtml,body,#root{height:100%;margin:0}.workspace-side-panel{width:100%;height:100%}" });
     await page.addScriptTag({ content: compiled.js });
     await page.waitForFunction(() => Boolean((window as any).fixture?.open));
@@ -92,6 +93,12 @@ async function openFixture(duplicate = false) {
 }
 const document = (page: Page) => page.locator('[data-workspace-document]:visible');
 const note = (page: Page) => document(page).locator('.program-editor-surface:visible .step-form-note-input');
+async function screenshot(page: Page, name: string) {
+  const directory = process.env.WORKSPACE_DOCUMENT_SCREENSHOTS_DIR;
+  if (!directory) return;
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({ path: path.join(directory, `nested-pin-${name}.png`), fullPage: true });
+}
 async function openInner(page: Page) {
   await document(page).getByLabel("打开或新建内部子程序", { exact: true }).click();
   await document(page).getByRole("button", { name: "Outer / Inner", exact: true }).click();
@@ -137,6 +144,7 @@ test("a nested UI pin keeps its root owner, current human draft and one undo whi
     assert.equal(await note(page).inputValue(), "Agent nested");
     await document(page).locator('[title="撤销 (Ctrl+Z)"]').click();
     assert.equal(await note(page).inputValue(), "nested human after pin");
+    await screenshot(page, "human-undo");
     assert.equal(await page.evaluate(() => { const f = (window as any).fixture; return f.files.get(f.file) === f.body(false); }), true);
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []);
     assert.deepEqual(errors, []);
@@ -152,6 +160,7 @@ test("a duplicate UUID in a different surface produces explicit UI feedback and 
     await document(page).getByRole("button", { name: "添加步骤到对话", exact: true }).evaluate((button: HTMLButtonElement) => button.click());
     await document(page).getByText("步骤标识在当前文档中不唯一，无法加入对话", { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => (window as any).fixture.pins.length), 0);
+    await screenshot(page, "duplicate-rejected");
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []); assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
