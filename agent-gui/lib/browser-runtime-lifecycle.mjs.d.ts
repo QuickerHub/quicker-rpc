@@ -24,7 +24,7 @@ export function fetchBrowserRuntimeHealth(
   timeoutMs?: number,
   abortSignal?: AbortSignal,
 ): Promise<BrowserRuntimeHealth>;
-export function checkBrowserRuntimeHealth(base: string, timeoutMs?: number): Promise<boolean>;
+export function checkBrowserRuntimeHealth(base: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<boolean>;
 export function isBrowserRuntimeVersionCurrent(health: BrowserRuntimeHealth): boolean;
 export function killListenerOnPort(port: number): void;
 export function reconcileStaleBrowserRuntime(agentGuiRoot: string): void;
@@ -38,4 +38,5 @@ export function stopOwnedBrowserRuntimes(): Promise<void>;
 export function ensureBrowserRuntime(
   agentGuiRoot: string,
   host: string,
+  abortSignal?: AbortSignal,
 ): Promise<ChildProcess | null>;

@@ -14,7 +14,9 @@ export function createStartTerminalRuntimeHandler({
   cwd = () => process.cwd(),
   loadLifecycle = () => import("@/lib/terminal-runtime-lifecycle.mjs"),
 }: TerminalRuntimeStartDependencies = {}) {
-  return async function startTerminalRuntimeHandler(): Promise<Response> {
+  return async function startTerminalRuntimeHandler(request?: Request): Promise<Response> {
+    const signal = request?.signal;
+    signal?.throwIfAborted();
     if (env.AGENT_GUI_SKIP_TERMINAL_RUNTIME === "1") {
       return Response.json(
         {
@@ -31,12 +33,16 @@ export function createStartTerminalRuntimeHandler({
       ensureTerminalRuntime,
       resolveTerminalPort,
     } = await loadLifecycle();
+    signal?.throwIfAborted();
 
     const port = resolveTerminalPort();
     const base = runtimeHttpOrigin(host, port);
 
-    const child = await ensureTerminalRuntime(cwd(), host);
-    if (!(await checkTerminalRuntimeHealth(base))) {
+    const child = await ensureTerminalRuntime(cwd(), host, signal);
+    signal?.throwIfAborted();
+    const ready = await checkTerminalRuntimeHealth(base, undefined, signal);
+    signal?.throwIfAborted();
+    if (!ready) {
       return Response.json(
         {
           ok: false,

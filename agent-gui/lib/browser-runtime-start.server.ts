@@ -14,7 +14,9 @@ export function createStartBrowserRuntimeHandler({
   cwd = () => process.cwd(),
   loadLifecycle = () => import("@/lib/browser-runtime-lifecycle.mjs"),
 }: BrowserRuntimeStartDependencies = {}) {
-  return async function startBrowserRuntimeHandler(): Promise<Response> {
+  return async function startBrowserRuntimeHandler(request?: Request): Promise<Response> {
+    const signal = request?.signal;
+    signal?.throwIfAborted();
     if (env.AGENT_GUI_SKIP_BROWSER_RUNTIME === "1") {
       return Response.json(
         { ok: false, message: "browser runtime disabled (AGENT_GUI_SKIP_BROWSER_RUNTIME=1)" },
@@ -28,16 +30,22 @@ export function createStartBrowserRuntimeHandler({
       ensureBrowserRuntime,
       resolveBrowserPort,
     } = await loadLifecycle();
+    signal?.throwIfAborted();
 
     const port = resolveBrowserPort();
     const base = runtimeHttpOrigin(host, port);
 
-    if (await checkBrowserRuntimeHealth(base)) {
+    if (await checkBrowserRuntimeHealth(base, undefined, signal)) {
+      signal?.throwIfAborted();
       return Response.json({ ok: true, reused: true, base });
     }
 
-    const child = await ensureBrowserRuntime(cwd(), host);
-    if (!child && !(await checkBrowserRuntimeHealth(base))) {
+    signal?.throwIfAborted();
+    const child = await ensureBrowserRuntime(cwd(), host, signal);
+    signal?.throwIfAborted();
+    const ready = Boolean(child) || await checkBrowserRuntimeHealth(base, undefined, signal);
+    signal?.throwIfAborted();
+    if (!ready) {
       return Response.json(
         {
           ok: false,

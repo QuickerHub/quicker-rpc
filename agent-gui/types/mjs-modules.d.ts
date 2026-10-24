@@ -56,7 +56,7 @@ declare module "@/lib/browser-runtime-lifecycle.mjs" {
     timeoutMs?: number,
     abortSignal?: AbortSignal,
   ): Promise<BrowserRuntimeHealth>;
-  export function checkBrowserRuntimeHealth(base: string, timeoutMs?: number): Promise<boolean>;
+  export function checkBrowserRuntimeHealth(base: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<boolean>;
   export function isBrowserRuntimeVersionCurrent(health: BrowserRuntimeHealth): boolean;
   export function killListenerOnPort(port: number): void;
   export function reconcileStaleBrowserRuntime(agentGuiRoot: string): void;
@@ -73,6 +73,7 @@ declare module "@/lib/browser-runtime-lifecycle.mjs" {
   export function ensureBrowserRuntime(
     agentGuiRoot: string,
     host: string,
+    abortSignal?: AbortSignal,
   ): Promise<import("node:child_process").ChildProcess | null>;
 }
 
@@ -102,8 +103,9 @@ declare module "@/lib/terminal-runtime-lifecycle.mjs" {
   export function fetchTerminalRuntimeHealth(
     base: string,
     timeoutMs?: number,
+    abortSignal?: AbortSignal,
   ): Promise<TerminalRuntimeHealth>;
-  export function checkTerminalRuntimeHealth(base: string, timeoutMs?: number): Promise<boolean>;
+  export function checkTerminalRuntimeHealth(base: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<boolean>;
   export function isTerminalRuntimeVersionCurrent(health: TerminalRuntimeHealth): boolean;
   export function reconcileStaleTerminalRuntime(agentGuiRoot: string): void;
   export function trackTerminalRuntimeChild(
@@ -119,5 +121,6 @@ declare module "@/lib/terminal-runtime-lifecycle.mjs" {
   export function ensureTerminalRuntime(
     agentGuiRoot: string,
     host: string,
+    abortSignal?: AbortSignal,
   ): Promise<import("node:child_process").ChildProcess | null>;
 }
