@@ -101,6 +101,8 @@ const tests = [
   "lib/action-editor/document/programDocumentMetadataSession.test.ts",
   "lib/action-editor/document/programDocumentLossless.test.ts",
   "lib/action-editor/shared/losslessJson.test.ts",
+  "lib/action-editor/steps/paramEditors/moduleHelpLink.test.ts",
+  "lib/action-editor/steps/paramEditors/stepEditorAdvancedSection.test.ts",
   "lib/action-editor/toolbox/toolboxCatalog.test.ts",
   "lib/action-editor/catalog/designerCatalogContext.test.ts",
   "lib/action-editor/catalog/designerCatalogPort.test.ts",
