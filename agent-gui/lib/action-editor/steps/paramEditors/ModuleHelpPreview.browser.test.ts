@@ -44,9 +44,9 @@ function App(){const[,redraw]=useState(0),[active,setActive]=useState('a');state
 const root=createRoot(document.getElementById('root'));root.render(<App/>);state.dispose=()=>{root.unmount();Object.values(ports).forEach(p=>p.dispose());};
 `;
 
-async function compileFixture() {
+async function compileFixture(contents = fixture) {
   const require = createRequire(path.join(process.cwd(), "package.json"));
-  return build({ stdin: { contents: fixture, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false,
+  return build({ stdin: { contents, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false,
     platform: "browser", format: "iife", jsx: "automatic", metafile: true, tsconfig: path.join(process.cwd(), "tsconfig.json"),
     define: { "process.env.NODE_ENV": '"development"' }, loader: { ".css": "empty" },
     plugins: [{ name: "isolated-help-icons", setup(builder) {
@@ -162,4 +162,102 @@ test("native module help preserves drafts, focus and document ownership", { time
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []);
     assert.deepEqual(errors, []); await page.evaluate(() => (window as any).fixture.dispose());
   } finally { await browser.close(); }
+});
+
+async function navigationFixture(sameOrigin = false) {
+  const workspaceUrl = "https://workspace.example.test/editor";
+  const helpOrigin = sameOrigin ? "https://workspace.example.test" : "https://docs.example.test";
+  const source = fixture.replaceAll("https://docs.example.test", helpOrigin).replace(
+    "window.open=(...args)=>{state.opened.push(args);return null;};",
+    "const nativeOpen=window.open.bind(window);window.open=(...args)=>{state.opened.push(args);return nativeOpen(...args);};",
+  );
+  const bundle = await compileFixture(source);
+  const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--disable-gpu"] });
+  try {
+    const context = await browser.newContext(), page = await context.newPage();
+    page.setDefaultTimeout(8000);
+    const pages: string[] = [], downloads: string[] = [], mainNavigations: string[] = [];
+    context.on("page", popup => pages.push(popup.url()));
+    page.on("download", download => downloads.push(download.suggestedFilename()));
+    page.on("framenavigated", frame => { if (frame === page.mainFrame()) mainNavigations.push(frame.url()); });
+    await context.route("**/*", async route => {
+      const url = new URL(route.request().url());
+      if (url.href === workspaceUrl) return route.fulfill({ contentType: "text/html", body: '<div id="root"></div>' });
+      if (url.hostname === "leave.example.test") return route.fulfill({ contentType: "text/html", body: "<h1>Workspace escaped</h1>" });
+      if (url.origin === helpOrigin) {
+        if (url.pathname === "/assets/help-runtime.js") return route.fulfill({ contentType: "application/javascript",
+          body: "document.getElementById('scripts').textContent='Documentation scripts ready';" });
+        if (url.pathname === "/file.txt") return route.fulfill({ contentType: "text/plain", headers: { "content-disposition": "attachment; filename=sample.txt" }, body: "sample" });
+        if (url.pathname === "/inside") return route.fulfill({ contentType: "text/html", body: "<h1>Inside help page</h1>" });
+        return route.fulfill({ contentType: "text/html", body: `
+          <p id="scripts">Scripts pending</p><p id="parent-status"></p>
+          <script src="${helpOrigin}/assets/help-runtime.js" defer></script>
+          <a target="_top" href="https://leave.example.test/top">Leave workspace</a>
+          <a target="_blank" href="https://leave.example.test/popup">Open help popup</a>
+          <a download href="${helpOrigin}/file.txt">Download help sample</a>
+          <a href="${helpOrigin}/inside">Next help page</a>
+          <button onclick="try { parent.fixture.read('a'); document.getElementById('parent-status').textContent='Parent accessible'; } catch { document.getElementById('parent-status').textContent='Parent blocked'; }">Read workspace</button>
+        ` });
+      }
+      return route.abort();
+    });
+    await page.goto(workspaceUrl);
+    const css = await Promise.all(["components/action-editor/action-editor-theme.css", "components/action-editor/action-editor.css", "components/action-editor/program-editor-toolbox.css"].map(file => readFile(file, "utf8")));
+    await page.addStyleTag({ content: css.join("\n") + "\n#root{height:100vh;}" });
+    await page.addScriptTag({ content: bundle.outputFiles[0].text });
+    const initial = await page.evaluate(() => (window as any).fixture.read("a").content);
+    await page.locator('[data-step-id="a-help"]').dblclick();
+    const popup = page.locator(".step-editor-popup");
+    await popup.getByRole("button", { name: "模块帮助", exact: true }).waitFor();
+    await popup.getByRole("textbox").first().fill("unsaved navigation draft");
+    await popup.getByRole("button", { name: "模块帮助", exact: true }).click();
+    const frame = page.frameLocator(".module-help-preview iframe");
+    await frame.getByText("Documentation scripts ready", { exact: true }).waitFor();
+    return { browser, context, page, frame, initial, workspaceUrl, helpOrigin, pages, downloads, mainNavigations };
+  } catch (error) { await browser.close(); throw error; }
+}
+
+test("module help sandbox blocks top navigation while documentation and explicit external open remain usable", { timeout: 45_000 }, async () => {
+  const f = await navigationFixture();
+  try {
+    await f.frame.getByRole("link", { name: "Leave workspace", exact: true }).click();
+    // Give real navigation/download events time to complete; escape URLs are fulfilled, never aborted.
+    await f.page.waitForTimeout(300);
+    assert.equal(f.page.url(), f.workspaceUrl, "a help target=_top link must not unload the workspace");
+    assert.deepEqual(f.mainNavigations, [f.workspaceUrl]);
+    assert.equal(await f.page.evaluate(() => (window as any).fixture.read("a").content), f.initial);
+    const [external] = await Promise.all([f.context.waitForEvent("page"),
+      f.page.getByRole("dialog", { name: /^模块帮助/ }).getByRole("button", { name: "在浏览器打开", exact: true }).click()]);
+    await external.waitForURL(f.helpOrigin + "/a?mode=one#parameters");
+    assert.equal(await external.evaluate(() => window.opener === null), true); await external.close();
+    await f.frame.getByRole("link", { name: "Next help page", exact: true }).click();
+    await f.frame.getByRole("heading", { name: "Inside help page" }).waitFor();
+    await f.page.getByRole("button", { name: "关闭模块帮助" }).click();
+    assert.equal(await f.page.locator(".step-editor-popup").getByRole("textbox").first().innerText(), "unsaved navigation draft");
+  } finally { await f.browser.close(); }
+});
+
+test("module help sandbox blocks frame popups and downloads", { timeout: 45_000 }, async () => {
+  const f = await navigationFixture();
+  try {
+    await f.frame.getByRole("link", { name: "Open help popup", exact: true }).click();
+    await f.frame.getByRole("link", { name: "Download help sample", exact: true }).click();
+    await f.page.waitForTimeout(300);
+    assert.deepEqual(f.pages, [], "help content cannot open an escaping popup");
+    assert.deepEqual(f.downloads, [], "help content cannot download into the workspace session");
+    assert.equal(f.page.url(), f.workspaceUrl);
+    assert.equal(await f.page.evaluate(() => (window as any).fixture.read("a").content), f.initial);
+  } finally { await f.browser.close(); }
+});
+
+test("module help sandbox isolates same-origin help from the workspace", { timeout: 45_000 }, async () => {
+  const f = await navigationFixture(true);
+  try {
+    await f.frame.getByRole("button", { name: "Read workspace", exact: true }).click();
+    await f.frame.getByText("Parent blocked", { exact: true }).waitFor();
+    await f.frame.getByRole("link", { name: "Leave workspace", exact: true }).click();
+    await f.page.waitForTimeout(300);
+    assert.equal(f.page.url(), f.workspaceUrl);
+    assert.equal(await f.page.evaluate(() => (window as any).fixture.read("a").content), f.initial);
+  } finally { await f.browser.close(); }
 });

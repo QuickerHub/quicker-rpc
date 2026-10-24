@@ -45,7 +45,9 @@ export function ModuleHelpPreviewPopup({ helpLink, title, keyboardOwnerId, onClo
         </header>
         <div className="module-help-preview__body">
           {loading ? <div className="module-help-preview__loading" aria-live="polite">加载中…</div> : null}
+          {/* Keep an opaque origin: native HelpLink may point at this app, where scripts plus same-origin could remove the sandbox. */}
           <iframe ref={frameRef} className="module-help-preview__frame" title={title} src={src}
+            sandbox="allow-scripts"
             referrerPolicy="strict-origin-when-cross-origin"
             onLoad={() => setLoading(false)} />
         </div>
