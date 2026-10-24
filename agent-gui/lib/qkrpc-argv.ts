@@ -80,6 +80,14 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
 
   if (positional.length === 0) return null;
 
+  if ((positional[0] === "action" || positional[0] === "subprogram") && positional[1] === "catalog-page") {
+    return { op: "resource.catalog.page", args: {
+      kind: positional[0] === "action" ? "action" : "global_subprogram", scope: flagStr(flags, "scope") ?? "runtimeCatalog",
+      query: flagStr(flags, "query") ?? "", skip: flagInt(flags, "skip") ?? 0, take: flagInt(flags, "take") ?? 500,
+      expectedSnapshotId: flagStr(flags, "snapshot-id") ?? null,
+    } };
+  }
+
   if (positional[0] === "ping") {
     return {
       op: "ping",

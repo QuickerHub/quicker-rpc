@@ -29,6 +29,7 @@ import type { ActionProjectWorkspaceContext } from "@/lib/action-editor/steps/pa
 import { ActionSubProgramKind } from "@/lib/action-editor/subprograms/subProgramUi";
 import { mergeSubProgramsForStepEditor } from "@/lib/action-editor/subprograms/globalSubProgramCatalog";
 import TreeActionToolbox from "@/lib/action-editor/toolbox/TreeActionToolbox";
+import { EditorResourcePane } from "./EditorResourcePane";
 import { createToolboxInsertionRegistry } from "@/lib/action-editor/toolbox/toolboxInsertionRegistry";
 import "./program-editor-toolbox.css";
 
@@ -343,8 +344,8 @@ function ProgramEditorTabWorkspaceBody({
       {lifecycleError ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">{lifecycleError}</p> : null}
       <div className="program-editor-catalog-layout">
       <aside className="program-editor-catalog" hidden={metadataVisible}>
-        <div className="program-editor-catalog-heading">模块</div>
-        <TreeActionToolbox active={active && !modalOpen && activeTabId !== "metadata"} onInsertAtEnd={requestToolboxInsert} />
+        <EditorResourcePane active={active && !modalOpen && activeTabId !== "metadata"} modules={(visible) =>
+          <TreeActionToolbox active={visible} onInsertAtEnd={requestToolboxInsert} />} />
       </aside>
       <div className="program-editor-documents">
       {metadataVisited && metadataPanel != null ? <div id={`${mainPanelId}-metadata`} role="tabpanel" aria-label="属性"

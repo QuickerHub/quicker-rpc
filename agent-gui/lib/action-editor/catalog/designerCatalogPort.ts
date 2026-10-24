@@ -69,6 +69,9 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
 
   return {
     key, remoteEnabled, documentBound,
+    supportsCapability(name: string): boolean {
+      return !closed && documentBound && context?.expectedProjectBinding?.hostBinding.capabilities[name] === true;
+    },
     get<T>(cacheKey: string): T | undefined {
       if (closed || !values.has(cacheKey)) return undefined;
       const value = values.get(cacheKey);
