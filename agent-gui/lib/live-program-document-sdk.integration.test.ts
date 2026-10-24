@@ -182,7 +182,7 @@ test("stop after the SDK edit commits preserves its receipt and cannot start a m
   assert.equal((applied!.data as { applied: boolean; persisted: boolean }).applied, true); assert.equal((applied!.data as { persisted: boolean }).persisted, false);
   const pending = f.chat.messages.map((message) => ({ ...message, parts: message.parts.map((part) => "toolCallId" in part && part.toolCallId === "edit-before-stop"
     ? { ...part, state: "input-available", output: undefined } : part) })) as AgentUIMessage[];
-  const repaired = repairInterruptedToolCalls(pending, f.turn.getResult);
+  const repaired = f.turn.repairAfterStoppedDrain(pending, f.chat.status);
   const edit = repaired.flatMap((message) => message.parts).find((part) => "toolCallId" in part && part.toolCallId === "edit-before-stop") as { state: string; output: unknown };
   assert.equal(edit.state, "output-available"); assert.equal(edit.output, applied);
   await f.chat.addToolOutput({ tool: "workspace_program", toolCallId: "edit-before-stop", output: applied });
@@ -212,12 +212,36 @@ test("a buffered tool call delivered by the SDK after stop cannot mutate the doc
       { type: "tool-input-available", toolCallId: "buffered-edit-after-stop", toolName: "workspace_program", input: {
         scopeId, action: "edit_live", readOperationId: "read-and-stop", expectedRevision: 1, stepId, note: "must never apply" } },
       { type: "finish-step" }, { type: "finish", finishReason: "tool-calls" }]);
-  }, { afterTool(id, _output, current) { if (id === "read-and-stop") void current.stop(); } });
+  }, { afterTool(id, _output, current) { if (id === "read-and-stop") {
+    void current.stop();
+    f.chat.messages = repairInterruptedToolCalls(f.chat.messages, f.turn.getResult);
+  } } });
   await f.sendManual("manual-buffered-stop"); await Promise.all(f.outputs);
   assert.deepEqual(f.errors, []); assert.equal(f.requests.length, 1);
   assert.deepEqual(f.seenToolCalls, ["read-and-stop", "buffered-edit-after-stop"], "the real SDK parser delivers the buffered late call");
   assert.deepEqual(f.callbacks, ["read-and-stop"]); assert.deepEqual(f.executions.map(({ command }) => command.operationId), ["read-and-stop"]);
   assert.equal(f.session.getState().revision, 1); assert.equal(f.turn.getResult("buffered-edit-after-stop"), undefined);
+  const before = f.chat.messages.flatMap((message) => message.parts).find((part) => "toolCallId" in part && part.toolCallId === "buffered-edit-after-stop") as { state: string };
+  assert.equal(before.state, "input-available", "the late call arrives after the immediate stop repair");
+  assert.equal(f.turn.repairAfterStoppedDrain(f.chat.messages, "streaming"), f.chat.messages, "only a drained stream is finalized");
+  let notifications = 0;
+  const finalizeDrained = () => {
+    const current = f.chat.messages;
+    const repaired = f.turn.repairAfterStoppedDrain(current, f.chat.status);
+    if (repaired !== current) f.chat.messages = repaired;
+  };
+  const unsubscribe = f.chat["~registerMessagesCallback"](() => {
+    assert.ok(++notifications < 3, "a no-op SDK setter would cause a message feedback loop");
+    finalizeDrained();
+  });
+  try {
+    finalizeDrained();
+    finalizeDrained();
+    assert.equal(notifications, 1, "the already finalized SDK store is never updated again");
+  } finally { unsubscribe(); }
+  const after = f.chat.messages.flatMap((message) => message.parts).find((part) => "toolCallId" in part && part.toolCallId === "buffered-edit-after-stop") as { state: string };
+  assert.equal(after.state, "output-error", "the stopped tool no longer displays a permanent running state");
+  assert.equal(f.requests.length, 1); assert.equal(f.session.getState().revision, 1);
 });
 
 test("an old scope arriving through a real later SDK stream cannot edit the new manual target", { timeout: 10000 }, async (t) => {

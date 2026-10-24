@@ -3,6 +3,9 @@ import { findProgramStepTagMarkupHits } from "./program-step-tag";
 import type { LiveProgramDocumentPin, LiveProgramDocumentRegistry, LiveProgramDocumentRegistryFailure, LiveProgramDocumentSelection } from "./live-program-document";
 import { parseLiveProgramDocumentToolInput } from "./live-program-document-tool";
 import { formatLocalToolResult, type StructuredToolResult } from "./tool-result";
+import { repairInterruptedToolCalls } from "./repair-interrupted-tool-calls";
+import type { AgentUIMessage } from "./chat-types";
+import type { ChatStatus } from "ai";
 
 type PinResult = LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure;
 export type LiveProgramDocumentTurnBody = Readonly<{
@@ -55,7 +58,7 @@ export function createLiveProgramDocumentTurn(options: {
             cwd: input.cwd, mode: input.chatMode === "ask" ? "read" : "edit", pins: selected as LiveProgramDocumentPin[] });
         }
       }
-      body = intent ? Object.freeze({ liveProgramDocument: selection, workingDirectory: input.cwd,
+      body = intent ? Object.freeze({ liveProgramDocument: Object.freeze(selection), workingDirectory: input.cwd,
         chatMode: input.chatMode, enabledTools: Object.freeze([...input.enabledTools]) }) : undefined;
       stopped = false;
       return body;
@@ -64,6 +67,10 @@ export function createLiveProgramDocumentTurn(options: {
     getGeneration: () => generation,
     isStopped: () => stopped,
     getResult: (operationId: string) => results.get(operationId),
+    repairAfterStoppedDrain(messages: AgentUIMessage[], status: ChatStatus): AgentUIMessage[] {
+      if (!body || !stopped || (status !== "ready" && status !== "error")) return messages;
+      return repairInterruptedToolCalls(messages, (operationId) => results.get(operationId));
+    },
     execute(operationId: string, rawInput: unknown): StructuredToolResult {
       const selected = body?.liveProgramDocument;
       const fail = (code: string, error: string) => formatLocalToolResult({ source: "live_document", operationId,

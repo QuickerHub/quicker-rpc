@@ -247,6 +247,15 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
 
   const prevStatusRef = useRef(status);
   useEffect(() => {
+    // stop() repairs what is present immediately. The SDK can still deliver
+    // buffered calls afterward; repair the drained store without executing them.
+    if (!liveTurn.getBody() || !liveTurn.isStopped() || (status !== "ready" && status !== "error")) return;
+    const repaired = liveTurn.repairAfterStoppedDrain(messages, status);
+    // The SDK setter always copies/notifies, even for the same array. Do not
+    // call it for an already finalized snapshot or this effect repeats forever.
+    if (repaired !== messages) setMessages(repaired);
+  }, [messages, status, liveTurn, setMessages]);
+  useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = status;
     const wasBusy = prev === "streaming" || prev === "submitted";
