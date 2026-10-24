@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync,
 import { createRequire, isBuiltin } from "node:module";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { findRuntimePackage as findPackage, isRuntimePackageMissing } from "./static-runtime-dependency-graph.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -13,20 +14,6 @@ const marker = { name: "node-server-marker", setup(compiler) {
   compiler.onResolve({ filter: /^@iconify\/icons-mdi\// }, (args) => ({ path: require.resolve(args.path) }));
 } };
 const packageName = (specifier) => specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
-
-function findPackage(name, from) {
-  const resolver = createRequire(join(from, "package.json"));
-  try { return dirname(resolver.resolve(`${name}/package.json`)); }
-  catch {
-    let directory = dirname(resolver.resolve(name));
-    while (dirname(directory) !== directory) {
-      const manifest = join(directory, "package.json");
-      if (existsSync(manifest) && JSON.parse(readFileSync(manifest)).name === name) return directory;
-      directory = dirname(directory);
-    }
-    throw new Error(`Cannot locate runtime package ${name}`);
-  }
-}
 
 /** Copy the resolved production graph, preserving version conflicts without dev dependencies. */
 export function stageRuntimePackages(names, appDirectory, sourceRoot = root) {
@@ -45,7 +32,7 @@ export function stageRuntimePackages(names, appDirectory, sourceRoot = root) {
     const manifest = JSON.parse(readFileSync(join(source, "package.json"), "utf8"));
     for (const dependency of Object.keys(manifest.dependencies ?? {})) stage(dependency, source, target);
     for (const dependency of Object.keys(manifest.optionalDependencies ?? {})) {
-      try { findPackage(dependency, source); } catch { continue; }
+      try { findPackage(dependency, source); } catch (error) { if (isRuntimePackageMissing(error)) continue; throw error; }
       stage(dependency, source, target);
     }
   }
@@ -121,7 +108,22 @@ async function buildInto(appDirectory, development) {
   });
   const externals = new Set(Object.values(backend.metafile.outputs).flatMap((info) => info.imports.filter((item) => item.external).map((item) => item.path)));
   if ([...externals].some((name) => /^next(?:\/|$)|^@\/|^server-only$/.test(name))) throw new Error("Backend retains framework imports");
-  const packages = new Set([...externals].filter((name) => !isBuiltin(name) && !name.startsWith(".")).map(packageName));
+  // The copied runtime sources keep their own resolver contexts. Parse their
+  // graph with the same compiler, without writing or executing another runtime.
+  const runtimeAnalysis = await build({ absWorkingDir: root, entryPoints: ["browser-runtime/server.mjs", "terminal-runtime/server.mjs"],
+    outdir: join(appDirectory, "runtime-analysis"), bundle: true, packages: "external", platform: "node", target: "node22", format: "esm", write: false, metafile: true });
+  const imports = new Map();
+  function recordImport(item, from) {
+    if (!item.external || isBuiltin(item.path) || item.path.startsWith(".")) return;
+    const entry = { specifier: item.path, from: from.replaceAll("\\", "/"), mode: ["require-call", "require-resolve"].includes(item.kind) ? "require" : "import" };
+    imports.set(JSON.stringify(entry), entry);
+  }
+  for (const [file, info] of Object.entries(backend.metafile.outputs))
+    for (const item of info.imports) recordImport(item, relative(appDirectory, dirname(resolve(root, file))));
+  for (const [file, info] of Object.entries(runtimeAnalysis.metafile.inputs))
+    for (const item of info.imports) recordImport(item, relative(root, dirname(resolve(root, file))));
+  const runtimeImports = [...imports.values()].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  const packages = new Set(runtimeImports.map((entry) => packageName(entry.specifier)));
   for (const name of ["playwright", "ws", "node-pty"]) packages.add(name);
   const packageCount = stageRuntimePackages(packages, appDirectory);
   for (const directory of ["browser-runtime", "terminal-runtime", "drizzle/migrations", "lib/agent-defs/bundled"]) {
@@ -133,7 +135,8 @@ async function buildInto(appDirectory, development) {
   cpSync(join(root, "../QuickerRpc/version.json"), join(appDirectory, "version.json"));
   writeFileSync(join(appDirectory, "package.json"), JSON.stringify({ private: true, type: "module" }));
   writeFileSync(join(appDirectory, "service.mjs"), `import { dirname, join } from 'node:path';\nimport { fileURLToPath } from 'node:url';\nconst root = dirname(fileURLToPath(import.meta.url));\nprocess.chdir(root);\nprocess.env.AGENT_GUI_ROOT = root;\nif (!process.argv.includes('--renderer-dir')) process.argv.push('--renderer-dir', join(root, 'renderer'));\nawait import('./lib/service-main.mjs');\n`);
-  const report = { format: "quicker-agent-static-runtime", version: 1, routeCount: 72, rendererInputs: clientInputs.length, serviceInputs: Object.keys(backend.metafile.inputs).length, packageCount, next: false };
+  const rendererFiles = Object.keys(client.metafile.outputs).map((file) => relative(renderer, resolve(root, file)).replaceAll("\\", "/")).sort();
+  const report = { format: "quicker-agent-static-runtime", version: 1, routeCount: 72, rendererInputs: clientInputs.length, serviceInputs: Object.keys(backend.metafile.inputs).length, packageCount, runtimePackageRoots: [...packages].sort(), runtimeImports, rendererFiles, next: false };
   writeFileSync(join(appDirectory, "runtime-manifest.json"), `${JSON.stringify(report, null, 2)}\n`);
   return report;
 }
