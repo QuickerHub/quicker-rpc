@@ -1,0 +1,45 @@
+<Project>
+  <!-- Costura 5's generated resolver cannot be owner/identity scoped. Keep the existing
+       resource contract, but embed directly and register only PluginCosturaAssemblyResolve. -->
+  <Target Name="QkrpcEmbedV2Dependencies" BeforeTargets="AssignTargetPaths"
+          DependsOnTargets="ResolveReferences" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <!-- Runtime assets remain available even when this library does not copy NuGet DLLs.
+           Do not change CopyLocalLockFileAssemblies or pull host ReferencePath into this list. -->
+      <_QkrpcV2EmbeddingCandidate Include="@(ReferenceCopyLocalPaths);@(RuntimeCopyLocalItems)" />
+      <_QkrpcV2AllowedDependency Include="@(_QkrpcV2EmbeddingCandidate)"
+          Condition="'%(_QkrpcV2EmbeddingCandidate.Extension)' == '.dll' and $([System.Text.RegularExpressions.Regex]::IsMatch('%(_QkrpcV2EmbeddingCandidate.Filename)', '^(QuickerRpc\.(Contracts|AgentModel|Host\.Abstractions|Runtime|Transport)(\..*)?|Google\.Protobuf.*|StreamJsonRpc.*|MessagePack.*|Nerdbank\.Streams.*|Microsoft\.VisualStudio\.(Threading|Validation).*)$'))" />
+    </ItemGroup>
+    <RemoveDuplicates Inputs="@(_QkrpcV2AllowedDependency)">
+      <Output TaskParameter="Filtered" ItemName="_QkrpcV2EmbeddedDependency" />
+    </RemoveDuplicates>
+    <ItemGroup>
+      <_QkrpcV2EmbeddedDependency>
+        <LogicalName>costura.$([System.String]::Copy('%(_QkrpcV2EmbeddedDependency.Filename)').ToLowerInvariant()).dll</LogicalName>
+      </_QkrpcV2EmbeddedDependency>
+      <EmbeddedResource Include="@(_QkrpcV2EmbeddedDependency)">
+        <LogicalName>%(_QkrpcV2EmbeddedDependency.LogicalName)</LogicalName>
+        <WithCulture>false</WithCulture>
+      </EmbeddedResource>
+      <_QkrpcV2MissingDependency Include="QuickerRpc.Contracts;QuickerRpc.AgentModel;QuickerRpc.Host.Abstractions;QuickerRpc.Runtime;QuickerRpc.Transport"
+          Condition="'$(PrivateAssemblyVersionSuffix)' == ''" />
+      <_QkrpcV2MissingDependency Include="QuickerRpc.Contracts.$(PrivateAssemblyVersionSuffix);QuickerRpc.AgentModel.$(PrivateAssemblyVersionSuffix);QuickerRpc.Host.Abstractions.$(PrivateAssemblyVersionSuffix);QuickerRpc.Runtime.$(PrivateAssemblyVersionSuffix);QuickerRpc.Transport.$(PrivateAssemblyVersionSuffix)"
+          Condition="'$(PrivateAssemblyVersionSuffix)' != ''" />
+      <_QkrpcV2MissingDependency Remove="@(_QkrpcV2EmbeddedDependency->'%(Filename)')" />
+    </ItemGroup>
+    <Error Condition="'@(_QkrpcV2MissingDependency)' != ''"
+           Text="V2 package is missing required private dependencies: @(_QkrpcV2MissingDependency)" />
+  </Target>
+  <Target Name="QkrpcRemoveEmbeddedV2CopyLocal" BeforeTargets="_CopyFilesMarkedCopyLocal"
+          DependsOnTargets="QkrpcEmbedV2Dependencies" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(_QkrpcV2EmbeddedDependency)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="QkrpcRemoveEmbeddedV2PublishFiles" AfterTargets="ComputeResolvedFilesToPublishList"
+          DependsOnTargets="QkrpcEmbedV2Dependencies" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(_QkrpcV2EmbeddedDependency)" />
+    </ItemGroup>
+  </Target>
+</Project>
