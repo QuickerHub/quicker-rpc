@@ -416,8 +416,17 @@ context”。
 Ask 的动作/子程序 get 使用显式读取执行端口，绕开兼容 get 的自动导出，并重建限定命令，
 只通过 CLI `--no-bootstrap` 连接现有宿主；不进入可能自启动的 HTTP pool，不重试或转走
 导出入口。当前模式的最终 wrapper 同样约束历史审批续跑与子代理，未提供读取端口时拒绝。
-Agent 的兼容导出行为保留。其它 Ask 远端查询和恢复入口的副作用审计仍未完成；尤其原
-`qkrpc_wait` 会启动 serve/插件，不把这两个 getter 的修复视为整个 Ask 已无副作用。
+Agent 的兼容导出行为保留。Ask 的 workspace 也使用显式本地端口：只读取已有完整项目，
+缺少正文时返回 `workspace_program_not_local`，不补空文件、不导出；项目列表不修补元数据。
+summary 和文件读取共用该策略，最终 wrapper 缺读取端口时拒绝，直接 Ask 调用再作校验。
+get 的单次失败保留原 exit/error/payload/绑定，不伪装成功或宣称已重试，连接失败只说明
+手动连接或切 Agent 恢复；不会建议调用 Ask 中不可用的恢复工具。
+
+尚用自启动 adapter 的远端 query、step catalog、FA、Launcher resolve、设置和 wait 已从
+Ask 默认目录移除，最终执行入口也拒绝其旧审批或显式选择；远端 diagnostics 同样拒绝。
+pre-turn 不请求远端 Designer 标题/选中步骤，保留消息和 embed 明确提供的本地目标。
+每项能力须先实现并验证非启动读取端口后再恢复；外部 MCP 继续依赖其显式只读声明，
+这不代替操作描述、TurnPlan 和实际 adapter 副作用审计。
 
 工具以用户意图、权限和副作用为边界。不要只为减少 tool 数量合并不同风险或不同
 工作流阶段；模型可见 schema 保持 provider 兼容的扁平对象。需要降低 prompt 成本时，
