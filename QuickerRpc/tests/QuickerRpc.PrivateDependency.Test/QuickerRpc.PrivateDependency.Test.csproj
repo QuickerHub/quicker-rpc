@@ -14,5 +14,7 @@
     <None Include="Fixtures/LegacyPluginCosturaAssemblyResolve.cs.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../src/QuickerRpc.Plugin.V2/PluginCosturaAssemblyResolve.cs"
           Link="Fixtures/ProductionPluginCosturaAssemblyResolve.cs.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/QuickerRpc.Plugin.V2/PluginModuleInitializer.cs"
+          Link="Fixtures/ProductionPluginModuleInitializer.cs.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

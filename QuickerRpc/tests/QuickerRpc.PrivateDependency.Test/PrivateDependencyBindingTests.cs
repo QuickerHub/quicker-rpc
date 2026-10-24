@@ -31,6 +31,7 @@ public sealed class PrivateDependencyBindingTests
         await File.WriteAllTextAsync(Path.Combine(_root, "NuGet.Config"), "<configuration><packageSources><clear /></packageSources></configuration>");
         var legacy = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "LegacyPluginCosturaAssemblyResolve.cs.txt"));
         var current = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "ProductionPluginCosturaAssemblyResolve.cs.txt"));
+        var initializer = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "ProductionPluginModuleInitializer.cs.txt"));
         using var budget = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         try
         {
@@ -45,11 +46,20 @@ public sealed class PrivateDependencyBindingTests
             var privateRuntime = await BuildLibrary("runtime-private", "QuickerRpc.Runtime.0.14.8.172", 172,
                 RuntimeSource(true), [], [], budget.Token);
             var transport = await BuildLibrary("transport-private", "QuickerRpc.Transport.0.14.8.172", 172,
-                "namespace QuickerRpc.Transport; public static class Bridge { public static string Call()=>QuickerRpc.Runtime.StepRunnerInputContractBuilder.Build(null,null,\"v2\"); }",
+                "namespace QuickerRpc.Transport; public static class Bridge { public static string Call()=>QuickerRpc.Runtime.StepRunnerInputContractBuilder.Build(null,null,\"v2\"); } public static class TransportDiagnostics { public static Action<string,Exception?>? Sink; }",
                 [privateRuntime], [], budget.Token);
+            var otherDependencies = new List<string>();
+            foreach (var name in new[] { "Contracts", "AgentModel", "Host.Abstractions" })
+                otherDependencies.Add(await BuildLibrary("private-" + name, "QuickerRpc." + name + ".0.14.8.172", 172,
+                    "namespace PureFixture; public class Marker { }", [], [], budget.Token));
+            foreach (var name in new[] { "Microsoft.Extensions.Fixture", "Newtonsoft.Json", "Unrelated.Dependency" })
+                otherDependencies.Add(await BuildLibrary("shared-" + name, name, 172,
+                    "namespace SharedFixture; public class Marker { }", [], [], budget.Token));
             await BuildLibrary("current", "QuickerRpc.Plugin.Fixture.Current", 172,
-                EntrySource(true, true), [privateRuntime, transport], [("Resolver.cs", current)], budget.Token,
-                [(privateRuntime, "costura.quickerrpc.runtime.0.14.8.172.dll"), (transport, "costura.quickerrpc.transport.0.14.8.172.dll")]);
+                EntrySource(true, true), [privateRuntime, transport, .. otherDependencies], [("Resolver.cs", current), ("Initializer.cs", initializer),
+                    ("DiagnosticStubs.cs", "namespace QuickerRpc.Plugin; internal static class PluginAssemblyResolve { internal static int EnsureRegistered()=>1; } internal static class PluginV2DiagnosticLog { internal static void Write(string message,Exception? exception){} }")], budget.Token,
+                embeddingTarget: Path.Combine(repository, "build", "EmbedV2Dependencies.targets"),
+                runtimeAssets: [privateRuntime, privateRuntime]); // NuGet-style assets may overlap; one resource must be emitted.
             await BuildLibrary("foreign-transport", "QuickerRpc.Transport.0.14.8.172", 172,
                 "namespace Foreign; public static class DifferentImage { public static string Marker=>\"not the embedded image\"; }", [], [], budget.Token);
             _runner = await BuildLibrary("runner", "FixtureRunner", 1, RunnerSource, [], [], budget.Token, executable: true);
@@ -115,6 +125,39 @@ public sealed class PrivateDependencyBindingTests
             Assert.IsTrue(property.Value.GetBoolean(), property.Name);
         Assert.AreEqual(8, report.RootElement.GetProperty("rejected").EnumerateObject().Count());
         Assert.IsTrue(report.RootElement.GetProperty("sameIdentityDifferentMvid").GetBoolean());
+    }
+
+    [TestMethod]
+    public async Task V2_real_embedding_target_and_initializer_have_no_unscoped_generated_fallback()
+    {
+        var project = System.Xml.Linq.XDocument.Load(Path.Combine(FindRepository(), "QuickerRpc", "src", "QuickerRpc.Plugin.V2", "QuickerRpc.Plugin.V2.csproj"));
+        Assert.IsFalse(project.Descendants("PackageReference").Any(reference => reference.Attribute("Include")?.Value == "Costura.Fody"));
+        Assert.IsTrue(project.Descendants("Import").Any(import => import.Attribute("Project")?.Value.EndsWith("EmbedV2Dependencies.targets", StringComparison.Ordinal) == true));
+        using var report = await RunScenario("embedding");
+        Assert.AreEqual("new-three", report.RootElement.GetProperty("result").GetString());
+        Assert.AreEqual(5, report.RootElement.GetProperty("embeddedResources").GetArrayLength());
+        Assert.IsFalse(report.RootElement.GetProperty("generatedFallback").GetBoolean());
+        Assert.IsTrue(report.RootElement.GetProperty("diagnosticsInitialized").GetBoolean());
+        var output = Path.Combine(_root, "current", "bin", "Release", "net10.0");
+        Assert.AreEqual(0, Directory.EnumerateFiles(output, "QuickerRpc.*.dll").Count(path => !Path.GetFileName(path).StartsWith("QuickerRpc.Plugin.", StringComparison.Ordinal)),
+            "Embedded dependencies must not remain as loose CopyLocal files.");
+        foreach (var name in new[] { "Microsoft.Extensions.Fixture", "Newtonsoft.Json", "Unrelated.Dependency" })
+            Assert.IsTrue(File.Exists(Path.Combine(output, name + ".dll")), "Non-allowlisted dependencies must retain their ordinary CopyLocal behavior: " + name);
+    }
+
+    [TestMethod]
+    public async Task Embedding_fails_before_compile_if_any_required_private_dependency_is_missing()
+    {
+        try
+        {
+            await BuildLibrary("missing-private", "MissingPrivateFixture", 172, "public class Marker {}", [], [], CancellationToken.None,
+                embeddingTarget: Path.Combine(FindRepository(), "build", "EmbedV2Dependencies.targets"));
+            Assert.Fail("A partial private graph must not produce a package.");
+        }
+        catch (AssertFailedException exception) when (exception.Message.Contains("V2 package is missing required private dependencies:", StringComparison.Ordinal))
+        {
+            StringAssert.Contains(exception.Message, "QuickerRpc.Runtime.0.14.8.172");
+        }
     }
 
     [TestMethod]
@@ -193,14 +236,17 @@ public sealed class PrivateDependencyBindingTests
 
     private static async Task<string> BuildLibrary(string directory, string name, int revision, string source,
         string[] references, (string Name, string Source)[] additionalSources, CancellationToken token,
-        (string File, string Name)[]? resources = null, bool executable = false)
+        (string File, string Name)[]? resources = null, bool executable = false, string? embeddingTarget = null, string[]? runtimeAssets = null)
     {
         var path = Path.Combine(_root, directory);
         Directory.CreateDirectory(path);
         string Escape(string value) => SecurityElement.Escape(value)!;
-        var items = string.Join("", references.Select(reference => $"<Reference Include=\"{Escape(Path.GetFileNameWithoutExtension(reference))}\"><HintPath>{Escape(reference)}</HintPath><Private>false</Private></Reference>"))
-            + string.Join("", (resources ?? []).Select(resource => $"<EmbeddedResource Include=\"{Escape(resource.File)}\" LogicalName=\"{Escape(resource.Name)}\" />"));
-        var project = $"<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><AssemblyName>{name}</AssemblyName><AssemblyVersion>0.14.8.{revision}</AssemblyVersion><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><OutputType>{(executable ? "Exe" : "Library")}</OutputType></PropertyGroup><ItemGroup>{items}</ItemGroup></Project>";
+        var items = string.Join("", references.Select(reference => $"<Reference Include=\"{Escape(Path.GetFileNameWithoutExtension(reference))}\"><HintPath>{Escape(reference)}</HintPath><Private>{(embeddingTarget is null || (runtimeAssets ?? []).Contains(reference) ? "false" : "true")}</Private></Reference>"))
+            + string.Join("", (resources ?? []).Select(resource => $"<EmbeddedResource Include=\"{Escape(resource.File)}\" LogicalName=\"{Escape(resource.Name)}\" />"))
+            + string.Join("", (runtimeAssets ?? []).Select(resource => $"<RuntimeCopyLocalItems Include=\"{Escape(resource)}\" />"));
+        // RuntimeCopyLocalItems here are pure fixture files, not NuGet package records; no fake deps manifest is needed by LoadFile.
+        var import = embeddingTarget is null ? "" : $"<PropertyGroup><PrivateAssemblyVersionSuffix>0.14.8.{revision}</PrivateAssemblyVersionSuffix><GenerateDependencyFile>false</GenerateDependencyFile></PropertyGroup><Import Project=\"{Escape(embeddingTarget)}\" />";
+        var project = $"<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><AssemblyName>{name}</AssemblyName><AssemblyVersion>0.14.8.{revision}</AssemblyVersion><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><OutputType>{(executable ? "Exe" : "Library")}</OutputType></PropertyGroup><ItemGroup>{items}</ItemGroup>{import}</Project>";
         var projectFile = Path.Combine(path, "Fixture.csproj");
         await File.WriteAllTextAsync(projectFile, project, token);
         await File.WriteAllTextAsync(Path.Combine(path, "Entry.cs"), source, token);
@@ -317,6 +363,8 @@ public sealed class PrivateDependencyBindingTests
           }
         }
         var runtimes=AppDomain.CurrentDomain.GetAssemblies().Where(a=>a.GetName().Name!.StartsWith("QuickerRpc.Runtime")).Select(a=>new{name=a.GetName().Name,version=a.GetName().Version!.ToString(),mvid=a.ManifestModule.ModuleVersionId}).ToArray();
-        Console.WriteLine(JsonSerializer.Serialize(new{fakeOnly=true,oldHandlerRegistered=true,result,error,runtimes,ownedRequesterAccepted,sameIdentityDifferentMvid,concurrentSameImage,rejected}));
+        var diagnostics=current.GetType("QuickerRpc.Plugin.PluginModuleInitializer") is not null&&AppDomain.CurrentDomain.GetAssemblies().Single(a=>a.GetName().Name=="QuickerRpc.Transport.0.14.8.172"&&a.GetType("QuickerRpc.Transport.TransportDiagnostics") is not null).GetType("QuickerRpc.Transport.TransportDiagnostics")!.GetField("Sink")!.GetValue(null) is not null;
+        Console.WriteLine(JsonSerializer.Serialize(new{fakeOnly=true,oldHandlerRegistered=true,result,error,runtimes,ownedRequesterAccepted,sameIdentityDifferentMvid,concurrentSameImage,rejected,
+          embeddedResources=current.GetManifestResourceNames(),generatedFallback=current.GetType("Costura.AssemblyLoader") is not null,diagnosticsInitialized=diagnostics}));
         """;
 }

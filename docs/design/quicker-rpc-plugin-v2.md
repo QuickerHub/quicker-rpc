@@ -22,7 +22,7 @@ V2 adapter 的真实能力与对齐门槛。动作编辑链优先于分享、Chr
 
 V2 Release 的五个自有卫星（Contracts、AgentModel、Host.Abstractions、Runtime、Transport）
 用插件自身的 `Version` 作为 assembly simple name 后缀。旧插件的全局 resolver 仍可能先运行，
-因此不能依靠新的注册顺序或只检查新 handler 的版本。Costura 资源与所有自有引用必须使用
+因此不能依靠新的注册顺序或只检查新 handler 的版本。嵌入资源与所有自有引用必须使用
 同一后缀；宿主的 Microsoft/Newtonsoft 程序集继续共享，不根据宿主版本号猜测依赖。
 
 `PrivateAssemblyVersionSuffix` 只由 V2 Release 图自动传入，恢复、生成文件和输出使用
@@ -33,6 +33,9 @@ CLI/netstandard 保持短名，net472 保持原有后缀规则；Runtime.Test �
 错误 requester/完整身份和两种图的交替恢复编译。
 
 resolver 仅服务本插件或本包嵌入的同一 image，并核验请求及返回的完整程序集身份。
+V2 用显式 MSBuild target 嵌入原 allowlist 的 CopyLocal 依赖，沿用 resolver 的资源名契约，
+不生成 Costura 的宽松 resolver；module initializer 先注册自有 resolver，
+再进入禁止内联的 Transport diagnostics 初始化，避免 JIT 在注册前解析第一个私有引用。
 这里读取自有资源的 MVID 只用于 image 归属，不构成宿主适配表、宿主版本特判或业务权限。
 这些编译与无宿主加载验证不能代替后续协调部署后的实际 V2 业务验收。
 
