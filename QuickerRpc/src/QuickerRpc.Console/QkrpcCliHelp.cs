@@ -395,6 +395,9 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("key", "StepRunner key."), Option("control-field", "Control-field value (from search items[].controlField.value)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("step-runner input-contract", "Read explicit native input policies from an already running capable host. Unknown facts remain blocked; this is not permission to edit a document.", "qkrpc step-runner input-contract --key <stepRunnerKey> [--control-field <value>|--control-field-json <JSON-string>] [--json]",
+                    opts: new[] { Option("key", "StepRunner key.", required: true), Option("control-field", "Exact native control value; omit to use the proven native default."), Option("control-field-json", "JSON string representation, preserving an empty value or leading option characters."), Option("json", "Structured output with explicit zero, false and null facts."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Always enforced for this read.") }),
+
                 Cmd("step-runner get-ui", "UI step-runner schema (full JSON with icon and control options). For action-editor only; agents use step-runner get.", "qkrpc step-runner get-ui --key <stepRunnerKey> [--control-field <value>] [--json]",
 
                     opts: new[] { Option("key", "StepRunner key."), Option("control-field", "Control-field value."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),

@@ -31,7 +31,7 @@ UI / HTTP adapters
 ### 框架去耦与目标运行边界
 
 当前 Next.js 是现有实现的 HTTP/UI 宿主，不是 Agent 的产品要求。主页面只组合客户端
-Chat、启动占位和 Designer URL 参数；当前 72 个 API 路径承担本地服务入口。`/api/chat`
+Chat、启动占位和 Designer URL 参数；当前 75 个 API 路径承担本地服务入口。`/api/chat`
 已经只做 Request 解码与应用层绑定，runner/loop 使用 AI SDK 和标准 Response/SSE。
 SQLite、文件、子进程、ALS 和 stdio MCP 需要 Node.js，不能据此推导出需要 Next.js。
 
@@ -309,6 +309,17 @@ Ask 只有 read_live，嵌套 task 不获得该客户端端口。live scope 不�
 SDK setter 即使接收原数组也会通知，idle repair 只在消息确实改变时发布，避免反馈循环。
 历史恢复仅展示回执，不执行工具。当前 UI pin 只开放主程序 surface，更广文档编辑与保存/
 Sync 协同仍未完成；纯层递归步骤支持不等于嵌套页签 UI 已开放。
+
+参数契约通过可选 `IQuickerRpcStepRunnerInputContractHost` 读取实际模块定义；能力标记为
+`stepRunner.inputContract.read`。Contracts 独立保存原生类型、变量模式、自由输入、控制字段、
+可见性及字面值限制，不复用有损压缩的 Agent schema。未知事实保留未知；当前契约未证明的
+可见表达式或操作成员关系不能授权编辑。CLI/MCP/HTTP 共用 Runtime，读取不启动宿主，
+文档 HTTP 在请求前后核验完整绑定；空控制值与省略控制值分别保留。
+
+`applyProgramDocumentStepInputs` 只负责同一 Session 的既有输入批量事务与保真，不自行推断
+schema 或授予权限。未来客户端工具还须从私有读取记录证明目标、revision、可见性、模式、
+选项和原有绑定；原生 `$=`/`$$` 有求值语义，物理 wire 转义不等于普通文本。该事务尚未接入
+Agent 入口，不能用纯层测试证明实时参数编辑已经完成。
 
 运行时依赖边界由 `scripts/check-designer-document-dependencies.mjs` 检查：递归编译所有
 文档生产入口的传递依赖，不执行产物，拒绝 UI/server 模块与资源、framework directive 及未经允许的

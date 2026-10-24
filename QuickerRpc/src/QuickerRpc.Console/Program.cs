@@ -1860,7 +1860,7 @@ public sealed class SubProgramOptions
 [Verb("step-runner", HelpText = "StepRunner catalog for headless XAction authoring.")]
 public sealed class StepRunnerOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search | get | get-ui | summaries")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | list | get | get-ui | input-contract | summaries")]
     public string? Command { get; set; }
 
     [Option('q', "query", HelpText = "Search keyword for step-runner search.")]
@@ -1871,6 +1871,9 @@ public sealed class StepRunnerOptions
 
     [Option("control-field", HelpText = "Control-field value for step-runner get (e.g. move_ex on sys:windowOperations).")]
     public string? ControlField { get; set; }
+
+    [Option("control-field-json", HelpText = "Exact JSON string control literal for input-contract, including empty values and values beginning with --.")]
+    public string? ControlFieldJson { get; set; }
 
     [Option("limit", Default = 40, HelpText = "Max results for step-runner search.")]
     public int Limit { get; set; }

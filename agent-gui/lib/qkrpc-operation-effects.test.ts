@@ -62,6 +62,13 @@ test("host-read binding and replay policy are distinct for persistent local expo
   assert.equal(Object.isFrozen(getQkrpcOperationEffects(invoke)), true);
 });
 
+test("runtime input contracts are host reads without local exports or mutation receipts", () => {
+  const invoke = { op: "step-runner.input-contract", args: { key: "sys:fixture" } };
+  assert.equal(isQkrpcReadOnlyInvoke(invoke), true);
+  assert.equal(isQkrpcInvokeReplaySafe(invoke), true);
+  assert.deepEqual(getQkrpcOperationEffects(invoke), { mayMutateHost: false, mayPersistLocal: false });
+});
+
 test("only explicit offline dry-run bypasses conservative write effects", () => {
   for (const dryRun of [undefined, false, "true", 1]) {
     const invoke = { op: "action.save", args: { dryRun } };

@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { argvToInvoke } from "./qkrpc-argv.ts";
 
+test("input contracts have their own read invoke and preserve an explicit empty native control value", () => {
+  assert.deepEqual(argvToInvoke(["step-runner", "input-contract", "--key", "sys:fixture", "--control-field", "", "--json"]),
+    { op: "step-runner.input-contract", args: { key: "sys:fixture", controlField: "" } });
+  assert.deepEqual(argvToInvoke(["step-runner", "input-contract", "--key", "sys:fixture"]),
+    { op: "step-runner.input-contract", args: { key: "sys:fixture", controlField: undefined } });
+  assert.equal(argvToInvoke(["step-runner", "input-contract", "--key"]), null);
+  assert.equal(argvToInvoke(["step-runner", "input-contract", "--key", "sys:fixture", "--control-field"]), null);
+  for (const controlField of ["", "--json", "--native-option", "--control-field=x", " A "]) {
+    assert.deepEqual(argvToInvoke(["step-runner", "input-contract", "--key=sys:fixture", `--control-field=${controlField}`, "--json"]),
+      { op: "step-runner.input-contract", args: { key: "sys:fixture", controlField } });
+  }
+});
+
 test("FA page maps its independent criteria without changing legacy search", () => {
   assert.deepEqual(argvToInvoke(["fa", "page", "--query", "camera", "--style", "Brand", "--skip", "24", "--take", "96"]),
     { op: "fa.page", args: { query: "camera", style: "Brand", skip: 24, take: 96 } });

@@ -5,7 +5,7 @@ export type QkrpcInvoke = {
   args: Record<string, unknown>;
 };
 
-function parseFlags(argv: string[]): {
+function parseFlags(argv: string[], inlineValueFlags?: ReadonlySet<string>): {
   positional: string[];
   flags: Record<string, string | boolean>;
 } {
@@ -20,6 +20,11 @@ function parseFlags(argv: string[]): {
       continue;
     }
     if (a.startsWith("--")) {
+      const equals = a.indexOf("=");
+      if (equals > 2 && inlineValueFlags?.has(a.slice(2, equals))) {
+        flags[a.slice(2, equals)] = a.slice(equals + 1);
+        continue;
+      }
       const key = a.slice(2);
       const next = argv[i + 1];
       if (next !== undefined && !next.startsWith("--")) {
@@ -76,7 +81,8 @@ function parseJsonFlag(
 
 export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
   const filtered = argv.filter((a) => a !== "--json");
-  const { positional, flags } = parseFlags(filtered);
+  const literalContract = argv[0] === "step-runner" && argv[1] === "input-contract";
+  const { positional, flags } = parseFlags(filtered, literalContract ? new Set(["key", "control-field", "control-field-json"]) : undefined);
 
   if (positional.length === 0) return null;
 
@@ -552,6 +558,17 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           controlField: flagStr(flags, "control-field"),
         },
       };
+    }
+    if (verb === "input-contract") {
+      if (typeof flags.key !== "string" || !flags.key.trim()
+        || (flags["control-field"] !== undefined && typeof flags["control-field"] !== "string")
+        || (flags["control-field-json"] !== undefined && typeof flags["control-field-json"] !== "string")
+        || (flags["control-field"] !== undefined && flags["control-field-json"] !== undefined)) return null;
+      const controlField = flags["control-field-json"] === undefined ? flagStr(flags, "control-field") : parseJsonFlag(flags, "control-field-json");
+      if (flags["control-field-json"] !== undefined && typeof controlField !== "string") return null;
+      return { op: "step-runner.input-contract", args: {
+        key: flagStr(flags, "key"), controlField,
+      } };
     }
     if (verb === "get-ui") {
       return {
