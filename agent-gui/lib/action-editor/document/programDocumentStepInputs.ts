@@ -1,4 +1,5 @@
 import { compactWireInputParam, expandWireInputParams, parseWireParamKey } from "../../input-param-wire";
+import { parseLosslessJson } from "../shared/losslessJson";
 import { collectRawSubPrograms, isSubProgramRecord, readStepInputsForRunner, type SubProgramRecord } from "./programDocumentSubProgramModel";
 import type { ProgramDocumentEditResult, ProgramDocumentIdentity, ProgramDocumentSession } from "./programDocumentSession";
 
@@ -51,8 +52,11 @@ function findUniqueStep(body: SubProgramRecord, stepId: string): SubProgramRecor
 }
 
 type PreparedInput = { key: string; value: string; previousValue: string; legacy?: { record: SubProgramRecord; field: string } };
+function inputContributors(inputs: SubProgramRecord, key: string): string[] {
+  return Object.keys(inputs).filter((candidate) => parseWireParamKey(candidate).baseKey.trim().toLowerCase() === key.toLowerCase());
+}
 function prepareInput(inputs: SubProgramRecord, key: string, value: string): PreparedInput {
-  const contributors = Object.keys(inputs).filter((candidate) => parseWireParamKey(candidate).baseKey.trim().toLowerCase() === key.toLowerCase());
+  const contributors = inputContributors(inputs, key);
   if (contributors.length !== 1 || contributors[0] !== key || !Object.hasOwn(inputs, key)) {
     throw new Error(`Input parameter ${key} is missing or has binding/case aliases`);
   }
@@ -79,6 +83,28 @@ function prepareInput(inputs: SubProgramRecord, key: string, value: string): Pre
     throw new Error(`Input parameter ${key} is not a plain literal`);
   }
   return { key, value, previousValue: decoded.value, ...(legacy ? { legacy } : {}) };
+}
+
+export type ProgramDocumentStepInputValue = Readonly<{ kind: "missing" } | {
+  kind: "value"; value: string;
+} | { kind: "unavailable"; reason: string }>;
+
+/** Physical values only: dynamic prefixes and native edit policies need a separate proof. */
+export function inspectProgramDocumentStepInputs(content: string, stepId: string, expectedRunnerKey: string) {
+  const body: unknown = parseLosslessJson(content);
+  if (!isSubProgramRecord(body)) throw new Error("The program document root is not an object");
+  const step = findUniqueStep(body, stepId);
+  const inputs = readStepInputsForRunner(step, expectedRunnerKey);
+  if (!inputs) throw new Error("The selected step runner or input map is unavailable");
+  return Object.freeze({
+    readValue(key: string): ProgramDocumentStepInputValue {
+      if (!key || key !== key.trim() || parseWireParamKey(key).kind !== "value")
+        return Object.freeze({ kind: "unavailable", reason: "An exact input value key is required" });
+      if (inputContributors(inputs, key).length === 0) return Object.freeze({ kind: "missing" });
+      try { return Object.freeze({ kind: "value", value: prepareInput(inputs, key, "").previousValue }); }
+      catch (error) { return Object.freeze({ kind: "unavailable", reason: error instanceof Error ? error.message : String(error) }); }
+    },
+  });
 }
 
 /** One raw Session transaction; neither a schema authority nor a file-writing port. */

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { expandWireInputParams } from "../../input-param-wire";
 import { parseLosslessJson, stringifyLosslessJson } from "../shared/losslessJson";
 import { createProgramDocumentSession, type ProgramDocumentIdentity, type ProgramDocumentSession } from "./programDocumentSession";
-import { applyProgramDocumentStepInputs, MAX_STEP_INPUT_CHANGES, MAX_STEP_INPUT_VALUE_LENGTH,
+import { applyProgramDocumentStepInputs, inspectProgramDocumentStepInputs, MAX_STEP_INPUT_CHANGES, MAX_STEP_INPUT_VALUE_LENGTH,
   type ProgramDocumentStepInputsRequest } from "./programDocumentStepInputs";
 
 const identity: ProgramDocumentIdentity = { documentKey: "native-action", host: { kind: "v1", instanceId: "original", actionId: "action", version: "1" }, projectBinding: null };
@@ -25,6 +25,25 @@ function rejected(session: ProgramDocumentSession, input: ProgramDocumentStepInp
   assert.equal(session.getState(), before, "a rejection retains the exact current state");
   assert.equal(session.getHistoryState(), history, "a rejection retains undo and redo");
 }
+
+test("a read inspector distinguishes absent control values from raw bindings without normalizing the document", () => {
+  const session = create({ steps: [step("selected", {
+    text: "", escaped: "@value:@var:literal", expression: "$=1 + 1", legacy: { Value: "old", VarKey: "", future: 1 },
+    whitespace: { value: "not a literal", varKey: " " }, "bound.var": "control", typed: { value: false },
+    ambiguous: { value: "camel", Value: "pascal" },
+  })] });
+  const before = session.getState(), history = session.getHistoryState();
+  const inspector = inspectProgramDocumentStepInputs(before.content, "selected", "fixture:exactRunner");
+  assert.deepEqual(inspector.readValue("missing"), { kind: "missing" });
+  assert.deepEqual(inspector.readValue("text"), { kind: "value", value: "" });
+  assert.deepEqual(inspector.readValue("escaped"), { kind: "value", value: "@var:literal" });
+  assert.deepEqual(inspector.readValue("legacy"), { kind: "value", value: "old" });
+  assert.deepEqual(inspector.readValue("expression"), { kind: "value", value: "$=1 + 1" }, "physical inspection never grants literal semantics");
+  for (const key of ["whitespace", "bound", "typed", "ambiguous", "text.var", "text "])
+    assert.equal(inspector.readValue(key).kind, "unavailable", key);
+  assert.equal(session.getState(), before); assert.equal(session.getHistoryState(), history);
+  assert.throws(() => inspectProgramDocumentStepInputs(before.content, "selected", "fixture:otherRunner"));
+});
 
 test("an Agent batch uses the existing Session once; one undo retains the latest human draft", () => {
   const session = create({ steps: [step("selected", { text: "before", second: { Value: "second", VarKey: "", File: null, future: { intact: true } } })], variables: [] });
