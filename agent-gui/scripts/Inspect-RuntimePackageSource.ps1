@@ -101,6 +101,7 @@ foreach ($candidate in $inspectionPaths) {
 
 if ($TreeRoot) {
     $root = Assert-SourceName $TreeRoot
+    $buildHelper = [IO.Path]::GetFullPath((Join-Path $root 'build/node_gyp_bins'))
     if ($redirectedPaths.Contains($root)) { throw "Package tree root has a redirected ancestor: $root" }
     $pending = [Collections.Generic.Stack[string]]::new()
     $pending.Push($root)
@@ -115,6 +116,12 @@ if ($TreeRoot) {
             $null = Assert-SourceName $entry.FullName
             Assert-SourceAttributes $entry
             $count++
+            # node-gyp's Python PATH shim is build-only. Do not traverse it;
+            # linked or non-directory roots remain invalid source shapes.
+            if ($entry.FullName -ieq $buildHelper) {
+                if (-not $entry.PSIsContainer -or ([long]$entry.Attributes -band 0x400) -ne 0) { throw "Package build helper must be a physical directory: $($entry.FullName)" }
+                continue
+            }
             if ($entry.PSIsContainer -and ([long]$entry.Attributes -band 0x400) -eq 0) { $pending.Push($entry.FullName) }
         }
     }

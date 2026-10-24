@@ -123,6 +123,15 @@ test("incompatible interleaved version cycles fail before any artifact is copied
   assert.equal(existsSync(app), false);
 });
 
+test("invalid encoded exports separators retain Node's resolution error before staging", (t) => {
+  const { source, app } = fixture(t);
+  const owner = pkg(source, "native-owner", "native-owner", { exports: "./build%2fnode_gyp_bins/entry.js" });
+  file(join(owner, "build/node_gyp_bins/entry.js"), "throw new Error('Build helper must never execute');");
+  assert.throws(() => stage(["native-owner"], app, source),
+    (error) => error.code === "ERR_RUNTIME_PACKAGE_INVALID" && error.cause?.code === "ERR_INVALID_MODULE_SPECIFIER");
+  assert.equal(existsSync(app), false);
+});
+
 test("an optional missing from one caller remains absent when another caller needs that name", (t) => {
   const { path, source, app } = fixture(t);
   pkg(source, "a", "a", { optionalDependencies: { "fixture-optional-8ff9": "1" } });
@@ -197,4 +206,70 @@ test("an internal source junction is materialized and remains valid after reloca
   assert.equal(lstatSync(join(copy, "alias")).isSymbolicLink(), false);
   assert.equal(readFileSync(join(copy, "alias/value.txt"), "utf8"), "local payload");
   assert.equal(realpathSync(copy), copy);
+});
+
+test("the production staging path omits node-gyp links and relocates every native runtime companion", (t) => {
+  const { path, source, app } = fixture(t);
+  const owner = pkg(source, "native-owner");
+  const generated = join(path, "generated-python");
+  file(join(generated, "not-runtime.txt"), "synthetic build interpreter bytes");
+  const helpers = join(owner, "build/node_gyp_bins");
+  mkdirSync(helpers, { recursive: true });
+  symlinkSync(generated, join(helpers, "python3"), process.platform === "win32" ? "junction" : "dir");
+  symlinkSync(join(path, "missing-generated-helper"), join(helpers, "dangling"), process.platform === "win32" ? "junction" : "dir");
+  const payloads = new Map([
+    ["build/Release/pty.node", Buffer.from([0, 1, 254, 255])],
+    ["build/Release/spawn-helper", Buffer.from("synthetic Unix runtime helper")],
+    ["build/Release/winpty-agent.exe", Buffer.from("synthetic Windows agent")],
+    ["build/Release/winpty.dll", Buffer.from([3, 0, 255, 9])],
+    ["build/Release/conpty/conpty.dll", Buffer.from("synthetic ConPTY DLL")],
+    ["build/Release/conpty/OpenConsole.exe", Buffer.from("synthetic OpenConsole helper")],
+    ["build/Debug/pty.node", Buffer.from("synthetic Debug addon")],
+    ["prebuilds/linux-x64/pty.node", Buffer.from("synthetic prebuilt addon")],
+    ["dist/build/node_gyp_bins/ordinary.txt", Buffer.from("retained nested lookalike")],
+  ]);
+  for (const [name, bytes] of payloads) file(join(owner, name), bytes);
+  // Exercise the production inspector, including real Windows metadata pruning.
+  assert.equal(stageRuntimePackages(["native-owner"], app, source), 1);
+  const relocated = join(path, "relocated-native-app");
+  renameSync(app, relocated);
+  const copied = findRuntimePackage("native-owner", relocated);
+  assert.equal(existsSync(join(copied, "build/node_gyp_bins")), false);
+  for (const [name, bytes] of payloads) {
+    assert.deepEqual(readFileSync(join(copied, name)), bytes, `${name} survives staging and relocation`);
+    assert.equal(lstatSync(join(copied, name)).isSymbolicLink(), false);
+  }
+});
+
+for (const [name, fields] of [
+  ["main", { main: "build/%6eode_gyp_bins/entry.js" }],
+  ["exports", { exports: { ".": { require: "./build/%6eode_gyp_bins/entry.js" } } }],
+  ["imports", { imports: { "#helper": "./build/%6eode_gyp_bins/entry.js" } }],
+]) test(`staging rejects percent-encoded helper ${name} targets before creating an artifact`, (t) => {
+  const { source, app } = fixture(t);
+  const owner = pkg(source, "native-owner", "native-owner", fields);
+  file(join(owner, "build/node_gyp_bins/entry.js"), "throw new Error('Build helper must never execute');");
+  assert.throws(() => stage(["native-owner"], app, source), /excluded|node_gyp_bins|build helper/i);
+  assert.equal(existsSync(app), false);
+});
+
+for (const [name, fields] of [
+  ["exports:null direct legacy main", { exports: null, main: "build/node_gyp_bins/entry.js" }],
+  ["exports:null percent-encoded legacy main", { exports: null, main: "build/%6eode_gyp_bins/entry.js" }],
+  ["backslash exports", { exports: "./build\\node_gyp_bins/python3/entry.js" }],
+  ["backslash imports", { imports: { "#helper": "./build\\node_gyp_bins/python3/entry.js" } }],
+]) test(`staging rejects ${name} during source inspection`, (t) => {
+  const { source, app } = fixture(t);
+  const owner = pkg(source, "native-owner", "native-owner", fields);
+  file(join(owner, "build/node_gyp_bins/entry.js"), "throw new Error('Build helper must never execute');");
+  file(join(owner, "build/node_gyp_bins/python3/entry.js"), "throw new Error('Build helper must never execute');");
+  const guard = createPackageSourceInspector({ inspectMetadata() {} });
+  let inspectionFailure;
+  const sourceInspector = { ...guard, inspectPackage(path, requested) {
+    try { return guard.inspectPackage(path, requested); }
+    catch (error) { inspectionFailure = error; throw error; }
+  } };
+  assert.throws(() => stageRuntimePackages(["native-owner"], app, source, { sourceInspector }),
+    (error) => error === inspectionFailure && /excluded build helper node_gyp_bins/i.test(error.message));
+  assert.equal(existsSync(app), false);
 });
