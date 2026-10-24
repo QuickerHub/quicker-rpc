@@ -113,6 +113,7 @@ const tests = [
   "lib/action-trace-manual-client.test.ts",
   "lib/action-trace-view.test.ts",
   "lib/qkrpc-http.test.ts",
+  "lib/qkrpc-operation-effects.test.ts",
   "lib/qkrpc-host-binding.test.ts",
   "lib/qkrpc-program-get-readonly.test.ts",
   "lib/qkrpc-host-binding-contract.test.ts",

@@ -8,6 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { currentQkrpcTarget, configuredQkrpcBinding, hasUnverifiedQkrpcRead, markUnverifiedQkrpcRead, bindQkrpcTarget, readHostBinding, isOfflineSourceInvoke, isQkrpcReadOnlyInvoke, bindingFailure, type QkrpcHostBinding } from "@/lib/qkrpc-host-binding";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
+import { isQkrpcInvokeReplaySafe } from "@/lib/qkrpc-operation-effects";
 import { parseQkrpcJson } from "@/lib/qkrpc-json";
 import {
   isBundledAgentRuntime,
@@ -277,7 +278,7 @@ async function tryHttpInvoke(
   abortSignal?.throwIfAborted();
 
   if (httpResult === null) {
-    if (!isQkrpcReadOnlyInvoke(invoke) || currentQkrpcTarget() || options?.hostBinding)
+    if (!isQkrpcInvokeReplaySafe(invoke) || currentQkrpcTarget() || options?.hostBinding)
       return bindingFailure("HOST_UNAVAILABLE", "The bound gateway is unavailable. No CLI fallback was attempted.");
     invalidateServeProbeCache();
     return serveOnly
@@ -285,7 +286,7 @@ async function tryHttpInvoke(
       : "skip";
   }
 
-  if (!isQkrpcReadOnlyInvoke(invoke) || currentQkrpcTarget() || options?.hostBinding) return httpResult;
+  if (!isQkrpcInvokeReplaySafe(invoke) || currentQkrpcTarget() || options?.hostBinding) return httpResult;
 
   if (httpResult.ok) {
     if (shouldRetryHttpStepRunnerMissingIcons(invoke.op, httpResult.parsed)) {
@@ -313,11 +314,13 @@ async function tryHttpInvoke(
 async function spawnQkrpcCli(
   finalArgs: string[],
   options?: QkrpcRunOptions,
+  onProcessStart?: (started: boolean) => void,
 ): Promise<QkrpcRunResult> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
   const bin = resolveBin();
   if (!bin) {
+    onProcessStart?.(false);
     return {
       ok: false,
       exitCode: 1,
@@ -347,6 +350,8 @@ async function spawnQkrpcCli(
       stdio: useStdin ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
+    let spawned = false;
+    child.once("spawn", () => { spawned = true; onProcessStart?.(true); });
 
     let stdout = "";
     let stderr = "";
@@ -396,6 +401,7 @@ async function spawnQkrpcCli(
 
     child.on("error", (err) => {
       if (settled) return;
+      if (!spawned) onProcessStart?.(false);
       settled = true;
       cleanup();
       if (cancelling) { reject(abortSignal?.reason); return; }
@@ -438,8 +444,8 @@ async function runBoundQkrpcCli(args: string[], options?: QkrpcRunOptions): Prom
   const invoke = argvToInvoke(args);
   if (!invoke || isOfflineSourceInvoke(invoke) || invoke.op.startsWith("guide.") || invoke.op === "wait")
     return spawnQkrpcCli(args, options);
-  if (currentQkrpcTarget()?.gateway.startsWith("http") && !isQkrpcReadOnlyInvoke(invoke))
-    return bindingFailure("HOST_BINDING_REQUIRED", "This write belongs to the bound HTTP gateway. No CLI fallback was attempted.");
+  if (currentQkrpcTarget()?.gateway.startsWith("http") && !isQkrpcInvokeReplaySafe(invoke))
+    return bindingFailure("HOST_BINDING_REQUIRED", "This operation belongs to the bound HTTP gateway. No CLI fallback was attempted.");
   let binding = options?.hostBinding ?? currentQkrpcTarget()?.binding;
   if (!binding) {
     const configured = configuredQkrpcBinding();
@@ -475,10 +481,12 @@ async function runBoundQkrpcCli(args: string[], options?: QkrpcRunOptions): Prom
     try { bindQkrpcTarget({ gateway: currentQkrpcTarget()?.gateway ?? "cli", binding }); }
     catch (error) { return bindingFailure("HOST_BINDING_MISMATCH", error instanceof Error ? error.message : String(error)); }
   }
-  const result = await spawnQkrpcCli(args, { ...options, hostBinding: binding });
+  let processStarted: boolean | undefined;
+  const result = await spawnQkrpcCli(args, { ...options, hostBinding: binding }, (started) => { processStarted = started; });
   if (result.ok && !binding) markUnverifiedQkrpcRead();
-  if (!result.ok && !isQkrpcReadOnlyInvoke(invoke) && result.parsed === null)
-    return bindingFailure("WRITE_RESULT_UNKNOWN", result.stderr || "The CLI write result is unknown; inspect the bound host before retrying.");
+  // Only a confirmed launch failure proves nothing ran; a missing spawn event alone does not.
+  if (processStarted !== false && !isQkrpcInvokeReplaySafe(invoke) && result.parsed === null && (!result.ok || args.includes("--json")))
+    return bindingFailure("WRITE_RESULT_UNKNOWN", `${result.stderr ? `${result.stderr}; ` : ""}The CLI operation result is unknown; inspect the bound host and local files before retrying.`);
   return result;
 }
 
@@ -665,7 +673,7 @@ export async function runQkrpcForTool(
     if (result.ok) return result;
     last = result;
     const invoke = argvToInvoke(args);
-    if (!invoke || !isQkrpcReadOnlyInvoke(invoke) || isQkrpcConnectivityFailure(result)) {
+    if (!invoke || !isQkrpcInvokeReplaySafe(invoke) || isQkrpcConnectivityFailure(result)) {
       break;
     }
     if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
@@ -773,10 +781,10 @@ async function runQkrpcWithJsonPayloadOnce(
       { timeoutMs, abortSignal },
     );
     abortSignal?.throwIfAborted();
-    if (httpResult?.ok || (httpResult && !isQkrpcReadOnlyInvoke(invoke!))) {
+    if (httpResult?.ok || (httpResult && !isQkrpcInvokeReplaySafe(invoke!))) {
       return httpResult!;
     }
-    if (currentQkrpcTarget() || !isQkrpcReadOnlyInvoke(invoke!))
+    if (currentQkrpcTarget() || !isQkrpcInvokeReplaySafe(invoke!))
       return httpResult ?? bindingFailure("HOST_UNAVAILABLE", "The bound gateway is unavailable. No CLI fallback was attempted.");
     if (serveOnly) {
       return (

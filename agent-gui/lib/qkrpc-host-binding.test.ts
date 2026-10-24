@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 import { invokeQkrpcHttp } from "./qkrpc-http";
 import { currentQkrpcTarget, readHostBinding, isQkrpcReadOnlyInvoke, type QkrpcHostBinding } from "./qkrpc-host-binding";
 import { runWithAgentRequestContextAsync } from "./qkrpc-request-context";
-import { runQkrpcForTool, runQkrpcWithPatchFileForTool } from "./qkrpc";
+import { formatQkrpcResultForAgent, runQkrpcForTool, runQkrpcWithPatchFileForTool } from "./qkrpc";
+import { isQkrpcBinMissingFailure, isQkrpcConnectivityFailure } from "./qkrpc-connectivity";
 import { saveActionFromWorkspace } from "./action-project-workflow";
 import { getActionProjectSyncStatus } from "./action-project-sync";
 import { parseQkrpcJson } from "./qkrpc-json";
@@ -36,6 +37,91 @@ const b: QkrpcHostBinding = { ...a, hostInstanceId: "instance-b", hostSessionId:
   endpoint: "QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", hostKind: "v2",
   capabilities: { "action.source.read": false } };
 
+test("a CLI process that never starts preserves its known launch failure", async () => {
+  const keys = ["QKRPC_TRANSPORT", "QKRPC_BIN", "QKRPC_HOST_BINDING"];
+  const previous = keys.map((key) => process.env[key]);
+  process.env.QKRPC_TRANSPORT = "cli";
+  process.env.QKRPC_BIN = process.execPath;
+  process.env.QKRPC_HOST_BINDING = JSON.stringify(a);
+  let calls = 0;
+  const spawn = mock.method(childProcess, "spawn", () => {
+    calls += 1;
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill() {} });
+    setImmediate(() => child.emit("error", Object.assign(new Error("spawn fixture.exe ENOENT"), { code: "ENOENT" })));
+    return child as unknown as ReturnType<typeof childProcess.spawn>;
+  });
+  syncBuiltinESMExports();
+  try {
+    for (const operation of ["open", "save"]) {
+      const result = await runWithAgentRequestContextAsync({}, () => runQkrpcForTool(["action", operation, "--id", "fixture-only", "--dir", ".tmp/fixture-only"]));
+      assert.equal(result.parsed, null);
+      assert.equal(isQkrpcBinMissingFailure(result), true);
+      assert.equal((formatQkrpcResultForAgent(result).data as { status?: string }).status, "bin_missing");
+    }
+    assert.equal(calls, 2);
+  } finally {
+    spawn.mock.restore(); syncBuiltinESMExports();
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+  }
+});
+
+test("a successful CLI exit without its requested JSON acknowledgement cannot certify a local export", async () => {
+  const keys = ["QKRPC_TRANSPORT", "QKRPC_BIN", "QKRPC_HOST_BINDING"];
+  const previous = keys.map((key) => process.env[key]);
+  process.env.QKRPC_TRANSPORT = "cli";
+  process.env.QKRPC_BIN = process.execPath;
+  process.env.QKRPC_HOST_BINDING = JSON.stringify(a);
+  let calls = 0;
+  const spawn = mock.method(childProcess, "spawn", () => {
+    calls += 1;
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill() {} });
+    setImmediate(() => { child.emit("spawn"); child.stdout.write("fixture incomplete acknowledgement"); child.emit("close", 0); });
+    return child as unknown as ReturnType<typeof childProcess.spawn>;
+  });
+  syncBuiltinESMExports();
+  try {
+    const argv = ["action", "extract", "--id", "fixture-only", "--dir", ".tmp/fixture-only"];
+    const machine = await runWithAgentRequestContextAsync({}, () => runQkrpcForTool(argv));
+    assert.equal(machine.ok, false);
+    assert.equal((machine.parsed as { error?: string })?.error, "WRITE_RESULT_UNKNOWN");
+    const text = await runWithAgentRequestContextAsync({}, () => runQkrpcForTool(argv, { json: false }));
+    assert.equal(text.ok, true, "explicit text mode still accepts the process success receipt");
+    assert.equal(text.stdout, "fixture incomplete acknowledgement");
+    assert.equal(calls, 2);
+  } finally {
+    spawn.mock.restore(); syncBuiltinESMExports();
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+  }
+});
+
+test("a CLI timeout before a spawn event remains uncertain rather than claiming the process never started", async () => {
+  const keys = ["QKRPC_TRANSPORT", "QKRPC_BIN", "QKRPC_HOST_BINDING"];
+  const previous = keys.map((key) => process.env[key]);
+  process.env.QKRPC_TRANSPORT = "cli";
+  process.env.QKRPC_BIN = process.execPath;
+  process.env.QKRPC_HOST_BINDING = JSON.stringify(a);
+  let calls = 0, kills = 0;
+  let entered!: () => void;
+  const ready = new Promise<void>((resolve) => { entered = resolve; });
+  const spawn = mock.method(childProcess, "spawn", () => {
+    calls += 1; entered();
+    return Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill() { kills += 1; } }) as unknown as ReturnType<typeof childProcess.spawn>;
+  });
+  syncBuiltinESMExports();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const pending = runWithAgentRequestContextAsync({}, () => runQkrpcForTool(["action", "extract", "--id", "fixture-only", "--dir", ".tmp/fixture-only"], { timeoutMs: 1 }));
+    await ready;
+    mock.timers.tick(1);
+    const result = await pending;
+    assert.equal((result.parsed as { error?: string })?.error, "WRITE_RESULT_UNKNOWN");
+    assert.equal(calls, 1); assert.equal(kills, 1);
+  } finally {
+    mock.timers.reset(); spawn.mock.restore(); syncBuiltinESMExports();
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+  }
+});
+
 async function isolated(fetch: typeof globalThis.fetch, run: () => Promise<void>) {
   const oldFetch = globalThis.fetch;
   const keys = ["QKRPC_HTTP_URL", "QKRPC_TRANSPORT", "QKRPC_HOST_BINDING", "QKRPC_HOST_SESSION", "QKRPC_BIN"];
@@ -53,6 +139,42 @@ async function isolated(fetch: typeof globalThis.fetch, run: () => Promise<void>
 }
 
 function request(init?: RequestInit) { return JSON.parse(String(init?.body)) as { op: string; hostBinding?: QkrpcHostBinding }; }
+
+test("generic HTTP exports preserve unknown receipts through turn gating and Agent formatting", async () => {
+  let spawns = 0;
+  const posts: string[] = [];
+  const spawn = mock.method(childProcess, "spawn", () => { spawns += 1; throw new Error("Unexpected CLI fallback"); });
+  syncBuiltinESMExports();
+  try {
+    for (const response of [() => new Response(""), () => new Response("{invalid"), () => { throw new Error("fetch failed after local export"); }]) {
+      await isolated(async (url, init) => {
+        if (String(url).endsWith("/health")) return Response.json({ service: "qkrpc", ok: true });
+        const operation = request(init).op;
+        // Older hosts have no verified identity. Test the result itself, rather than relying on the turn binding to block fallback.
+        if (operation === "host.list") return Response.json({ ok: true, data: { candidates: [] } });
+        posts.push(operation);
+        return response();
+      }, () => runWithAgentRequestContextAsync({}, async () => {
+        const result = await runQkrpcForTool(["action", "extract", "--id", "fixture-only", "--dir", ".tmp/fixture-only"]);
+        assert.equal(currentQkrpcTarget(), undefined);
+        assert.equal((result.parsed as { error?: string })?.error, "WRITE_RESULT_UNKNOWN");
+        assert.equal(isQkrpcConnectivityFailure(result), false);
+        const formatted = formatQkrpcResultForAgent(result);
+        assert.equal(formatted.ok, false);
+        assert.equal((formatted.data as { error?: string }).error, "WRITE_RESULT_UNKNOWN");
+        assert.equal((formatted.data as { retryable?: boolean }).retryable, false);
+        assert.equal((formatted.data as { guidance?: unknown }).guidance, undefined);
+        assert.equal(JSON.stringify(formatted).includes("qkrpc_wait"), false);
+        assert.equal(isQkrpcBinMissingFailure({ ...result, stderr: "fixture ENOENT after dispatch" }), false);
+        // A diagnostic read in the same turn remains possible: the unknown receipt must not become a connectivity-blocked recovery instruction.
+        assert.equal((await runQkrpcForTool(["fa", "search", "--query", "fixture-only"])).ok, false);
+      }));
+    }
+    assert.equal(spawns, 0);
+    assert.equal(posts.filter((op) => op === "action.extract").length, 3);
+    assert.equal(posts.filter((op) => op === "fa.search").length, 3, "no connectivity gate replaces the subsequent read");
+  } finally { spawn.mock.restore(); syncBuiltinESMExports(); }
+});
 
 test("multiple hosts require selection; source capability filters and binding is immutable", async () => {
   let writes = 0;

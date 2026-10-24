@@ -6,6 +6,7 @@ import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
+import { isQkrpcInvokeReplaySafe } from "@/lib/qkrpc-operation-effects";
 
 const WORKSPACE_PROJECT_OPS = new Set([
   "action.open",
@@ -132,14 +133,15 @@ export async function invokeQkrpcHttp(
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
   const offline = isOfflineSourceInvoke(invoke) || invoke.op.startsWith("guide.");
-  const write = !isQkrpcReadOnlyInvoke(invoke);
+  const hostWrite = !isQkrpcReadOnlyInvoke(invoke);
+  const write = !isQkrpcInvokeReplaySafe(invoke);
   const existing = currentQkrpcTarget();
   if (existing?.gateway === "cli" && !offline)
     return bindingFailure("HOST_BINDING_MISMATCH", "This turn is bound to CLI; no HTTP gateway was contacted.");
   const configured = !offline && !options?.hostBinding && !existing ? configuredQkrpcBinding() : undefined;
   if (configured && "exitCode" in configured) return configured;
   const base = (existing?.gateway === "cli" ? undefined : existing?.gateway)
-    ?? (write || offline ? resolveQkrpcHttpBase() : await alignQkrpcHttpBaseIfNeeded(abortSignal));
+    ?? (hostWrite || offline ? resolveQkrpcHttpBase() : await alignQkrpcHttpBaseIfNeeded(abortSignal));
   let binding = offline ? undefined : options?.hostBinding ?? existing?.binding ?? configured;
   const timeoutMs = options?.timeoutMs ?? 120_000;
   const controller = new AbortController();
@@ -186,21 +188,24 @@ export async function invokeQkrpcHttp(
     const text = await res.text();
     abortSignal?.throwIfAborted();
     if (!text.trim()) {
-      return write ? bindingFailure("WRITE_RESULT_UNKNOWN", "The write response was empty. Inspect the bound host before retrying.") : null;
+      return write ? bindingFailure("WRITE_RESULT_UNKNOWN", "The operation response was empty; inspect the bound host and local files before retrying.") : null;
     }
     let body: ServeInvokeBody;
     try {
       body = parseQkrpcJson(text) as ServeInvokeBody;
     } catch {
+      if (write) return bindingFailure("WRITE_RESULT_UNKNOWN", "qkrpc serve returned invalid JSON; host or local changes may have persisted. Inspect before retrying.");
       return {
         ok: false,
         exitCode: 1,
         stdout: "",
         stderr: "qkrpc serve returned invalid JSON",
-        parsed: write ? { error: "WRITE_RESULT_UNKNOWN", retryable: false } : null,
+        parsed: null,
         truncated: false,
       };
     }
+    if (write && (typeof body !== "object" || body === null || typeof body.ok !== "boolean"))
+      return bindingFailure("WRITE_RESULT_UNKNOWN", "The operation acknowledgement was invalid; inspect the bound host and local files before retrying.");
     if (!binding && !offline) {
       const returned = readHostBinding(body.hostBinding);
       if (returned) bindQkrpcTarget({ gateway: base, binding: returned });
@@ -231,8 +236,8 @@ export async function invokeQkrpcHttp(
       return bindingFailure("HOST_BINDING_MISMATCH", e.message);
     if (write && !dispatched) return bindingFailure("HOST_UNAVAILABLE", `Host binding could not be verified. ${e instanceof Error ? e.message : String(e)}`);
     if (write) return bindingFailure("WRITE_RESULT_UNKNOWN", timedOut
-      ? `qkrpc HTTP request timed out after ${timeoutMs}ms; inspect the bound host before retrying.`
-      : `Write result is unknown; inspect the bound host before retrying. ${e instanceof Error ? e.message : String(e)}`);
+      ? `qkrpc HTTP request timed out after ${timeoutMs}ms; inspect the bound host and local files before retrying.`
+      : `Operation result is unknown; inspect the bound host and local files before retrying. ${e instanceof Error ? e.message : String(e)}`);
     if (timedOut) return httpTimeoutResult(timeoutMs);
     if (isServeUnreachableError(e)) {
       return existing || binding ? bindingFailure("HOST_UNAVAILABLE", "The bound gateway/host is unavailable.") : null;
