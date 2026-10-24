@@ -80,13 +80,14 @@ window.fetch = async (input, init) => {
    const result={ok:true,query:q,style,skip,take,names:all.slice(skip,skip+take),totalCount:all.length,hasMore:skip+take<all.length};
    const row={body:catalogRequest,aborted:false};state.faRequests.push(row);
    init.signal?.addEventListener('abort',()=>{row.aborted=true},{once:true});
+   if(state.faMode==='more-fail'&&skip>0)return new Response(JSON.stringify({ok:false,code:'PAGE_READ_FAILED',error:'fixture next page failed',retryable:false}),{status:503,headers:{'Content-Type':'application/json'}});
    if(state.faMode==='unsupported')return new Response(JSON.stringify({ok:false,code:'UNSUPPORTED_HOST',error:'fixture page unsupported',retryable:false}),{status:503,headers:{'Content-Type':'application/json'}});
    value=state.faMode==='defer'?await new Promise(resolve=>state.faPending.push({row,resolve:tag=>resolve(tag?{...result,names:result.names.map(name=>name.replace('_'+letter+'_','_'+tag+'_'))}:result)})):result;
  }
  else if(url.pathname==='/api/fa/resolve') {
    if(!catalogRequest.catalogContext?.expectedProjectBinding){state.unexpected.push('unbound fa geometry');throw new Error('Unbound FA geometry');}
    state.geometryRequests.push(catalogRequest);
-   value={ok:true,items:catalogRequest.specs.map(spec=>({spec,enumName:spec.slice(3).split(':')[0],path:'M0 0H20V20H0Z',width:20,height:20})),errors:[]};
+   value={ok:true,items:catalogRequest.specs.map(spec=>({spec,enumName:spec.slice(3).split(':')[0],path:'M0 0H20V20H0Z',width:20,height:20,color:spec.split(':')[2]||null})),errors:[]};
  }
  else {state.unexpected.push(url.pathname+url.search+(url.pathname==='/api/step-runner/get'?':'+catalogRequest.key:''));throw new Error('Unexpected fixture request: '+url.pathname+url.search);}
  if(syncRequest?.expectedProjectBinding&&value.ok)value={...value,projectBinding:syncRequest.expectedProjectBinding,projectDirectory:syncRequest.projectDirectory};
@@ -437,6 +438,48 @@ test("shared FA picker composes the Regular Brands page seam and retains visible
     assert.equal(await picker.getByRole("option").count(), 0);
     await picker.getByRole("button", { name: "取消", exact: true }).click();
     assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), "iconify:mdi:code-tags");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker pauses automatic pagination after an error until an explicit retry", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await page.evaluate(() => { (window as any).fixture.faMode = "more-fail"; });
+    await openAppearancePicker(page); const picker = iconDialog(page);
+    await picker.getByRole("option", { name: "Light_a__95", exact: true }).waitFor();
+    const grid = picker.getByRole("listbox", { name: "图标列表" });
+    await grid.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await picker.getByRole("alert").filter({ hasText: "fixture next page failed" }).waitFor();
+    await picker.getByRole("button", { name: "加载更多", exact: true }).scrollIntoViewIfNeeded();
+    // A visible observer gets several delivery frames; a failed page must not recreate an automatic retry loop.
+    await page.evaluate("new Promise(resolve=>{let frames=0;const next=()=>{if(++frames===5)resolve();else requestAnimationFrame(next)};requestAnimationFrame(next)})");
+    const moreCalls = () => page.evaluate(() => (window as any).fixture.faRequests.filter((row: any) => row.body.skip > 0).length);
+    assert.equal(await moreCalls(), 1, "a visible sentinel cannot retry a failed page without a user action");
+    assert.equal(await picker.getByRole("option").count(), 96, "the first page remains usable");
+    await page.evaluate(() => { (window as any).fixture.faMode = "success"; });
+    await picker.getByRole("button", { name: "加载更多", exact: true }).click();
+    await picker.getByRole("option", { name: "Light_a__191", exact: true }).waitFor();
+    assert.equal(await moreCalls(), 2, "one explicit retry dispatches the next page once");
+    assert.equal(await picker.getByRole("alert").count(), 0, "a successful retry clears the earlier page error");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("shared FA picker manual preview uses its own colored geometry without rewriting the spec", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ realIcons: true });
+  try {
+    await openAppearancePicker(page); const picker = iconDialog(page);
+    await picker.getByRole("option", { name: "Light_a__0", exact: true }).waitFor();
+    await picker.getByTitle("#4f9bd8", { exact: true }).click();
+    await picker.getByRole("tab", { name: "URL / 图标规格", exact: true }).click();
+    const spec = "fa:Light_Manual:#ff0000";
+    await picker.getByLabel("图片 URL 或图标规格").fill(spec);
+    await page.waitForFunction(() => document.querySelector('.icon-picker-dialog__preview svg path')?.getAttribute('fill')?.toLowerCase() === '#ff0000');
+    assert.equal(await picker.getByLabel("所选图标预览").locator("svg path").evaluate((element) => getComputedStyle(element).fill), "rgb(255, 0, 0)",
+      "manual geometry cannot inherit the FA tab's earlier color selection");
+    await picker.getByRole("button", { name: "使用此图标", exact: true }).click();
+    assert.equal(await page.getByLabel("图标", { exact: true }).inputValue(), spec, "manual spec spelling stays unchanged");
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });

@@ -97,6 +97,7 @@ function PickerOpening({ active = true, port, ...props }: Props & { port?: Desig
       if (!current(controller)) return;
       await resolveDesignerFaIcons(port, result.names.map((name) => buildFaIconSpec(name)), controller.signal);
       if (!current(controller)) return;
+      setError(undefined);
       setPage({ controller, names: [...snapshot.names, ...result.names], hasMore: result.hasMore, totalCount: result.totalCount, more: false, loading: false });
     } catch (failure) {
       if (current(controller)) { setError(failure instanceof Error ? failure.message : String(failure)); setPage({ ...snapshot, more: false }); }
@@ -105,12 +106,12 @@ function PickerOpening({ active = true, port, ...props }: Props & { port?: Desig
   const loadMoreRef = useRef(loadMore); loadMoreRef.current = loadMore;
   useEffect(() => {
     const target = sentinel.current, container = grid.current;
-    if (!active || tab !== "fa" || !page?.hasMore || page.more || !target || !container) return;
+    if (!active || tab !== "fa" || error || !page?.hasMore || page.more || !target || !container) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) void loadMoreRef.current();
     }, { root: container, rootMargin: "120px" });
     observer.observe(target); return () => observer.disconnect();
-  }, [active, tab, page]);
+  }, [active, tab, page, error]);
 
   const confirm = (spec = previewSpec) => {
     if (!live.current.active || entry.current.port !== live.current.port) return;
@@ -170,7 +171,7 @@ function PickerOpening({ active = true, port, ...props }: Props & { port?: Desig
           </div></> : <div className="icon-picker-dialog__manual"><label>图片 URL 或图标规格<input ref={input} data-picker-confirm="true" value={manual} spellCheck={false} placeholder="https://… / res:… / fa:…" onChange={(event) => setManual(event.target.value)} /></label><p>也可以保留或填写现有的图标规格；此处不查询上传图标库。</p>
             {unavailable || error ? <p role="alert" className="icon-picker-dialog__error">{unavailable || error}</p> : null}</div>}
       </div>
-      <footer className="icon-picker-dialog__footer"><div className="icon-picker-dialog__preview" aria-label="所选图标预览" style={{ "--icon-picker-tint": tint } as CSSProperties}>
+      <footer className="icon-picker-dialog__footer"><div className="icon-picker-dialog__preview" data-local-tint={tab === "fa" ? "true" : undefined} aria-label="所选图标预览" style={{ "--icon-picker-tint": tint } as CSSProperties}>
         <IconControl spec={tab === "fa" ? buildFaIconSpec(selectedName) : previewSpec} size={28} fallback={null} /><code>{previewSpec || "（未选择）"}</code></div>
         <div className="icon-picker-dialog__actions"><button type="button" onClick={props.onClose}>取消</button><button type="button" disabled={!previewSpec.trim() || !ownerMatches || (tab === "fa" && (!remote || !page || page.loading || !current(page.controller)))} onClick={() => confirm()}>使用此图标</button></div></footer>
     </div>

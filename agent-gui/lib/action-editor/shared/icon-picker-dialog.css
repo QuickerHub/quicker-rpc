@@ -25,7 +25,7 @@
 .icon-picker-dialog__grid { flex: 1 1 auto; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill,minmax(52px,1fr)); align-content: start; gap: 8px; padding: 10px; border: 1px solid var(--ad-border-subtle); border-radius: 10px; background: var(--ad-bg-canvas); scrollbar-gutter: stable; }
 .icon-picker-dialog .icon-picker-dialog__cell { width: 100%; height: 52px; min-height: 52px; align-self: start; display: flex; align-items: center; justify-content: center; padding: 4px; border: 1px solid transparent; border-radius: 9px; background: transparent; }
 .icon-picker-dialog .icon-picker-dialog__cell[aria-selected=true] { border-color: var(--ad-accent); background: color-mix(in srgb,var(--ad-accent) 12%,transparent); }
-.icon-picker-dialog__cell svg path, .icon-picker-dialog__preview svg path { fill: var(--icon-picker-tint); }
+.icon-picker-dialog__cell svg path, .icon-picker-dialog__preview[data-local-tint="true"] svg path { fill: var(--icon-picker-tint); }
 .icon-picker-dialog__empty { grid-column: 1/-1; padding: 25px 10px; text-align: center; color: var(--ad-fg-muted); }
 .icon-picker-dialog__load-more { grid-column: 1/-1; display: grid; justify-content: center; }
 .icon-picker-dialog__footer { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding: 10px 12px; border-top: 1px solid var(--ad-border-default); }
