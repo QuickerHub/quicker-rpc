@@ -323,6 +323,10 @@ schema 或授予权限。客户端 `read_live(stepSchemaFor)` 在同一 scope �
 operationId 去重，进入 pending 前同步预留有界回执名额；取消一个 observer 不取消其它
 observer，关闭 scope 则中断全部等待。
 
+原 UI handle 同步报告各保留 surface 的确认弹窗及工作区属性/删除/图标弹窗状态，endpoint
+在 flush、读取、metadata 等待前后及同步修改前核验。忙碌返回 `LIVE_DOCUMENT_BUSY`，保留
+原 target 与失败回执，不自动提交确认草稿；普通字段继续使用既有 compact-form flusher。
+
 `edit_step_inputs_live` 从私有记录和当前原文重新证明可编辑键、模式、可见性与封闭选项，
 再同步调用原 controller 的单次事务；提交和回执间不 await。原生 `$=`/`$$` 有求值语义，
 物理 wire 转义不等于普通文本；当前普通值操作保守拒绝美元符号及格式字符，不覆盖变量/

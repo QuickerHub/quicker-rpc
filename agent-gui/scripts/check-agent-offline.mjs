@@ -93,6 +93,7 @@ const tests = [
   "lib/action-editor/document/programDocumentStepInputs.test.ts",
   "lib/action-editor/document/programDocumentHistory.test.ts",
   "lib/action-editor/program/programDocumentEditorController.test.ts",
+  "lib/action-editor/program/liveProgramDocumentEndpoint.test.ts",
   "lib/action-editor/document/programDocumentSubProgramProperties.test.ts",
   "lib/action-editor/document/programDocumentSubPrograms.test.ts",
   "lib/action-editor/document/programDocumentMetadata.test.ts",

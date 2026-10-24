@@ -14,7 +14,7 @@ const editStepInputs = z.object({
   readOperationId: z.string().min(1),
   expectedRevision: z.number().int().nonnegative(),
   stepId: z.string().min(1),
-  changes: z.array(z.object({ key: z.string().min(1).max(256), value: z.string().max(100_000) }).strict()).max(32),
+  changes: z.array(z.object({ key: z.string().min(1).max(256), value: z.string().max(100_000) }).strict()).min(1).max(32),
 }).strict();
 export const liveProgramDocumentInputSchema = z.discriminatedUnion("action", [readInput, editInput, editStepInputs]);
 

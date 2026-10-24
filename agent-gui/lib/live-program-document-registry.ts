@@ -237,7 +237,7 @@ export function createLiveProgramDocumentRegistry(options: {
       const pending = scope.pending.get(command.operationId);
       if (pending && pending !== preparing) return fail(descriptor, command, pending.fingerprint === fingerprint ? "LIVE_OPERATION_PENDING" : "LIVE_OPERATION_CONFLICT", "This operation already has an in-flight metadata read.");
       if (scope.operations.size + scope.pending.size - (preparing ? 1 : 0) >= 128) return fail(descriptor, command, "LIVE_OPERATION_LIMIT", "The receipt ledger is full; prior outcomes were retained.");
-      if (!validInput(command.input)) return store(fail(descriptor, command, "LIVE_INVALID_INPUT", "Only a complete read or a versioned unique-step note edit is supported."));
+      if (!validInput(command.input)) return store(fail(descriptor, command, "LIVE_INVALID_INPUT", "Only a complete live read or a versioned pinned-step edit is supported."));
       if (command.input.action === "read_live" && command.input.stepSchemaFor !== undefined && !preparing)
         return store(fail(descriptor, command, "LIVE_ASYNC_READ_REQUIRED", "Native input metadata must be read through executeAsync."));
       const current = target(scope.entry);
