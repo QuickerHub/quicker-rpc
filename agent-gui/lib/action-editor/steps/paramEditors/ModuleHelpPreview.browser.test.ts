@@ -201,6 +201,15 @@ async function navigationFixture(sameOrigin = false) {
       }
       return route.abort();
     });
+    await page.addInitScript(() => {
+      const activate = HTMLDialogElement.prototype.showModal;
+      (window as any).helpDialogActivations = [];
+      HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+        const frameAlreadyMounted = this.querySelector("iframe") !== null;
+        activate.call(this);
+        (window as any).helpDialogActivations.push({ frameAlreadyMounted, modal: this.matches(":modal") });
+      };
+    });
     await page.goto(workspaceUrl);
     const css = await Promise.all(["components/action-editor/action-editor-theme.css", "components/action-editor/action-editor.css", "components/action-editor/program-editor-toolbox.css"].map(file => readFile(file, "utf8")));
     await page.addStyleTag({ content: css.join("\n") + "\n#root{height:100vh;}" });
@@ -253,6 +262,10 @@ test("module help sandbox blocks frame popups and downloads", { timeout: 45_000 
 test("module help sandbox isolates same-origin help from the workspace", { timeout: 45_000 }, async () => {
   const f = await navigationFixture(true);
   try {
+    assert.deepEqual(await f.page.evaluate(() => (window as any).helpDialogActivations),
+      [{ frameAlreadyMounted: false, modal: true }], "activate the native modal before creating its child browsing context");
+    assert.equal(await f.page.locator(".module-help-preview iframe").getAttribute("sandbox"), "allow-scripts");
+    assert.equal(await f.frame.locator("body").evaluate(() => self.origin), "null");
     await f.frame.getByRole("button", { name: "Read workspace", exact: true }).click();
     await f.frame.getByText("Parent blocked", { exact: true }).waitFor();
     await f.frame.getByRole("link", { name: "Leave workspace", exact: true }).click();
