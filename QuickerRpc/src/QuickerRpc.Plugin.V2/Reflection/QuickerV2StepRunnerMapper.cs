@@ -6,7 +6,7 @@ namespace QuickerRpc.Plugin.V2.Reflection;
 
 internal static class QuickerV2StepRunnerMapper
 {
-    public static StepRunnerDefinition? MapRunner(object runner, bool captureInputPolicy = false)
+    public static StepRunnerDefinition? MapRunner(object runner, bool captureInputPolicy = false, bool captureKnowledgeEvidence = false)
     {
         var key = QuickerV2Reflection.ReadString(runner, "Key");
         if (string.IsNullOrWhiteSpace(key))
@@ -17,19 +17,19 @@ internal static class QuickerV2StepRunnerMapper
         var runnerType = runner.GetType();
         return new StepRunnerDefinition
         {
-            InputContractVisibilityUnknownReason = captureInputPolicy ? StepRunnerNativeInputPolicy.CaptureRunnerVisibilityUnknownReason(runner) : null,
+            InputContractVisibilityUnknownReason = captureInputPolicy || captureKnowledgeEvidence ? StepRunnerNativeInputPolicy.CaptureRunnerVisibilityUnknownReason(runner) : null,
             Key = key,
             Name = QuickerV2Reflection.ReadString(runner, "Name") ?? string.Empty,
             Description = QuickerV2Reflection.ReadString(runner, "Description") ?? string.Empty,
             Icon = QuickerV2Reflection.ReadString(runner, "Icon") ?? string.Empty,
             HelpLink = QuickerV2Reflection.ReadString(runner, "HelpLink"),
             Category = ReadEnumString(runner, "Category"),
-            InputParamDefs = MapInputs(runnerType.GetProperty("InputParams")?.GetValue(runner), captureInputPolicy),
+            InputParamDefs = MapInputs(runnerType.GetProperty("InputParams")?.GetValue(runner), captureInputPolicy, captureKnowledgeEvidence),
             OutputParamDefs = MapOutputs(runnerType.GetProperty("OutputParams")?.GetValue(runner)),
         };
     }
 
-    private static IList<StepRunnerInputParamDef> MapInputs(object? defs, bool captureInputPolicy)
+    private static IList<StepRunnerInputParamDef> MapInputs(object? defs, bool captureInputPolicy, bool captureKnowledgeEvidence = false)
     {
         var list = new List<StepRunnerInputParamDef>();
         if (defs is not IEnumerable enumerable)
@@ -57,7 +57,7 @@ internal static class QuickerV2StepRunnerMapper
             var selectionItems = MapSelection(ReadProperty(p, "SelectionItems"));
             list.Add(new StepRunnerInputParamDef
             {
-                NativeInputPolicy = captureInputPolicy ? StepRunnerNativeInputPolicy.Capture(p) : null,
+                NativeInputPolicy = captureInputPolicy || captureKnowledgeEvidence ? StepRunnerNativeInputPolicy.Capture(p) : null,
                 Key = key,
                 Name = QuickerV2Reflection.ReadString(p, "Name") ?? string.Empty,
                 Description = QuickerV2Reflection.ReadString(p, "Description") ?? string.Empty,
