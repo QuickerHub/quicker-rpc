@@ -63,4 +63,5 @@ public static class QuickerRpcHostCapabilityNames
     public const string DesignerQuickInsertRead = "designer.quickInsert.read";
     public const string DesignerToolboxRead = "designer.toolbox.read";
     public const string DesignerFontAwesomeResolve = "designer.fontAwesome.resolve";
+    public const string DesignerFontAwesomePageRead = "designer.fontAwesome.page.read";
 }

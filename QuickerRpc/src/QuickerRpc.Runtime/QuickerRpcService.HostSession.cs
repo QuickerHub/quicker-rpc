@@ -47,6 +47,7 @@ public sealed partial class QuickerRpcService
                 [QuickerRpcHostCapabilityNames.DesignerQuickInsertRead] = designerReads?.IsStepQuickInsertAvailable ?? legacyV1DesignerReads,
                 [QuickerRpcHostCapabilityNames.DesignerToolboxRead] = designerReads?.IsToolboxModulesAvailable ?? legacyV1DesignerReads,
                 [QuickerRpcHostCapabilityNames.DesignerFontAwesomeResolve] = designerReads?.IsFontAwesomeGeometryAvailable ?? legacyV1DesignerReads,
+                [QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead] = (_host.Designer as IQuickerRpcDesignerFontAwesomePageHost)?.IsFontAwesomePageAvailable ?? false,
             },
         });
     }

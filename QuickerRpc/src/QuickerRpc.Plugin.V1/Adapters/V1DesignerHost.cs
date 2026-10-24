@@ -7,13 +7,23 @@ using QuickerRpc.Plugin.Services;
 
 namespace QuickerRpc.Plugin.Adapters;
 
-internal sealed class V1DesignerHost : IQuickerRpcDesignerHost
+internal sealed class V1DesignerHost : IQuickerRpcDesignerHost, IQuickerRpcDesignerFontAwesomePageHost
 {
     private readonly ActionEditService _actionEdit;
     private readonly HeadlessSubProgramProgramService _subPrograms;
     private readonly HeadlessActionProgramService _programs;
     private readonly TextToolRunService _textTool;
     private readonly FontAwesomeIconSearchService _icons;
+    public bool IsFontAwesomePageAvailable => _icons.IsPageAvailable;
+
+    public Task<QuickerRpcFontAwesomePageResult> SearchFontAwesomeIconsPageAsync(string? query, string? style,
+        int skip = 0, int take = 96, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = _icons.SearchPage(query, style, skip, take);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(result);
+    }
 
     public V1DesignerHost(
         ActionEditService actionEdit,
