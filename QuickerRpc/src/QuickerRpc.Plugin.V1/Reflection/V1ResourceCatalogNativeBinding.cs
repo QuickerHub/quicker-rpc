@@ -19,6 +19,7 @@ internal sealed class V1ResourceCatalogNativeBinding : IV1ResourceCatalogNativeB
 {
     // Product source 73597b433950693b504f5e908bdf512deea37927. A version string alone is insufficient.
     internal static readonly Guid SupportedModuleId = new("1379c179-2a75-4249-8c0d-320e8ed054fc");
+    internal static readonly Guid SupportedCommonModuleId = new("91b3fb2e-8be3-4484-9457-cf0031d10870");
     private readonly FieldInfo _dataService, _loaded, _exiting, _syncRoot, _hub, _globalPrograms, _userInfo, _userId;
     private readonly MethodInfo _actions;
 
@@ -44,14 +45,19 @@ internal sealed class V1ResourceCatalogNativeBinding : IV1ResourceCatalogNativeB
             throw new InvalidOperationException("The native catalog return contract changed.");
     }
 
-    internal static bool IsKnownModule(Guid moduleId) => moduleId == SupportedModuleId;
+    internal static bool IsKnownModules(Guid moduleId, Guid commonModuleId) =>
+        moduleId == SupportedModuleId && commonModuleId == SupportedCommonModuleId;
 
     public static IV1ResourceCatalogNativeBinding? TryCreate()
     {
         if (!string.Equals(Assembly.GetEntryAssembly()?.GetName().Name, "Quicker", StringComparison.Ordinal)) return null;
-        var assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(value =>
+        var loaded = AppDomain.CurrentDomain.GetAssemblies();
+        var assembly = loaded.FirstOrDefault(value =>
             string.Equals(value.GetName().Name, "Quicker", StringComparison.Ordinal));
-        if (assembly is null || !IsKnownModule(assembly.ManifestModule.ModuleVersionId)) return null;
+        var common = loaded.FirstOrDefault(value =>
+            string.Equals(value.GetName().Name, "Quicker.Common", StringComparison.Ordinal));
+        if (assembly is null || common is null
+            || !IsKnownModules(assembly.ManifestModule.ModuleVersionId, common.ManifestModule.ModuleVersionId)) return null;
         try { return new V1ResourceCatalogNativeBinding(assembly.ManifestModule); }
         catch (Exception) { return null; }
     }

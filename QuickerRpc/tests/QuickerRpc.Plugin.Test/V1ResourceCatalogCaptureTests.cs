@@ -50,6 +50,15 @@ public sealed class V1ResourceCatalogCaptureTests
     }
 
     [TestMethod]
+    public void Native_summary_binding_rejects_an_unknown_executable_or_Common_module()
+    {
+        Assert.IsTrue(V1ResourceCatalogNativeBinding.IsKnownModules(V1ResourceCatalogNativeBinding.SupportedModuleId,
+            V1ResourceCatalogNativeBinding.SupportedCommonModuleId));
+        Assert.IsFalse(V1ResourceCatalogNativeBinding.IsKnownModules(Guid.Empty, V1ResourceCatalogNativeBinding.SupportedCommonModuleId));
+        Assert.IsFalse(V1ResourceCatalogNativeBinding.IsKnownModules(V1ResourceCatalogNativeBinding.SupportedModuleId, Guid.Empty));
+    }
+
+    [TestMethod]
     public Task Runtime_capture_returns_detached_raw_summaries_and_preserves_a_true_empty_catalog() => Ui(async dispatcher =>
     {
         var native = new NativeSession(); native.Rows.Add(Row("a"));
