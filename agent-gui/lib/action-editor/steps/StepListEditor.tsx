@@ -74,7 +74,6 @@ import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import {
   designerHostGrpcGetGlobalSubProgramIo,
   designerHostGrpcGetSharedSubProgramIo,
-  seedStepRunnerDetailCache,
   fetchStepRunnerDetailItem,
 } from "../shared/designerHostGrpcApi";
 import { StepEditorPopup } from "./paramEditors/StepEditorPopup";
@@ -86,7 +85,6 @@ import {
   buildStepRunnerLookup,
   collectStepRunnerKeysFromSteps,
   fetchStepRunnersItems,
-  getPrimedStepRunnerCatalogState,
   hydrateMissingStepRunnerEntries,
   hydrateMissingStepRunnerItems,
   mergeStepRunnerLookupEntries,
@@ -314,32 +312,11 @@ export default function StepListEditor({
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
   const catalogOwnerRef = useRef(catalogPort);
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
-  const primedCatalogRef = useRef(getPrimedStepRunnerCatalogState(backendBaseUrl, catalogPort));
-  const shouldRevalidateStepRunnerCacheRef = useRef(primedCatalogRef.current != null);
-  const [runnerLookup, setRunnerLookup] = useState<StepRunnerLookup>(
-    () => {
-      const primed = primedCatalogRef.current;
-      if (!primed) return {};
-      return mergeStepRunnerLookupEntries(
-        primed.lookup,
-        buildStepRunnerLookup(primed.catalogItems),
-      );
-    },
-  );
-  const [runnerItems, setRunnerItems] = useState<StepRunnerItem[]>(
-    () => primedCatalogRef.current?.catalogItems ?? [],
-  );
-  const [runnerSchemaByCacheKey, setRunnerSchemaByCacheKey] = useState<
-    Record<string, StepRunnerItem>
-  >(() => primedCatalogRef.current?.schemaByCacheKey ?? {});
-  useEffect(() => {
-    if (primedCatalogRef.current?.schemaByCacheKey) {
-      seedStepRunnerDetailCache(primedCatalogRef.current.schemaByCacheKey, catalogPort);
-    }
-  }, []);
-  useEffect(() => {
-    seedStepRunnerDetailCache(runnerSchemaByCacheKey, catalogPort);
-  }, [runnerSchemaByCacheKey, catalogPort]);
+  const [runnerLookup, setRunnerLookup] = useState<StepRunnerLookup>({});
+  const [runnerItems, setRunnerItems] = useState<StepRunnerItem[]>([]);
+  const [runnerSchemaByCacheKey, setRunnerSchemaByCacheKey] = useState<Record<string, StepRunnerItem>>({});
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
   const [editorTargetId, setEditorTargetIdState] = useState<string | null>(null);
   const editorTargetIdRef = useRef<string | null>(null);
   // The owner changes before React commits, so a live callback in the same event cannot miss the modal.
@@ -391,12 +368,9 @@ export default function StepListEditor({
 
   if (catalogOwnerRef.current !== catalogPort) {
     catalogOwnerRef.current = catalogPort;
-    const primed = getPrimedStepRunnerCatalogState(backendBaseUrl, catalogPort);
-    primedCatalogRef.current = primed;
-    shouldRevalidateStepRunnerCacheRef.current = primed != null && !catalogPort;
-    setRunnerLookup(primed?.lookup ?? {});
-    setRunnerItems(primed?.catalogItems ?? []);
-    setRunnerSchemaByCacheKey(primed?.schemaByCacheKey ?? {});
+    setRunnerLookup({});
+    setRunnerItems([]);
+    setRunnerSchemaByCacheKey({});
     setSummariesByStepId({});
     setGlobalSubProgramLabelsById({});
     setSharedSubProgramLabelsById({});
@@ -448,7 +422,7 @@ export default function StepListEditor({
   );
 
   useEffect(() => {
-    const keys = collectStepRunnerKeysFromSteps(steps);
+    const keys = collectStepRunnerKeysFromSteps(stepsRef.current);
     if (keys.length === 0) return;
 
     let cancelled = false;
@@ -457,7 +431,6 @@ export default function StepListEditor({
       try {
         const prev = runnerLookupRef.current;
         const hydrated = await hydrateMissingStepRunnerEntries(keys, prev, ac.signal, {
-          revalidate: shouldRevalidateStepRunnerCacheRef.current,
           baseUrl: backendBaseUrl,
           catalogPort,
         });
@@ -487,37 +460,18 @@ export default function StepListEditor({
         const prev = runnerItemsRef.current;
         const prevSchemas = runnerSchemaByCacheKeyRef.current;
         const { catalogItems, schemaByCacheKey, schemaChanged } = await hydrateMissingStepRunnerItems(
-          steps,
+          stepsRef.current,
           prev,
           prevSchemas,
           ac.signal,
           {
-            revalidate: shouldRevalidateStepRunnerCacheRef.current,
             baseUrl: backendBaseUrl,
             catalogPort,
           },
         );
-        shouldRevalidateStepRunnerCacheRef.current = false;
         if (cancelled) return;
-        const prevDefs = prev.reduce((n, item) => n + (item.inputParamDefs?.length ?? 0), 0);
-        const nextDefs = catalogItems.reduce(
-          (n, item) => n + (item.inputParamDefs?.length ?? 0),
-          0,
-        );
-        const prevSchemaDefs = Object.values(prevSchemas).reduce(
-          (n, item) => n + (item.inputParamDefs?.length ?? 0),
-          0,
-        );
-        const nextSchemaDefs = Object.values(schemaByCacheKey).reduce(
-          (n, item) => n + (item.inputParamDefs?.length ?? 0),
-          0,
-        );
-        if (nextDefs > prevDefs) {
-          setRunnerItems(catalogItems);
-        }
-        if (schemaChanged || nextSchemaDefs > prevSchemaDefs) {
-          setRunnerSchemaByCacheKey(schemaByCacheKey);
-        }
+        setRunnerItems(catalogItems);
+        if (schemaChanged) setRunnerSchemaByCacheKey(schemaByCacheKey);
       } catch {
         /* ignore */
       }
@@ -527,7 +481,7 @@ export default function StepListEditor({
       cancelled = true;
       ac.abort();
     };
-  }, [stepSchemaRequestsKey, backendBaseUrl, steps, catalogPort]);
+  }, [stepSchemaRequestsKey, backendBaseUrl, catalogPort]);
 
   useEffect(() => {
     if (catalogContext) return;

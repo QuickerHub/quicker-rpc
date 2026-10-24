@@ -124,6 +124,7 @@ const tests = [
   "lib/action-editor/toolbox/toolboxCatalog.test.ts",
   "lib/action-editor/catalog/designerCatalogContext.test.ts",
   "lib/action-editor/catalog/designerCatalogPort.test.ts",
+  "lib/action-editor/shared/designerHostGrpcApi.fresh.test.ts",
   "lib/action-editor/catalog/designerInputContract.test.ts",
   "lib/action-editor/catalog/designerCatalogRequest.server.test.ts",
   "lib/action-editor/catalog/designerInputContract.server.test.ts",
