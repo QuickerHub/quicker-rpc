@@ -128,6 +128,7 @@ schema 等待可取消，迟到结果不进入新轮；未确认编辑弹窗返�
 - Skill 通过 `skill_load` 按名称和 offset 渐进加载；不把全部正文塞入初始 prompt。
 - `task` 子代理使用允许工具列表且不递归暴露自身。
 - 外部 MCP 从 user/workspace `mcp.json` 加载，server 必须显式 enabled；工具 namespaced、可 allowlist/审批/限流，并在 turn 结束关闭连接。配置入口暂按实验性管理。
+- MCP 工具定义每 turn 有界读取全部页；循环 cursor、重复定义或超限使该来源本轮不可用，保留原权限与关闭流程。内部来源记录保留实际上报版本，未知为 `null`，不按产品版本缓存或授予能力。`list_tools` 的 get/bundle 输出规范 JSON Schema；统一 knowledge HTTP 入口和持久缓存尚未新增。
 
 验证使用 LLM、agent-defs/skills/task 和外部 MCP 对应测试。资源边界见 [用户数据与安装资源](../agent-gui-plugin-storage.md)。
 

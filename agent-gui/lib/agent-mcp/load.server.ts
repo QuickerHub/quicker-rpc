@@ -18,11 +18,14 @@ import { selectMcpToolDefinitions } from "@/lib/agent-mcp/tool-capabilities";
 import { awaitMcpConnection } from "./connect-timeout";
 import { createMcpClientOwner, type McpClientOwner } from "./client-owner";
 import { createMcpTransportFetch } from "./transport-fetch";
+import { readMcpToolCatalog, type McpServerCatalog } from "./catalog";
 
 export type LoadedAgentMcpTools = {
   tools: ToolSet;
   callPolicyOverrides: Record<string, Partial<ToolCallPolicy>>;
   diagnostics: AgentMcpConfigDiagnostic[];
+  /** Permitted raw protocol definitions for this turn, without executable closures. */
+  catalogs: McpServerCatalog[];
   dispose: () => Promise<void>;
 };
 
@@ -96,34 +99,48 @@ function exposeServerTools(
 export async function loadConfiguredMcpTools(
   cwd: string,
   options: { chatMode: ChatMode; abortSignal?: AbortSignal } = { chatMode: "agent" },
+  dependencies: {
+    loadConfig?: typeof loadAgentMcpConfig;
+    connectServer?: typeof connectServer;
+    readCatalog?: typeof readMcpToolCatalog;
+  } = {},
 ): Promise<LoadedAgentMcpTools> {
   const owner = createMcpClientOwner({ abortSignal: options.abortSignal });
   const { signal } = owner;
   try {
     signal.throwIfAborted();
-    const config = await loadAgentMcpConfig(cwd);
+    const config = await (dependencies.loadConfig ?? loadAgentMcpConfig)(cwd);
     signal.throwIfAborted();
     const tools: ToolSet = {};
     const callPolicyOverrides: Record<string, Partial<ToolCallPolicy>> = {};
     const diagnostics = [...config.diagnostics];
+    const catalogs: McpServerCatalog[] = [];
 
     for (const server of config.servers) {
       let closeClient: (() => Promise<void>) | undefined;
       try {
         signal.throwIfAborted();
-        const client = await connectServer(server, cwd, owner);
+        const client = await (dependencies.connectServer ?? connectServer)(server, cwd, owner);
         closeClient = await owner.register(client);
         signal.throwIfAborted();
-        const definitions = await client.listTools({ options: { signal } });
+        const catalog = await (dependencies.readCatalog ?? readMcpToolCatalog)(client, {
+          serverName: server.name, configPath: server.configPath, transport: server.transport, workspaceCwd: cwd,
+        }, { abortSignal: signal });
         signal.throwIfAborted();
-        const permitted = selectMcpToolDefinitions(definitions.tools, {
+        const permitted = selectMcpToolDefinitions(catalog.tools, {
           mode: options.chatMode,
           allowedTools: server.tools,
         });
-        const exposed = exposeServerTools(server, client.toolsFromDefinitions({
-          ...definitions,
-          tools: permitted,
-        }));
+        const mapped = client.toolsFromDefinitions({
+          tools: structuredClone(permitted),
+        });
+        signal.throwIfAborted();
+        const names = Object.keys(mapped), expected = new Set(permitted.map((tool) => tool.name));
+        if (names.length !== permitted.length || names.some((name) => !expected.has(name))) {
+          throw new Error("MCP SDK mapped tool names do not match permitted definitions");
+        }
+        const exposed = exposeServerTools(server, mapped);
+        signal.throwIfAborted();
         for (const toolId of Object.keys(exposed)) {
           if (tools[toolId]) {
             throw new Error(`MCP tool id collision: ${toolId}`);
@@ -136,6 +153,7 @@ export async function loadConfiguredMcpTools(
             maxIdenticalCallsPerTurn: server.maxIdenticalCallsPerTurn,
           };
         }
+        catalogs.push({ ...catalog, tools: permitted });
       } catch (error) {
         await closeClient?.().catch(() => {});
         signal.throwIfAborted();
@@ -150,6 +168,7 @@ export async function loadConfiguredMcpTools(
       tools,
       callPolicyOverrides,
       diagnostics,
+      catalogs,
       dispose: owner.dispose,
     };
   } catch (error) {
