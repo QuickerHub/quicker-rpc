@@ -2,7 +2,7 @@ import type { Tool, ToolSet } from "ai";
 import type { ToolOperationConstraint, ToolOperationConstraints } from "./agent-tool-mode-guard";
 import type { LiveProgramDocumentSelection } from "./live-program-document";
 
-// First live-document slice supplies local memory edits and these companion
+// Live-document tools supply local memory edits and these companion
 // capabilities only. Shell, MCP and native/disk authoring are separate ports.
 const companionTools = new Set([
   "docs", "skill_load", "list_tools", "set_thread_title", "ask_question",

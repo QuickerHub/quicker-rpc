@@ -80,7 +80,8 @@ MCP `qkrpc_step_runner_input_contract` 和绑定文档的 HTTP 入口。它只�
 显式的零值、false、null 和空控制值；旧插件/V2 未实现时按 capability 拒绝，不用 UI schema、
 静态目录或历史缓存补权限。复杂可见表达式和多操作模块的上下文尚不完整时明确返回未知。
 同一 Session 的参数事务已有纯层实现，但尚未开放 Agent 参数工具；当前用户入口仍仅能改
-已授权备注。新端口真实 V1 热更、输入语义门禁和客户端接线继续验收，不代表 A3 完成。
+已授权备注。新端口已通过真实 V1 热更、CLI 与绑定 HTTP 的只读验证，非法控制值按原生选项
+拒绝，错误绑定不回退；输入语义门禁和客户端接线继续验收，不代表 A3 完成。
 
 - step 参数先查询 step-runner schema，不猜 `inputs`。
 - source bundle 用宿主文件工具编辑 YAML/资源；工具管理的 sidecar/原生基线不得手改。
