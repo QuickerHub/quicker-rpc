@@ -115,10 +115,11 @@ export function searchQuickerKnowledge(
       chunkId: chunk.id,
       title: chunk.title,
       url: chunk.url,
-      sectionPath: chunk.sectionPath,
+      sectionPath: [...chunk.sectionPath],
       sourceType: chunk.sourceType,
       score: hit.score,
       snippet: buildSnippet(chunk.text, queryTokens),
+      fetchedAt: chunk.fetchedAt ?? null,
     });
 
     if (results.length >= limit) {
