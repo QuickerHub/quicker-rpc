@@ -103,6 +103,12 @@ Int64/高精度字段保真、过期 baseline 返回 409 且不覆盖文件；�
 审批/续跑和停止另由 `test:agent-service` 使用 fake model + 原 SDK loop 验证。
 真实浏览器与原生模块测试是显式入口，不悄悄加入无浏览器的 CI。
 
+live 文档 fixture 还走完整 SPA：Explorer 打开动作，保留未 blur 人工备注，通过真实
+“+对话”入口授权并发送；fake 模型经原 SDK read/edit 调用原 APDE，切文件不改变目标，
+回执保持未保存，一次 undo 恢复人工内容，正文/属性磁盘 hash 不变。上述产品断言已经
+通过，整个测试仍因展开 Explorer 后 watcher 阻止 Node 自然退出而为红，退出修复须集成
+后复验；不得用未展开 Explorer 的旧 smoke 结论覆盖本项。
+
 打包 smoke 使用原 Windows Job Object 隔离协议，所有 RPC 都被本轮 guard 拒绝。
 它验证打包产物与所属进程的启动，不能代替 NSIS 安装/升级、真实旧用户资料升级、
 V1/V2 专用动作写回或完整新版 Designer 与 Agent 协同。
@@ -116,7 +122,7 @@ NSIS 两条正式打包入口共用固定版本模板适配与 .NET Framework 4.
 Overlay 会保留过时程序文件，部分复制失败也不具有事务回滚语义。
 Windows CI 编译生产 helper 并运行纯进程策略 fixture；它不会运行安装器或关闭应用。
 专属隐藏窗口 fixture 已验证精确根程序关闭、同名外部进程隔离和后端阻塞，
-仍需隔离安装/升级和真实旧资料验收。
+唯一测试身份的隔离安装/升级已有下述实测，真实旧资料仍待验收。
 
 独立的 [NSIS fixture 入口](../../agent-gui/scripts/prepare-nsis-fixture.mjs) 复用上述真实 builder、
 静态 runtime 与 Electron shell，只使用明确提供并核验过的 CLI、ripgrep 和本地工具缓存。
@@ -133,18 +139,19 @@ NSIS 3.0.4.1 的 `/PPO` 插件查找使用独立 parser 工具副本，来源与
 真实编译器及脚本不使用该解析副本。已删除目录回调与旧卸载链留下的无用函数，保留 `/WX`。
 
 唯一身份下的两版真实 NSIS 制品已通过 `/WX` 构建，产物有版本、大小与 SHA-256 收据；
-本地 fixture 没有签名凭据，不能将保留签名入口写成制品已签名。实际首次安装仍未完成：
-长 TEMP 的尝试在临时解包目录缺少 249 个超过路径上限的文件；短 TEMP 已完整解出
-7212 个文件，但仍在逐个复制时被原 180 秒总时限回收。验收 runner 现只为 setup job
-使用短 TEMP/TMP，并以 600 秒有界等待及 30 秒文件计数/最新创建时间报告观察进度。
-进行中的计数不代表完整 payload 校验，也不能把部分文件或注册项当成安装成功。
+本地 fixture 没有签名凭据，不能将保留签名入口写成制品已签名。长 TEMP 的首次尝试
+缺少 249 个超过路径上限的解包文件；短 TEMP 尝试虽完整解包，复制仍被原 180 秒时限
+回收，两次均保留为失败证据。runner 改为 setup 专属短 TEMP/TMP、600 秒有界等待和
+30 秒进度报告后，首次安装与同目录 0.0.1→0.0.2 升级实际通过；两版各 7212 个程序文件
+逐一核对大小与 SHA-256，注册身份/版本及合成数据库、插件/缓存哨兵核验通过。
+制品 GUI 构建源为 `9f76f2ce`，早于最新主线；本项证明安装链，不代表最新 GUI 打包验收。
 
 [验收脚本](../../agent-gui/scripts/Test-IsolatedNsisAcceptance.ps1) 默认 `-Action Plan` 只读输出
 身份与命令；`Fresh`、`Upgrade`、`Launch`、`Verify` 必须显式运行。它复用现有 owned Job、
 合成 profile 与 RPC guard；setup 的短 TEMP 不改变 Electron smoke 的资料映射。
 真实 builder、setup、原生窗口与桌面 smoke 都不加入自动离线清单；CI 只登记模板/参数/
-路径/隔离策略的纯测试。首次安装、原目录升级、完整 payload hash 与合成资料保留、
-生产快捷方式、真正卸载及真实旧资料仍是独立验收门槛。
+路径/隔离策略的纯测试。上述首次安装、原目录升级、完整 payload hash 与合成资料保留
+已有隔离实测；生产快捷方式、真正卸载及真实旧资料仍是独立验收门槛。
 
 浏览器单次调用现已把 turn abortSignal 传到独立 request owner 与按 session 串行的原生
 操作尾部，实际自建 Edge/HTTP 取消、排队、迟到结果及原 context/ref 复用另有验证；

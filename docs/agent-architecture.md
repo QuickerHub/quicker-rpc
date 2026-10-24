@@ -190,7 +190,7 @@ take、totalCount、hasMore；旧搜索/resolve 不变。分页与其它 catalog
 投影可见性与键盘 owner，颜色 portal 在 layout 阶段释放全局监听，不抢下一文档输入。
 `ensureParamValue` 的纯值转换与参数 UI 分离，catalog/draft helpers 不再为该函数导入整条
 参数编辑器及图标组件；这只关闭该处依赖边界，不表示其它混层已全部清理。
-多宿主选择、完整资源目录与 Agent/UI 共享实时 revision 仍待接线；
+主动作备注编辑已接入 Agent/UI 的同一实时 revision；多宿主选择、完整资源操作与更广编辑仍待接线。
 完整新版 Designer 和 V2 原生存储身份不能由这一层持久来源约束替代。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
@@ -288,8 +288,27 @@ baseline；不能从生成模型的 `toJSON` 重建整个 V1 动作并丢弃未�
 handle 读取所有编辑内容，关闭子程序页签或切源码不会丢弃草稿。
 `lib/action-editor/document/` 的 controller 管理完整原生文档、局部 revision、身份和
 保存票据。保存只推进对应票据的基线，晚回执不会把其后的草稿标成已保存；外部文件
-变更会保留本地草稿并阻止覆盖。纯 controller 已有 Agent 事务入口，但实际 Agent 工具
-尚未接入打开的 UI session。当前磁盘会话没有伪造宿主身份。
+变更会保留本地草稿并阻止覆盖。实际 Agent 的主动作备注首片已使用同一 controller；
+当前磁盘会话没有伪造宿主身份。
+
+`WorkspaceDocumentHost` 持有 live registry，注册原 APDE endpoint，不复制正文 Session。
+真实主程序“+对话”产生私有 pin；manual turn 固定原 thread、用户消息、cwd、owner、
+session 及完整 identity，并 flush 人工草稿后取 scope。聊天历史和标签文本不重新授予 scope。
+同一文档的本轮 pin 可组合；多文档、过期 pin 和目标缺失明确不可用，不回退磁盘或默认宿主。
+`workspace_program` 在该 scope 下替换为 AI SDK 客户端工具：`read_live` 返回完整当前正文、
+revision 和 dirty；`edit_live` 仅修改已授权唯一 stepId 的备注，并核验 readOperationId、
+expectedRevision、scopeId 及当前 owner。它走原 controller 的单次 Agent 事务，回执明确
+`persisted=false`；切换可见文件不改变原目标，文档关闭、身份变化或 Sync busy 时拒绝修改。
+
+客户端工具继续使用现有 SDK 的 addToolOutput 和自动续轮，不创建第二套 Agent loop。
+自动续轮沿用 manual turn 的 cwd、模式和工具选择；同名工具必须原本在最终选择集中，
+Ask 只有 read_live，嵌套 task 不获得该客户端端口。live scope 不提供 Shell、宿主写入、
+磁盘动作编辑或外部 MCP；既有工具调用预算和权限继续统一约束。
+真实 toolCallId 作为 operationId 保存已应用事实，同一请求不重复提交，改变参数则拒绝。
+停止既阻止修改与模型续轮，也在流排空后收口迟到 pending；已应用事实优先恢复为成功回执。
+SDK setter 即使接收原数组也会通知，idle repair 只在消息确实改变时发布，避免反馈循环。
+历史恢复仅展示回执，不执行工具。当前 UI pin 只开放主程序 surface，更广文档编辑与保存/
+Sync 协同仍未完成；纯层递归步骤支持不等于嵌套页签 UI 已开放。
 
 运行时依赖边界由 `scripts/check-designer-document-dependencies.mjs` 检查：递归编译所有
 文档生产入口的传递依赖，不执行产物，拒绝 UI/server 模块与资源、framework directive 及未经允许的
@@ -351,7 +370,7 @@ snapshot/etag 先复用。先保持当前请求/响应与聊天 SSE，测量 cat
 |---|---|
 | `components/shell/AgentWorkbenchShell.tsx` | `AgentWorkbenchShell` 组合侧栏与主区域；`AgentConversationFrame` 组合 header、messages、approval、composer 与 dock |
 | `components/chat/Chat.tsx` | 持有现有会话与面板状态，向框架传入内容、回调与 DOM refs |
-| `components/chat/useAgentChatSession.ts` | 持有唯一 AI SDK 会话、消息、transport 和历史保存；提供针对实时 SDK 消息数组的条件替换 |
+| `components/chat/useAgentChatSession.ts` | 持有唯一 AI SDK 会话、消息、transport、live manual turn 与历史保存；接客户端工具及停止后的条件收口 |
 | `components/chat/useChatMessageEditing.ts` | 持有单会话历史消息编辑锚点/草稿、确认与全局监听归属；输入正文继续由 composer 持有 |
 | `components/workspace/WorkspaceDocumentHost.tsx`、`lib/workspace-document-instances.ts` | 工作台文件实例与当前 Chat outlet 分开，固定存储/呈现 ports，编辑 Session 仍由 APDE 独占 |
 | `lib/agent-workbench-features.ts` | 声明快捷入口的稳定 id、文案、panel/command/route 目标及可用条件 |
@@ -426,10 +445,10 @@ DSH 参考固定为 [DeepSeek Harness `687f282`](https://github.com/deepseek-ai/
 一次聊天 turn 固定经过以下阶段：
 
 1. `resolve request`：修复中断消息、解析模式/slash、解析模型选择。
-2. `direct route`：Launcher 可命中无需模型的确定性快捷路径。
+2. `direct route`：Launcher 可命中无需模型的确定性快捷路径；live 文档 intent 不进入该路径。
 3. `resolve model`：检查配置并创建 AI SDK `LanguageModel`。
-4. `resolve scope`：合并消息引用和 Action Designer 默认目标。
-5. `prepare runtime`：生成唯一 `TurnPlan`，加载内置工具与已启用 MCP，应用调用策略，生成 system 和上下文预算。
+4. `resolve scope`：合并消息引用和 Action Designer 默认目标；live intent 核验本轮原消息、私有授权与完整 owner identity。
+5. `prepare runtime`：生成唯一 `TurnPlan`，加载最终选择的工具并应用权限/调用策略，生成 system 和上下文预算；live intent 只组合客户端端口与允许的辅助工具，不初始化外部 MCP。
 6. `run agent`：`ToolLoopAgent` 执行多步模型/工具循环。
 7. `present`：转换为 AI SDK UI message stream，记录 usage 与运行时元数据；流结束后释放 MCP transport。
 
