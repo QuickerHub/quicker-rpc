@@ -15,6 +15,7 @@ export async function POST(req: Request) {
   }
 
   const result = await executeQuickerToolDirect({
+    abortSignal: req.signal,
     toolName,
     input: o.input,
     workingDirectory:

@@ -24,6 +24,7 @@ import type { LlmSelection } from "@/lib/llm-selection";
 import { createAgentTurnLifecycle } from "./turn-lifecycle";
 
 export type AgentStreamLoopParams = {
+  executionId?: string;
   abortSignal?: AbortSignal;
   writer: UIMessageStreamWriter<AgentUIMessage>;
   model: LanguageModel;
@@ -124,6 +125,7 @@ export async function runAgentStreamLoopCore(
         messageMetadata: ({ part }) => {
           if (part.type === "start") {
             return {
+              executionId: params.executionId,
               model: params.modelId,
               contextCompression: preparedContext.contextCompression,
               contextReport: latestContextReport,

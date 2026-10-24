@@ -1,73 +1,47 @@
-import {
-  subscribeTraceBridge,
-  type TraceBridgeMessage,
-} from "@/lib/action-trace-bridge.server";
-
+import { traceBridge } from "@/lib/action-trace-bridge.server";
+import { readTraceRunOwner } from "@/lib/action-trace-owner";
 export const runtime = "nodejs";
-
-function encodeSse(eventName: string, data: unknown): Uint8Array {
-  const encoder = new TextEncoder();
-  return encoder.encode(
-    `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`,
-  );
-}
-
-/** Browser subscribes while Agent trace tool runs on the server (single execution). */
 export async function GET(req: Request) {
-  const tabId = new URL(req.url).searchParams.get("tabId")?.trim();
-  if (!tabId) {
-    return Response.json({ ok: false, error: "missing tabId" }, { status: 400 });
+  let owner;
+  try {
+    owner = readTraceRunOwner(JSON.parse(new URL(req.url).searchParams.get("owner") ?? "null"));
   }
-
-  let unsubscribe: (() => void) | null = null;
+  catch { /* Invalid observer input. */ }
+  if (!owner)
+    return Response.json({ ok: false, error: "INVALID_TRACE_OWNER" }, { status: 400 });
+  if (req.signal.aborted)
+    return Response.json({ ok: false, error: "REQUEST_ABORTED" }, { status: 499 });
+  if (!traceBridge.has(owner))
+    return Response.json({ ok: false, error: "TRACE_RUN_EXPIRED" }, { status: 404 });
+  let unsubscribe: (() => void) | undefined;
   let closed = false;
-
+  let closeStream: (() => void) | undefined;
+  const close = () => { if (closed)
+    return; closed = true; unsubscribe?.(); req.signal.removeEventListener("abort", close); closeStream?.(); };
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const push = (message: TraceBridgeMessage) => {
-        if (closed) return;
-        switch (message.type) {
-          case "trace":
-            controller.enqueue(encodeSse("trace", message.event));
-            return;
-          case "line":
-            controller.enqueue(encodeSse("line", { line: message.line }));
-            return;
-          case "done":
-            controller.enqueue(encodeSse("done", message.data));
-            closed = true;
-            unsubscribe?.();
-            controller.close();
-            return;
-          case "error":
-            controller.enqueue(
-              encodeSse("error", { message: message.message }),
-            );
-            closed = true;
-            unsubscribe?.();
-            controller.close();
-        }
-      };
-
-      unsubscribe = subscribeTraceBridge(tabId, push);
+      closeStream = () => controller.close();
+      unsubscribe = traceBridge.subscribe(owner!, (event) => {
+        if (closed)
+          return;
+        const data = event.type === "trace" ? event.event : event.type === "line" ? { line: event.line } : event.data;
+        controller.enqueue(new TextEncoder().encode(`event: ${event.type}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (event.type === "done")
+          close();
+      });
+      if (!unsubscribe && !closed) {
+        controller.enqueue(new TextEncoder().encode(`event: done\ndata: ${JSON.stringify({ ok: false, error: "TRACE_RUN_EXPIRED", traceOwner: owner })}\n\n`));
+        close();
+      }
+      if (closed)
+        unsubscribe?.();
+      else {
+        req.signal.addEventListener("abort", close, { once: true });
+        if (req.signal.aborted)
+          close();
+      }
     },
-    cancel() {
-      closed = true;
-      unsubscribe?.();
-    },
+    cancel() { closeStream = undefined; close(); },
   });
-
-  req.signal.addEventListener("abort", () => {
-    closed = true;
-    unsubscribe?.();
-  });
-
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
+  return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform" } });
 }

@@ -25,11 +25,16 @@ import {
 } from "@/lib/action-trace-tab-id";
 import { workspaceExplorerActionsRef } from "@/lib/workspace-explorer";
 import { SIDE_PANEL_VIEW_EXPLORER } from "@/lib/workspace-side-panel-view";
+import { readTraceRunOwner, sameTraceRunOwner, traceRunTabId, type TraceRunOwner } from "./action-trace-owner";
+import { createTraceEventDedupe } from "./action-trace-event-dedupe";
 
 export type ActionTraceRunStatus = "idle" | "running" | "success" | "error";
 export type ActionTraceViewMode = "timeline" | "terminal";
 
 export type ActionTraceTabState = {
+  owner?: TraceRunOwner;
+  observationError?: string;
+  resultUnknown?: boolean;
   tabId: string;
   actionId: string;
   param?: string;
@@ -250,6 +255,7 @@ export function closeActionTraceTab(
   tabId: string,
   options?: { wasActive?: boolean },
 ): void {
+  traceViews.get(tabId)?.close();
   cancelTabStream(tabId);
   flushPendingForTab(tabId);
   const tabs = state.tabs.filter((tab) => tab.tabId !== tabId);
@@ -576,4 +582,108 @@ export function getActionTraceTabBarLabel(tab: ActionTraceTabState): string {
     actionTitle: tab.actionTitle,
     status: tab.status,
   });
+}
+
+export type TraceViewLease = {
+  tabId: string; threadId: string; cwd: string; owner?: TraceRunOwner;
+  isCurrent: () => boolean;
+  appendEvent: (event: ActionTraceEvent) => void;
+  appendLine: (line: string) => void;
+  observeError: (message: string) => void;
+  finish: (data: Record<string, unknown>) => void;
+  hydrate: (data: Record<string, unknown>) => void;
+  onClose: (listener: () => void) => () => void;
+  close: () => void;
+};
+const traceViews = new Map<string, TraceViewLease>();
+const closedTraceViews = new Set<string>();
+function threadState(threadId: string): StoreState {
+  return activeTraceThreadId === threadId ? state : traceStateByThread.get(threadId) ?? emptyStore;
+}
+function mutateThread(threadId: string, update: (current: StoreState) => StoreState): void {
+  const next = update(threadState(threadId));
+  if (activeTraceThreadId === threadId) setState(next);
+  else traceStateByThread.set(threadId, next);
+}
+
+/** A view observes one immutable run and survives presentation changes. Closing never stops native work. */
+function createTraceView(params: { tabId: string; threadId: string; cwd: string; actionId: string; param?: string; owner?: TraceRunOwner; focus?: boolean }): TraceViewLease | null {
+  const { tabId, threadId, cwd, owner } = params;
+  if (closedTraceViews.has(tabId)) return null;
+  const existing = traceViews.get(tabId);
+  if (existing) return (!owner || existing.owner && sameTraceRunOwner(existing.owner, owner)) ? existing : null;
+  let closed = false, terminal = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let events: ActionTraceEvent[] = [], lines: string[] = [];
+  const dedupe = createTraceEventDedupe();
+  const closeListeners = new Set<() => void>();
+  const isCurrent = () => !closed && traceViews.get(tabId) === lease;
+  const update = (change: (tab: ActionTraceTabState) => ActionTraceTabState) => {
+    if (!isCurrent()) return;
+    mutateThread(threadId, (store) => ({ tabs: store.tabs.map((tab) => tab.tabId === tabId && isCurrent() ? change(tab) : tab) }));
+  };
+  const flush = () => {
+    if (timer) clearTimeout(timer); timer = undefined;
+    if (!isCurrent()) return;
+    const addedEvents = events, addedLines = lines; events = []; lines = [];
+    if (addedEvents.length || addedLines.length) update((tab) => ({ ...tab, events: [...tab.events, ...addedEvents],
+      output: tab.output + addedLines.join(""), lineCount: tab.lineCount + addedLines.length }));
+  };
+  const schedule = () => { timer ??= setTimeout(flush, TRACE_UI_FLUSH_MS); };
+  const matches = (data: Record<string, unknown>) => !owner || Boolean(readTraceRunOwner(data.traceOwner) && sameTraceRunOwner(owner, readTraceRunOwner(data.traceOwner)!));
+  const completed = (tab: ActionTraceTabState, data: Record<string, unknown>, replacement?: ActionTraceEvent[]): ActionTraceTabState => {
+    const allEvents = replacement ?? tab.events;
+    const message = typeof data.message === "string" ? data.message : undefined;
+    const errorMessage = typeof data.errorMessage === "string" ? data.errorMessage : data.ok === false ? message : undefined;
+    const returnResult = typeof data.returnResult === "string" ? data.returnResult : undefined;
+    const text = formatTraceEventsToText(allEvents);
+    return { ...tab, events: allEvents, output: [text.trimEnd(), returnResult ? `=> ${returnResult}` : "", errorMessage ? `[error] ${errorMessage}` : ""].filter(Boolean).join("\n"),
+      status: data.ok === false ? "error" : "success", summary: message, errorMessage, returnResult,
+      observationError: undefined, resultUnknown: data.error === "WRITE_RESULT_UNKNOWN" || data.errorCode === "WRITE_RESULT_UNKNOWN",
+      eventCount: typeof data.eventCount === "number" ? data.eventCount : allEvents.length,
+      durationMs: typeof data.durationMs === "number" ? data.durationMs : undefined };
+  };
+  const lease: TraceViewLease = {
+    tabId, threadId, cwd, owner, isCurrent,
+    appendEvent(event) {
+      if (!isCurrent() || terminal) return;
+      if (!dedupe.accept(event)) return;
+      events.push(event); schedule();
+    },
+    appendLine(line) { if (isCurrent() && !terminal) { lines.push(`${line}\n`); schedule(); } },
+    observeError(message) { if (isCurrent() && !terminal) { flush(); update((tab) => ({ ...tab, status: "error", errorMessage: message, observationError: message, resultUnknown: true })); } },
+    finish(data) { if (!isCurrent() || terminal || !matches(data)) return; flush(); terminal = true; dedupe.clear(); update((tab) => completed(tab, data)); },
+    hydrate(data) {
+      if (!isCurrent() || !matches(data)) return;
+      flush(); terminal = true;
+      dedupe.clear();
+      const parsed = parseActionTraceEvents(data);
+      update((tab) => completed(tab, data, parsed.length ? parsed : undefined));
+    },
+    onClose(listener) { if (closed) listener(); else closeListeners.add(listener); return () => { closeListeners.delete(listener); }; },
+    close() {
+      if (closed) return; closed = true; if (timer) clearTimeout(timer); events = []; lines = [];
+      dedupe.clear();
+      traceViews.delete(tabId); closedTraceViews.add(tabId);
+      for (const listener of closeListeners) listener(); closeListeners.clear();
+    },
+  };
+  traceViews.set(tabId, lease);
+  mutateThread(threadId, (store) => ({ tabs: [...store.tabs, { tabId, actionId: params.actionId, param: params.param, owner,
+    commandLine: buildActionTraceCommandLine(params.actionId, params.param), output: "", events: [], viewMode: "timeline", status: "running", lineCount: 0 }] }));
+  if (params.focus && activeTraceThreadId === threadId) focusTraceTab(tabId);
+  return lease;
+}
+export function prepareOwnedTraceView(owner: TraceRunOwner, focus = false, presentation?: { threadId: string; messageId: string }): TraceViewLease | null {
+  const replay = presentation && presentation.threadId !== owner.threadId;
+  const tabId = traceRunTabId(owner) + (replay ? `:replay:${encodeURIComponent(presentation.threadId)}:${encodeURIComponent(presentation.messageId)}` : "");
+  return createTraceView({ tabId, threadId: presentation?.threadId ?? owner.threadId, cwd: owner.cwd, actionId: owner.actionId, param: owner.param, owner, focus });
+}
+export function prepareHistoricalTraceView(params: { threadId: string; cwd: string; messageId: string; partKey: string; actionId: string; param?: string }): TraceViewLease | null {
+  return createTraceView({ ...params, tabId: `__trace__:history:${encodeURIComponent(params.threadId)}:${encodeURIComponent(params.messageId)}:${encodeURIComponent(params.partKey)}` });
+}
+export function releaseActionTraceThread(threadId: string): void {
+  for (const view of traceViews.values()) if (view.threadId === threadId) view.close();
+  traceStateByThread.delete(threadId);
+  if (activeTraceThreadId === threadId) setState(emptyStore);
 }

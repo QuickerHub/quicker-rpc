@@ -478,6 +478,7 @@ function launcherActionRunGuardError(
 export async function executeQkrpcActionRunTool(
   input: QkrpcActionRunToolInput,
   actionTitle?: string,
+  executionOptions?: { toolCallId?: string; abortSignal?: AbortSignal },
 ): Promise<Record<string, unknown>> {
   const blocked = launcherActionRunGuardError(input, actionTitle);
   if (blocked) return blocked;
@@ -494,7 +495,7 @@ export async function executeQkrpcActionRunTool(
           await runActionTraceForAgentTool({
             id: input.id,
             param: input.param,
-          }),
+          }, executionOptions),
         ),
       );
       const withArtifact = await attachActionTraceArtifactToDebugResult(enriched, {
@@ -1096,8 +1097,8 @@ export const QKRPC_ACTION_DEBUG_TOOL_DEF = tool({
     id: z.string().describe("Action GUID"),
     param: z.string().optional().describe("quicker_in_param"),
   }),
-  execute: async (input) =>
-    executeQkrpcActionRunTool(coerceQkrpcActionRunInput(input, "debug")),
+  execute: async (input, options) =>
+    executeQkrpcActionRunTool(coerceQkrpcActionRunInput(input, "debug"), undefined, options),
 });
 
 export const QKRPC_ACTION_FLOAT_TOOL_DEF = tool({
@@ -1113,12 +1114,12 @@ export const QKRPC_ACTION_FLOAT_TOOL_DEF = tool({
 export const QKRPC_ACTION_RUN_CONSOLIDATED_TOOL_DEF = tool({
   description: "Deprecated: use qkrpc_action_run / qkrpc_action_debug / qkrpc_action_float.",
   inputSchema: actionRunSchema,
-  execute: async (input) => {
+  execute: async (input, options) => {
     const parsed = parseActionRunToolInput(input);
     if (!parsed.success) {
       return formatQkrpcResultForAgent(qkrpcValidationError(parsed.message));
     }
-    return executeQkrpcActionRunTool(parsed.data);
+    return executeQkrpcActionRunTool(parsed.data, undefined, options);
   },
 });
 

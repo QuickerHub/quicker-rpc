@@ -1012,6 +1012,8 @@ function ChatPanel({
       return (
         <ChatMessageArticle
           key={message.id}
+          threadId={threadId}
+          traceLive={!!agentActivity && message.id === lastVisibleMessageId}
           message={message}
           messageIndex={messageIndex}
           stickyPrompt={stickyPrompt}

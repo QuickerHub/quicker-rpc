@@ -110,6 +110,7 @@ function ToolPartInner({
       input={input}
       output={output}
       isRunning={isRunning}
+      partKey={toolCallId ?? String(partIndex)}
     />
   );
 

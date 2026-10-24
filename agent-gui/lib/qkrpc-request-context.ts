@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { TraceExecutionPort, TraceInvocation, TraceRunOwner } from "./action-trace-owner";
+import type { ActionTraceRef } from "./action-trace-artifact";
 import type { ActionScopeHint } from "@/lib/action-scope";
 import type { ChatMode } from "@/lib/chat-mode";
 import type { LauncherResolveAgentNext } from "@/lib/launcher/launcher-resolve-agent-output";
@@ -8,6 +10,10 @@ import {
 } from "@/lib/agent-harness/turn-execution-state";
 
 export type QkrpcRequestContext = {
+  traceExecution?: TraceExecutionPort;
+  traceInvocationPath?: readonly TraceInvocation[];
+  traceRuns?: TraceRunOwner[];
+  traceRefs?: ActionTraceRef[];
   /** Cancellation owned by the current turn, inherited by nested tool contexts. */
   abortSignal?: AbortSignal;
   /** Shared identity for execution facts; thread ids never own mutable turn state. */
@@ -112,6 +118,7 @@ export async function runWithQkrpcCwdAsync<T>(
 }
 
 export type AgentRequestContext = {
+  traceExecution?: TraceExecutionPort;
   abortSignal?: AbortSignal;
   executionState?: TurnExecutionState;
   cwd?: string;
@@ -145,7 +152,21 @@ function mergeAgentRequestContext(ctx: AgentRequestContext): QkrpcRequestContext
     ? AbortSignal.any([parent.abortSignal, ctx.abortSignal])
     : ctx.abortSignal ?? parent?.abortSignal;
   next.executionState = ctx.executionState ?? getRequestTurnExecutionState() ?? createTurnExecutionState();
+  next.traceExecution = ctx.traceExecution ?? parent?.traceExecution;
   return next;
+}
+
+/** An invocation scope inherits cancellation/target and adds no process-wide fallback. */
+export async function runWithTraceTaskInvocation<T>(toolCallId: string, agent: string, run: () => Promise<T>): Promise<{ value: T; traceRuns: TraceRunOwner[]; traceRefs: ActionTraceRef[] }> {
+  const parent = qkrpcRequestContext.getStore();
+  if (!parent?.traceExecution) return { value: await run(), traceRuns: [], traceRefs: [] };
+  const traceRuns: TraceRunOwner[] = [];
+  const traceRefs: ActionTraceRef[] = [];
+  const path = [...(parent.traceInvocationPath ?? []), Object.freeze({ invocationId: parent.traceExecution.createRunId(), toolCallId, agent })];
+  const value = await qkrpcRequestContext.run({ ...parent, traceInvocationPath: path, traceRuns, traceRefs }, run);
+  parent.traceRuns?.push(...traceRuns);
+  parent.traceRefs?.push(...traceRefs);
+  return { value, traceRuns, traceRefs };
 }
 
 export function runWithAgentRequestContext<T>(

@@ -5,9 +5,13 @@ import {
   type ToolExecutionOptions,
 } from "@ai-sdk/provider-utils";
 import { generateId } from "ai";
+import { randomUUID } from "node:crypto";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { allQuickerTools } from "@/lib/tools";
-import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
+import { qkrpcRequestContext, runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
+import { createTurnExecutionState, disposeTurnExecutionState } from "@/lib/agent-harness/turn-execution-state";
+import { currentQkrpcTarget } from "@/lib/qkrpc-host-binding";
+import { resolveRequestAbortSignal } from "@/lib/request-abort-signal";
 import {
   normalizeToolCallName,
   resolveKnownToolName,
@@ -44,6 +48,7 @@ export async function executeQuickerToolDirect(params: {
   workingDirectory?: string;
   approved?: boolean;
   toolCallId?: string;
+  abortSignal?: AbortSignal;
 }): Promise<DirectToolExecuteResult> {
   const toolName = params.toolName?.trim();
   if (!toolName) {
@@ -89,9 +94,18 @@ export async function executeQuickerToolDirect(params: {
 
   const cwd = resolveEffectiveWorkingDirectory(params.workingDirectory);
   const options: ToolExecutionOptions = { toolCallId, messages: [] };
+  const executionId = randomUUID();
+  const executionState = createTurnExecutionState();
+  executionState.qkrpcTarget = currentQkrpcTarget();
+  const abortSignal = resolveRequestAbortSignal(params.abortSignal);
+  options.abortSignal = abortSignal;
 
   try {
-    const output = await runWithAgentRequestContextAsync({ cwd }, async () => {
+    const output = await qkrpcRequestContext.run({ ...qkrpcRequestContext.getStore(), executionState,
+      traceInvocationPath: [], traceRuns: [], traceRefs: [],
+      traceExecution: { executionId, createRunId: randomUUID, emit() {} },
+    }, () => runWithAgentRequestContextAsync({ cwd, executionState, abortSignal, threadId: `direct:${executionId}` }, async () => {
+      abortSignal?.throwIfAborted();
       let final: unknown;
       for await (const chunk of executeTool({
         execute: executionTool.execute!,
@@ -103,10 +117,12 @@ export async function executeQuickerToolDirect(params: {
         }
       }
       return final;
-    });
+    }));
     return { ok: true, output };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return { ok: false, error: message };
+  } finally {
+    disposeTurnExecutionState(executionState);
   }
 }
