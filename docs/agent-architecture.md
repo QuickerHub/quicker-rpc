@@ -296,7 +296,7 @@ handle 读取所有编辑内容，关闭子程序页签或切源码不会丢弃�
 session 及完整 identity，并 flush 人工草稿后取 scope。聊天历史和标签文本不重新授予 scope。
 同一文档的本轮 pin 可组合；多文档、过期 pin 和目标缺失明确不可用，不回退磁盘或默认宿主。
 `workspace_program` 在该 scope 下替换为 AI SDK 客户端工具：`read_live` 返回完整当前正文、
-revision 和 dirty；`edit_live` 仅修改已授权唯一 stepId 的备注，并核验 readOperationId、
+revision 和 dirty；`edit_live` 修改已授权唯一 stepId 的备注，并核验 readOperationId、
 expectedRevision、scopeId 及当前 owner。它走原 controller 的单次 Agent 事务，回执明确
 `persisted=false`；切换可见文件不改变原目标，文档关闭、身份变化或 Sync busy 时拒绝修改。
 
@@ -317,9 +317,18 @@ Sync 协同仍未完成；纯层递归步骤支持不等于嵌套页签 UI 已�
 文档 HTTP 在请求前后核验完整绑定；空控制值与省略控制值分别保留。
 
 `applyProgramDocumentStepInputs` 只负责同一 Session 的既有输入批量事务与保真，不自行推断
-schema 或授予权限。未来客户端工具还须从私有读取记录证明目标、revision、可见性、模式、
-选项和原有绑定；原生 `$=`/`$$` 有求值语义，物理 wire 转义不等于普通文本。该事务尚未接入
-Agent 入口，不能用纯层测试证明实时参数编辑已经完成。
+schema 或授予权限。客户端 `read_live(stepSchemaFor)` 在同一 scope 的私有 ledger 保存
+实际 contract 与 revision，读取前后 flush 并复核完整身份、正文及 busy 状态；原始控制值
+不同于原生默认时重新向同一端口读取，变量/文件/动态控制值不借用默认值。请求按实际
+operationId 去重，进入 pending 前同步预留有界回执名额；取消一个 observer 不取消其它
+observer，关闭 scope 则中断全部等待。
+
+`edit_step_inputs_live` 从私有记录和当前原文重新证明可编辑键、模式、可见性与封闭选项，
+再同步调用原 controller 的单次事务；提交和回执间不 await。原生 `$=`/`$$` 有求值语义，
+物理 wire 转义不等于普通文本；当前普通值操作保守拒绝美元符号及格式字符，不覆盖变量/
+文件/控制字段或动态值。原生文本类型转换与执行诊断仍待接入，不能将成功编辑当作执行
+成功。SDK callback 只等待 metadata，发布 addToolOutput 时不等待其续轮；跨轮晚回执不
+ACK 当前消息，停止后的已提交事实仍可用于历史修复。完整参数模式与 Save/Sync 继续迁移。
 
 运行时依赖边界由 `scripts/check-designer-document-dependencies.mjs` 检查：递归编译所有
 文档生产入口的传递依赖，不执行产物，拒绝 UI/server 模块与资源、framework directive 及未经允许的
