@@ -67,7 +67,7 @@ jobs:
         shell: pwsh
         working-directory: agent-gui
         run: |
-          node --test ../scripts/ci/check-static-runtime-closure.test.mjs scripts/static-runtime-native-probe.test.mjs scripts/static-runtime-dependency-graph.test.mjs scripts/verify-static-runtime.test.mjs
+          node --test ../scripts/ci/check-static-runtime-closure.test.mjs scripts/static-runtime-native-probe.test.mjs scripts/static-runtime-dependency-graph.test.mjs scripts/runtime-package-metadata.test.mjs scripts/runtime-package-source-files.test.mjs scripts/stage-runtime-packages.test.mjs scripts/verify-static-runtime.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Static runtime closure tests failed' }
           node --import tsx ../scripts/ci/check-static-runtime-closure.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Relocated static runtime closure verification failed' }
