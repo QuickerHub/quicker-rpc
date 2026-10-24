@@ -113,7 +113,14 @@ export function ActionProjectSyncBar({
   const targetReady = !targetRequired || Boolean(target);
   const [busyState, setBusyState] = useState({ owner, value: false });
   const busy = busyState.owner === owner && busyState.value;
-  const setBusy = useCallback((value: boolean) => { if (isCurrent()) setBusyState({ owner, value }); }, [isCurrent, owner]);
+  const onBusyChangeRef = useRef(onBusyChange); onBusyChangeRef.current = onBusyChange;
+  const setBusy = useCallback((value: boolean) => {
+    if (!isCurrent()) return;
+    // The renderer's live document port must freeze before the native request starts,
+    // including calls delivered before the next React effect publishes the busy UI.
+    onBusyChangeRef.current?.(value);
+    setBusyState({ owner, value });
+  }, [isCurrent, owner]);
   const [syncUiState, setSyncUiState] = useState(() => ({ owner, value: initialSyncUi(cwd, actionId, target) }));
   const syncUi = syncUiState.owner === owner ? syncUiState.value : initialSyncUi(cwd, actionId, target);
   const setSyncUi = useCallback((update: typeof syncUi | ((previous: typeof syncUi) => typeof syncUi)) => {

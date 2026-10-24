@@ -8,19 +8,33 @@ import { useWorkspaceExplorerEditor, type ExplorerFileTab } from "@/lib/workspac
 import { WorkspaceExplorerEditorPane } from "./WorkspaceExplorerEditorPane";
 import { ManualTracePresentationProvider } from "@/lib/action-trace-presentation";
 import { WorkspaceDocumentNavigationContext } from "@/lib/workspace-document-navigation";
+import { LiveProgramDocumentRegistryProvider } from "@/lib/live-program-document.client";
+import { createLiveProgramDocumentRegistry } from "@/lib/live-program-document-registry";
+import type { LiveProgramDocumentPin, LiveProgramDocumentRegistry, LiveProgramDocumentRegistryFailure } from "@/lib/live-program-document";
 
 export type WorkspaceDocumentChatPresentation = {
   threadId: string;
-  pinStep: (tag: ProgramStepTag) => void;
+  pinStep: (tag: ProgramStepTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => void;
 };
 type Outlet = { element: HTMLElement; owner: WorkspaceDocumentOwner; chat: WorkspaceDocumentChatPresentation };
 type Host = { attach: (token: object, cwd: string, tab: ExplorerFileTab, element: HTMLElement, chat: WorkspaceDocumentChatPresentation) => () => void };
 const WorkspaceDocumentHostContext = createContext<Host | null>(null);
 
 /** One renderer for all Chats. The portal target is never replaced when its outlet moves. */
-export function WorkspaceDocumentHost({ children }: { children: ReactNode }) {
+export function WorkspaceDocumentHost({ children, onLiveProgramDocumentRegistry }: { children: ReactNode;
+  onLiveProgramDocumentRegistry?: (registry: LiveProgramDocumentRegistry) => void | (() => void) }) {
   const { cwd, documentInstances, saveDocumentFile, saveDocumentProgram, refreshDocumentFile, openFile } = useWorkspaceExplorerEditor();
   const currentCwd = useRef(cwd); currentCwd.current = cwd;
+  const [liveDocuments] = useState(() => createLiveProgramDocumentRegistry({ isOwnerCurrent: documentInstances.isCurrent }));
+  const liveMount = useRef<{ registry: LiveProgramDocumentRegistry; active: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const lease = { registry: liveDocuments, active: true }; liveMount.current = lease;
+    const release = onLiveProgramDocumentRegistry?.(liveDocuments);
+    return () => {
+      lease.active = false; release?.();
+      queueMicrotask(() => { if (!liveMount.current?.active || liveMount.current.registry !== liveDocuments) liveDocuments.dispose(); });
+    };
+  }, [liveDocuments, onLiveProgramDocumentRegistry]);
   const instances = useSyncExternalStore(documentInstances.subscribe, documentInstances.getSnapshot, documentInstances.getSnapshot);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const parkingRef = useRef<HTMLDivElement | null>(null);
@@ -55,10 +69,11 @@ export function WorkspaceDocumentHost({ children }: { children: ReactNode }) {
   const pinStep = useCallback((owner: WorkspaceDocumentOwner, tag: ProgramStepTag) => {
     const current = presentation.getCurrent();
     if (!current || current.value.owner !== owner || !documentInstances.isCurrent(owner)) return;
-    current.value.chat.pinStep(tag);
-  }, [documentInstances, presentation]);
+    const pin = liveDocuments.pin(owner, tag.tagId, tag.designerStepId ?? "", current.value.chat.threadId);
+    current.value.chat.pinStep(tag, pin);
+  }, [documentInstances, presentation, liveDocuments]);
 
-  return <WorkspaceDocumentHostContext.Provider value={host}>
+  return <WorkspaceDocumentHostContext.Provider value={host}><LiveProgramDocumentRegistryProvider value={liveDocuments}>
     {children}
     <div hidden inert ref={parkingRef} data-workspace-document-parking />
     {container && createPortal(instances.map(({ owner, tab }) => {
@@ -86,7 +101,7 @@ export function WorkspaceDocumentHost({ children }: { children: ReactNode }) {
         </WorkspaceDocumentNavigationContext.Provider>
       </div>;
     }), container)}
-  </WorkspaceDocumentHostContext.Provider>;
+  </LiveProgramDocumentRegistryProvider></WorkspaceDocumentHostContext.Provider>;
 }
 
 export function WorkspaceDocumentOutlet({ cwd, tab, chat }: { cwd: string; tab: ExplorerFileTab; chat: WorkspaceDocumentChatPresentation }) {

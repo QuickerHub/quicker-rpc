@@ -187,6 +187,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
   return {
     /** Cached immutable state is safe for React external-store/state comparisons. */
     getState: (): ProgramDocumentState => state,
+    isClosed: (): boolean => closed,
     getHistoryState: (): ProgramDocumentHistoryState => history.getState(),
     undo: (options: ProgramDocumentHistoryOptions) => restoreHistory("undo", options),
     redo: (options: ProgramDocumentHistoryOptions) => restoreHistory("redo", options),
