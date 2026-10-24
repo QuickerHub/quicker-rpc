@@ -15,6 +15,7 @@ for (const failure of [false, true]) {
     process.env.QUICKER_AGENT_DATA_DIR = profile;
     const servers = [];
     const spawned = [], killed = [], writes = [];
+    const readFile = fs.readFileSync;
     const serverFactory = () => {
       const server = new EventEmitter();
       server.closed = 0;
@@ -28,6 +29,8 @@ for (const failure of [false, true]) {
     const mocks = [
       mock.method(http, "createServer", serverFactory), mock.method(net, "createServer", serverFactory),
       mock.method(fs, "existsSync", (path) => !String(path).endsWith("runtime-manifest.json")),
+      mock.method(fs, "readFileSync", (path, ...args) => String(path).endsWith("runtime-mode.json")
+        ? JSON.stringify({ format: "quicker-agent-runtime-mode", version: 1, mode: "legacy-next" }) : readFile(path, ...args)),
       mock.method(fs, "writeFileSync", (path) => { writes.push(path); }), mock.method(fs, "renameSync", () => {}),
       mock.method(childProcess, "spawn", (executable, args, options) => {
         spawned.push({ executable, args, options });

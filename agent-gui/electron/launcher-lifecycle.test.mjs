@@ -153,6 +153,48 @@ test("cold launcher show then hide stays hidden when ready arrives", (t) => {
   assert.equal(replacement.isVisible(), true);
 });
 
+test("explicit reopen shows an existing cold hidden launcher before its first ready event", (t) => {
+  const { makeOwner, windows, tick } = fixture(t);
+  const owner = makeOwner();
+  owner.launcher_show({});
+  const win = owner.getLauncherWindow();
+  assert.equal(win.isVisible(), false, "the first cold show still waits for ready");
+  owner.launcher_hide();
+  tick(20_000);
+  assert.equal(win.isVisible(), false);
+  assert.equal(win.showCount, 0, "this hidden window has never received its first paint/ready event");
+
+  owner.launcher_show({});
+  assert.equal(owner.getLauncherWindow(), win, "reopen reuses the window rather than replacing its owner");
+  assert.equal(windows().length, 1);
+  assert.equal(win.isVisible(), true, "an explicit reopen must show the existing window so the first paint can proceed");
+  assert.equal(win.isFocused(), true);
+  assert.equal(win.showCount, 1);
+
+  owner.launcher_hide();
+  win.ready();
+  tick(10_000);
+  assert.equal(win.isVisible(), false, "the delayed first ready event cannot override a newer hide");
+  assert.equal(win.showCount, 1);
+});
+
+test("a late first ready after explicit reopen cannot refocus a launcher the user already blurred", (t) => {
+  const { makeOwner, tick } = fixture(t);
+  const owner = makeOwner();
+  owner.launcher_show({});
+  const win = owner.getLauncherWindow();
+  owner.launcher_hide();
+  owner.launcher_show({});
+  assert.equal(win.isVisible(), true);
+  assert.equal(win.isFocused(), true);
+  win.blur();
+  tick(100);
+  win.ready();
+  assert.equal(win.isFocused(), false, "first paint must not steal focus after the explicit show already finished");
+  tick(1_100);
+  assert.equal(win.isVisible(), false, "the late ready event must not cancel the existing blur compensation");
+});
+
 test("an immediate launcher blur hides at the end of its 1200ms suppression window", (t) => {
   const { makeOwner, tick } = fixture(t);
   const owner = makeOwner();

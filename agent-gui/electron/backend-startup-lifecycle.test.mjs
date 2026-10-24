@@ -165,7 +165,7 @@ test("a quit before startup's first microtask allocates no backend resource", as
 test("genuine startup failures are not reclassified as intentional quit", async () => {
   const { startProductionBackends } = await import("./backend-spawn.mjs?startup-real-failure");
   const failure = new Error("fixture resource resolution failed");
-  const runtime = Object.defineProperty({}, "smoke", { get() { throw failure; } });
+  const runtime = Object.defineProperty({}, "appDir", { get() { throw failure; } });
   await assert.rejects(startProductionBackends(runtime), (error) => error === failure);
 });
 
@@ -175,7 +175,7 @@ test("awaiting shutdown releases startup ownership before an immediate restart",
   void first.catch(() => {});
   await shutdownBackends();
   const accepted = new Error("new startup accepted");
-  const retry = Object.defineProperty({}, "smoke", { get() { throw accepted; } });
+  const retry = Object.defineProperty({}, "appDir", { get() { throw accepted; } });
   await assert.rejects(startProductionBackends(retry), (error) => error === accepted);
   await assert.rejects(first, (error) => error instanceof BackendStartupCancelledError);
 });
