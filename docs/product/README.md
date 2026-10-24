@@ -287,7 +287,8 @@ getter 的连接或超时失败保留原错误/exit/绑定，既不伪装成功�
 invoke 持久化事实已分开描述宿主修改与本地导出，供绑定、HTTP/CLI 收据及重试共用。
 动作 open/extract 和子程序 export 的空体、坏 JSON、丢失确认与超时保留结果未知，
 不自动重放或转用 CLI；已知未启动错误保留原结果。明确未知收据不再变成连接失败或
-自动恢复建议。真实生产传输/工具链的 guarded 回归与独立审查通过；wrapper 自身的
+自动恢复建议。服务端未提供未派发证据的持久写超时同样保留未知，并附原始错误收据，
+纯读超时和明确校验/绑定拒绝保持原语义。真实生产传输/工具链的 guarded 回归与独立审查通过；wrapper 自身的
 工作区 augmentation、bootstrap、权限及 TurnPlan 不据此视为已经统一。
 
 旧 JSON 动作项目已加入 `.qkrpc/project-binding.json`，CLI/MCP/serve/Agent 的导出、创建和
