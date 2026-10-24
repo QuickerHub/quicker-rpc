@@ -134,17 +134,28 @@ test("successful candidate caches recheck parent and link proofs before followin
     const calls = [];
     const guard = createPackageSourceInspector({ inspectMetadata(paths) { calls.push(...paths); } });
     assert.equal(guard.inspectCandidate(candidate), realpathSync(f.source));
-    const count = calls.length;
     assert.equal(guard.inspectCandidate(candidate), realpathSync(f.source));
-    assert.equal(calls.length, count, "Unchanged candidate proofs retain the metadata cache");
+    // Other test files can change a shared ancestor (for example .tmp).
+    // Rechecking its metadata is safe; an exact cache-hit count is not stable.
+    const beforeRetarget = calls.length;
     const cloud = join(f.root, "OneDrive-synthetic");
     mkdirSync(cloud);
     // Remove only this test-owned link; never recursively visit its target.
     rmSync(parent);
     directoryLink(cloud, parent);
     assert.throws(() => guard.inspectCandidate(candidate), /Unsafe package source path/);
-    assert.ok(calls.length > count, "A changed ancestor must invalidate the metadata cache");
+    assert.ok(calls.length > beforeRetarget, "A changed ancestor must invalidate the metadata cache");
   }
+});
+
+test("an unrelated ancestor directory change safely rechecks an otherwise unchanged candidate", (t) => {
+  const f = fixture(t), calls = [];
+  const guard = createPackageSourceInspector({ inspectMetadata(paths) { calls.push(...paths); } });
+  assert.equal(guard.inspectCandidate(f.source), realpathSync(f.source));
+  const beforeChange = calls.length;
+  mkdirSync(join(f.root, "parallel-fixture"));
+  assert.equal(guard.inspectCandidate(f.source), realpathSync(f.source));
+  assert.ok(calls.length > beforeChange, "Ancestor metadata changes require a fresh check even when the package itself is unchanged");
 });
 
 test("genuinely missing candidate suffixes are not cached and may appear later", (t) => {
