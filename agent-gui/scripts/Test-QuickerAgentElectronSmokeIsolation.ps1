@@ -13,7 +13,7 @@ $null = New-Item -ItemType Directory -Path $testRoot
 try {
     $run = New-ElectronSmokeRun $testRoot
     $envMap = Get-ElectronSmokeEnvironment $run
-    foreach ($name in @('APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP', 'AGENT_GUI_ROOT', 'AGENT_GUI_DEFAULT_CWD')) {
+    foreach ($name in @('APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP', 'AGENT_GUI_ROOT', 'AGENT_GUI_DEFAULT_CWD', 'QUICKER_AGENT_DATA_DIR')) {
         Assert-True ($envMap[$name].StartsWith($run.Root + [IO.Path]::DirectorySeparatorChar)) "Ambient path escaped: $name"
     }
     Assert-True (-not $envMap.ContainsKey('ELECTRON_RUN_AS_NODE')) 'Inherited Electron Node mode'

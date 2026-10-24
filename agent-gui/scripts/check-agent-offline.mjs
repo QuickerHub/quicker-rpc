@@ -10,6 +10,7 @@ const tests = [
   "scripts/agent-offline-network-guard.test.mjs",
   "scripts/check-agent-backend-dependencies.test.mjs",
   "electron/smoke-isolation.test.mjs",
+  "electron/launcher-lifecycle.test.mjs",
   "electron/backend-smoke.test.mjs",
   "electron/backend-startup-lifecycle.test.mjs",
   "electron/installer-process-ownership.test.mjs",

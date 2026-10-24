@@ -83,14 +83,20 @@ export function createLauncherCommands(deps) {
   let handlersRegistered = false;
   let hadStableFocus = false;
   let emitShownOnFocus = false;
-  /** @type {ReturnType<typeof setTimeout> | null} */
+  let showRequested = false;
+  let launcherReady = false;
+  let disposed = false;
+  /** @type {number | null} */
   let suppressBlurUntil = null;
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let blurHideTimer = null;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let prewarmTimer = null;
   let prewarmScheduled = false;
 
-  function blurHideIsSuppressed() {
-    return suppressBlurUntil !== null && Date.now() < suppressBlurUntil;
+  function clearBlurHideTimer() {
+    if (blurHideTimer) clearTimeout(blurHideTimer);
+    blurHideTimer = null;
   }
 
   function suppressBlurHideFor(ms) {
@@ -105,7 +111,10 @@ export function createLauncherCommands(deps) {
   }
 
   function hideLauncherWindow(win) {
+    showRequested = false;
     hadStableFocus = false;
+    emitShownOnFocus = false;
+    clearBlurHideTimer();
     suppressBlurUntil = null;
     if (win.isDestroyed()) return;
     win.hide();
@@ -113,6 +122,9 @@ export function createLauncherCommands(deps) {
   }
 
   function showLauncherWindow(win) {
+    if (disposed || win.isDestroyed()) return;
+    showRequested = true;
+    clearBlurHideTimer();
     hadStableFocus = false;
     emitShownOnFocus = true;
     suppressBlurHideFor(LAUNCHER_BLUR_SUPPRESS_MS);
@@ -123,6 +135,18 @@ export function createLauncherCommands(deps) {
       win.show();
     }
     win.focus();
+    // An already focused window need not emit another native focus event.
+    if (win.isFocused()) onLauncherFocused(win);
+  }
+
+  function onLauncherFocused(win) {
+    clearBlurHideTimer();
+    hadStableFocus = true;
+    suppressBlurHideFor(LAUNCHER_BLUR_SUPPRESS_MS);
+    if (emitShownOnFocus) {
+      emitShownOnFocus = false;
+      emitLauncherEvent(win, LAUNCHER_SHOWN_EVENT);
+    }
   }
 
   function applyLauncherChrome(win) {
@@ -142,18 +166,21 @@ export function createLauncherCommands(deps) {
     if (handlersRegistered) return;
     handlersRegistered = true;
 
-    win.on("focus", () => {
-      hadStableFocus = true;
-      suppressBlurHideFor(LAUNCHER_BLUR_SUPPRESS_MS);
-      if (emitShownOnFocus) {
-        emitShownOnFocus = false;
-        emitLauncherEvent(win, LAUNCHER_SHOWN_EVENT);
-      }
-    });
+    win.on("focus", () => onLauncherFocused(win));
 
     win.on("blur", () => {
       if (!hadStableFocus) return;
-      if (blurHideIsSuppressed()) return;
+      const remaining = (suppressBlurUntil ?? 0) - Date.now();
+      if (remaining > 0) {
+        clearBlurHideTimer();
+        blurHideTimer = setTimeout(() => {
+          blurHideTimer = null;
+          if (!disposed && launcherWindow === win && !win.isDestroyed() && !win.isFocused()) {
+            hideLauncherWindow(win);
+          }
+        }, remaining);
+        return;
+      }
       hideLauncherWindow(win);
     });
 
@@ -171,6 +198,9 @@ export function createLauncherCommands(deps) {
   }
 
   function buildLauncherWindow(show) {
+    if (disposed) return null;
+    showRequested = show;
+    launcherReady = false;
     const win = new BrowserWindow({
       width: LAUNCHER_WIDTH,
       height: LAUNCHER_HEIGHT,
@@ -199,34 +229,43 @@ export function createLauncherCommands(deps) {
     applyLauncherChrome(win);
     void win.loadURL(launcherUrl());
 
-    if (show) {
-      win.once("ready-to-show", () => showLauncherWindow(win));
-    }
+    win.once("ready-to-show", () => {
+      if (disposed || launcherWindow !== win) return;
+      launcherReady = true;
+      if (showRequested) showLauncherWindow(win);
+    });
 
     launcherWindow = win;
     win.on("closed", () => {
-      if (launcherWindow === win) launcherWindow = null;
-      handlersRegistered = false;
+      if (launcherWindow === win) {
+        launcherWindow = null;
+        launcherReady = false;
+        showRequested = false;
+        handlersRegistered = false;
+        clearBlurHideTimer();
+      }
     });
 
     return win;
   }
 
   function ensureLauncherWindow() {
+    if (disposed) return null;
+    showRequested = true;
     if (launcherWindow && !launcherWindow.isDestroyed()) {
-      showLauncherWindow(launcherWindow);
+      if (launcherReady) showLauncherWindow(launcherWindow);
       return launcherWindow;
     }
     return buildLauncherWindow(true);
   }
 
   function prewarmLauncherWindow(delayMs) {
-    if (prewarmScheduled) return;
+    if (disposed || prewarmScheduled) return;
     prewarmScheduled = true;
     if (prewarmTimer) clearTimeout(prewarmTimer);
     prewarmTimer = setTimeout(() => {
       prewarmTimer = null;
-      if (launcherWindow && !launcherWindow.isDestroyed()) return;
+      if (disposed || launcherWindow && !launcherWindow.isDestroyed()) return;
       buildLauncherWindow(false);
       const primary = deps.getMainWindow();
       if (primary && !primary.isDestroyed() && primary.isVisible()) {
@@ -244,6 +283,15 @@ export function createLauncherCommands(deps) {
   return {
     getLauncherWindow: () => launcherWindow,
     scheduleLauncherPrewarm,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      showRequested = false;
+      if (prewarmTimer) clearTimeout(prewarmTimer);
+      prewarmTimer = null;
+      clearBlurHideTimer();
+      if (launcherWindow && !launcherWindow.isDestroyed()) launcherWindow.destroy();
+    },
     launcher_show(_args) {
       ensureLauncherWindow();
       return null;
@@ -259,7 +307,7 @@ export function createLauncherCommands(deps) {
       if (
         launcherWindow
         && !launcherWindow.isDestroyed()
-        && launcherWindow.isVisible()
+        && showRequested
       ) {
         hideLauncherWindow(launcherWindow);
         refocusPrimaryWindowIfVisible();
@@ -269,11 +317,6 @@ export function createLauncherCommands(deps) {
       return null;
     },
     launcher_expand() {
-      if (launcherWindow && !launcherWindow.isDestroyed()) {
-        applyLauncherChrome(launcherWindow);
-        showLauncherWindow(launcherWindow);
-        return null;
-      }
       ensureLauncherWindow();
       return null;
     },

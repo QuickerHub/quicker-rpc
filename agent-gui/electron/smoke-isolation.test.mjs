@@ -10,7 +10,7 @@ import {
 function fixture() {
   const root = resolve("fixture/smoke-run");
   const env = { QUICKER_AGENT_SMOKE_ROOT: root, QUICKER_AGENT_SMOKE_RUN_ID: "a".repeat(32) };
-  for (const [key, suffix] of Object.entries({ APPDATA: "roaming", LOCALAPPDATA: "local", USERPROFILE: "home", HOME: "home", TEMP: "temp", TMP: "temp", AGENT_GUI_ROOT: "app-state", AGENT_GUI_DEFAULT_CWD: "workspace" })) env[key] = join(root, suffix);
+  for (const [key, suffix] of Object.entries({ APPDATA: "roaming", LOCALAPPDATA: "local", USERPROFILE: "home", HOME: "home", TEMP: "temp", TMP: "temp", AGENT_GUI_ROOT: "app-state", AGENT_GUI_DEFAULT_CWD: "workspace", QUICKER_AGENT_DATA_DIR: "data" })) env[key] = join(root, suffix);
   const paths = {};
   const app = { setPath: (name, path) => { paths[name] = path; } };
   const fs = { mkdirSync() {}, realpathSync: (path) => path };
@@ -27,6 +27,7 @@ test("explicit smoke isolates profiles before main modules load and rejects ambi
   assert.equal(smoke.protocol, SMOKE_PROTOCOL);
   assert.deepEqual(f.paths, { appData: join(f.root, "roaming"), userData: join(f.root, "profile"), sessionData: join(f.root, "sessions"), logs: join(f.root, "logs") });
   assert.throws(() => initializeSmokeIsolation(f.app, { ...f.env, APPDATA: resolve("ambient-profile") }, f.fs), /APPDATA is not isolated/);
+  assert.throws(() => initializeSmokeIsolation(f.app, { ...f.env, QUICKER_AGENT_DATA_DIR: resolve("ambient-data") }, f.fs), /QUICKER_AGENT_DATA_DIR is not isolated/);
   assert.throws(() => initializeSmokeIsolation(f.app, f.env, { ...f.fs, realpathSync: () => resolve("redirected") }), /Invalid isolated smoke/);
 });
 
