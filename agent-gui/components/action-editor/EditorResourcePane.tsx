@@ -103,8 +103,8 @@ function ResourceExplorer({ active, kind, resourceCallOrigin, onInsertAtEnd }: {
   const selectedOpen = opens.current.get(selectedOpenKey);
   const blockedBy = selectedOpen?.result && !selectedOpen.result.ok ? selectedOpen.result.blockedBy : undefined;
   const openUnavailable = kind !== "action" ? "子程序打开尚未接入。"
-    : selected?.actionType !== "XAction" ? "当前仅支持打开组合动作（XAction）；其它或未知类型保留只读摘要。"
-    : !port?.resourceActionOpenAvailable ? "绑定宿主未提供 V1 动作正文读取能力，当前只能浏览摘要。"
+    : selected?.actionType !== "XAction" ? "仅组合动作（XAction）支持在工作区打开。"
+    : !port?.resourceActionOpenAvailable ? "绑定宿主未提供 V1 动作正文读取能力，无法在工作区打开。"
     : !navigation ? "请从工作区文件实例打开动作。" : undefined;
   const openSelected = async () => {
     if (!selected || !port || !active || !visible?.valid || visible.loading || openUnavailable || selectedOpen?.pending || blockedBy) return;
