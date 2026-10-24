@@ -27,7 +27,7 @@ async function fixture() {
   const module = { exports: {} }; new Function("module", "exports", "require", result.outputFiles[0].text)(module, module.exports, createRequire(import.meta.url));
   return { api: module.exports as Fixture, globals };
 }
-test("actual trace store writes background callbacks to their owning thread and keeps manual namespace separate", async () => {
+test("actual trace store writes background callbacks to their owning thread and keeps historical views separate", async () => {
   const { api, globals } = await fixture(); const a = owner("one"), b = owner("two", "B");
   api.switchActionTraceThread("A"); const viewA = api.prepareOwnedTraceView(a, true)!;
   api.switchActionTraceThread("B"); const viewB = api.prepareOwnedTraceView(b, true)!;
@@ -36,8 +36,9 @@ test("actual trace store writes background callbacks to their owning thread and 
   viewA.finish({ ok: true, traceOwner: a }); viewB.appendEvent({ sequence: 1, message: "only B" }); viewB.finish({ ok: true, traceOwner: b });
   assert.equal(api.getActionTraceTabs().length, 1); assert.equal(api.getActionTraceTabs()[0].events[0].message, "only B");
   assert.equal(globals.traceFocus.length, focusCount);
-  const legacy = api.prepareActionTraceTab({ actionId: "same-action", param: "same-param" });
-  assert.notEqual(legacy, viewB.tabId); assert.equal(api.getActionTraceTabs().length, 2);
+  const legacy = api.prepareHistoricalTraceView({ threadId: "B", cwd: "cwd-B", messageId: "old", partKey: "call_0", actionId: "same-action", param: "same-param" })!;
+  legacy.hydrate({ ok: true, events: [{ kind: "info", message: "readonly inline history" }] });
+  assert.notEqual(legacy.tabId, viewB.tabId); assert.equal(api.getActionTraceTabs().length, 2);
   api.switchActionTraceThread("A"); assert.equal(api.getActionTraceTabs()[0].events[0].message, "late A");
   viewA.appendEvent({ sequence: 2, message: "after terminal" }); assert.equal(api.getActionTraceTabs()[0].events.length, 1);
 });
@@ -70,6 +71,28 @@ test("artifact requires exact owner/host and replay uses a distinct presentation
   assert.equal(await api.hydrateActionTraceFromArtifact(history.cwd, { path: "old", format: "action-trace-v1" }, { view: history }), true);
   assert.equal(api.getActionTraceTabs().find((tab) => tab.tabId === history.tabId)?.events[0].message, "old history");
   assert.equal(globals.traceFocus.length, 0);
+});
+test("ownerless legacy files and inline failures hydrate only an explicit live historical view without starting trace", async () => {
+  const { api, globals } = await fixture(); api.switchActionTraceThread("history-thread");
+  const ref = { path: "legacy-result.json", format: "action-trace-v1" as const }; let reads = 0, network = 0;
+  const oldFetch = globalThis.fetch; globalThis.fetch = async () => { network++; throw Error("History must not start or subscribe to trace"); };
+  try {
+    globals.traceRead = async () => { reads++; throw Error("Missing view must not read a file"); };
+    assert.equal(await api.hydrateActionTraceFromArtifact("original-cwd", ref, undefined as never), false); assert.equal(reads, 0);
+    const old = api.prepareHistoricalTraceView({ threadId: "history-thread", cwd: "original-cwd", messageId: "closed", partKey: "old-call", actionId: "old-action" })!;
+    const gate = deferred<unknown>(); globals.traceRead = async (cwd, path) => { reads++; assert.equal(cwd, old.cwd); assert.equal(path, ref.path); return gate.promise; };
+    const late = api.hydrateActionTraceFromArtifact(old.cwd, ref, { view: old }); api.closeActionTraceTab(old.tabId);
+    const legacy = { version: 1, actionId: "old-action", ok: false, events: [{ kind: "info", message: "legacy file event" }], errorMessage: "legacy native error", returnResult: "old return", durationMs: 12 };
+    gate.resolve({ ok: true, content: JSON.stringify(legacy) }); assert.equal(await late, false); assert.equal(api.getActionTraceTabs().length, 0);
+    const current = api.prepareHistoricalTraceView({ threadId: "history-thread", cwd: "original-cwd", messageId: "existing-file", partKey: "old-call", actionId: "old-action" })!;
+    globals.traceRead = async () => { reads++; return { ok: true, content: JSON.stringify(legacy) }; };
+    assert.equal(await api.hydrateActionTraceFromArtifact(current.cwd, ref, { view: current }), true);
+    const tab = api.getActionTraceTabs()[0]; assert.equal(tab.owner, undefined); assert.equal(tab.events[0].message, "legacy file event");
+    assert.equal(tab.status, "error"); assert.equal(tab.errorMessage, "legacy native error"); assert.equal(tab.returnResult, "old return"); assert.equal(tab.durationMs, 12);
+    const inline = api.prepareHistoricalTraceView({ threadId: "history-thread", cwd: "original-cwd", messageId: "inline", partKey: "old-call", actionId: "old-action" })!;
+    inline.hydrate({ ok: false, events: [{ kind: "info", message: "inline legacy event" }], errorMessage: "inline failed", returnResult: "inline return" });
+    assert.equal(api.getActionTraceTabs()[1].errorMessage, "inline failed"); assert.equal(reads, 2); assert.equal(network, 0);
+  } finally { globalThis.fetch = oldFetch; }
 });
 test("shared feed waiter cancellation does not stop another observer; closed view aborts only observation", async () => {
   const { api } = await fixture(); const o = owner("shared"); api.switchActionTraceThread("A"); const view = api.prepareOwnedTraceView(o)!;

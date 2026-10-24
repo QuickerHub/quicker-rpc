@@ -329,6 +329,9 @@ POST 启动，GET 只观察已有 owner。已知项目按精确目录读取并�
 服务停止先登记单一关闭 Promise，再取消所属观察；清理超时明确失败并继续持有未决任务，
 迟到原生结果不复活 view。13 项新定向回归、原 Agent 15 项及真实 Toolbar/内联 DOM 通过。
 本片不把项目读取绑定称为 APDE 实时 revision 协同，真实宿主并行 trace 仍待验收。
+旧浏览器直连 serve URL、actionId/param 全局缓冲与已无调用的 prepare/append/finish
+入口已移除。artifact 读取必须携带仍有效的显式 view，关闭后的迟到文件不能回灌当前聊天；
+旧无 owner 历史继续通过只读历史 view 展示内联结果、失败或文件，旧 trace 页签格式仍可识别。
 
 catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录读取、未绑定及完整
 目标失配拒绝；专用动作版本未变、无宿主写入或运行。主界面 frontend check 通过。首次
@@ -479,7 +482,7 @@ Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作
 | R5 / P1：面板扩展契约 | 快捷入口表还不是可扩展工作台；增加文件、结果或动作面板仍可能扩写多处 switch | WORKBENCH / WORK；`agent-workbench-features.ts`、`workspace-explorer.tsx`、`WorkspaceSidePanelTabBar.tsx` | R3–R4 | 面板静态身份、renderer 与会话实例状态分离；已有文件/资源/终端/浏览器接入同一契约；脏编辑和正在运行的任务不会因切换呈现而卸载 | 文件/Designer 实例首片已与 Chat/dock 呈现解耦，稳定 portal、单 Session、读写回执与精确项目删除已验证；完整静态面板定义与 browser/terminal/trace 实例契约、持久草稿恢复仍待迁移 |
 | R6 / P1：V1 YAML 完整接入 | 贯通既有 CLI/MCP source bundle 与 QuickerAgent 工具、展示和知识路由 | AUTHOR / RPC；`qkrpc-action-source-tool*`、`qkrpc-tool-call*`、`qkrpc-argv.ts`、`qkrpc-http.ts`、source bundle 与 codec | R1；复用现有文件与结果展示，不依赖专用面板 | open/save 的 CLI、HTTP、cwd、dry-run 等价；Agent 可走现有 V1 YAML 流程；未知字段、外部文件、连续保存、冲突与 Designer 保护保留；V2 原生 MCP 路径不混入 V1 | 工具、cwd/sidecar 门禁与知识已接入；真实 V1 专用动作连续保存、外置默认值和步骤绑定重读、目标/版本冲突及 checkpoint 部分成功恢复已验证。Agent/Designer 完整协同与打开 Designer 的真实保护仍待验收 |
 | R7 / P1：交互与样式完整性 | 只检查主页面截图会漏掉浮层、焦点、键盘、窄窗口、错误和加载状态 | WORKBENCH；`theme.css`、`globals.css`、模型/设置/侧栏/Composer 组件 | R3–R6 | 主题只有一个 token 来源；样式按组件职责归位且顺序可控；浮层可用键盘进入/退出、恢复焦点、适应边缘；深浅/窄窗/长会话和失败状态逐场景检查 | 待实施 |
-| R8 / P1：收口与持续验收 | 文件移动和测试数量不能证明架构完成；旧入口与隐性全局状态会重新长回来 | 全功能域；架构检查、离线 Agent scenarios、UI fixtures、工程说明 | R0–R7 | 关键依赖边界有可执行检查；代表性场景跑通且新旧格式兼容；遗留分支有用途或移除；文档与实际能力一致；每项未完成条件保留，不将缺口标为完成 | 待实施 |
+| R8 / P1：收口与持续验收 | 文件移动和测试数量不能证明架构完成；旧入口与隐性全局状态会重新长回来 | 全功能域；架构检查、离线 Agent scenarios、UI fixtures、工程说明 | R0–R7 | 关键依赖边界有可执行检查；代表性场景跑通且新旧格式兼容；遗留分支有用途或移除；文档与实际能力一致；每项未完成条件保留，不将缺口标为完成 | 纯文档运行时依赖检查与旧 trace 直连/全局缓冲清理已有验收；其它分层边界、代表流程及遗留入口继续审计，整个阶段未完成 |
 
 每个切片按「确认现行为与失败用例 → 最小正确实现 → 针对性测试 → 真实 UI（如受影响）
 → 独立审查 → 提交与推送」推进。一个阶段允许多次可验证提交；只通过静态扫描、

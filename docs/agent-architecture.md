@@ -346,6 +346,10 @@ abort listener，有界等待实际 settlement；超时保留 entry，迟到完�
 `didDispatch` 事实区分派发前拒绝和 ACK 窗口内结果未知，不重试可能已发出的运行。
 客户端从当前 presentation port 捕获 thread/cwd/generation，pending view 仅向原 owner
 提升；标题和内联命令行是展示元数据，不进入原生身份或改写 inline payload。
+浏览器不再保留默认 serve URL、旧 SSE POST helper 或 actionId/param 全局写入缓冲。
+artifact hydration 必须接收显式 view，读取前检查 cwd、有效代次及取消，文件返回后再
+比较完整 owner；旧无 owner 格式只交给独立历史 view。旧页签前缀识别保留，已无调用的
+旧 key 构造/解析与展示回灌入口删除，避免以后重新绕过运行归属。
 
 历史消息分支确认携带 mounted owner、thread、锚点、草稿与消息 revision。确认返回后先检查
 当前 owner，再通过 AI SDK 的同步 functional updater 比较实时 store；React 的节流消息副本

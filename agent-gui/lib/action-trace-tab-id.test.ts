@@ -1,25 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  buildActionTraceTabId,
   formatActionTraceTabLabel,
   isActionTraceTabId,
-  parseActionTraceTabId,
 } from "./action-trace-tab-id";
 
 describe("action-trace-tab-id", () => {
-  it("builds stable tab ids per action and param", () => {
-    const a = buildActionTraceTabId("d47c98d1-86be-40d0-ad02-87103f4dda1e");
-    const b = buildActionTraceTabId(
-      "d47c98d1-86be-40d0-ad02-87103f4dda1e",
-      "path=C:\\a.txt",
-    );
-    assert.ok(isActionTraceTabId(a));
-    assert.notEqual(a, b);
-    assert.equal(
-      parseActionTraceTabId(b)?.param,
-      "path=C:\\a.txt",
-    );
+  it("recognizes persisted legacy and owned/history trace view ids", () => {
+    assert.equal(isActionTraceTabId("__trace__:d47c98d1-86be-40d0-ad02-87103f4dda1e::path%3DC%3A%5Ca.txt"), true);
+    assert.equal(isActionTraceTabId("__trace__:owned:thread:execution:run"), true);
+    assert.equal(isActionTraceTabId("__trace__:history:thread:message:call"), true);
   });
 
   it("rejects non-string view ids", () => {
