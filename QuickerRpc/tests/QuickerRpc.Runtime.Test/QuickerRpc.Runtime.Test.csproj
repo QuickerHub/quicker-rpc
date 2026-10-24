@@ -25,6 +25,7 @@
     <!-- Exercise the actual reflection save guard offline without loading a Quicker host assembly. -->
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2ActionAccessor.cs" Link="OfflineV2\QuickerV2ActionAccessor.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2Reflection.cs" Link="OfflineV2\QuickerV2Reflection.cs" />
+    <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2StepRunnerMapper.cs" Link="OfflineV2\QuickerV2StepRunnerMapper.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2Runtime.cs" Link="OfflineV2\QuickerV2Runtime.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2TypeNames.cs" Link="OfflineV2\QuickerV2TypeNames.cs" />
     <Compile Include="..\..\src\QuickerRpc.Plugin.V2\Reflection\QuickerV2OperationPayloadWriter.cs" Link="OfflineV2\QuickerV2OperationPayloadWriter.cs" />

@@ -8,6 +8,7 @@ import "../../../components/action-editor/ActionResourceInsertion.browser.test";
 import "../steps/paramEditors/ColorTextTool.browser.test";
 import "../steps/paramEditors/ErrorMessageOutput.browser.test";
 import "../steps/paramEditors/StepEditorParamSection.browser.test";
+import "../steps/paramEditors/ModuleHelpPreview.browser.test";
 
 // Exercise the production editor, variable form, history hook and registry.
 // Step edits and resource leaves are isolated from catalogs and real hosts.

@@ -40,6 +40,9 @@ public sealed class StepRunnerDefinition
 
     public string Icon { get; set; } = string.Empty;
 
+    /// <summary>Optional native documentation URL, carried only by the UI schema.</summary>
+    public string? HelpLink { get; set; }
+
     public string Category { get; set; } = string.Empty;
 
     public IList<StepRunnerInputParamDef> InputParamDefs { get; set; } = new List<StepRunnerInputParamDef>();
