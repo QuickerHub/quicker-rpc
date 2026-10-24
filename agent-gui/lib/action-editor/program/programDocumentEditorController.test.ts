@@ -81,3 +81,53 @@ test("subprogram property dialogs use current revision but retain their captured
   assert.equal(controller.applySubProgramProperties(row.id, { ...patch, name: "departed" }, latest).ok, false);
   assert.equal(session.getState(), before);
 });
+
+test("subprogram creation and confirmed deletion share the live document history and stable surface controls", () => {
+  const session = createProgramDocumentSession({ content, identity: { documentKey: "lifecycle", projectBinding: null } });
+  const controller = createProgramDocumentEditorController(session, { isCurrent: () => true, onChange: (result) => assert.equal(result.ok, true) });
+  const created = controller.createSubProgram({ id: "ui-stable-id" }, controller.getIdentity());
+  assert.equal(created.ok, true); if (!created.ok) return;
+  assert.deepEqual(created.created, { id: "ui-stable-id", name: "子程序1" });
+  assert.equal(session.getHistoryState().undoDepth, 1);
+  const surface = controller.getSurface("sub-ui-stable-id");
+  assert.equal(surface.getPresent().steps.length, 0);
+  controller.undo(); assert.equal(controller.getSnapshot().subPrograms.length, 1);
+  controller.redo(); assert.equal(controller.getSurface("sub-ui-stable-id"), surface);
+  const prepared = controller.prepareSubProgramDelete("ui-stable-id");
+  assert.equal(prepared.ok, true); if (!prepared.ok) return;
+  assert.equal(prepared.preview.canDelete, true);
+  assert.equal(controller.deleteSubProgram(prepared.preview).ok, true);
+  assert.equal(controller.getSnapshot().subPrograms.length, 1);
+  assert.equal(session.getHistoryState().undoDepth, 2);
+  controller.undo(); assert.equal(surface.getPresent().steps.length, 0);
+  controller.undo(); assert.equal(controller.getSnapshot().subPrograms.length, 1);
+  controller.redo(); controller.redo();
+  assert.match(session.getState().content, /9223372036854775807/);
+  assert.match(session.getState().content, /1e999/);
+});
+
+test("subprogram delete confirmations cannot absorb newer edits, references or departed owners", () => {
+  const session = createProgramDocumentSession({ content, identity: { documentKey: "lifecycle-cas" } });
+  let current = true;
+  const controller = createProgramDocumentEditorController(session, { isCurrent: () => current, onChange: () => {} });
+  const prepare = () => { const result = controller.prepareSubProgramDelete("child"); assert.equal(result.ok, true); if (!result.ok) throw new Error(result.error); return result.preview; };
+  const preview = prepare();
+  const main = controller.getSurface("main"); const next = main.getPresent(); next.steps[0]!.note = "flushed after confirmation opened"; main.commit(next);
+  const before = session.getState();
+  const stale = controller.deleteSubProgram(preview);
+  assert.equal(stale.ok, false); if (!stale.ok) assert.equal(stale.code, "revision_conflict");
+  assert.equal(session.getState(), before);
+  const refreshed = prepare(); current = false;
+  assert.equal(controller.deleteSubProgram(refreshed).ok, false);
+  assert.equal(controller.prepareSubProgramDelete("child").ok, false);
+  assert.equal(controller.createSubProgram({ id: "late" }, controller.getIdentity()).ok, false);
+  assert.equal(session.getState(), before);
+  current = true;
+  const calling = main.getPresent();
+  calling.steps[0]!.stepRunnerKey = "sys:subprogram";
+  calling.steps[0]!.inputParams = { subProgram: { value: "Child", varKey: "" } };
+  main.commit(calling);
+  const used = prepare(); assert.equal(used.canDelete, false); assert.equal(used.references.length, 1);
+  assert.equal(controller.deleteSubProgram(used).ok, false);
+  assert.equal(controller.getSnapshot().subPrograms.length, 1);
+});

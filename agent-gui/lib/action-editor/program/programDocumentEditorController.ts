@@ -1,5 +1,7 @@
 import type { ProgramDocumentEditResult, ProgramDocumentIdentity, ProgramDocumentSession } from "../document/programDocumentSession";
 import { applyProgramDocumentSubProgramProperties, type SubProgramPropertiesPatch } from "../document/programDocumentSubProgramProperties";
+import { createProgramDocumentSubProgram, deleteProgramDocumentSubProgram, prepareProgramDocumentSubProgramDelete,
+  type CreateDocumentSubProgramResult, type PreparedSubProgramDelete, type PrepareSubProgramDeleteResult } from "../document/programDocumentSubPrograms";
 import type { ActionSubProgram } from "../types/common";
 import type { ActionProgramSnapshot } from "./assembleActionProgramSnapshot";
 import { cloneXProgramPresent, type XProgramPresent } from "./xProgramHistory";
@@ -35,6 +37,24 @@ export function createProgramDocumentEditorController(
     getSnapshot: () => session.readSnapshot(),
     getIdentity: () => session.getState().identity,
     getHistoryState: () => session.getHistoryState(),
+    createSubProgram(input: { id: string; suggestedName?: string }, expectedIdentity: ProgramDocumentIdentity): CreateDocumentSubProgramResult {
+      if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "文档已经切换，无法新建子程序", state: session.getState() };
+      const result = createProgramDocumentSubProgram(session, input, { ...editOptions(), expectedIdentity });
+      options.onChange(result);
+      return result;
+    },
+    prepareSubProgramDelete(id: string): PrepareSubProgramDeleteResult {
+      if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "文档已经切换，无法准备删除子程序", state: session.getState() };
+      return prepareProgramDocumentSubProgramDelete(session, id);
+    },
+    deleteSubProgram(preview: PreparedSubProgramDelete): ProgramDocumentEditResult {
+      if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "文档已经切换，请重新核对删除目标", state: session.getState() };
+      const result = deleteProgramDocumentSubProgram(session, preview, {
+        source: "ui", expectedRevision: preview.revision, expectedIdentity: preview.identity,
+      });
+      options.onChange(result);
+      return result;
+    },
     applySubProgramProperties(id: string, patch: SubProgramPropertiesPatch, expected: { identity: ProgramDocumentIdentity; properties: SubProgramPropertiesPatch }): ProgramDocumentEditResult {
       const reject = (error: string): ProgramDocumentEditResult => ({ ok: false, code: "identity_conflict", error, state: session.getState() });
       if (!options.isCurrent()) return reject("文档已经切换，请在当前文档重新打开属性");
