@@ -229,3 +229,20 @@ test("bound missing catalog payloads and invalid inputs retain structured failur
     assert.equal((await invalid.json()).code, "INVALID_CATALOG_REQUEST");
   }, async () => Response.json({ ok: true, data: {} }));
 });
+
+test("bound UI requests reach native invoke with exact control literals through the production API and argv adapter", async () => {
+  const values = [undefined,""," Mode ","Mode","mode","--json"];
+  const seen: unknown[] = [];
+  await fixture(async ({scope}) => {
+    for (const controlField of values) {
+      const response = await get(new Request("http://fixture.invalid/api/step-runner/get",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(withDesignerCatalogContext({key:"sys:fixture",...(controlField===undefined?{}:{controlField})},scope(a)))}));
+      assert.equal(response.status,200);
+    }
+    assert.deepEqual(seen,values);
+  },async (_url,init) => {
+    const invoke: Invoke = JSON.parse(String(init?.body));
+    assert.equal(invoke.op,"step-runner.getUi"); seen.push(invoke.args.controlField);
+    return Response.json({ok:true,data:catalogReply(invoke)});
+  });
+});

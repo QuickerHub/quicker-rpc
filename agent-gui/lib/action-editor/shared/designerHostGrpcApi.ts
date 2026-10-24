@@ -11,8 +11,6 @@ import {
   mapSearchItemToStepRunnerItem,
 } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
-import { resolveStepRunnerKeyCandidates } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
-import { resolveEssentialStepRunnerFallback } from "@/lib/action-editor/steps/stepRunnerEssentialFallbacks";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init });
@@ -202,45 +200,6 @@ export async function designerHostGrpcGetSharedSubProgramIo(
   return data;
 }
 
-const stepRunnerDetailCache = new Map<string, StepRunnerItem>();
-const stepRunnerDetailInflight = new Map<string, Promise<StepRunnerItem | null>>();
-
-function detailCache(port?: DesignerCatalogPort): Map<string, StepRunnerItem> {
-  if (!port) return stepRunnerDetailCache;
-  let cache = port.get<Map<string, StepRunnerItem>>("details");
-  if (!cache) { cache = new Map(); port.set("details", cache); }
-  return cache;
-}
-
-function stepRunnerDetailCacheKey(key: string, controlField: string): string {
-  return `${key.trim()}\0${controlField}`;
-}
-
-/** Seed session cache from StepListEditor / localStorage primed schemas. */
-export function seedStepRunnerDetailCache(
-  schemaByCacheKey: Readonly<Record<string, StepRunnerItem>>,
-  port?: DesignerCatalogPort,
-): void {
-  for (const [cacheKey, item] of Object.entries(schemaByCacheKey)) {
-    if ((item.inputParamDefs?.length ?? 0) === 0 && (item.outputParamDefs?.length ?? 0) === 0) {
-      continue;
-    }
-    const sep = cacheKey.indexOf("\0");
-    const runnerKey = sep >= 0 ? cacheKey.slice(0, sep) : cacheKey;
-    const control = sep >= 0 ? cacheKey.slice(sep + 1) : "";
-    detailCache(port).set(stepRunnerDetailCacheKey(runnerKey, control), item);
-  }
-}
-
-/** Session cache for get-ui / get detail (StepListEditor + StepEditorPopup share hits). */
-export function getCachedStepRunnerDetailItem(
-  key: string,
-  controlField?: string,
-  port?: DesignerCatalogPort,
-): StepRunnerItem | undefined {
-  return detailCache(port).get(stepRunnerDetailCacheKey(key, (controlField ?? "").trim()));
-}
-
 async function fetchStepRunnerDetailItemOnce(
   key: string,
   controlField: string | undefined,
@@ -249,11 +208,11 @@ async function fetchStepRunnerDetailItemOnce(
 ): Promise<StepRunnerItem | null> {
   const params = new URLSearchParams();
   params.set("key", key);
-  if (controlField) {
+  if (controlField !== undefined) {
     params.set("controlField", controlField);
   }
   const data = port
-    ? await port.request<{ item: Record<string, unknown> }>("/api/step-runner/get", { key, ...(controlField ? { controlField } : {}) }, signal)
+    ? await port.request<{ item: Record<string, unknown> }>("/api/step-runner/get", { key, ...(controlField === undefined ? {} : { controlField }) }, signal)
     : await fetchJson<{ item: Record<string, unknown> }>(`/api/step-runner/get?${params.toString()}`, { signal });
   const item = data.item;
   if (!item) return null;
@@ -263,73 +222,7 @@ async function fetchStepRunnerDetailItemOnce(
   return mapAgentSchemaToStepRunnerItem(item);
 }
 
-function hasRunnerParamDefs(item: StepRunnerItem | null | undefined): boolean {
-  if (!item) {
-    return false;
-  }
-  return (item.inputParamDefs?.length ?? 0) > 0 || (item.outputParamDefs?.length ?? 0) > 0;
-}
-
-async function fetchStepRunnerDetailItemLive(
-  key: string,
-  controlField?: string,
-  signal?: AbortSignal,
-): Promise<StepRunnerItem | null> {
-  const trimmedControl = (controlField ?? "").trim();
-  const keysToTry = resolveStepRunnerKeyCandidates(key);
-  if (keysToTry.length === 0) {
-    return null;
-  }
-
-  for (const tryKey of keysToTry) {
-    try {
-      if (trimmedControl) {
-        try {
-          const filtered = await fetchStepRunnerDetailItemOnce(
-            tryKey,
-            trimmedControl,
-            signal,
-          );
-          if (hasRunnerParamDefs(filtered)) {
-            return filtered;
-          }
-        } catch {
-          /* invalid/obsolete control literal — fall back to base schema */
-        }
-      }
-      const base = await fetchStepRunnerDetailItemOnce(tryKey, undefined, signal);
-      if (hasRunnerParamDefs(base)) {
-        return base;
-      }
-    } catch {
-      /* try next alias */
-    }
-  }
-
-  return null;
-}
-
-async function fetchStepRunnerDetailItemUncached(
-  key: string,
-  controlField?: string,
-  signal?: AbortSignal,
-): Promise<StepRunnerItem | null> {
-  const live = await fetchStepRunnerDetailItemLive(key, controlField, signal);
-  if (live) {
-    return live;
-  }
-
-  const trimmedControl = (controlField ?? "").trim();
-  for (const tryKey of resolveStepRunnerKeyCandidates(key)) {
-    const fallback = resolveEssentialStepRunnerFallback(tryKey, trimmedControl);
-    if (hasRunnerParamDefs(fallback)) {
-      return fallback ?? null;
-    }
-  }
-
-  return null;
-}
-
+/** No completed schema is reusable without checking a current native UI revision. */
 export async function fetchStepRunnerDetailItem(
   key: string,
   controlField?: string,
@@ -338,40 +231,17 @@ export async function fetchStepRunnerDetailItem(
 ): Promise<StepRunnerItem | null> {
   signal?.throwIfAborted();
   if (port) {
-    const control = (controlField ?? "").trim();
-    if (!port.remoteEnabled) return resolveEssentialStepRunnerFallback(key, control) ?? null;
-    const cacheKey = stepRunnerDetailCacheKey(key, control);
-    const cached = detailCache(port).get(cacheKey);
-    if (cached) return cached;
-    return port.shared(`detail\0${cacheKey}`, async (ownedSignal) => {
-      const item = await fetchStepRunnerDetailItemOnce(key, control || undefined, ownedSignal, port);
+    if (!port.remoteEnabled) return null;
+    const requestKey = JSON.stringify([key.trim(), controlField ?? null]);
+    return port.shared(`detail\0${requestKey}`, async (ownedSignal) => {
+      const item = await fetchStepRunnerDetailItemOnce(key, controlField, ownedSignal, port);
       ownedSignal.throwIfAborted();
-      const resolved = item ?? resolveEssentialStepRunnerFallback(key, control) ?? null;
-      if (resolved) detailCache(port).set(cacheKey, resolved);
-      return resolved;
+      return item;
     }, signal);
   }
-  const cacheKey = stepRunnerDetailCacheKey(key, (controlField ?? "").trim());
-  const cached = stepRunnerDetailCache.get(cacheKey);
-  if (cached && (cached.icon ?? "").trim()) {
-    return cached;
-  }
-
-  let pending = stepRunnerDetailInflight.get(cacheKey);
-  if (!pending) {
-    pending = (async () => {
-      const live = await fetchStepRunnerDetailItemLive(key, controlField, signal);
-      if (live) {
-        stepRunnerDetailCache.set(cacheKey, live);
-        return live;
-      }
-      return fetchStepRunnerDetailItemUncached(key, controlField, signal);
-    })().finally(() => {
-      stepRunnerDetailInflight.delete(cacheKey);
-    });
-    stepRunnerDetailInflight.set(cacheKey, pending);
-  }
-  return pending;
+  const item = await fetchStepRunnerDetailItemOnce(key, controlField, signal);
+  signal?.throwIfAborted();
+  return item;
 }
 
 export { mapAgentSchemaToStepRunnerItem };

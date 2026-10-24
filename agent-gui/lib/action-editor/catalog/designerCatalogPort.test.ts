@@ -7,9 +7,8 @@ import {
   designerHostGrpcGetGlobalSubProgramIo, designerHostGrpcGetSharedSubProgramIo,
   designerHostGrpcPostStepQuickInsertSearchJson, designerHostGrpcPostToolboxSearchJson,
   designerHostGrpcPostStepRunnersSummariesJson, fetchStepRunnerDetailItem,
-  getCachedStepRunnerDetailItem, seedStepRunnerDetailCache,
 } from "../shared/designerHostGrpcApi";
-import { fetchStepRunnersItems, getPrimedStepRunnerCatalogState } from "../steps/stepRunnerCatalog";
+import { fetchStepRunnersItems } from "../steps/stepRunnerCatalog";
 import { fetchGlobalSubProgramCatalog } from "../subprograms/globalSubProgramCatalog";
 import { StepRunnerItem } from "../types/action_query";
 
@@ -45,15 +44,13 @@ test("all catalog ports send the exact document target and adjacent schemas/cach
     return json({ ok: true, item: runner(id), items: String(path).endsWith("/list") ? [runner(id)] : [], json: '{"items":[]}' });
   };
   const a = createDesignerCatalogPort(context("a"), fetcher), b = createDesignerCatalogPort(context("b"), fetcher);
-  seedStepRunnerDetailCache({ "sys:catalog-fixture": runner("legacy") });
-  assert.deepEqual(getPrimedStepRunnerCatalogState("", a)?.schemaByCacheKey, {});
   const [first, second] = await Promise.all([fetchStepRunnerDetailItem("sys:catalog-fixture", undefined, undefined, a), fetchStepRunnerDetailItem("sys:catalog-fixture", undefined, undefined, b)]);
   assert.equal(first?.inputParamDefs[0]?.key, "a");
   assert.equal(second?.inputParamDefs[0]?.key, "b");
   await fetchStepRunnerDetailItem("sys:catalog-fixture", undefined, undefined, a);
-  assert.equal(requests.length, 2, "same port reuses its own detail cache");
-  assert.equal(getCachedStepRunnerDetailItem("sys:catalog-fixture", undefined, a)?.name, "a");
-  assert.equal(getCachedStepRunnerDetailItem("sys:catalog-fixture", undefined, b)?.name, "b");
+  assert.equal(requests.length, 3, "the next read revalidates against the same bound host");
+  assert.equal(a.get("details"), undefined);
+  assert.equal(b.get("details"), undefined);
   await fetchStepRunnersItems("", { catalogPort: a });
   await designerHostGrpcPostStepRunnersSummariesJson("", '{"steps":[]}', undefined, a);
   await designerHostGrpcPostStepQuickInsertSearchJson("", '{}', undefined, a);
@@ -94,7 +91,7 @@ test("one waiter cancellation does not abort another; last cancellation and disp
   assert.equal(lastSignal?.aborted, true);
   lastReply.resolve(json({ ok: true, item: runner("discarded") }));
   await new Promise((done) => setImmediate(done));
-  assert.equal(getCachedStepRunnerDetailItem("sys:catalog-fixture", undefined, lastOwner), undefined);
+  assert.equal(lastOwner.get("details"), undefined);
   lastOwner.dispose();
 
   const lateResponse = deferred<Response>();
@@ -105,7 +102,7 @@ test("one waiter cancellation does not abort another; last cancellation and disp
   await assert.rejects(late, { name: "AbortError" });
   lateResponse.resolve(json({ ok: true, item: runner("old") }));
   await new Promise((done) => setImmediate(done));
-  assert.equal(getCachedStepRunnerDetailItem("sys:catalog-fixture", undefined, old), undefined);
+  assert.equal(old.get("details"), undefined);
   port.dispose();
 });
 
@@ -129,6 +126,6 @@ test("loading and unbound documents make zero catalog requests; identity failure
   const port = createDesignerCatalogPort(context("a"), async () => { requests += 1; return new Response(JSON.stringify({ ok: false, code: "PROJECT_IDENTITY_CONFLICT", error: "Changed target" }), { status: 409 }); });
   await assert.rejects(fetchStepRunnerDetailItem("sys:subprogram", undefined, undefined, port), { code: "PROJECT_IDENTITY_CONFLICT" });
   assert.equal(requests, 1);
-  assert.equal(getCachedStepRunnerDetailItem("sys:subprogram", undefined, port), undefined);
+  assert.equal(port.get("details"), undefined);
   port.dispose();
 });

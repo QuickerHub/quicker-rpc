@@ -2,7 +2,6 @@ import { runQkrpc } from "@/lib/qkrpc";
 import { mapSearchItemToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import { runDesignerCatalogRequest, postDesignerCatalogRequest, requireDesignerCatalogResult, type DesignerCatalogRequest } from "@/lib/action-editor/catalog/designerCatalogRequest.server";
 import {
-  hasStaticStepRunnersUiCatalog,
   listStaticStepRunnerSearchItems,
 } from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
 
@@ -36,13 +35,6 @@ async function list(limitValue: unknown, request: DesignerCatalogRequest) {
   requireDesignerCatalogResult(result, request);
 
   if (!result.ok) {
-    if (hasStaticStepRunnersUiCatalog()) {
-      return Response.json({
-        ok: true,
-        items: listStaticStepRunnerSearchItems(),
-        source: "static-fallback",
-      });
-    }
     return Response.json(
       { ok: false, error: result.stderr || "step-runner list failed" },
       { status: 503 },

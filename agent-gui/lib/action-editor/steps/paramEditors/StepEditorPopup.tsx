@@ -26,10 +26,10 @@ import {
   designerHostGrpcGetGlobalSubProgramIo,
   designerHostGrpcGetSharedSubProgramIo,
   fetchStepRunnerDetailItem,
-  getCachedStepRunnerDetailItem,
 } from "@/lib/action-editor/shared/designerHostGrpcApi";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../actionStepSerialization";
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
+import { StepEditorInputActivity, StepEditorInputOwner, StepEditorInputSlot, type InputSlotRegistration } from "./StepEditorInputOwner";
 import { StepEditorParamSection } from "./StepEditorParamSection";
 import { shouldExpandAdvancedParamSection } from "./stepEditorAdvancedSection";
 import { ModuleHelpPreviewPopup } from "./ModuleHelpPreviewPopup";
@@ -47,7 +47,6 @@ import {
   isParamDefVisibleForStep,
 } from "@/lib/action-editor/steps/stepParamVisibility";
 import { resolveCanonicalStepRunnerKey } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
-import { resolveLocalStepRunnerDetailItem } from "@/lib/action-editor/steps/stepRunnerEssentialFallbacks";
 import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
 import { collectStepParamFilePaths, type StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
 import { projectRelativeFilePath } from "./formSpecModel";
@@ -188,15 +187,11 @@ export function StepEditorPopup({
   const runnerItemRef = useRef(runnerItem);
   runnerItemRef.current = runnerItem;
   const draftSyncRef = useRef({ stepFp: "", runnerFp: "" });
-  /** Last successfully fetched `runnerKey\\0controlLiteral` (controlLiteral empty = base schema). */
-  const loadedSchemaKeyRef = useRef("");
   const catalogPort = useDesignerCatalogPort();
   const [helpOwner, setHelpOwner] = useState<{ stepId: string; catalog: typeof catalogPort; link: string } | null>(null);
   const closeHelp = useCallback(() => setHelpOwner(null), []);
   const catalogOwnerRef = useRef(catalogPort);
   const schemaFetchSeqRef = useRef(0);
-  const hydratedRunnerRef = useRef(hydratedRunnerItem);
-  hydratedRunnerRef.current = hydratedRunnerItem;
   const runnerDefsCacheRef = useRef<{
     fp: string;
     input: StepRunnerInputParamDef[];
@@ -343,14 +338,24 @@ export function StepEditorPopup({
   const [showOutputs, setShowOutputs] = useState(true);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [schemaLoadIssue, setSchemaLoadIssue] = useState<string | undefined>(undefined);
+  const inputOwnerEpoch = useRef(0);
+  const [inputSlots, setInputSlots] = useState<Map<string, HTMLDivElement>>(() => new Map());
+  const registerInputSlot = useCallback<InputSlotRegistration>((key, node, previous) => {
+    setInputSlots(current => {
+      if (node ? current.get(key) === node : current.get(key) !== previous) return current;
+      const next = new Map(current);
+      if (node) next.set(key, node); else next.delete(key);
+      return next;
+    });
+  }, []);
   const helpLink = moduleHelpLink(editorRunnerItem);
   const helpPreviewOpen = !!helpOwner && active && open && !!step && helpOwner.stepId === step.stepId
     && helpOwner.catalog === catalogPort && helpOwner.link === helpLink;
   useEffect(() => { setHelpOwner(null); }, [active, open, step?.stepId, catalogPort, helpLink]);
   if (catalogOwnerRef.current !== catalogPort) {
+    inputOwnerEpoch.current += 1;
     catalogOwnerRef.current = catalogPort;
     schemaFetchSeqRef.current += 1;
-    loadedSchemaKeyRef.current = "";
     setHydratedRunnerItem(runnerItem);
     setSchemaLoadIssue(undefined);
     setGlobalIoVariables(undefined);
@@ -413,14 +418,17 @@ export function StepEditorPopup({
   }, [open, step, editorRunnerItem]);
 
   const runnerItemSchemaFp = runnerSchemaFingerprint(runnerItem);
+  // A render may precede its effect; old success must not authorize a newly visible request.
+  const schemaReadOwner = useMemo(() => ({}),
+    [active, open, step?.stepId, step?.stepRunnerKey, runnerItemSchemaFp, catalogPort, requireResolvedParameters]);
+  const [resolvedSchemaOwner, setResolvedSchemaOwner] = useState<object | null>(null);
 
   useEffect(() => {
-    if (!open || !step) {
+    if (!active || !open || !step) {
       if (!open) {
-        loadedSchemaKeyRef.current = "";
         setHydratedRunnerItem(runnerItemRef.current);
-        setLoadingRunnerSchema(false);
       }
+      setLoadingRunnerSchema(false);
       return;
     }
 
@@ -434,44 +442,15 @@ export function StepEditorPopup({
       return;
     }
 
-    const catalogItem = runnerItemRef.current;
-    const resolvedItem = resolveLocalStepRunnerDetailItem(runnerKey, {
-      catalogItem,
-      cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined, catalogPort),
-    });
-    const hasResolvedDefs = (resolvedItem?.inputParamDefs?.length ?? 0) > 0;
-
-    if (hasResolvedDefs && resolvedItem) {
-      loadedSchemaKeyRef.current = runnerKey;
-      setHydratedRunnerItem((prev) => {
-        if (prev && runnerSchemaFingerprint(prev) === runnerSchemaFingerprint(resolvedItem)) {
-          return prev;
-        }
-        return resolvedItem;
-      });
-      setLoadingRunnerSchema(false);
-      return;
-    }
-
-    const currentRunner = hydratedRunnerRef.current;
-    if (loadedSchemaKeyRef.current === runnerKey && (currentRunner?.inputParamDefs?.length ?? 0) > 0) {
-      setLoadingRunnerSchema(false);
-      return;
-    }
-
+    // Existing fields are display state; opening always reads current native UI facts.
     const ac = new AbortController();
     const requestSeq = ++schemaFetchSeqRef.current;
-    setLoadingRunnerSchema((currentRunner?.inputParamDefs?.length ?? 0) === 0);
+    setLoadingRunnerSchema(true);
     setSchemaLoadIssue(undefined);
     void fetchStepRunnerDetailItem(runnerKey, undefined, ac.signal, catalogPort)
       .then((detail) => {
         if (ac.signal.aborted || requestSeq !== schemaFetchSeqRef.current) return;
-        const nextItem =
-          detail
-          ?? resolveLocalStepRunnerDetailItem(runnerKey, {
-            catalogItem: catalogItem ?? undefined,
-            cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined, catalogPort),
-          });
+        const nextItem = detail;
         if (!nextItem) {
           setSchemaLoadIssue(
             `无法从后台加载步骤「${runnerKey}」的参数定义。请确认 Quicker 已运行且 qkrpc serve 可用。`,
@@ -479,14 +458,14 @@ export function StepEditorPopup({
           setLoadingRunnerSchema(false);
           return;
         }
-        if ((nextItem.inputParamDefs?.length ?? 0) === 0 && (nextItem.outputParamDefs?.length ?? 0) === 0) {
+        if (requireResolvedParameters && (nextItem.inputParamDefs?.length ?? 0) === 0 && (nextItem.outputParamDefs?.length ?? 0) === 0) {
           setSchemaLoadIssue(
             `步骤「${runnerKey}」在后台未返回可编辑参数（可能 stepRunnerKey 无效或模块未注册）。`,
           );
         } else {
           setSchemaLoadIssue(undefined);
+          setResolvedSchemaOwner(schemaReadOwner);
         }
-        loadedSchemaKeyRef.current = runnerKey;
         setHydratedRunnerItem((prev) => {
           if (prev && runnerSchemaFingerprint(prev) === runnerSchemaFingerprint(nextItem)) {
             return prev;
@@ -510,7 +489,7 @@ export function StepEditorPopup({
         setLoadingRunnerSchema(false);
       }
     };
-  }, [open, step?.stepId, step?.stepRunnerKey, runnerItemSchemaFp, catalogPort]);
+  }, [active, open, step?.stepId, step?.stepRunnerKey, runnerItemSchemaFp, catalogPort, requireResolvedParameters, schemaReadOwner]);
 
   const runnerFp = runnerSchemaFingerprint(editorRunnerItem);
   if (runnerFp !== runnerDefsCacheRef.current.fp) {
@@ -633,8 +612,9 @@ export function StepEditorPopup({
     return t ?? runnerTitle;
   }, [effectiveDraft, runnerTitle, subPrograms, globalIoDisplayName, resolvedSubProgramRow]);
 
-  const canApply = effectiveDraft != null && (!requireResolvedParameters || (hydratedRunnerItem != null
-    && !loadingRunnerSchema && !schemaLoadIssue && !waitingGlobalSubProgramIo && !globalIoError));
+  const schemaCurrent = resolvedSchemaOwner === schemaReadOwner && !loadingRunnerSchema && !schemaLoadIssue;
+  const canApply = effectiveDraft != null && schemaCurrent && (!requireResolvedParameters || (hydratedRunnerItem != null
+    && !waitingGlobalSubProgramIo && !globalIoError));
   const handleApply = (): void => {
     if (!canApply || !effectiveDraft) return;
     if (onApply(compactActionStepParams(effectiveDraft, editorRunnerItem)) === false) {
@@ -711,7 +691,7 @@ export function StepEditorPopup({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose, canApply, helpPreviewOpen]);
 
-  if (!active || !open || !step) {
+  if (!open || !step) {
     return null;
   }
 
@@ -719,13 +699,18 @@ export function StepEditorPopup({
   const bodyPending = effectiveDraft == null || waitingGlobalSubProgramIo || waitingRunnerSchema;
   const loadingMessage = waitingGlobalSubProgramIo ? "正在加载子程序参数…" : "正在加载步骤参数…";
 
-  const renderInputFields = (fields: StepRunnerInputParamDef[], prefix: string) => fields.map(def => {
+  const inputEditors = visibleInputDefs.map(def => {
     const key = def.key;
-    return <StepInputParamRow key={`${prefix}-${key}`} def={def} paramKey={key} variables={variables}
+    return <StepEditorInputOwner key={`${inputOwnerEpoch.current}:${step.stepId}:${step.stepRunnerKey}:${key}`} target={inputSlots.get(key)}>
+      <StepInputParamRow def={def} paramKey={key} variables={variables}
       param={ensureParamValue(def, effectiveDraft!.inputParams[key])} workspaceContext={workspaceContext}
       prefetchedFileContents={prefetchedFileContents} setParam={setParam}
-      onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />;
+      onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined} />
+    </StepEditorInputOwner>;
   });
+  const renderInputFields = (fields: StepRunnerInputParamDef[], prefix: string) => fields.map(def => (
+    <StepEditorInputSlot key={`${prefix}-${def.key}`} paramKey={def.key} register={registerInputSlot} />
+  ));
   const renderOutputFields = (fields: StepRunnerOutputParamDef[], prefix: string) => fields.map(def => (
     <StepOutputParamField key={`${prefix}-${def.key}`} def={def} variables={variables}
       value={effectiveDraft!.outputParams[def.key] ?? ""} onChange={next => setOutputParam(def.key, next)}
@@ -736,6 +721,8 @@ export function StepEditorPopup({
     <StepEditorPopupBodySkeleton message={loadingMessage} />
   ) : (
       <>
+        {loadingRunnerSchema && hasAnyParams ? <p className="step-editor-popup-empty" role="status">正在加载步骤参数…</p> : null}
+        {schemaLoadIssue && hasAnyParams ? <p className="step-editor-popup-empty" role="alert">{schemaLoadIssue}</p> : null}
         <div className="step-editor-popup-params">
           {!hasAnyParams ? (
             <p className="step-editor-popup-empty">
@@ -772,7 +759,7 @@ export function StepEditorPopup({
       </>
     );
 
-  return createPortal(
+  return <StepEditorInputActivity.Provider value={active}>{inputEditors}{active ? createPortal(
     <>
       <div
         className="step-editor-popup-backdrop"
@@ -794,7 +781,7 @@ export function StepEditorPopup({
         >
           <header className="step-editor-popup-header">
             <h2 id="step-editor-popup-title">编辑步骤 — {popupHeadingRunner}</h2>
-            {helpLink ? <button type="button" className="step-editor-popup-btn secondary"
+              {helpLink ? <button type="button" className="step-editor-popup-btn secondary" disabled={!schemaCurrent}
               onClick={() => setHelpOwner({ stepId: step.stepId, catalog: catalogPort, link: helpLink })}>模块帮助</button> : null}
             <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
               ×
@@ -848,5 +835,5 @@ export function StepEditorPopup({
       ) : null}
     </>,
     document.body
-  );
+  ) : null}</StepEditorInputActivity.Provider>;
 }

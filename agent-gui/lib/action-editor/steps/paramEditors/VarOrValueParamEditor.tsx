@@ -1,3 +1,4 @@
+import { useStepEditorInputActive } from "./StepEditorInputOwner";
 import {
   useCallback,
   useEffect,
@@ -89,6 +90,7 @@ export function VarOrValueParamEditor({
   activateLabelRef,
   onRequestCreateVariable,
 }: VarOrValueParamEditorProps): JSX.Element {
+  const inputActive = useStepEditorInputActive();
   const vt = def.varType;
   const selectionItems = def.selectionItems ?? [];
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -307,7 +309,7 @@ export function VarOrValueParamEditor({
   const activeRow = filteredRows[activeIndex] ?? null;
 
   useEffect(() => {
-    if (!popupOpen) {
+    if (!inputActive || !popupOpen) {
       setActiveIndex(0);
       return;
     }
@@ -330,10 +332,10 @@ export function VarOrValueParamEditor({
       return;
     }
     setActiveIndex((prev) => Math.max(0, Math.min(prev, filteredRows.length - 1)));
-  }, [popupOpen, filteredRows, mode, param.value, param.varKey, filter]);
+  }, [popupOpen, filteredRows, mode, param.value, param.varKey, filter, inputActive]);
 
   useEffect(() => {
-    if (!popupOpen) {
+    if (!inputActive || !popupOpen) {
       return;
     }
     const updateRect = (): void => {
@@ -383,10 +385,10 @@ export function VarOrValueParamEditor({
       window.removeEventListener("scroll", onLayoutChanged, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
     };
-  }, [popupOpen, activateLabelRef, dismissPopup]);
+  }, [popupOpen, activateLabelRef, dismissPopup, inputActive]);
 
   useLayoutEffect(() => {
-    if (!popupOpen || !popupRect || popupRect.direction !== "up") {
+    if (!inputActive || !popupOpen || !popupRect || popupRect.direction !== "up") {
       return;
     }
     const popup = popupRef.current;
@@ -404,10 +406,10 @@ export function VarOrValueParamEditor({
       }
       return { ...prev, top: desiredTop };
     });
-  }, [popupOpen, popupRect, filteredRows.length]);
+  }, [popupOpen, popupRect, filteredRows.length, inputActive]);
 
   useEffect(() => {
-    if (!popupOpen) {
+    if (!inputActive || !popupOpen) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -415,7 +417,7 @@ export function VarOrValueParamEditor({
       filterInputRef.current?.select();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [popupOpen]);
+  }, [popupOpen, inputActive]);
 
   const bodyJsx =
     mode === "variable" ? (
@@ -505,7 +507,7 @@ export function VarOrValueParamEditor({
           onClick={togglePopup}
         />
       </div>
-      {popupOpen && popupRect
+      {inputActive && popupOpen && popupRect
         ? createPortal(
             <div
               ref={popupRef}
