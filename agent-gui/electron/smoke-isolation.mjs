@@ -16,6 +16,7 @@ export function initializeSmokeIsolation(app, env = process.env, fs = { mkdirSyn
   const paths = {
     APPDATA: "roaming", LOCALAPPDATA: "local", USERPROFILE: "home", HOME: "home",
     TEMP: "temp", TMP: "temp", AGENT_GUI_ROOT: "app-state", AGENT_GUI_DEFAULT_CWD: "workspace",
+    QUICKER_AGENT_DATA_DIR: "data",
   };
   for (const [key, suffix] of Object.entries(paths)) {
     const expected = join(root, suffix);

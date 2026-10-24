@@ -285,6 +285,7 @@ async function initDesktopCommands() {
     );
   }
   registerEmbeddedBrowserShutdown(() => {
+    launcher?.dispose();
     embeddedBrowserManager?.teardown();
     void embeddedBrowserAutomationServer?.close().catch(() => {});
     embeddedBrowserAutomationServer = null;
@@ -444,7 +445,7 @@ async function bootProduction() {
 
 async function main() {
   const profile = configureAgentDataProfile();
-  if (profile.explicit) {
+  if (profile.explicit && !smoke) {
     const userData = join(profile.directory, "electron");
     mkdirSync(userData, { recursive: true });
     app.setPath("userData", userData);
@@ -505,6 +506,7 @@ app.on("window-all-closed", () => {
 
 let backendsStopped = false;
 app.on("before-quit", (event) => {
+  launcher?.dispose();
   keyInputCaptureCommands?.key_input_capture_end();
   globalShortcutCommands?.unregisterAll();
   if (!isDev() && !backendsStopped) {
