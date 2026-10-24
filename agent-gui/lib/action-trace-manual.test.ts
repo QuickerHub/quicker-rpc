@@ -121,7 +121,9 @@ test("ACK-window loss, service stop and timeout produce one unknown terminal wit
   request.abort(Error("ACK lost")); await manager.stop();
   assert.equal(native.requests.length, 1); assert.equal(events.filter((event) => event.type === "done").length, 1);
   assert.equal(events.at(-1)!.data!.error, "WRITE_RESULT_UNKNOWN"); assert.equal(traceBridge.event(accepted.owner, { message: "late native event" }), false);
-  const nextNative = controlledNative(); const timed = createManualTraceManager({ createId, timeoutMs: 5 }); const timedAck = await timed.start({ cwd, actionId: id }, new AbortController().signal); timedAck.acknowledge();
+  const nextNative = controlledNative(); const timed = createManualTraceManager({ createId, timeoutMs: 5,
+    validateCwd: async () => cwd, validateTarget: async () => undefined });
+  const timedAck = await timed.start({ cwd, actionId: id }, new AbortController().signal); timedAck.acknowledge();
   const terminal = deferred<void>(); traceBridge.subscribe(timedAck.owner, (event) => { if (event.type === "done") terminal.resolve(); });
   await terminal.promise; assert.equal(nextNative.requests[0].signal.aborted, true); await timed.stop();
   await assert.rejects(timed.start({ cwd, actionId: id }, new AbortController().signal), /stopped/);
