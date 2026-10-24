@@ -11,6 +11,7 @@
 |---|---|---|
 | Generated knowledge | Ubuntu / Node 22 | CLI 指南和分发 skill 与知识源一致；不安装依赖 |
 | Offline Agent | Ubuntu 和 Windows / Node 22 / pnpm 10.18.3 | 冻结锁文件安装、TypeScript、显式离线检查、工具/eval/编写/trace 回归、Electron 模块静态检查 |
+| Designer DOM | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 真实无头 Edge、现有设计器组件与工作台 DOM 回归；生成 fixture、网络 guard、独立临时 profile |
 | Host-independent .NET | Windows / `global.json` SDK | Runtime/Transport 全目标框架构建；Console、Transport、fake-host Runtime 单测；保留 TRX |
 
 安装使用 `pnpm install --frozen-lockfile`，缓存仅包含 pnpm store，不跨平台复用
@@ -69,6 +70,12 @@ Windows job 还用小型合成包运行生产 NSIS 模板的两遍真实 `/WX` �
 文档 Host 的真实组件回归。完整 APDE 文件的正常执行已超过一分钟，文件 worker 给定
 300 秒总预算；各用例内的 45/60 秒限制和服务自然退出的 5 秒门槛继续保留。
 该入口不会使用真实 Quicker、模型或用户资料，也不加入无 Edge 的离线流水线。
+独立的 [`Designer DOM (Windows Edge)` job](../../scripts/ci/check-designer-dom.mjs) 先实际启动镜像预装的 `msedge` 无头通道、记录
+版本并关闭，再原样调用该入口；缺少浏览器或启动失败直接阻断，不下载浏览器或静默跳过。
+该 job 不改变 Node/Native 门禁的测试顺序，保留所有 spec 的 individual deadline 和
+300 秒文件预算；job 的 20 分钟上限包含安装及三个顺序文件的最坏预算。
+失败仅上传生成的 PNG 白名单、收据和最后 256 KiB 诊断；不上传 profile、trace、依赖或
+整个 `.tmp`。Node 网络 guard 和页面请求拦截均保留，它们不构成 OS 网络沙箱。
 
 Runtime 测试显式设置 `IncludeV2HostTests=false`，移除 Plugin.V2 引用以及
 composition、catalog、宿主 probe、实际编译 source 与 Designer 原语测试文件。
@@ -102,5 +109,5 @@ pwsh -NoProfile -File scripts/ci/Test-OfflineDotNet.ps1
 只要安装成功，扩展回归也会在显式离线检查失败后运行并报告结果，原失败仍然阻断 job。
 `.NET` job 即使失败也上传已有 `.tmp/ci-results/**/*.trx`，保留 7 天。
 仓库管理员可把 `Generated knowledge`、两个 `Offline Agent (...)` 和
-`Host-independent .NET` 配成 required checks。工作流文件本身不修改分支保护；
+`Host-independent .NET`、`Designer DOM (Windows Edge)` 配成 required checks。工作流文件本身不修改分支保护；
 原工作流名称的 required checks 需要相应替换。
