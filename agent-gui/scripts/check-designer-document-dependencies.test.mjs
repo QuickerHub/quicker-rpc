@@ -21,15 +21,20 @@ test("runtime Node/framework imports are rejected even in otherwise plain TypeSc
 test("a transitive UI dependency fails but a type-only React import is erased", async () => {
   await assert.rejects(inspectDesignerDocumentDependencies({ stdin: {
     contents: 'export { IconControl } from "@/lib/action-editor/shared/IconControl";', loader: "ts",
-  } }), /UI\/server module|-> react/);
+  } }), /UI\/server\/asset module|-> react/);
+  await assert.rejects(inspectDesignerDocumentDependencies({ stdin: {
+    contents: 'import "@/components/action-editor/program-editor-toolbox.css"; export const revision = 1;', loader: "ts",
+  } }), /UI\/server\/asset module/);
   const result = await inspectDesignerDocumentDependencies({ stdin: {
     contents: 'import type { JSX } from "react"; export type View = JSX.Element; export const revision = 1;', loader: "ts",
   } });
   assert.deepEqual(result.externalImports, []);
 });
 
-test("a client directive in a .ts dependency is rejected after comments and other directives", async () => {
-  await assert.rejects(inspectDesignerDocumentDependencies({ stdin: {
-    contents: '/* source comment */ "use strict"; "use client"; export const state = 1;', loader: "ts",
-  } }), /use client module/);
+test("framework directives in .ts are rejected after comments and other directives", async () => {
+  for (const directive of ["use client", "use server"]) {
+    await assert.rejects(inspectDesignerDocumentDependencies({ stdin: {
+      contents: `/* source comment */ "use strict"; ${JSON.stringify(directive)}; export const state = 1;`, loader: "ts",
+    } }), (error) => error instanceof Error && error.message.includes(`${directive} module`));
+  }
 });

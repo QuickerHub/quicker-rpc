@@ -229,7 +229,7 @@ handle 读取所有编辑内容，关闭子程序页签或切源码不会丢弃�
 尚未接入打开的 UI session。当前磁盘会话没有伪造宿主身份。
 
 运行时依赖边界由 `scripts/check-designer-document-dependencies.mjs` 检查：递归编译所有
-文档生产入口的传递依赖，不执行产物，拒绝 UI/server 模块、client directive 及未经允许的
+文档生产入口的传递依赖，不执行产物，拒绝 UI/server 模块与资源、framework directive 及未经允许的
 外部运行时依赖。纯 protobuf wire 是当前显式例外；type-only 引用由编译器擦除。该检查
 不审计动态计算的导入、全局 API 或外部包内部，不能代替事务和真实集成验收。
 

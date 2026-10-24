@@ -20,13 +20,13 @@ function documentEntries(directory = join(root, "lib/action-editor/document")) {
   }).sort();
 }
 
-function isClientModule(path, contents) {
+function frameworkDirective(path, contents) {
   const source = ts.createSourceFile(path, contents, ts.ScriptTarget.Latest);
   for (const statement of source.statements) {
     if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) break;
-    if (statement.expression.text === "use client") return true;
+    if (statement.expression.text === "use client" || statement.expression.text === "use server") return statement.expression.text;
   }
-  return false;
+  return undefined;
 }
 
 /** Inspect runtime imports only: compile in memory, without loading or executing the document. */
@@ -49,9 +49,11 @@ export async function inspectDesignerDocumentDependencies(options = {}) {
   const violations = [];
   const externalImports = new Set();
   for (const [path, input] of Object.entries(result.metafile.inputs)) {
-    if (/\.tsx$|\.server\.[cm]?[jt]sx?$/.test(path)) violations.push(`${path}: UI/server module`);
+    const code = path === "<stdin>" || /\.[cm]?[jt]s$/.test(path);
+    if ((!code && !path.endsWith(".json")) || /\.server\.[cm]?[jt]sx?$/.test(path)) violations.push(`${path}: UI/server/asset module`);
     const contents = path === "<stdin>" ? options.stdin.contents : readFileSync(resolve(root, path), "utf8");
-    if (isClientModule(path, contents)) violations.push(`${path}: use client module`);
+    const directive = code ? frameworkDirective(path, contents) : undefined;
+    if (directive) violations.push(`${path}: ${directive} module`);
     for (const dependency of input.imports) {
       if (!dependency.external) continue;
       externalImports.add(dependency.path);
