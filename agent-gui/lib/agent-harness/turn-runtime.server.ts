@@ -126,9 +126,11 @@ export async function prepareAgentTurnRuntime(params: {
     titleTest: request.titleTest,
     benchMode: request.benchMode,
   });
+  // An explicit empty command selection must not initialize external transports.
   const shouldLoadMcp = !request.titleTest
     && !request.benchMode
-    && request.chatMode !== CHAT_MODE_LAUNCHER;
+    && request.chatMode !== CHAT_MODE_LAUNCHER
+    && request.slashCommand.overrides.toolAllowlist?.length !== 0;
   const mcp = shouldLoadMcp
     ? await loadConfiguredMcpTools(request.cwd, { chatMode: request.chatMode, abortSignal })
     : {

@@ -21,6 +21,7 @@ const tests = [
   "lib/agent-harness/tool-execution-context.test.ts",
   "lib/agent-harness/turn-lifecycle.test.ts",
   "lib/agent-harness/turn-runner.test.ts",
+  "lib/agent-harness/turn-runtime-mcp.test.ts",
   "lib/agent-service/chat-handler.test.ts",
   "lib/agent-service/application.test.ts",
   "lib/agent-service/production-runtime.test.ts",

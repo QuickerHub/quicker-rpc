@@ -279,6 +279,11 @@ getter 的连接或超时失败保留原错误/exit/绑定，既不伪装成功�
 外部 qkrpc MCP 的兼容 get 未声明只读，SDK 默认 false，已确认不会被 Ask 外部工具过滤器放行。
 未接通非启动端口的能力逐项恢复，操作描述、TurnPlan 与外部工具语义审计继续进行。
 
+显式命令工具集为 `[]` 时，pre-turn 现在跳过 MCP loader，不为最终已禁用的工具初始化
+外部连接。未指定或非空工具限制继续原有加载流程，title/benchmark/Launcher 门禁不变。
+生产 runtime 的资源端口注入回归覆盖 Agent/Ask 的零加载与零连接、原有工具交集、取消
+及独立 turn；本片修复初始化副作用，不代表操作描述或整个 R1 已统一。
+
 旧 JSON 动作项目已加入 `.qkrpc/project-binding.json`，CLI/MCP/serve/Agent 的导出、创建和
 同步跨请求保留来源宿主，写前核验 action ID、目录和 info；多个同 ID 项目不取首个，
 未绑定旧项目不自动继承当前连接。C#/Node 共用项目 lease，部分 bootstrap 不重发宿主创建，
