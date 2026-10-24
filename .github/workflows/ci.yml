@@ -192,6 +192,63 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  static-spa:
+    name: Static SPA (Windows Edge)
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: agent-gui/pnpm-lock.yaml
+      - name: Install locked dependencies and native modules
+        working-directory: agent-gui
+        run: pnpm install --frozen-lockfile
+      - name: Ensure dependency manifests were not rewritten
+        run: git diff --exit-code -- agent-gui/package.json agent-gui/pnpm-lock.yaml
+      - name: Check bounded SPA evidence collection
+        run: node --test scripts/ci/collect-static-spa-evidence.test.mjs scripts/ci/check-designer-dom.test.mjs
+      - name: Prepare generated CI diagnostics
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force .tmp/static-spa-ci | Out-Null
+      - name: Verify installed headless Edge
+        timeout-minutes: 1
+        shell: pwsh
+        working-directory: agent-gui
+        run: |
+          node --input-type=module -e "import { probeHostedEdge } from '../scripts/ci/check-designer-dom.mjs'; console.log(JSON.stringify({event:'static-spa-installed-edge',...await probeHostedEdge(process.cwd())}));" 2>&1 | Tee-Object -FilePath ../.tmp/static-spa-ci/browser.log
+          exit $LASTEXITCODE
+      - name: Run the complete static React and Node SPA integration
+        timeout-minutes: 6
+        shell: pwsh
+        working-directory: agent-gui
+        run: |
+          pnpm test:static-runtime 2>&1 | Tee-Object -FilePath ../.tmp/static-spa-ci/suite.log
+          exit $LASTEXITCODE
+      - name: Collect bounded generated SPA failure evidence
+        if: ${{ failure() && !cancelled() }}
+        run: node scripts/ci/collect-static-spa-evidence.mjs
+      - name: Upload generated SPA failure evidence
+        if: ${{ failure() && !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-spa-windows-edge
+          path: .tmp/static-spa-ci/artifacts/*
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
   dotnet:
     name: Host-independent .NET
     runs-on: windows-2025
