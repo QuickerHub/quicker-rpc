@@ -61,6 +61,12 @@ jobs:
       - name: TypeScript and explicit offline Agent checks
         working-directory: agent-gui
         run: node scripts/check-agent-offline.mjs
+      - name: Cache pinned NSIS compile tools
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && runner.os == 'Windows' }}
+        uses: actions/cache@v4
+        with:
+          path: .tmp/nsis-compile-cache
+          key: nsis-compile-${{ runner.os }}-builder-25.1.8-nsis-3.0.4.1-resources-3.4.1-${{ hashFiles('agent-gui/pnpm-lock.yaml', 'scripts/ci/check-nsis-template-compile.mjs') }}
       - name: Compile installer helper and verify pure ownership policy
         if: ${{ !cancelled() && steps.install.outcome == 'success' && runner.os == 'Windows' }}
         shell: pwsh
@@ -77,6 +83,28 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer policy fixture compilation failed' }
           & $policyExecutable
           if ($LASTEXITCODE -ne 0) { throw 'Installer policy fixture failed' }
+      - name: Compile production NSIS template with warnings as errors
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && runner.os == 'Windows' }}
+        timeout-minutes: 5
+        shell: pwsh
+        working-directory: agent-gui
+        run: |
+          node --test ../scripts/ci/check-nsis-template-compile.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS compile runner tests failed' }
+          node ../scripts/ci/check-nsis-template-compile.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS template compilation failed' }
+      - name: Upload NSIS compile diagnostics
+        if: ${{ always() && !cancelled() && runner.os == 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nsis-template-compile-diagnostics
+          path: |
+            .tmp/nsis-template-compile/**/*.json
+            .tmp/nsis-template-compile/**/*.nsi
+            .tmp/nsis-template-compile/**/*.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Guarded tool, eval, authoring and trace regressions
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/ci/check-agent-regressions.mjs
