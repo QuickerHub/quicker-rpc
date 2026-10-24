@@ -22,7 +22,7 @@ function New-ElectronSmokeRun {
     $root = Join-Path $base "run-$runId"
     $null = New-Item -ItemType Directory -Path $root
     $root = Assert-SmokeLocalPath $root
-    foreach ($suffix in @('roaming', 'local', 'home/Documents', 'temp', 'app-state', 'workspace', 'profile', 'sessions', 'logs')) {
+    foreach ($suffix in @('roaming', 'local', 'home/Documents', 'temp', 'app-state', 'workspace', 'profile', 'sessions', 'logs', 'data')) {
         $null = New-Item -ItemType Directory -Path (Join-Path $root $suffix) -Force
     }
     return @{ Root = $root; RunId = $runId; Protocol = 'QUICKER_AGENT_SMOKE_PROTOCOL_V1' }
@@ -35,7 +35,7 @@ function Get-ElectronSmokeEnvironment {
         $value = [Environment]::GetEnvironmentVariable($name, 'Process')
         if ($value) { $environment[$name] = $value }
     }
-    $paths = @{ APPDATA = 'roaming'; LOCALAPPDATA = 'local'; USERPROFILE = 'home'; HOME = 'home'; TEMP = 'temp'; TMP = 'temp'; AGENT_GUI_ROOT = 'app-state'; AGENT_GUI_DEFAULT_CWD = 'workspace' }
+    $paths = @{ APPDATA = 'roaming'; LOCALAPPDATA = 'local'; USERPROFILE = 'home'; HOME = 'home'; TEMP = 'temp'; TMP = 'temp'; AGENT_GUI_ROOT = 'app-state'; AGENT_GUI_DEFAULT_CWD = 'workspace'; QUICKER_AGENT_DATA_DIR = 'data' }
     foreach ($entry in $paths.GetEnumerator()) { $environment[$entry.Key] = Join-Path $Run.Root $entry.Value }
     $environment['QUICKER_AGENT_SMOKE_ROOT'] = $Run.Root
     $environment['QUICKER_AGENT_SMOKE_RUN_ID'] = $Run.RunId
