@@ -60,6 +60,7 @@ const tests = [
   "lib/program-turn-context.test.ts",
   "lib/qkrpc-connectivity-gate.test.ts",
   "lib/step-runner-knowledge-tools.server.test.ts",
+  "lib/action-authoring-docs-freshness.test.ts",
   "lib/agent-harness/stream-loop.test.ts",
   "lib/agent-harness/turn-message-preparation.test.ts",
   "lib/agent-harness/turn-selection.test.ts",
