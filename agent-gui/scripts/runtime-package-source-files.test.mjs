@@ -31,6 +31,7 @@ function directoryLink(target, link, relativeTarget) {
   }
   symlinkSync(target, link, process.platform === "win32" ? "junction" : "dir");
 }
+function file(path, content) { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, content); }
 
 test("internal links become regular copied entries and physical node_modules is excluded", (t) => {
   const f = fixture(t);
@@ -46,6 +47,120 @@ test("internal links become regular copied entries and physical node_modules is 
   assert.equal(lstatSync(join(f.target, "alias")).isSymbolicLink(), false);
   assert.equal(existsSync(join(f.target, "node_modules")), false);
 });
+
+test("the physical node-gyp helper directory is omitted without resolving its generated links", (t) => {
+  const f = fixture(t);
+  const helper = join(f.source, "build/node_gyp_bins");
+  mkdirSync(helper, { recursive: true });
+  directoryLink(join(f.root, "missing-generated-python"), join(helper, "python3"));
+  file(join(f.source, "build/Release/pty.node"), Buffer.from([0, 1, 2, 255]));
+  file(join(f.source, "build/Release/spawn-helper"), "synthetic runtime helper");
+  const guard = inspector();
+  guard.inspectPackage(f.source, "fixture");
+  guard.copyPackage(f.source, f.target);
+  assert.equal(existsSync(join(f.target, "build/node_gyp_bins")), false);
+  assert.deepEqual(readFileSync(join(f.target, "build/Release/pty.node")), Buffer.from([0, 1, 2, 255]));
+  assert.equal(readFileSync(join(f.target, "build/Release/spawn-helper"), "utf8"), "synthetic runtime helper");
+});
+
+test("lookalike node-gyp helper paths retain ordinary payload bytes", (t) => {
+  const f = fixture(t);
+  const paths = ["node_gyp_bins/value.txt", "dist/build/node_gyp_bins/value.txt", "build/node_gyp_bins-extra/value.txt"];
+  for (const path of paths) file(join(f.source, path), path);
+  const guard = inspector();
+  guard.inspectPackage(f.source, "fixture");
+  guard.copyPackage(f.source, f.target);
+  for (const path of paths) assert.equal(readFileSync(join(f.target, path), "utf8"), path);
+});
+
+for (const path of ["node_gyp_bins", "dist/build/node_gyp_bins", "build/node_gyp_bins-extra", "build/Release"])
+  test(`an external fixture link in ${path} remains rejected`, (t) => {
+    const f = fixture(t);
+    const target = join(f.root, "generated-target");
+    mkdirSync(target);
+    file(join(target, "value.txt"), "fixture bytes outside the package");
+    mkdirSync(join(f.source, path), { recursive: true });
+    directoryLink(target, join(f.source, path, "linked-payload"));
+    assert.throws(() => inspector().inspectPackage(f.source, "fixture"), /escapes its root/);
+    assert.equal(existsSync(f.target), false);
+  });
+
+for (const type of ["file", "link"])
+  test(`an ordinary build ${type} without node-gyp scaffolding remains valid`, (t) => {
+    const f = fixture(t);
+    if (type === "file") file(join(f.source, "build"), "ordinary build-named payload");
+    else {
+      file(join(f.source, "payload/value.txt"), "ordinary internal payload");
+      directoryLink(join(f.source, "payload"), join(f.source, "build"));
+    }
+    const guard = inspector();
+    guard.inspectPackage(f.source, "fixture");
+    guard.copyPackage(f.source, f.target);
+    assert.equal(readFileSync(join(f.target, type === "file" ? "build" : "build/value.txt"), "utf8"),
+      type === "file" ? "ordinary build-named payload" : "ordinary internal payload");
+  });
+
+for (const [path, type] of [["build", "link"], ["build/node_gyp_bins", "file"], ["build/node_gyp_bins", "link"]])
+  test(`${path} must be a physical directory rather than a ${type}`, (t) => {
+    const f = fixture(t);
+    const entry = join(f.source, path);
+    mkdirSync(dirname(entry), { recursive: true });
+    if (type === "file") writeFileSync(entry, "synthetic scaffold name used as a file");
+    else {
+      const target = join(f.source, "payload");
+      mkdirSync(target);
+      if (path === "build") file(join(target, "node_gyp_bins/generated.txt"), "synthetic build helper bytes");
+      directoryLink(target, entry);
+    }
+    assert.throws(() => inspector().inspectPackage(f.source, "fixture"), /physical directory|node_gyp_bins|build helper|redirect/i);
+    assert.equal(existsSync(f.target), false);
+  });
+
+for (const suffix of ["", "/nested"])
+  test(`a retained alias cannot enter node-gyp helper${suffix || " root"}`, (t) => {
+    const f = fixture(t);
+    const target = join(f.source, `build/node_gyp_bins${suffix}`);
+    mkdirSync(target, { recursive: true });
+    file(join(target, "entry.js"), "throw new Error('Build helper must never execute');");
+    directoryLink(target, join(f.source, "alias"));
+    assert.throws(() => inspector().inspectPackage(f.source, "fixture"), /excluded|node_gyp_bins|build helper/i);
+  });
+
+for (const [name, fields] of [
+  ["main", { main: "build/node_gyp_bins/entry.js" }],
+  ["percent-encoded main", { main: "build/%6eode_gyp_bins/entry.js" }],
+  ["exports:null legacy main", { exports: null, main: "build/node_gyp_bins/entry.js" }],
+  ["exports:null percent-encoded legacy main", { exports: null, main: "build/%6eode_gyp_bins/entry.js" }],
+  ["exports", { exports: "./build/node_gyp_bins/entry.js" }],
+  ["percent-encoded exports", { exports: { ".": { require: "./build/%6Eode_gyp_bins/entry.js", default: "./index.js" } } }],
+  ["backslash exports", { exports: "./build\\node_gyp_bins/python3/entry.js" }],
+  ["imports", { imports: { "#helper": "./build/node_gyp_bins/entry.js" } }],
+  ["percent-encoded imports", { imports: { "#helper/*": ["./index.js", "./build/%6eode_gyp_bins/*.js"] } }],
+  ["backslash imports", { imports: { "#helper": "./build\\node_gyp_bins/python3/entry.js" } }],
+]) test(`${name} cannot declare a runtime target inside node-gyp helpers`, (t) => {
+  const f = fixture(t, { name: "fixture", main: "index.js", ...fields });
+  file(join(f.source, "build/node_gyp_bins/entry.js"), "throw new Error('Build helper must never execute');");
+  file(join(f.source, "build/node_gyp_bins/python3/entry.js"), "throw new Error('Build helper must never execute');");
+  const guard = inspector();
+  assert.throws(() => guard.inspectPackage(f.source, "fixture"), /excluded|node_gyp_bins|build helper/i);
+  assert.throws(() => guard.copyPackage(f.source, f.target), /not inspected/);
+  assert.equal(existsSync(f.target), false);
+});
+
+for (const path of ["build", "build/node_gyp_bins"]) for (const type of ["file", "link"])
+  test(`copying refuses ${path} changed into a ${type} after inspection`, (t) => {
+    const f = fixture(t);
+    file(join(f.source, "build/node_gyp_bins/generated.txt"), "ignored build bytes");
+    file(join(f.source, "payload/value.txt"), "retained local bytes");
+    const guard = inspector();
+    guard.inspectPackage(f.source, "fixture");
+    const entry = join(f.source, path);
+    renameSync(entry, join(f.root, "saved-scaffold"));
+    if (type === "file") writeFileSync(entry, "replacement file");
+    else directoryLink(join(f.source, "payload"), entry);
+    assert.throws(() => guard.copyPackage(f.source, f.target), /changed after inspection|physical directory|node_gyp_bins|build helper|redirect/i);
+    assert.equal(existsSync(join(f.target, "build/node_gyp_bins")), false);
+  });
 
 test("an external junction is rejected before package contents can be copied", (t) => {
   const f = fixture(t);

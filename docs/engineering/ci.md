@@ -19,6 +19,13 @@
 Electron 和 Playwright 二进制下载。Node 22 跟随维护补丁，依赖图由现有锁文件固定。
 .NET 使用现有中央包版本；目前没有 NuGet lock 文件，不能声称其传递依赖已锁定。
 
+Ubuntu 安装后用锁定的 node-gyp 9.4.1 重编译实际 node-pty 1.1.0，确认保留的
+`build/node_gyp_bins/python3` 构建链接与 Release 原生模块、spawn-helper 同时存在，
+再执行既有生产构建、物理搬移与验证。这样 pnpm 缓存不能掩盖源码构建的目录形态。
+运行目录仅排除包根下物理目录 `build/node_gyp_bins`；Release、Debug、prebuilds
+及原生伴随文件照常复制。辅助目录及其父级不能借此作为链接，保留文件的其它越界链接、
+指入辅助目录的别名和声明入口仍会被拒绝，不放宽包内容边界。
+
 Agent 门禁直接执行已有 `agent-gui/scripts/check-agent-offline.mjs`，包含
 `tsc --noEmit --incremental false` 和显式隔离测试。测试 worker 并发限制为 4，保留
 15 秒文件超时，避免按宿主 CPU 数量启动大量冷 tsx worker。
