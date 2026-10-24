@@ -180,7 +180,7 @@ FA geometry 复用同一 port、lease 与目标核验；Provider presence 与 un
 保留原全局图标兼容行为；全局缓存改为实际使用时才加载，导入模块不会读取用户存储。
 `ensureParamValue` 的纯值转换与参数 UI 分离，catalog/draft helpers 不再为该函数导入整条
 参数编辑器及图标组件；这只关闭该处依赖边界，不表示其它混层已全部清理。
-多宿主选择、完整资源目录、trace run owner 与 Agent/UI 共享实时 revision 仍待接线；
+多宿主选择、完整资源目录与 Agent/UI 共享实时 revision 仍待接线；
 完整新版 Designer 和 V2 原生存储身份不能由这一层持久来源约束替代。
 V1 native source 与保存保护已实现；V2 有旧 body/patch，保存前必须明确确认 Designer
 未打开，查不到状态返回 `DESIGNER_STATE_UNAVAILABLE`，打开则 `DESIGNER_OPEN`，不继续
@@ -315,7 +315,22 @@ save 共用 cwd/tab 读代次，真正发布及 React updater 时仍须有效；
 旧 Promise 仍回原 waiter，但不能重新 seed 或释放替换请求。删除回执携带原 cwd/project，
 仅清理路径段内文档与缓存，未知旧回执只刷新，不清其它文件。Pin/focus 由当前可见 Chat
 presentation token 路由，不保留首次打开文件时的聊天闭包。完整浏览器/终端/trace 面板实例
-契约、trace run owner 和持久草稿恢复继续独立迁移。
+契约和持久草稿恢复继续独立迁移。
+
+Agent trace 的执行 owner 由 server composition 注入 ID 工厂与当前 turn writer；纯
+`action-trace-owner.ts` 不生成身份。每次 debug 在核验原 HTTP 宿主后捕获 execution/run、
+thread、cwd、action/param、完整 binding 和 task invocation path。父子沿用同一请求执行
+状态及取消信号，仍只有现有 AI SDK loop；原生隔离继续依赖每次 HTTP 调用的专用管道、
+progress callback 与 logger/context，不把新增 UUID 当作原生事件已有 run ID 的证明。
+bridge 以 run 身份登记、完整 owner 比较和单次终结；终态摘要独立保留，事件重放与精确
+去重有界。artifact、traceRef 和模型摘要保留同一 owner，写入/读取使用原 cwd。
+
+UI view lease 将运行身份与呈现 thread/generation 分离，切 cwd 不改原运行的读取位置。
+订阅者只观察，关闭或卸载不取消原生工作；结果未知与原生成功/失败分别投影，迟到真实
+终态可纠正观察错误。历史无 live feed，旧无 owner 格式只生成展示身份；start-only
+历史明确结果未知，已关闭 view 的墓碑防止消息重放重新打开。通用 direct tool 入口独立
+创建 execution state 和 synthetic thread，释放所属资源；专用手动 trace GET/POST 尚待
+统一。取消只保证 Node 观察停止，完整原生停止协议与真实宿主并行 trace 仍需验收。
 
 历史消息分支确认携带 mounted owner、thread、锚点、草稿与消息 revision。确认返回后先检查
 当前 owner，再通过 AI SDK 的同步 functional updater 比较实时 store；React 的节流消息副本

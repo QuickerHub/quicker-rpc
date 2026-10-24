@@ -313,9 +313,15 @@ FA resolve 也已接相同文档 port：APDE 标题、嵌套预览、步骤旧�
 已确认不含 TSX。PR23 合入主线后，主产品 frontend check 通过；实际 162 V1 插件以
 完整绑定解析 `fa:Light_Flask` 得到真实向量，缺失绑定与完整目标失配均返回 409，专用
 动作版本未变，零宿主写入且未运行动作；该 HTTP 证据不代替真实 GUI 点击或 V2 验收。
-trace 展示也仍有独立缺口：现有 bridge/页签按 actionId+param 全局
-复用，需由执行侧与 UI 共享每次运行 owner，再处理终结、清理与历史重放；仅把 key 换成
-未保证全局唯一的 SDK toolCallId 不能证明跨会话隔离。此项继续归 R2/R4 验收。
+Agent trace 已改为每次执行的独立 owner：服务端生成 turn execution/run 身份，捕获 thread、
+cwd、完整宿主绑定和 task 调用路径；bridge、工具结果、压缩摘要及 artifact 共用该身份。
+浏览器只订阅已开始的原运行，切会话/cwd、隐藏或关闭页签不会重新执行动作；晚事件与
+文件回执只更新原 view generation。旧历史仅投影结果或读取 artifact，不启动 live feed；
+仅持久化 start 而没有终态的历史显示“原生结果未知”。观察连接失败不覆盖后续真实终态，
+取消表示停止观察，不能声称原生动作已停止。bridge 终态与去重缓存有界，明确关闭的运行
+不会被后续消息重开。通用 direct tool 入口有独立 execution/thread，不借用当前聊天。
+服务端 fake SSE、父子调用、历史/取消和真实 React DOM 验证已覆盖；专用手动 GET/POST
+trace 入口仍保留旧命名空间，完整统一和真实宿主并行 trace 继续归 R2/R4 验收。
 
 catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录读取、未绑定及完整
 目标失配拒绝；专用动作版本未变、无宿主写入或运行。主界面 frontend check 通过。首次
@@ -409,7 +415,11 @@ total、样式和分页事实，不改变旧 maxResults/expand 搜索。原生�
 satellite，三个旧 read factory 与新 page 已改为精确已加载程序集查找，避免探测触发初始化。
 V1 15 项、Runtime 22 项、无 V2 引用 7 项及 Transport 14 项通过；独立审查修正了原 owner
 断线测试和跨 Quicker/Core 的 metadata 检查。当前 2.2.11 编译宿主缺新分页类型，仅验证
-PE 缺失/拒绝和固定 DTO；V2 原生算法、活进程及完整图标选择器仍待验收。准备集成版本 165。
+PE 缺失/拒绝和固定 DTO；V2 原生算法、活进程及完整图标选择器仍待验收。
+`0.14.8.165` 整次热更成功，540 个安装文件与发布源一致；真实 V1 以完整绑定验证八组
+分页，目录 5996 项、中文/样式/品牌搜索、相邻页、越界归一、预取消与错误 session 拒绝
+均通过，零动作执行和宿主写入，主产品 frontend check 通过。CLI/HTTP/设计器分页适配
+及共享选择器继续独立交付，不能用底层读取验收代替完整 UI。
 
 R5 文件实例首片已接生产 Chat/dock：已访问文件由工作台保活，切文件、browser/trace、
 折叠面板、切聊天/cwd 不卸载 APDE Session、属性草稿或 pending save。active 管理快捷键
