@@ -1,71 +1,50 @@
 "use client";
-
-import { buildActionTraceTabId } from "@/lib/action-trace-tab-id";
-import {
-  failActionTraceRunForTab,
-  finishActionTraceRunForTab,
-  prepareActionTraceTab,
-  appendActionTraceEventForTab,
-  appendActionTraceOutputForTab,
-} from "@/lib/action-trace-overlay";
-import { consumeActionTraceSse } from "@/lib/action-trace-sse";
-
-const activeFeeds = new Map<string, AbortController>();
-
-export function startActionTraceFeed(params: {
-  actionId: string;
-  param?: string;
-  actionTitle?: string;
-}): void {
-  const actionId = params.actionId.trim();
-  const param = params.param?.trim() || undefined;
-  const tabId = buildActionTraceTabId(actionId, param);
-
-  stopActionTraceFeed(tabId);
-  prepareActionTraceTab({ actionId, param, actionTitle: params.actionTitle });
-
-  const abort = new AbortController();
-  activeFeeds.set(tabId, abort);
-
-  const feedUrl = `/api/actions/trace/feed?tabId=${encodeURIComponent(tabId)}`;
-  void consumeActionTraceSse(feedUrl, abort.signal, {
-    onLine: (line) => {
-      appendActionTraceOutputForTab(tabId, `${line}\n`);
-    },
-    onTrace: (event) => {
-      appendActionTraceEventForTab(tabId, event);
-    },
-    onDone: (data) => {
-      finishActionTraceRunForTab(tabId, {
-        ok: data.ok === true,
-        message: typeof data.message === "string" ? data.message : undefined,
-        returnResult:
-          typeof data.returnResult === "string" ? data.returnResult : undefined,
-        errorMessage:
-          typeof data.errorMessage === "string" ? data.errorMessage : undefined,
-        eventCount:
-          typeof data.eventCount === "number" ? data.eventCount : undefined,
-        durationMs:
-          typeof data.durationMs === "number" ? data.durationMs : undefined,
-      });
-      activeFeeds.delete(tabId);
-    },
-    onError: (message) => {
-      if (abort.signal.aborted) return;
-      failActionTraceRunForTab(tabId, message);
-      activeFeeds.delete(tabId);
-    },
-  });
-}
-
-export function stopActionTraceFeed(tabId: string): void {
-  activeFeeds.get(tabId)?.abort();
-  activeFeeds.delete(tabId);
-}
-
-export function stopActionTraceFeedForAction(
-  actionId: string,
-  param?: string,
-): void {
-  stopActionTraceFeed(buildActionTraceTabId(actionId, param));
+import type { TraceRunOwner } from "./action-trace-owner";
+import { sameTraceRunOwner } from "./action-trace-owner";
+import type { TraceViewLease } from "./action-trace-overlay";
+import { consumeActionTraceSse } from "./action-trace-sse";
+type Feed = {
+  abort: AbortController;
+  waiters: number;
+  owner: TraceRunOwner;
+};
+const activeFeeds = new Map<string, Feed>();
+/** Sharing observation does not share execution or let one waiter stop another. */
+export function startActionTraceFeed(owner: TraceRunOwner, view: TraceViewLease): () => void {
+  if (!view.isCurrent() || !view.owner || !sameTraceRunOwner(view.owner, owner))
+    return () => { };
+  let feed = activeFeeds.get(view.tabId);
+  if (feed && !sameTraceRunOwner(feed.owner, owner))
+    return () => { };
+  if (!feed) {
+    feed = { abort: new AbortController(), waiters: 0, owner };
+    const captured = feed;
+    activeFeeds.set(view.tabId, captured);
+    const current = () => !captured.abort.signal.aborted && view.isCurrent() && activeFeeds.get(view.tabId) === captured;
+    const removeClose = view.onClose(() => captured.abort.abort());
+    void consumeActionTraceSse(`/api/actions/trace/feed?owner=${encodeURIComponent(JSON.stringify(owner))}`, captured.abort.signal, {
+      onTrace: (event) => { if (current())
+        view.appendEvent(event); },
+      onLine: (line) => { if (current())
+        view.appendLine(line); },
+      onDone: (data) => { if (current())
+        view.finish(data); },
+      onError: (message) => { if (current())
+        view.observeError(message); },
+    }).finally(() => { removeClose(); if (activeFeeds.get(view.tabId) === captured)
+      activeFeeds.delete(view.tabId); });
+  }
+  feed.waiters += 1;
+  const captured = feed;
+  let released = false;
+  return () => {
+    if (released)
+      return;
+    released = true;
+    captured.waiters -= 1;
+    if (captured.waiters === 0 && activeFeeds.get(view.tabId) === captured) {
+      activeFeeds.delete(view.tabId);
+      captured.abort.abort();
+    }
+  };
 }

@@ -2,6 +2,7 @@ import {
   readActionTraceRef,
   type ActionTraceStepSummary,
 } from "@/lib/action-trace-artifact";
+import { readTraceRunOwner } from "./action-trace-owner";
 import {
   countSearchMatchHits,
   normalizeGrepMatchesByPath,
@@ -241,6 +242,7 @@ function buildDebugDisplayData(
   const stepSummaries = readStepSummaries(data.stepSummaries);
   const failureLocation = readRecord(data.failureLocation);
   const display: Record<string, unknown> = {
+    ...(readTraceRunOwner(data.traceOwner) ? { traceOwner: readTraceRunOwner(data.traceOwner) } : {}),
     ...(actionId ? { actionId } : {}),
     ok: data.ok,
     ...(typeof data.eventCount === "number" ? { eventCount: data.eventCount } : {}),
@@ -283,6 +285,7 @@ function compressDebugResult(
   const runOk = result.ok && data.ok !== false;
 
   const compressed: Record<string, unknown> = {
+    ...(readTraceRunOwner(data.traceOwner) ? { traceOwner: readTraceRunOwner(data.traceOwner) } : {}),
     ...(actionId ? { actionId } : {}),
     ok: data.ok ?? result.ok,
     eventCount,

@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 
 import type { LanguageModel } from "ai";
 import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
@@ -79,6 +80,8 @@ async function resolveTurnModel(
 
 /** Concrete server adapters for the single AI SDK agent execution path. */
 export const runAgentChatTurn = createAgentTurnRunner({
+  createExecutionId: randomUUID,
+  createTraceRunId: randomUUID,
   resolveRequest: resolveAgentTurnRequest,
   tryDirectResponse: tryLauncherDirectResponse,
   resolveModel: resolveTurnModel,

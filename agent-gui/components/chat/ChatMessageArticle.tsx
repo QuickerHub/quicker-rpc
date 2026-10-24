@@ -5,8 +5,11 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import { LastMessageMoreMenu } from "./LastMessageMoreMenu";
 import { MessageParts } from "./MessageParts";
 import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
+import { ActionTraceMessageProvider } from "./ActionTraceToolSync";
 
 export type ChatMessageArticleProps = {
+  threadId?: string;
+  traceLive?: boolean;
   message: AgentUIMessage;
   messageIndex: number;
   stickyPrompt?: boolean;
@@ -31,6 +34,8 @@ export type ChatMessageArticleProps = {
 };
 
 function ChatMessageArticleInner({
+  threadId,
+  traceLive = false,
   message,
   stickyPrompt = false,
   isEditAnchor,
@@ -134,11 +139,11 @@ function ChatMessageArticleInner({
     >
       <div className="msg-content">
         <div className="parts">
-          <MessageParts
+          <ActionTraceMessageProvider threadId={threadId} cwd={workingDirectory} message={message} live={traceLive}><MessageParts
             message={message}
             workingDirectory={workingDirectory}
             onInsertComposerPrompt={onInsertComposerPrompt}
-          />
+          /></ActionTraceMessageProvider>
         </div>
         {lastMessageMenu}
       </div>

@@ -12,6 +12,7 @@ import {
 import {
   getRequestCwd,
   getRequestLlmSelectionRaw,
+  runWithTraceTaskInvocation,
 } from "@/lib/qkrpc-request-context";
 import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
 import { formatLocalToolResult } from "@/lib/tool-result";
@@ -144,7 +145,7 @@ export async function executeTaskTool(input: {
   const system = await buildSubagentSystemPrompt(subagent, cwd);
 
   try {
-    const result = await generateText({
+    const scoped = await runWithTraceTaskInvocation(parent.toolCallId ?? "task", subagent.name, () => generateText({
       model,
       system,
       prompt,
@@ -152,7 +153,8 @@ export async function executeTaskTool(input: {
       abortSignal: parent.abortSignal,
       experimental_repairToolCall: createRepairToolCallHandler(tools),
       stopWhen: stepCountIs(AGENT_MAX_STEPS),
-    });
+    }));
+    const result = scoped.value;
 
     const toolSummary = summarizeSteps(result.steps ?? []);
     return formatLocalToolResult({
@@ -164,6 +166,8 @@ export async function executeTaskTool(input: {
       result: result.text,
       steps: result.steps?.length ?? 0,
       toolSummary,
+      ...(scoped.traceRuns.length ? { traceRuns: scoped.traceRuns } : {}),
+      ...(scoped.traceRefs.length ? { traceRefs: scoped.traceRefs } : {}),
     });
   } catch (e) {
     parent.abortSignal?.throwIfAborted();
@@ -210,7 +214,7 @@ export function createTaskToolForParent(
     ...definition,
     execute: (input, options) => executeTaskTool(
       input as { agent?: string; prompt?: string },
-      { tools: parentTools(), abortSignal: options.abortSignal },
+      { tools: parentTools(), abortSignal: options.abortSignal, toolCallId: options.toolCallId },
     ),
   } as Tool;
 }

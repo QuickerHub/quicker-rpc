@@ -3,6 +3,7 @@ import { TASK_TOOL } from "@/lib/task-tool-constants";
 import { pickEnabledTools } from "@/lib/tool-registry";
 
 export type TaskParentCapabilities = {
+  toolCallId?: string;
   tools: ToolSet;
   abortSignal?: AbortSignal;
 };

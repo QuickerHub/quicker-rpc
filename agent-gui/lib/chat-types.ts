@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { TraceRunProgress } from "./action-trace-owner";
 import type { AgentRecoveryDecision } from "@/lib/agent-recovery-policy";
 import type { AgentTurnState } from "@/lib/agent-turn-state";
 import {
@@ -50,6 +51,7 @@ export type TurnContextReport = {
 
 /** Token usage attached to assistant messages via messageMetadata. */
 export type ChatUsageMetadata = {
+  executionId?: string;
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
@@ -65,7 +67,7 @@ export type ChatUsageMetadata = {
   recentToolFeedbackCount?: number;
 };
 
-export type AgentUIMessage = UIMessage<ChatUsageMetadata>;
+export type AgentUIMessage = UIMessage<ChatUsageMetadata, { actionTrace: TraceRunProgress }>;
 
 /** @deprecated Use resolveModelContextLimit or API-provided contextLimit */
 export const DEFAULT_CONTEXT_LIMIT = DEFAULT_MODEL_CONTEXT_TOKENS;

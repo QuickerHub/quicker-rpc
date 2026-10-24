@@ -11,6 +11,7 @@ import {
 import { useFollowScrollTail } from "@/lib/use-follow-scroll-tail";
 
 function formatTraceMeta(trace: ActionTraceTabState): string {
+  if (trace.resultUnknown) return "结果未知";
   if (trace.status === "running") {
     const events =
       trace.events.length > 0 ? `${trace.events.length} 步 · ` : "";
@@ -154,6 +155,10 @@ export function ActionTracePanel({
           ) : null}
         </div>
       </header>
+
+      {trace?.observationError || trace?.resultUnknown && trace.errorMessage ? (
+        <p role="status" className="tool-muted">{trace.observationError ?? trace.errorMessage}</p>
+      ) : null}
 
       <div className="action-trace-panel__body">
         {showEmpty ? (

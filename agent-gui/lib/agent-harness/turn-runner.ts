@@ -11,6 +11,8 @@ import { createTurnExecutionState, disposeTurnExecutionState, type TurnExecution
 
 /** Ports keep orchestration tests independent of model config, user databases and host tools. */
 export type AgentTurnServices = {
+  createExecutionId?: () => string;
+  createTraceRunId?: () => string;
   resolveRequest: (body: ChatPostBody) => Promise<ResolvedAgentTurnRequest>;
   tryDirectResponse: (request: ResolvedAgentTurnRequest) => Promise<Response | null>;
   resolveModel: (request: ResolvedAgentTurnRequest) => Promise<{ model: LanguageModel; modelId: string } | Response>;
@@ -36,6 +38,7 @@ export function createAgentTurnRunner(services: AgentTurnServices) {
     });
     const { signal } = lifecycle;
     const executionState = createTurnExecutionState();
+    const executionId = services.createExecutionId?.();
     const ownResponse = async (response: Response): Promise<Response> => {
       // Register a late response body before observing cancellation during preparation.
       if (response.body) {
@@ -85,7 +88,14 @@ export function createAgentTurnRunner(services: AgentTurnServices) {
             originalMessages: request.repairedMessages,
             execute: async ({ writer }) => {
               try {
-                await services.runLoop({ writer, ...streamRuntime, abortSignal: signal });
+                const run = () => services.runLoop({ writer, ...streamRuntime, executionId, abortSignal: signal });
+                if (executionId && services.createTraceRunId) {
+                  await services.withContext({
+                    ...toolExecutionContextToAgentRequest(scope.toolExecutionContext), executionState, abortSignal: signal,
+                    traceExecution: { executionId, createRunId: services.createTraceRunId,
+                      emit: (event) => { if (!signal.aborted && !executionState.closed) writer.write({ type: "data-actionTrace", data: event }); } },
+                  }, run);
+                } else await run();
               } finally {
                 // Release transports when production finishes, without discarding buffered UI chunks.
                 try { await disposeRuntime(); } catch (error) {

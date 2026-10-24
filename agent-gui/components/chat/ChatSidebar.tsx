@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { WorkingDirectoryDialog } from "@/components/chat/WorkingDirectoryDialog";
+import { releaseActionTraceThread } from "@/lib/action-trace-overlay";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
@@ -676,6 +677,8 @@ export function ChatSidebar({
         try {
           const cleanup = await cleanupDevTempWorkspaceClient(path);
           const next = deleteThreadsByWorkingDirectory(store, path, defaultCwd);
+          const kept = new Set(next.threads.map((thread) => thread.id));
+          for (const thread of store.threads) if (!kept.has(thread.id)) releaseActionTraceThread(thread.id);
           commit(next);
           onActivateThread(next.activeThreadId);
           pushAppMessage({
@@ -754,6 +757,7 @@ export function ChatSidebar({
         writePinnedThreadIds(nextPinned);
       }
       commit(deleteThread(store, threadId));
+      releaseActionTraceThread(threadId);
     },
     [commit, pinnedThreadIds, store],
   );

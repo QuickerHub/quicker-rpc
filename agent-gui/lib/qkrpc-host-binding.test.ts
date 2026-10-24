@@ -183,7 +183,8 @@ test("Agent trace sends the current host binding and parent cancellation signal"
     assert.equal(String(url), `${base}/v1/action/trace/stream`);
     assert.ok(init?.signal);
     return new Response('event: done\ndata: {"ok":true}\n\n', { headers: { "Content-Type": "text/event-stream" } });
-  }, () => runWithAgentRequestContextAsync({}, async () => {
+  }, () => runWithAgentRequestContextAsync({ cwd: process.cwd(), threadId: "trace-binding",
+    traceExecution: { executionId: "trace-binding", createRunId: () => "trace-binding-run", emit() {} } }, async () => {
     await invokeQkrpcHttp({ op: "action.get", args: {} }, { hostBinding: b });
     assert.equal((await runActionTraceForAgentTool({ id: "trace-fixture" })).ok, true);
   }));
@@ -219,7 +220,8 @@ test("first trace honors configured binding and execution-time abort preserves t
         setImmediate(() => cancel.abort(reason));
       },
     }));
-  }, () => runWithAgentRequestContextAsync({ abortSignal: cancel.signal }, async () => {
+  }, () => runWithAgentRequestContextAsync({ abortSignal: cancel.signal, cwd: process.cwd(), threadId: "trace-abort",
+    traceExecution: { executionId: "trace-abort", createRunId: () => "trace-abort-run", emit() {} } }, async () => {
     process.env.QKRPC_HOST_BINDING = JSON.stringify(a);
     await assert.rejects(runActionTraceForAgentTool({ id: "trace-cancel-fixture" }), (error) => error === reason);
   }));

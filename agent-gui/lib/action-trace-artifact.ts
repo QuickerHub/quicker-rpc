@@ -3,11 +3,13 @@ import {
   formatTraceEventsToText,
   parseActionTraceEvents,
 } from "@/lib/action-trace-format";
+import { readTraceRunOwner, type TraceRunOwner } from "./action-trace-owner";
 
 export const ACTION_TRACE_ARTIFACT_FORMAT = "action-trace-v1";
 export const ACTION_TRACE_STEP_SUMMARY_CAP = 20;
 
 export type ActionTraceRef = {
+  owner?: TraceRunOwner;
   path: string;
   format: typeof ACTION_TRACE_ARTIFACT_FORMAT;
 };
@@ -19,6 +21,7 @@ export type ActionTraceStepSummary = {
 };
 
 export type ActionTraceArtifactDocument = {
+  traceOwner?: TraceRunOwner;
   version: 1;
   actionId: string;
   param?: string;
@@ -86,6 +89,7 @@ export function buildActionTraceArtifactDocument(
     typeof data.durationMs === "number" ? data.durationMs : undefined;
   return {
     version: 1,
+    ...(readTraceRunOwner(data.traceOwner) ? { traceOwner: readTraceRunOwner(data.traceOwner) } : {}),
     actionId: options.actionId.trim(),
     param: options.param?.trim() || undefined,
     ok: data.ok !== false,
@@ -107,7 +111,9 @@ export function readActionTraceRef(value: unknown): ActionTraceRef | null {
   if (!path) return null;
   const format = readString(record.format);
   if (format !== ACTION_TRACE_ARTIFACT_FORMAT) return null;
-  return { path, format: ACTION_TRACE_ARTIFACT_FORMAT };
+  const owner = readTraceRunOwner(record.owner);
+  if (record.owner !== undefined && !owner) return null;
+  return { path, format: ACTION_TRACE_ARTIFACT_FORMAT, ...(owner ? { owner } : {}) };
 }
 
 export function parseActionTraceArtifactDocument(raw: string): ActionTraceArtifactDocument | null {
@@ -118,10 +124,14 @@ export function parseActionTraceArtifactDocument(raw: string): ActionTraceArtifa
     const actionId = readString(record.actionId);
     if (!actionId) return null;
     const events = parseActionTraceEvents(record.events);
+    const traceOwner = readTraceRunOwner(record.traceOwner);
+    if (record.traceOwner !== undefined && !traceOwner) return null;
+    if (traceOwner && (traceOwner.actionId !== actionId || (traceOwner.param ?? "") !== (readString(record.param) ?? ""))) return null;
     const eventCount =
       typeof record.eventCount === "number" ? record.eventCount : events.length;
     return {
       version: 1,
+      ...(traceOwner ? { traceOwner } : {}),
       actionId,
       param: readString(record.param),
       ok: record.ok !== false,
