@@ -52,7 +52,9 @@ Runtime.Test 或 Console 全套搬入 Ubuntu。既有双 fake-host、完整绑�
 对端。专用 MSBuild hook 仅在该 consumer 构建时收窄 Transport 的 restore/build 目标，
 使 NuGet 图与显式 ProjectReference 一致；前面的全目标编译与 net10 合同测试不受影响。它核验
 完整绑定、Ping 和零 fake 写入。Windows owner/SID/ACL 专属测试在 Ubuntu 明确
-报告 unsupported，不能计为 Linux 覆盖；其它意外非通过结果阻断。实际测试数量和名称写入
+报告 unsupported。Transport 的 netstandard 目标直接声明公开会话所实现的 async interface
+依赖，避免消费应用选择其它框架的传递资产时丢失该程序集版本。测试不为 smoke 单独补包。
+这些 Windows 用例不能计为 Linux 覆盖；其它意外非通过结果阻断。实际测试数量和名称写入
 本轮 TRX/receipt。net472 只编译，引用程序集由 SDK/NuGet 恢复，不代表在 Linux 执行了
 .NET Framework，也不需要安装 Quicker。既有 Windows .NET 门禁保持原样。
 
