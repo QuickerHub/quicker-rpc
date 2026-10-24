@@ -22,6 +22,7 @@ internal static class QuickerV2StepRunnerMapper
             Name = QuickerV2Reflection.ReadString(runner, "Name") ?? string.Empty,
             Description = QuickerV2Reflection.ReadString(runner, "Description") ?? string.Empty,
             Icon = QuickerV2Reflection.ReadString(runner, "Icon") ?? string.Empty,
+            HelpLink = QuickerV2Reflection.ReadString(runner, "HelpLink"),
             Category = ReadEnumString(runner, "Category"),
             InputParamDefs = MapInputs(runnerType.GetProperty("InputParams")?.GetValue(runner), captureInputPolicy),
             OutputParamDefs = MapOutputs(runnerType.GetProperty("OutputParams")?.GetValue(runner)),
