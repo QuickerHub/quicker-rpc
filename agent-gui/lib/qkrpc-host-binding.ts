@@ -1,31 +1,15 @@
 import type { QkrpcInvoke } from "@/lib/qkrpc-argv";
 import { getRequestTurnExecutionState } from "@/lib/qkrpc-request-context";
 import { readHostBinding, sameHostBinding, type QkrpcHostBinding } from "./qkrpc-host-binding-contract";
+import { getQkrpcOperationEffects } from "./qkrpc-operation-effects";
 export { readHostBinding, sameHostBinding, type QkrpcHostBinding } from "./qkrpc-host-binding-contract";
+export { isOfflineSourceInvoke } from "./qkrpc-operation-effects";
 
 export type QkrpcBoundTarget = Readonly<{ gateway: string; binding: QkrpcHostBinding }>;
 
-const READ_OPS = new Set([
-  "ping", "host.list", "action.binding", "action.list", "action.search", "action.mention-search", "action.get", "action.open",
-  "action.shared.get", "action.library.search", "action.publish.preflight", "action.shared-info.get",
-  "action.validate", "action.extract", "subprogram.search", "subprogram.list", "subprogram.get",
-  "subprogram.validate", "subprogram.export", "clipboard.read-special-format", "fa.search", "fa.resolve", "fa.page",
-  "expr.check", "script.check", "chrome.tabs", "quicker.account.get", "quicker.web-session.get",
-  "settings.search", "settings.list", "settings.get", "settings.pages", "settings.links", "settings.resolve",
-  "trigger.list", "trigger.events", "launcher.resolve", "search-index.status", "designer.context",
-  "project.diagnostics.get",
-  "step-runner.list", "step-runner.search", "step-runner.get", "step-runner.getUi", "step-runner.getui",
-  "step-runner.summaries", "step-runner.quickinsertsearch", "step-runner.toolboxsearch",
-]);
-
-export function isOfflineSourceInvoke(invoke: QkrpcInvoke): boolean {
-  return invoke.op === "action.binding" || (invoke.op === "action.save" && invoke.args.dryRun === true);
-}
-
-/** New operations default to no replay; the read allowlist is deliberately explicit. */
+/** Host binding semantics only; local persistence and replay policy are separate effects. */
 export function isQkrpcReadOnlyInvoke(invoke: QkrpcInvoke): boolean {
-  return isOfflineSourceInvoke(invoke) || READ_OPS.has(invoke.op)
-    || invoke.op.startsWith("guide.");
+  return !getQkrpcOperationEffects(invoke).mayMutateHost;
 }
 
 export function currentQkrpcTarget(): QkrpcBoundTarget | undefined {

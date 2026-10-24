@@ -31,6 +31,7 @@ export function isQkrpcConnectivityFailure(result: QkrpcRunResult): boolean {
   if (result.ok) return false;
 
   const errorCode = extractErrorCode(result.parsed);
+  if (errorCode === "write_result_unknown") return false;
   if (errorCode === "plugin_not_running") return true;
   if (errorCode === "wait_timeout") return true;
 
@@ -63,6 +64,7 @@ export function isQkrpcConnectivityFailure(result: QkrpcRunResult): boolean {
 /** True when qkrpc.exe cannot be spawned (PATH / QKRPC_BIN), not plugin connectivity. */
 export function isQkrpcBinMissingFailure(result: QkrpcRunResult): boolean {
   if (result.ok) return false;
+  if (extractErrorCode(result.parsed) === "write_result_unknown") return false;
   const stderr = (result.stderr ?? "").toLowerCase();
   if (stderr.includes("enoent")) return true;
   if (stderr.includes("找不到 qkrpc")) return true;

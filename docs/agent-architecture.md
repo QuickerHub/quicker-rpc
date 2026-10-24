@@ -459,6 +459,15 @@ context”。
 | UI 输出 | 原始 tool result / `displayData` | 不受模型视图裁剪影响 |
 | Schema 暴露 | `agent-harness/model-tool-definitions.ts` | 核心/当前 bundle/MCP 保留完整 schema，其余提供发现提示 |
 
+invoke 的持久化事实由纯 `qkrpc-operation-effects.ts` 定义：宿主修改与本地文件持久写
+分别描述。宿主绑定仍只消费前者；HTTP/CLI 的未知收据、transport fallback 和工具重试
+消费两者。`action.open`、`action.extract`、`subprogram.export` 读宿主但会导出文件，
+缺少确认后不能当纯读重放。未知操作保守处理，只有显式 dry-run 保留离线语义。
+CLI 只有确定启动失败才说明命令未开始；缺少 spawn 事件不能反推未派发。结构化
+`WRITE_RESULT_UNKNOWN` 不再被 stderr 重新归类为连接失败或丢失为自动恢复建议。
+这些事实只覆盖 invoke，不替代工具模式权限或包含 wrapper 后续的工作区 augmentation；
+bootstrap、父子权限与 TurnPlan 的完整统一仍继续迁移。
+
 Ask 的动作/子程序 get 使用显式读取执行端口，绕开兼容 get 的自动导出，并重建限定命令，
 只通过 CLI `--no-bootstrap` 连接现有宿主；不进入可能自启动的 HTTP pool，不重试或转走
 导出入口。当前模式的最终 wrapper 同样约束历史审批续跑与子代理，未提供读取端口时拒绝。
