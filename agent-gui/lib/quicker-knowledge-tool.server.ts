@@ -1,23 +1,14 @@
 import "server-only";
 
-import { stat } from "node:fs/promises";
 import { tool } from "ai";
 import { z } from "zod";
 import { reciprocalRankFusion } from "@/lib/quicker-knowledge/hybrid";
+import { searchQuickerKnowledge } from "@/lib/quicker-knowledge/search";
 import {
-  buildQuickerKnowledgeKeywordIndex,
-  searchQuickerKnowledge,
-  type QuickerKnowledgeSearchIndex,
-} from "@/lib/quicker-knowledge/search";
-import {
-  hasQuickerKnowledgeCorpus,
-  loadQuickerKnowledgeChunksFromJsonl,
-  resolveDefaultQuickerKnowledgeChunksPath,
-} from "@/lib/quicker-knowledge/store.server";
-import type {
-  QuickerKnowledgeChunk,
-  QuickerKnowledgeSearchResult,
-} from "@/lib/quicker-knowledge/types";
+  createQuickerKnowledgeIndexLoader,
+  type QuickerKnowledgeKeywordSnapshot,
+} from "@/lib/quicker-knowledge/index-provider.server";
+import type { QuickerKnowledgeSearchResult } from "@/lib/quicker-knowledge/types";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { QUICKER_KNOWLEDGE_SEARCH_TOOL } from "@/lib/quicker-knowledge-tool-constants";
@@ -43,12 +34,19 @@ const quickerKnowledgeSearchInputSchema = z.object({
     .describe("Limit results to a Quicker website source type"),
 });
 
-let cachedIndex:
-  | {
-      cacheKey: string;
-      index: QuickerKnowledgeSearchIndex;
-    }
-  | undefined;
+const loadKeywordIndex = createQuickerKnowledgeIndexLoader();
+
+function knowledgeSource(snapshot?: QuickerKnowledgeKeywordSnapshot) {
+  return {
+    schemaVersion: 1,
+    source: { provider: "quicker.website-corpus", kind: "local-corpus" },
+    schema: {
+      format: "quicker-knowledge.chunks.jsonl.v1",
+      revision: snapshot?.revision ?? "unknown",
+    },
+    retrievedAt: snapshot?.retrievedAt ?? null,
+  };
+}
 
 function formatFailure(
   data: Record<string, unknown>,
@@ -58,41 +56,6 @@ function formatFailure(
     ...formatLocalToolResult(data, false, error),
     error,
   };
-}
-
-async function loadKeywordIndex(): Promise<QuickerKnowledgeSearchIndex> {
-  const corpusPath = resolveDefaultQuickerKnowledgeChunksPath();
-  if (!hasQuickerKnowledgeCorpus(corpusPath)) {
-    throw new Error(
-      "Quicker knowledge corpus is missing. Run the Quicker website knowledge ingest/build task first.",
-    );
-  }
-
-  const corpusStat = await stat(corpusPath);
-  const chunks = await loadQuickerKnowledgeChunksFromJsonl(corpusPath);
-  const cacheKey = [
-    corpusPath,
-    corpusStat.mtimeMs,
-    corpusStat.size,
-    buildCorpusSignature(chunks),
-  ].join("|");
-
-  if (cachedIndex?.cacheKey === cacheKey) {
-    return cachedIndex.index;
-  }
-
-  const index = buildQuickerKnowledgeKeywordIndex(chunks);
-  cachedIndex = {
-    cacheKey,
-    index,
-  };
-  return index;
-}
-
-function buildCorpusSignature(chunks: QuickerKnowledgeChunk[]): string {
-  return chunks
-    .map((chunk) => `${chunk.id}:${chunk.contentHash}`)
-    .join(",");
 }
 
 export async function executeQuickerKnowledgeSearchTool(
@@ -106,22 +69,26 @@ export async function executeQuickerKnowledgeSearchTool(
         success: false,
         query,
         errorMessage: "query is required",
+        knowledge: knowledgeSource(),
       },
       "query is required",
     );
   }
 
-  let index: QuickerKnowledgeSearchIndex;
+  let snapshot: QuickerKnowledgeKeywordSnapshot;
   try {
-    index = await loadKeywordIndex();
+    snapshot = await loadKeywordIndex();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = error != null && typeof error === "object" && "code" in error && error.code === "ENOENT"
+      ? "Quicker knowledge corpus is missing. Run the Quicker website knowledge ingest/build task first."
+      : error instanceof Error ? error.message : String(error);
     return formatFailure(
       {
         action: "quicker-knowledge-search",
         success: false,
         query,
         errorMessage: message,
+        knowledge: knowledgeSource(),
         hint:
           "The local Quicker website knowledge corpus is not available. "
           + "Run the website RAG corpus build/ingest step, then retry.",
@@ -130,7 +97,7 @@ export async function executeQuickerKnowledgeSearchTool(
     );
   }
 
-  const keyword = searchQuickerKnowledge(index, {
+  const keyword = searchQuickerKnowledge(snapshot.index, {
     query,
     limit: input.limit,
     sourceType: input.sourceType,
@@ -149,10 +116,11 @@ export async function executeQuickerKnowledgeSearchTool(
       success: true,
       query,
       mode: "keyword",
+      knowledge: knowledgeSource(snapshot),
       results,
       hint:
         results.length > 0
-          ? "Cite result URLs when answering from Quicker website knowledge."
+          ? "Cite result URLs and their recorded fetchedAt when available. These are local corpus snapshots, not current online or native host facts."
           : "No results found. Refine the query with Quicker product terms, settings names, UI labels, or module names.",
     }),
   );
@@ -160,7 +128,8 @@ export async function executeQuickerKnowledgeSearchTool(
 
 export const QUICKER_KNOWLEDGE_SEARCH_TOOL_DEF = tool({
   description:
-    "Search official public Quicker website knowledge for product usage, settings, UI, install, sync, account, common modules, and docs. "
+    "Search the locally stored public Quicker website corpus for product usage, settings, UI, install, sync, account, common modules, and docs. "
+    + "This reads an existing local snapshot; it does not fetch current online or native host knowledge. "
     + "Use this before answering Quicker public website knowledge questions, and cite result URLs. "
     + "Do NOT use for local action editing, step-runner schemas, qkrpc authoring, workspace files, or private/local Quicker data.",
   inputSchema: quickerKnowledgeSearchInputSchema,
