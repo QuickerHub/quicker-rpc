@@ -52,11 +52,24 @@ test("relocated static renderer + production Node API preserve chat, settings, h
   mkdirSync(parent, { recursive: true });
   const root = mkdtempSync(join(parent, "static-runtime-integration-"));
   console.log(`Static runtime evidence: ${root}`);
+  const started = Date.now();
+  const phases: { phase: string; elapsedMs: number }[] = [];
+  const phase = (name: string) => {
+    const elapsedMs = Date.now() - started;
+    phases.push({ phase: name, elapsedMs });
+    try { writeFileSync(join(root, "phase-timeline.json"), JSON.stringify({ format: "static-spa-phase-timeline", version: 1, phases }, null, 2)); }
+    catch (error) { console.error(`Static SPA phase evidence unavailable: ${String(error)}`); }
+    console.log(`Static SPA phase ${name}: ${elapsedMs}ms`);
+  };
   const built = join(root, "built-app");
+  phase("build-start");
   await buildStaticRuntime({ outputDirectory: built, development: true });
+  phase("build-complete");
   const app = join(root, "relocated-app");
   renameSync(built, app);
+  phase("relocated");
   assert.equal((await verifyStaticRuntime(app)).ok, true);
+  phase("verified");
   const requests: string[] = [], hostOperations: string[] = [];
   const modelRequests: ModelRequest[] = [], modelErrors: string[] = [];
   let liveScopeId: string | undefined, liveRead: LiveReceipt | undefined, liveEdit: LiveReceipt | undefined;
@@ -213,6 +226,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
   const address = fixture.address();
   assert.ok(address && typeof address !== "string");
   const fakeOrigin = `http://127.0.0.1:${address.port}`;
+  phase("fake-endpoint-ready");
   const profile = join(root, "profile");
   const workspace = join(root, "workspace");
   mkdirSync(workspace, { recursive: true });
@@ -255,6 +269,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     AGENT_GUI_SKIP_BROWSER_RUNTIME: "0", AGENT_GUI_SKIP_TERMINAL_RUNTIME: "0",
   });
   const child = spawn(process.execPath, ["--import", pathToFileURL(guard).href, join(app, "service.mjs"), "--port", "0"], { cwd: root, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"] });
+  phase("service-started");
   const exited = once(child, "exit");
   let stderr = "";
   child.stderr!.on("data", (data) => { stderr += data; });
@@ -274,6 +289,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
         }
       });
     });
+    phase("service-ready");
     const json = async (path: string, options?: RequestInit) => {
       const response = await fetch(origin + path, options);
       const result = await response.json();
@@ -364,7 +380,9 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     assert.ok(requests.includes("/v1/chat/completions"));
     assert.equal((await fetch(origin + "/.env")).status, 404);
     assert.equal((await fetch(origin + "/lib/service-main.mjs")).status, 404);
+    phase("api-and-fake-model-complete");
     browser = await chromium.launch({ channel: "msedge", headless: true });
+    phase("edge-ready");
     const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
     const errors: string[] = [];
     await context.route("**/*", (route) => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
@@ -378,6 +396,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
       assert.ok((await page.locator("#root").innerText()).length > 10, `Renderer mounted: ${path}`);
       await page.screenshot({ path: join(root, `page-${path.replace(/[^a-z]/gi, "_") || "main"}.png`) });
     }
+    phase("renderer-pages-ready");
     await page.goto(origin);
     await page.locator(".agent-workbench").waitFor();
     // Use the actual SPA/Explorer/Chat/SDK path, without directly accessing its registry.
@@ -428,6 +447,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     assert.deepEqual(liveDiskHashes, { body: sha256(liveBody), metadata: sha256(liveInfo) }, "live read/edit do not persist source or metadata");
     assert.equal(JSON.parse(readFileSync(join(companionDirectory, "data.json"), "utf8")).steps[0].note, "Companion unchanged");
     await page.screenshot({ path: join(root, "live-designer-one-undo.png") });
+    phase("live-note-and-undo-complete");
     // A second real manual pin/send targets an independently bound document and native input schema.
     await page.getByRole("button", { name: "资源管理器", exact: true }).click();
     await page.locator(".explorer-tree-row").filter({ hasText: "Live bound input acceptance" }).click();
@@ -485,6 +505,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     "bound input editing and undo never write source, metadata, binding or external resources");
     await page.screenshot({ path: join(root, "live-input-one-undo.png") });
     await editor.getByRole("tab", { name: /^可视化/ }).click();
+    phase("live-input-and-undo-complete");
     await page.getByRole("button", { name: /^设置：/ }).click();
     await page.waitForTimeout(500);
     await page.screenshot({ path: join(root, "settings.png") });
@@ -497,6 +518,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     const check = await json("/api/dev/frontend-check?paths=/,/launcher,/api/llm,/api/ping,/api/designer/context");
     assert.equal(check.ok, true);
     await json("/api/dev/frontend-check?clearCaptured=true");
+    phase("frontend-check-complete");
     assert.deepEqual(hostOperations.filter((op) => /(?:^|\.)(?:run|execute|save|apply|overwrite|write|extract|export)(?:\.|$)/i.test(op)), []);
     verification = { ok: true, requests, hostOperations, errors, frontendCheck: check, ownedRuntimeOrigins: runtimeOrigins,
       liveDesigner: { scopeId: liveScopeId, read: liveRead, edit: liveEdit, diskHashes: liveDiskHashes },
@@ -511,6 +533,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     }
     throw error;
   } finally {
+    phase("cleanup-start");
     releaseEdit();
     await browser?.close();
     if (child.connected) child.disconnect();
@@ -528,6 +551,7 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     assert.equal(child.exitCode, 0, stderr);
     assert.equal(forced, false, "IPC parent disconnect drains the owned service and children");
     for (const runtime of runtimeOrigins) await assert.rejects(fetch(runtime + "/health"));
+    phase("cleanup-complete");
   }
   writeFileSync(join(root, "verification.json"), JSON.stringify(verification, null, 2));
   console.log(`Static renderer/API/frontend check and owned process cleanup passed; evidence: ${root}`);
