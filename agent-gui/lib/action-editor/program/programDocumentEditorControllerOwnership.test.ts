@@ -23,6 +23,7 @@ test("an existing private pin cannot edit a step whose parent became a foreign c
   assert.equal(captured.state, "ready"); if (captured.state !== "ready") return;
   const scope = captured.scope, read = f.registry.execute(scope, { scopeId: scope.scopeId, operationId: "read", input: { action: "read_live" } });
   assert.equal(read.ok, true);
+  assert.ok("revision" in read);
   const before = f.session.getState(), command = { scopeId: scope.scopeId, operationId: "edit", input: {
     action: "edit_live" as const, readOperationId: "read", expectedRevision: read.revision!, stepId: "selected", note: "must not edit foreign" } };
   const result = f.registry.execute(scope, command);
