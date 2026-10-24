@@ -217,6 +217,24 @@ V2 绑定精确 native SearchPage/七字段 DTO，经既有 dispatcher 调用并
 通用 `QuickerV2Runtime.ResolveType` 会补载 satellite，读取探测因此改用独立的精确已加载
 程序集查找，覆盖 quick insert、toolbox、geometry 和 page；缺少类型或 dispatcher 时不可用。
 
+动作与全局子程序的完整摘要分页使用 root host 的可选
+`IQuickerRpcResourceCatalogPageHost`，分别声明 `resource.action.page.read` 与
+`resource.globalSubprogram.page.read`，独立于 DesignerUi。CLI 为
+`action/subprogram catalog-page`，HTTP 为 `resource.catalog.page`。scope 固定
+`runtimeCatalog`：V1 已加载 profile 中的动作与内存全局子程序，排除 SQL 孤儿行、
+未保存 Designer 草稿和云端未加载项目。摘要保留原始标题、说明、图标、字符串 editVersion，
+不求值标题/图标表达式，不读取正文，不触发搜索、索引构建或持久化。
+
+V1 仅为已审计 native module 开放能力；未知构建或 metadata 不足时关闭。capture 在真实
+Application dispatcher 的同步段内用原生同步锁 TryEnter(0)，拒绝同线程重入，核验
+loaded、退出账号标记、固定账号及服务/锁引用前后未变，再复制标量；忙、退出、缺少状态、
+枚举异常均失败。独立 hosted observer 只用 Interlocked 记录原生同步消息，不能当作
+原生账号 epoch；Stop 先失效 owner 再退订，同一组件再次 Start 使用新 owner。分页身份
+共用 Runtime 的 host/session，加上 owner、匿名账号范围、观察 revision、全部摘要和筛选。
+后续页必须带首屏 snapshotId；变化时明确 CATALOG_CHANGED，不拼接两个快照。V2 该可选
+端口暂未接入，两项能力为 false。离线 DI、dispatcher、CLI/HTTP 回归已具备，实机验收
+与设计器 ResourcePane 的消费接线仍待完成。
+
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，
 `features/program/ProgramEditorTabWorkspace.tsx` 与 `XProgramEditor` 负责程序编辑。

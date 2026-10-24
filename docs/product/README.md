@@ -122,6 +122,12 @@ CLI、MCP 和 HTTP 共用 Contracts/Runtime/Transport，Quicker 版本差异只�
 - RPC/CLI health 已返回宿主类型、版本、本次加载 session 与动作能力；专属 endpoint、候选选择、不可变写入绑定和 V2 native source/codec 已有离线实现及集成回归。V1 已热更核验，绑定后的双宿主动作写回、V2 加载与重启仍待验收。
 - capability 必须反映真实实现；能编译不等于能力对齐。
 
+动作/全局子程序的完整 runtime 摘要分页已有实验性 V1 原生只读端口、两项独立 capability、
+CLI `action/subprogram catalog-page` 与 HTTP `resource.catalog.page`。已审计 native build
+采用真实 dispatcher、原生同步锁及 hosted owner；未知构建和 V2 继续关闭。离线完整千项
+分页、快照变化、账号/退出、Stop/Start、实际 CLI/HTTP 与取消回归已具备；实机及资源面板
+消费接线仍待验收，不能据此称完整资源面板已迁移。
+
 V2 完成门槛和矩阵见 [Plugin.V2 对齐计划](../design/quicker-rpc-plugin-v2.md)。外部接入见 [MCP/CLI 集成](../agent-mcp-integration.md)。
 
 serve invoke 的超时预算覆盖发现、绑定预检、排队、连接握手与 RPC；不在连接成功后
@@ -251,7 +257,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 主/嵌套正文、变量和三项属性共用 Session present/history；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序属性、内部引用重命名、创建与带引用校验的确认删除已接线；完整属性和资源目录继续迁移 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
-| `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；动作/子程序完整目录、分页和操作仍待迁移，不能以受限搜索冒充完整目录 |
+| `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；完整 runtime 目录已有 V1 可选端口及 CLI/HTTP 离线闭环，实机、V2、资源面板消费与操作仍待迁移，不能以受限搜索冒充完整目录 |
 | `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。主动作/子程序共用 FA 搜索、风格分页、选色和手填规格；上传图标库及其它属性仍待原生契约 |
 | 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | V1 source 与磁盘保真已有基础；metadata 原始字段、V2 codec 和 UI source 接入继续验收 |
 | 运行/诊断 bridge | 已确认范围内的 run/trace、失败定位、取消与结果展示 | 复用现有 RPC/Agent 服务；新版设计器调用侧与宿主能力逐项接线 |
