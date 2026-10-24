@@ -334,8 +334,18 @@ UI view lease 将运行身份与呈现 thread/generation 分离，切 cwd 不改
 订阅者只观察，关闭或卸载不取消原生工作；结果未知与原生成功/失败分别投影，迟到真实
 终态可纠正观察错误。历史无 live feed，旧无 owner 格式只生成展示身份；start-only
 历史明确结果未知，已关闭 view 的墓碑防止消息重放重新打开。通用 direct tool 入口独立
-创建 execution state 和 synthetic thread，释放所属资源；专用手动 trace GET/POST 尚待
-统一。取消只保证 Node 观察停止，完整原生停止协议与真实宿主并行 trace 仍需验收。
+创建 execution state 和 synthetic thread，释放所属资源。取消只保证 Node 观察停止，
+完整原生停止协议与真实宿主并行 trace 仍需验收。
+
+手动启动复用 `prepareOwnedActionTrace`，独立 manager 创建 server execution/thread/run，
+不继承 Chat ALS 的目标。POST 先核验绝对 cwd、已知项目侧车及唯一宿主，再单次启动；
+项目完整记录在准备后再次比较，不能据此声称 C# 原生 dispatch 与本地文件已形成原子 CAS。
+GET 只转发只读 feed。ACK 返回后解除请求信号，后续生命周期归 manager 的 timeout 和
+service shutdown；关闭观察不取消原生动作。shutdown 先发布共享 Promise，再触发同步
+abort listener，有界等待实际 settlement；超时保留 entry，迟到完成后才释放。
+`didDispatch` 事实区分派发前拒绝和 ACK 窗口内结果未知，不重试可能已发出的运行。
+客户端从当前 presentation port 捕获 thread/cwd/generation，pending view 仅向原 owner
+提升；标题和内联命令行是展示元数据，不进入原生身份或改写 inline payload。
 
 历史消息分支确认携带 mounted owner、thread、锚点、草稿与消息 revision。确认返回后先检查
 当前 owner，再通过 AI SDK 的同步 functional updater 比较实时 store；React 的节流消息副本

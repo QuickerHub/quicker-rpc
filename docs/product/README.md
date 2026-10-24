@@ -243,7 +243,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | 来源区域 | 必须覆盖的交互与数据 | 当前事实 / 下一步 |
 |---|---|---|
 | `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；原生 V2 storage、选择宿主和 Agent 实时会话仍待接线 |
-| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 首批迁入并有真实 DOM 回归；主/嵌套正文、变量和三项属性已共用 Session present/history，surface 不再有独立 timeline；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序属性与内部字面引用重命名已接线；创建/删除继续迁移 |
+| `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 主/嵌套正文、变量和三项属性共用 Session present/history；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序属性、内部引用重命名、创建与带引用校验的确认删除已接线；完整属性和资源目录继续迁移 |
 | `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；动作/子程序完整目录、分页和操作仍待迁移，不能以受限搜索冒充完整目录 |
@@ -320,8 +320,15 @@ cwd、完整宿主绑定和 task 调用路径；bridge、工具结果、压缩�
 仅持久化 start 而没有终态的历史显示“原生结果未知”。观察连接失败不覆盖后续真实终态，
 取消表示停止观察，不能声称原生动作已停止。bridge 终态与去重缓存有界，明确关闭的运行
 不会被后续消息重开。通用 direct tool 入口有独立 execution/thread，不借用当前聊天。
-服务端 fake SSE、父子调用、历史/取消和真实 React DOM 验证已覆盖；专用手动 GET/POST
-trace 入口仍保留旧命名空间，完整统一和真实宿主并行 trace 继续归 R2/R4 验收。
+服务端 fake SSE、父子调用、历史/取消和真实 React DOM 验证已覆盖。
+手动 trace 也已接同一 owner/bridge/view：聊天动作卡、Info Toolbar 与内联测试由显式
+POST 启动，GET 只观察已有 owner。已知项目按精确目录读取并复核完整侧车；裸动作仅在
+唯一兼容宿主中解析一次。服务端生成独立执行上下文，ACK 后请求结束与页签关闭都不
+取消原生运行；晚 ACK 不打开已关闭页签或聚焦另一个会话/cwd。明确派发前拒绝显示原
+失败，ACK 丢失或可能已派发显示结果未知且不自动重试；原标题和内联命令行保留。
+服务停止先登记单一关闭 Promise，再取消所属观察；清理超时明确失败并继续持有未决任务，
+迟到原生结果不复活 view。13 项新定向回归、原 Agent 15 项及真实 Toolbar/内联 DOM 通过。
+本片不把项目读取绑定称为 APDE 实时 revision 协同，真实宿主并行 trace 仍待验收。
 
 catalog 切片已合并并在 `0.14.8.161` 的真实 V1 验收七组 HTTP 目录读取、未绑定及完整
 目标失配拒绝；专用动作版本未变、无宿主写入或运行。主界面 frontend check 通过。首次
@@ -424,7 +431,10 @@ PE 缺失/拒绝和固定 DTO；V2 原生算法、活进程及完整图标选择
 默认全样式的 `style:null` 通过专用输出保留。客户端复用同一 port 的共享请求与 256 项
 LRU，取消和关闭后不发布迟到缓存。独立审查及真实 CLI/fake pipe、临时 HTTP 与本地
 显式 Node route 跨边界回归通过；.NET CI 始终运行核心序列化断言，附加 Node 检查单独
-启用。准备集成版本 166；共享图标选择器与 V2 活进程继续验收。
+启用。`0.14.8.166` 已完成整次构建安装，540 个安装文件哈希与发布源一致；真实 V1 的
+CLI 与设计器分页链通过，默认 null style、中文/品牌/越界，以及缺失、loading、unbound、
+完整目标失配和非法窗口分别验收。专用动作版本与导出正文未变，零宿主写入和动作执行，
+主产品 frontend check 通过。共享图标选择器与 V2 活进程继续验收。
 
 R5 文件实例首片已接生产 Chat/dock：已访问文件由工作台保活，切文件、browser/trace、
 折叠面板、切聊天/cwd 不卸载 APDE Session、属性草稿或 pending save。active 管理快捷键
