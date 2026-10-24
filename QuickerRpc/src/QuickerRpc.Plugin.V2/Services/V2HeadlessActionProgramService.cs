@@ -4,6 +4,7 @@ using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Host;
 using QuickerRpc.Plugin.V2.Reflection;
+using QuickerRpc.Plugin.Services;
 
 namespace QuickerRpc.Plugin.V2.Services;
 
@@ -11,12 +12,18 @@ namespace QuickerRpc.Plugin.V2.Services;
 public sealed class V2HeadlessActionProgramService
 {
     private readonly Func<StepRunnerCatalog> _readCatalog;
+    private readonly Func<StepRunnerKnowledgeProvider.ReadResult> _readKnowledge;
     private readonly Func<bool> _isRunningInQuicker;
 
-    public V2HeadlessActionProgramService() : this(QuickerV2StepRunnerCatalogBuilder.Build, () => QuickerV2Runtime.IsRunningInQuicker) { }
+    public V2HeadlessActionProgramService() : this(QuickerV2StepRunnerCatalogBuilder.Build,
+        () => QuickerV2Runtime.IsRunningInQuicker, QuickerV2StepRunnerCatalogBuilder.BuildForKnowledge) { }
 
     internal V2HeadlessActionProgramService(Func<StepRunnerCatalog> readCatalog, Func<bool> isRunningInQuicker)
-    { _readCatalog = readCatalog; _isRunningInQuicker = isRunningInQuicker; }
+        : this(readCatalog, isRunningInQuicker, () => new StepRunnerKnowledgeProvider.ReadResult(readCatalog())) { }
+
+    internal V2HeadlessActionProgramService(Func<StepRunnerCatalog> readCatalog, Func<bool> isRunningInQuicker,
+        Func<StepRunnerKnowledgeProvider.ReadResult> readKnowledge)
+    { _readCatalog = readCatalog; _isRunningInQuicker = isRunningInQuicker; _readKnowledge = readKnowledge; }
 
     // Defer Quicker DI lookup until first RPC call (avoids UI-thread deadlock during plugin start).
     private QuickerV2ActionAccessor? Actions => QuickerV2ActionAccessor.Current;
@@ -374,18 +381,8 @@ public sealed class V2HeadlessActionProgramService
             };
         }
 
-        var mapped = StepRunnerCatalogMapper.GetDetail(
-            _readCatalog(),
-            stepRunnerKey ?? string.Empty,
-            controlFieldValue);
-        return new QuickerRpcStepRunnerDetailResult
-        {
-            Success = mapped.Success,
-            ErrorMessage = mapped.ErrorMessage,
-            SchemaJson = mapped.Schema is null ? null : forAgent
-                ? StepRunnerAgentSchemaJson.Serialize(mapped.Schema)
-                : StepRunnerUiSchemaJson.Serialize(mapped.Schema),
-        };
+        return StepRunnerKnowledgeProvider.GetDetail(_readKnowledge(), stepRunnerKey ?? string.Empty,
+            controlFieldValue, forAgent);
     }
 
     private static string MergePayload(string? existingPayloadJson, JObject xAction, JArray steps, JArray variables)

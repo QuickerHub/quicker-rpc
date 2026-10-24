@@ -8,10 +8,6 @@ namespace QuickerRpc.Plugin.Catalog.Designer;
 /// <summary>Action-editor quick insert and toolbox search (UI only).</summary>
 internal sealed class DesignerStepRunnerSearchService
 {
-    private readonly object _toolboxLock = new();
-    private int _cachedToolboxGeneration = -1;
-    private List<StepQuickInsertCatalog.CatalogRow>? _cachedToolboxRows;
-
     public QuickerRpcDesignerSearchPageResult SearchQuickInsert(
         string? keyword,
         int skip,
@@ -50,7 +46,7 @@ internal sealed class DesignerStepRunnerSearchService
 
         try
         {
-            var toolboxRows = GetOrBuildToolboxRows();
+            var toolboxRows = ToolboxSearchCatalog.BuildRows(StepRunnerUiCatalogBuilder.Build());
             var body = JsonConvert.SerializeObject(new { keyword = keyword ?? string.Empty, skip });
             var json = DesignerStepRunnerSearchHttp.FormatToolboxSearch(body, toolboxRows);
             return Ok(json);
@@ -88,23 +84,6 @@ internal sealed class DesignerStepRunnerSearchService
         }
 
         return list.Count > 0 ? list : null;
-    }
-
-    private List<StepQuickInsertCatalog.CatalogRow> GetOrBuildToolboxRows()
-    {
-        lock (_toolboxLock)
-        {
-            var gen = StepRunnerCatalogGeneration.Current;
-            if (_cachedToolboxRows is not null && _cachedToolboxGeneration == gen)
-            {
-                return _cachedToolboxRows;
-            }
-
-            var catalog = StepRunnerUiCatalogBuilder.Build();
-            _cachedToolboxRows = ToolboxSearchCatalog.BuildRows(catalog);
-            _cachedToolboxGeneration = gen;
-            return _cachedToolboxRows;
-        }
     }
 
     private static QuickerRpcDesignerSearchPageResult Ok(string json) =>
