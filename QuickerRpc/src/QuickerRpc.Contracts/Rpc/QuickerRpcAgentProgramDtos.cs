@@ -316,6 +316,20 @@ public sealed class QuickerRpcSearchFontAwesomeIconsResult
     public string? DefaultStyle { get; set; }
 }
 
+/// <summary>A full-style catalog window. TotalCount is the complete filtered count, not this page length.</summary>
+public sealed class QuickerRpcFontAwesomePageResult
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public IList<string> Names { get; set; } = new List<string>();
+    public string Query { get; set; } = string.Empty;
+    public string? Style { get; set; }
+    public int Skip { get; set; }
+    public int Take { get; set; }
+    public int TotalCount { get; set; }
+    public bool HasMore { get; set; }
+}
+
 /// <summary>Resolved FA icon SVG path (from Quicker FontAwesome5 catalog).</summary>
 public sealed class QuickerRpcFontAwesomeIconGeometry
 {

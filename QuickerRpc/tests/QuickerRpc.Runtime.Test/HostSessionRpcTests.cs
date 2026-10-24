@@ -124,6 +124,61 @@ public sealed class HostSessionRpcTests
         Assert.IsFalse((await Service(host).GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.DesignerToolboxRead], "Explicit availability wins over V1 compatibility.");
     }
 
+    [TestMethod]
+    public async Task FontAwesome_page_requires_an_actual_optional_port_and_never_enables_editor_access()
+    {
+        var host = new FakeHost();
+        host.Flags.DesignerUi = true;
+        host.Designer = DispatchProxy.Create<IQuickerRpcDesignerHost, NeverInvokePort>();
+        Assert.IsFalse((await Service(host).GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead]);
+        Assert.IsFalse((await Service(host).SearchFontAwesomeIconsPageAsync("", null)).Success);
+        var designer = DispatchProxy.Create<IPageDesigner, PageDesignerPort>();
+        var port = (PageDesignerPort)(object)designer;
+        host.Designer = designer; host.Flags.DesignerUi = false; host.Info.Kind = QuickerHostKind.V2;
+        var service = Service(host);
+        Assert.IsFalse((await service.GetHostSessionAsync()).Capabilities[QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead]);
+        Assert.IsFalse((await service.SearchFontAwesomeIconsPageAsync("", null)).Success); Assert.AreEqual(0, port.Calls);
+        port.Available = true;
+        var info = await service.GetHostSessionAsync();
+        Assert.IsTrue(info.Capabilities[QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead]);
+        Assert.IsFalse(info.Capabilities[QuickerRpcHostCapabilityNames.DesignerActionOpen]);
+        Assert.IsFalse(info.Capabilities[QuickerRpcHostCapabilityNames.DesignerContextRead]);
+        var page = await service.SearchFontAwesomeIconsPageAsync("camera", "Light", 3, 9);
+        Assert.IsTrue(page.Success); Assert.AreEqual(1, port.Calls); Assert.AreEqual("camera", page.Query); Assert.AreEqual(3, page.Skip); Assert.AreEqual(9, page.Take);
+    }
+
+    [TestMethod]
+    public async Task FontAwesome_page_preabort_and_late_success_keep_the_original_token_and_other_requests_work()
+    {
+        var designer = DispatchProxy.Create<IPageDesigner, PageDesignerPort>();
+        var port = (PageDesignerPort)(object)designer;
+        var service = Service(new FakeHost { Designer = designer });
+        using var before = new CancellationTokenSource(); before.Cancel();
+        await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => service.SearchFontAwesomeIconsPageAsync("", null, cancellationToken: before.Token));
+        Assert.AreEqual(0, port.AvailabilityReads); Assert.AreEqual(0, port.Calls);
+        using var late = new CancellationTokenSource(); port.Available = true; port.OnRead = () => late.Cancel();
+        var error = await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => service.SearchFontAwesomeIconsPageAsync("", null, cancellationToken: late.Token));
+        Assert.AreEqual(late.Token, error.CancellationToken);
+        port.OnRead = null;
+        Assert.IsTrue((await service.SearchFontAwesomeIconsPageAsync("other", null)).Success); Assert.AreEqual(2, port.Calls);
+    }
+
+    public interface IPageDesigner : IQuickerRpcDesignerHost, IQuickerRpcDesignerFontAwesomePageHost { }
+    public class PageDesignerPort : DispatchProxy
+    {
+        public bool Available; public int Calls, AvailabilityReads; public Action? OnRead;
+        protected override object? Invoke(MethodInfo? method, object?[]? args)
+        {
+            if (method?.Name == "get_IsFontAwesomePageAvailable") { AvailabilityReads++; return Available; }
+            if (method?.Name == nameof(IQuickerRpcDesignerFontAwesomePageHost.SearchFontAwesomeIconsPageAsync))
+            {
+                Calls++; OnRead?.Invoke();
+                return Task.FromResult(new QuickerRpcFontAwesomePageResult { Success = true, Query = (string?)args![0] ?? "", Style = (string?)args[1], Skip = (int)args[2]!, Take = (int)args[3]! });
+            }
+            throw new AssertFailedException("Unexpected page host method: " + method?.Name);
+        }
+    }
+
     private static QuickerRpcService Service(FakeHost host, QuickerRpcHostSessionScope? scope = null)
     {
         var dependencies = new QuickerRpcRuntimeDependencies(() => throw new AssertFailedException("Handshake must not build a catalog."), "fake");

@@ -1,5 +1,8 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using System.Collections.Immutable;
 using System.Runtime.Loader;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.Host;
 using QuickerRpc.Plugin;
 using QuickerRpc.Plugin.V2.Adapters;
@@ -19,6 +23,7 @@ namespace QuickerRpc.Runtime.Test;
 [TestClass, DoNotParallelize]
 public sealed class V2DesignerReadCatalogTests
 {
+    public TestContext TestContext { get; set; } = null!;
     private const string Page = "{\"items\":[{\"kind\":\"runner\",\"future\":{\"value\":\"kept\"}}],\"totalCount\":1,\"hasMore\":false,\"futurePage\":true}";
     private static V2DesignerReadNativePort.CatalogBinding Binding(Type? search = null) =>
         V2DesignerReadNativePort.CatalogBinding.TryCreate(typeof(CatalogFactory), typeof(CatalogDto), search ?? typeof(SearchLeaf))!;
@@ -33,6 +38,198 @@ public sealed class V2DesignerReadCatalogTests
         CatalogFactory.Read = () => new CatalogDto { Items = ["fixture"] };
         SearchLeaf.Read = (_, _, _, _) => Task.FromResult(Page);
         FaLeaf.Read = _ => new() { Icon = "Light_Test", Path = "M0 0", Width = 512, Height = 256, Fill = "#123456" };
+        FaPageLeaf.Reads = 0;
+        FaPageLeaf.Read = (_, _, _, _) => new(["Light_Camera"], 1, 0, 96, false, "", null);
+    }
+
+    private static V2DesignerReadNativePort PageNative(Func<Func<Task<string>>, CancellationToken, Task<string>>? dispatch = null,
+        Func<V2DesignerReadNativePort.FaPageBinding?>? binding = null, bool dispatcher = true) =>
+        new(() => null, () => null, () => dispatcher, dispatch ?? ((work, _) => work()), binding ?? (() => V2DesignerReadNativePort.FaPageBinding.TryCreate(typeof(FaPageLeaf), typeof(FaPageDto))));
+
+    [TestMethod]
+    public void Read_metadata_lookup_only_inspects_the_exact_already_loaded_assembly_owners()
+    {
+        var outsider = new MetadataAssembly("Quicker.Unrelated", () => throw new AssertFailedException("Unrelated assemblies cannot be inspected."));
+        foreach (var (name, owner) in new[] {
+            ("Quicker.Modules.Headless.HostAdapter.QuickerDesignerPluginDataService", "Quicker"),
+            ("Quicker.Designer.Grpc.V1.GetStepRunnersResponse", "Quicker.Headless.Designer.Contracts"),
+            ("Quicker.Designer.Search.DesignerStepRunnerSearchService", "Quicker.Headless.Designer.Core"),
+            ("Quicker.Designer.Plugin.QuickerPluginFontAwesomePathResolver", "Quicker"),
+            ("Quicker.Designer.Contracts.Rpc.DesignerFaIconVectorRpcDto", "Quicker.Headless.Designer.Contracts"),
+            ("Quicker.Designer.Plugin.FaIconSearchPage", "Quicker.Headless.Core"),
+            ("Quicker.Designer.Plugin.FaIconSearchPage", "Quicker"),
+        })
+        {
+            var match = new MetadataAssembly(owner, () => typeof(FaPageDto));
+            Assert.AreEqual(typeof(FaPageDto), V2DesignerReadNativePort.FindLoadedNativeType(name, [outsider, match]));
+            Assert.AreEqual(1, match.Reads);
+        }
+        Assert.AreEqual(0, outsider.Reads);
+        var missing = new MetadataAssembly("Quicker.Headless.Core", () => null);
+        Assert.IsNull(V2DesignerReadNativePort.FindLoadedNativeType("Quicker.Designer.Plugin.FaIconSearchPage", [missing]));
+        Assert.AreEqual(1, missing.Reads);
+        var broken = new MetadataAssembly("Quicker.Headless.Core", () => throw new FileNotFoundException("fixture missing metadata"));
+        Assert.IsNull(V2DesignerReadNativePort.FindLoadedNativeType("Quicker.Designer.Plugin.FaIconSearchPage", [broken]));
+        Assert.IsNull(V2DesignerReadNativePort.FindLoadedNativeType("Quicker.UnreviewedType", [outsider]));
+    }
+
+    [TestMethod]
+    public async Task FontAwesome_page_fixed_native_DTO_windows_match_the_source_golden_and_portable_matcher()
+    {
+        var catalog = new[] { "Brands_Camera", "Light_Camera", "Regular_Camera", "Solid_Dog" };
+        var fixtures = new[]
+        {
+            (Query: "", Style: "", Skip: -1, Take: 2, Page: new FaPageDto(["Light_Camera", "Regular_Camera"], 4, 0, 2, true, "", null)),
+            (Query: "camera", Style: "", Skip: 2, Take: 2, Page: new FaPageDto(["Brands_Camera"], 3, 2, 2, false, "camera", null)),
+            (Query: " 相机 ", Style: "Regular", Skip: 0, Take: 96, Page: new FaPageDto(["Regular_Camera"], 1, 0, 96, false, "相机", "Regular")),
+            (Query: " camera ", Style: " Brand ", Skip: 0, Take: 0, Page: new FaPageDto(["Brands_Camera"], 1, 0, 96, false, "camera", "Brands")),
+            (Query: "", Style: "", Skip: int.MaxValue, Take: int.MaxValue, Page: new FaPageDto([], 4, int.MaxValue, 300, false, "", null)),
+            (Query: "unmatched-xyz", Style: "future-style", Skip: 0, Take: 3, Page: new FaPageDto([], 0, 0, 3, false, "unmatched-xyz", "future-style")),
+        };
+        var native = PageNative(); var host = new V2DesignerReadHost(native);
+        Assert.IsTrue(host.IsFontAwesomePageAvailable); Assert.AreEqual(0, FaPageLeaf.Reads);
+        foreach (var fixture in fixtures)
+        {
+            FaPageLeaf.Read = (query, style, skip, take) =>
+            {
+                Assert.AreEqual(fixture.Query, query); Assert.AreEqual(fixture.Style, style); Assert.AreEqual(fixture.Skip, skip); Assert.AreEqual(fixture.Take, take);
+                return fixture.Page;
+            };
+            var page = await host.SearchFontAwesomeIconsPageAsync(fixture.Query, fixture.Style, fixture.Skip, fixture.Take);
+            Assert.IsTrue(page.Success, page.ErrorMessage);
+            var portable = FontAwesomeIconPageSearch.Search(catalog, fixture.Query, fixture.Style, fixture.Skip, fixture.Take);
+            CollectionAssert.AreEqual(fixture.Page.Names.ToArray(), portable.Names.ToArray());
+            CollectionAssert.AreEqual(portable.Names.ToArray(), page.Names.ToArray());
+            Assert.AreEqual(portable.TotalCount, page.TotalCount); Assert.AreEqual(portable.Skip, page.Skip); Assert.AreEqual(portable.Take, page.Take);
+            Assert.AreEqual(portable.HasMore, page.HasMore); Assert.AreEqual(portable.Query, page.Query); Assert.AreEqual(portable.Style, page.Style);
+        }
+        Assert.AreEqual(fixtures.Length, FaPageLeaf.Reads);
+        Assert.IsFalse((await host.SearchFontAwesomeIconsAsync("camera")).Success, "Legacy compressed search is still unsupported on V2.");
+    }
+
+    [TestMethod]
+    public async Task FontAwesome_page_metadata_missing_dispatcher_and_inconsistent_native_pages_fail_closed()
+    {
+        Assert.IsNull(V2DesignerReadNativePort.FaPageBinding.TryCreate(typeof(AsyncFaPageLeaf), typeof(FaPageDto)));
+        Assert.IsNull(V2DesignerReadNativePort.FaPageBinding.TryCreate(typeof(GenericFaPageLeaf), typeof(FaPageDto)));
+        Assert.IsNull(V2DesignerReadNativePort.FaPageBinding.TryCreate(typeof(FaPageLeaf), typeof(FaDto)));
+        Assert.IsNull(V2DesignerReadNativePort.FaPageBinding.TryCreate(typeof(BadFaPageLeaf), typeof(BadFaPageDto)));
+        Assert.IsFalse(PageNative(dispatcher: false).IsFaPageAvailable);
+        Assert.IsFalse(new V2DesignerReadNativePort().IsFaPageAvailable);
+        Assert.IsFalse((await new V2DesignerReadHost(PageNative(binding: () => null)).SearchFontAwesomeIconsPageAsync("", null)).Success);
+        Assert.AreEqual(0, FaPageLeaf.Reads);
+        var host = new V2DesignerReadHost(PageNative());
+        foreach (var invalid in new[] {
+            new FaPageDto(["Light_Camera"], 1, 0, 96, true, "", null),
+            new FaPageDto(["Light_Camera"], 3, 0, 96, false, "", null),
+            new FaPageDto(["Light_Camera"], 1, 1, 96, false, "", null),
+            new FaPageDto([""], 1, 0, 96, false, "", null),
+            new FaPageDto([], -1, 0, 96, false, "", null),
+            new FaPageDto([], 0, 0, 96, false, "changed-query", null),
+            new FaPageDto([], 0, 0, 96, false, "", "Solid"),
+            new FaPageDto(null!, 0, 0, 96, false, "", null),
+            new FaPageDto([], 0, 0, 96, false, null!, null),
+        })
+        {
+            FaPageLeaf.Read = (_, _, _, _) => invalid;
+            var result = await host.SearchFontAwesomeIconsPageAsync("", null);
+            Assert.IsFalse(result.Success); StringAssert.Contains(result.ErrorMessage, "UNSUPPORTED_HOST"); Assert.AreEqual(0, result.Names.Count);
+        }
+    }
+
+    [TestMethod]
+    public async Task FontAwesome_page_queue_preabort_and_late_native_cancel_do_not_cancel_another_owner()
+    {
+        using var before = new CancellationTokenSource(); before.Cancel();
+        var untouched = PageNative(binding: () => throw new AssertFailedException("Preabort must not inspect metadata."));
+        await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => untouched.SearchFaPageAsync("", "", 0, 96, before.Token));
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dispatched = new List<Task<string>>();
+        async Task<string> DispatchAsync(Func<Task<string>> work, CancellationToken token) { await release.Task; return await work(); }
+        var native = PageNative((work, token) => { var pending = DispatchAsync(work, token); dispatched.Add(pending); return pending; });
+        using var queuedStop = new CancellationTokenSource();
+        var queued = native.SearchFaPageAsync("", "", 0, 96, queuedStop.Token);
+        var other = native.SearchFaPageAsync("", "", 0, 96, default);
+        try
+        {
+            queuedStop.Cancel();
+            var error = await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => queued.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.AreEqual(queuedStop.Token, error.CancellationToken); Assert.AreEqual(0, FaPageLeaf.Reads);
+            release.SetResult(); Assert.AreEqual("Light_Camera", (await other.WaitAsync(TimeSpan.FromSeconds(2))).Names.Single());
+            Assert.AreEqual(1, FaPageLeaf.Reads);
+        }
+        finally
+        {
+            release.TrySetResult();
+            foreach (var pending in dispatched) { try { await pending; } catch (OperationCanceledException) { } }
+        }
+        using var late = new CancellationTokenSource();
+        FaPageLeaf.Read = (_, _, _, _) => { late.Cancel(); return new(["Light_Camera"], 1, 0, 96, false, "", null); };
+        var lateError = await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => new V2DesignerReadHost(PageNative()).SearchFontAwesomeIconsPageAsync("", null, cancellationToken: late.Token));
+        Assert.AreEqual(late.Token, lateError.CancellationToken);
+        FaPageLeaf.Read = (_, _, _, _) => new(["Light_Camera"], 1, 0, 96, false, "", null);
+        Assert.IsTrue((await new V2DesignerReadHost(PageNative()).SearchFontAwesomeIconsPageAsync("", null)).Success);
+    }
+
+    [TestMethod]
+    public async Task FontAwesome_page_runs_on_an_owned_async_dispatcher_without_creating_Application()
+    {
+        var ready = new TaskCompletionSource<Dispatcher>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() => { ready.SetResult(Dispatcher.CurrentDispatcher); Dispatcher.Run(); }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        var dispatcher = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            FaPageLeaf.Read = (_, _, _, _) => { Assert.IsTrue(dispatcher.CheckAccess()); return new(["Light_Camera"], 1, 0, 96, false, "", null); };
+            Task<string> DispatchAsync(Func<Task<string>> work, CancellationToken token) => V2DesignerReadNativePort.DispatchOnAsync(dispatcher, async () =>
+            { await Task.Yield(); Assert.IsTrue(dispatcher.CheckAccess()); return await work(); }, token);
+            var result = await new V2DesignerReadHost(PageNative(DispatchAsync)).SearchFontAwesomeIconsPageAsync("", null);
+            Assert.IsTrue(result.Success, result.ErrorMessage); Assert.AreEqual("Light_Camera", result.Names.Single());
+            Assert.IsNull(System.Windows.Application.Current);
+        }
+        finally { dispatcher.BeginInvokeShutdown(DispatcherPriority.Normal); Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(5))); }
+    }
+
+    [TestMethod]
+    public async Task Compiled_native_FontAwesome_page_metadata_matches_the_exact_port_or_remains_explicitly_unsupported()
+    {
+        var root = Environment.GetEnvironmentVariable("QKRPC_V2_TEST_HOST_ROOT");
+        if (string.IsNullOrWhiteSpace(root)) Assert.Inconclusive("Set QKRPC_V2_TEST_HOST_ROOT to an explicit compile host directory for metadata-only inspection.");
+        // Quicker.dll has AppLoggingBootstrap's module initializer. Never load or execute this assembly.
+        using var input = File.OpenRead(Path.Combine(root!, "Quicker.dll"));
+        using var pe = new PEReader(input);
+        var metadata = pe.GetMetadataReader();
+        TypeDefinition? Find(MetadataReader reader, string name) => reader.TypeDefinitions.Select(reader.GetTypeDefinition).Where(type =>
+            reader.GetString(type.Namespace) == "Quicker.Designer.Plugin" && reader.GetString(type.Name) == name).Select(type => (TypeDefinition?)type).SingleOrDefault();
+        var corePath = Path.Combine(root!, "Quicker.Headless.Core.dll");
+        using var coreInput = File.Exists(corePath) ? File.OpenRead(corePath) : null;
+        using var corePe = coreInput is null ? null : new PEReader(coreInput);
+        var dtoReader = metadata;
+        var dto = Find(metadata, "FaIconSearchPage");
+        if (dto is null && corePe is not null) { dtoReader = corePe.GetMetadataReader(); dto = Find(dtoReader, "FaIconSearchPage"); }
+        async Task AssertUnavailableAsync(string missing)
+        {
+            TestContext.WriteLine("The explicit compile host lacks " + missing + ". Only Quicker.dll and optional Quicker.Headless.Core.dll were inspected. Real native DTO/algorithm execution is unverified. No Quicker assembly was loaded.");
+            Assert.IsNull(V2DesignerReadNativePort.FaPageBinding.TryCreate(null, null));
+            Assert.IsFalse(new V2DesignerReadNativePort().IsFaPageAvailable);
+            var refused = await new V2DesignerReadHost(PageNative(binding: () => null)).SearchFontAwesomeIconsPageAsync("", null);
+            Assert.IsFalse(refused.Success); StringAssert.Contains(refused.ErrorMessage, "UNSUPPORTED_HOST");
+        }
+        if (dto is null) { await AssertUnavailableAsync("FaIconSearchPage in Quicker or its portable Core"); return; }
+        var types = new MetadataTypes();
+        var expected = new Dictionary<string, string> { ["Names"] = "System.Collections.Generic.IReadOnlyList`1<String>", ["TotalCount"] = "Int32", ["Skip"] = "Int32", ["Take"] = "Int32", ["HasMore"] = "Boolean", ["Query"] = "String", ["Style"] = "String" };
+        foreach (var property in dto.Value.GetProperties().Select(dtoReader.GetPropertyDefinition))
+            if (expected.Remove(dtoReader.GetString(property.Name), out var type)) Assert.AreEqual(type, property.DecodeSignature(types, null).ReturnType);
+        Assert.AreEqual(0, expected.Count, "The native page DTO is missing required fields.");
+        var resolver = Find(metadata, "QuickerPluginFontAwesomePathResolver");
+        if (resolver is null) { await AssertUnavailableAsync("QuickerPluginFontAwesomePathResolver in Quicker"); return; }
+        var search = resolver.Value.GetMethods().Select(metadata.GetMethodDefinition).Single(method => metadata.GetString(method.Name) == "SearchPage");
+        Assert.AreEqual(MethodAttributes.Public | MethodAttributes.Static, search.Attributes & (MethodAttributes.MemberAccessMask | MethodAttributes.Static));
+        Assert.AreEqual(0, search.GetGenericParameters().Count);
+        var signature = search.DecodeSignature(types, null);
+        Assert.AreEqual("Quicker.Designer.Plugin.FaIconSearchPage", signature.ReturnType);
+        CollectionAssert.AreEqual(new[] { "String", "String", "Int32", "Int32" }, signature.ParameterTypes.ToArray());
+        Assert.IsNull(System.Windows.Application.Current);
     }
 
     [TestMethod]
@@ -275,7 +472,7 @@ public sealed class V2DesignerReadCatalogTests
                 var manualRpc = (IQuickerRpcService)typeof(QuickerRpcServerHost).GetField("_service", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(manual)!;
                 var manualSession = await manualRpc.GetHostSessionAsync();
                 foreach (var session in new[] { diSession, manualSession })
-                    foreach (var key in new[] { QuickerRpcHostCapabilityNames.DesignerQuickInsertRead, QuickerRpcHostCapabilityNames.DesignerToolboxRead, QuickerRpcHostCapabilityNames.DesignerFontAwesomeResolve, QuickerRpcHostCapabilityNames.DesignerActionOpen, QuickerRpcHostCapabilityNames.DesignerSubProgramOpen, QuickerRpcHostCapabilityNames.DesignerContextRead })
+                    foreach (var key in new[] { QuickerRpcHostCapabilityNames.DesignerQuickInsertRead, QuickerRpcHostCapabilityNames.DesignerToolboxRead, QuickerRpcHostCapabilityNames.DesignerFontAwesomeResolve, QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead, QuickerRpcHostCapabilityNames.DesignerActionOpen, QuickerRpcHostCapabilityNames.DesignerSubProgramOpen, QuickerRpcHostCapabilityNames.DesignerContextRead })
                         Assert.IsFalse(session.Capabilities[key]);
                 Assert.IsFalse((await manualRpc.SearchFontAwesomeIconsAsync("fixture")).Success);
                 Assert.IsFalse((await manualRpc.EditActionAsync("fixture")).Ok);
@@ -341,6 +538,48 @@ public sealed class V2DesignerReadCatalogTests
         public static FaDto? TryResolveVector(string spec) { Reads++; return Read(spec); }
     }
     public static class BadFaLeaf { public static Task<FaDto> TryResolveVector(string spec) => throw new AssertFailedException(); }
+    public sealed record FaPageDto(IReadOnlyList<string> Names, int TotalCount, int Skip, int Take, bool HasMore, string Query, string? Style);
+    public static class FaPageLeaf
+    {
+        public static int Reads;
+        public static Func<string, string, int, int, FaPageDto> Read = (_, _, _, _) => throw new AssertFailedException();
+        public static FaPageDto SearchPage(string query, string style, int skip, int take) { Reads++; return Read(query, style, skip, take); }
+    }
+    public static class AsyncFaPageLeaf { public static Task<FaPageDto> SearchPage(string query, string style, int skip, int take) => throw new AssertFailedException(); }
+    public static class GenericFaPageLeaf { public static FaPageDto SearchPage<T>(string query, string style, int skip, int take) => throw new AssertFailedException(); }
+    public sealed record BadFaPageDto(IList<string> Names, int TotalCount, int Skip, int Take, bool HasMore, string Query, string? Style);
+    public static class BadFaPageLeaf { public static BadFaPageDto SearchPage(string query, string style, int skip, int take) => throw new AssertFailedException(); }
+
+    private sealed class MetadataTypes : ISignatureTypeProvider<string, object?>
+    {
+        public string GetPrimitiveType(PrimitiveTypeCode code) => code.ToString();
+        public string GetTypeFromDefinition(MetadataReader reader, TypeDefinitionHandle handle, byte kind)
+        { var type = reader.GetTypeDefinition(handle); return reader.GetString(type.Namespace) + "." + reader.GetString(type.Name); }
+        public string GetTypeFromReference(MetadataReader reader, TypeReferenceHandle handle, byte kind)
+        { var type = reader.GetTypeReference(handle); return reader.GetString(type.Namespace) + "." + reader.GetString(type.Name); }
+        public string GetGenericInstantiation(string genericType, ImmutableArray<string> arguments) => genericType + "<" + string.Join(",", arguments) + ">";
+        public string GetTypeFromSpecification(MetadataReader reader, object? context, TypeSpecificationHandle handle, byte kind) => reader.GetTypeSpecification(handle).DecodeSignature(this, context);
+        public string GetSZArrayType(string elementType) => elementType + "[]";
+        public string GetArrayType(string elementType, ArrayShape shape) => elementType + "[" + shape.Rank + "]";
+        public string GetByReferenceType(string elementType) => elementType + "&";
+        public string GetPointerType(string elementType) => elementType + "*";
+        public string GetPinnedType(string elementType) => elementType;
+        public string GetModifiedType(string modifier, string value, bool required) => value;
+        public string GetGenericMethodParameter(object? context, int index) => "!!" + index;
+        public string GetGenericTypeParameter(object? context, int index) => "!" + index;
+        public string GetFunctionPointerType(MethodSignature<string> signature) => "function-pointer";
+    }
+    private sealed class MetadataAssembly(string name, Func<Type?> read) : Assembly
+    {
+        public int Reads;
+        public override bool IsDynamic => false;
+        public override AssemblyName GetName() => new(name);
+        public override AssemblyName GetName(bool copiedName) => new(name);
+        public override string Location => throw new AssertFailedException("Metadata lookup must not find or load satellite files.");
+        public override Type[] GetTypes() => throw new AssertFailedException("Metadata lookup must not scan an entire assembly.");
+        public override Type? GetType(string typeName, bool throwOnError, bool ignoreCase)
+        { Assert.IsFalse(throwOnError); Assert.IsFalse(ignoreCase); Reads++; return read(); }
+    }
     private sealed class FakePort : IV2DesignerReadNativePort
     {
         public bool Refuse; public int GeometryReads;

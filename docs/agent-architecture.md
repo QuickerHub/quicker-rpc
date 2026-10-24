@@ -200,6 +200,13 @@ quick insert、toolbox 与 FA geometry 另由可选读 availability 和独立 wi
 旧 FA search、编辑器、context、剪贴板与 text tool 继续明确不支持。能力探测仅检查已加载
 类型，不以初始化 Headless/账号栈换取 capability=true。
 
+图标完整分页另用可选 `IQuickerRpcDesignerFontAwesomePageHost` 与独立能力
+`designer.fontAwesome.page.read`。V1 在自己的原生全 enum 上复用来源的中英文评分和分页；
+V2 绑定精确 native SearchPage/七字段 DTO，经既有 dispatcher 调用并检查页事实及取消。
+该端口保留完整筛选总数，不改变旧 maxResults/expand 搜索；Node adapter/完整选择器继续迁移。
+通用 `QuickerV2Runtime.ResolveType` 会补载 satellite，读取探测因此改用独立的精确已加载
+程序集查找，覆盖 quick insert、toolbox、geometry 和 page；缺少类型或 dispatcher 时不可用。
+
 设计器来源是 Quicker 的 `QuickerPc/Quicker.Headless/Web/src/`：
 `pages/ActionDesignerEditorPane.tsx` / `ActionDesignerPage.tsx` 组合 workspace，
 `features/program/ProgramEditorTabWorkspace.tsx` 与 `XProgramEditor` 负责程序编辑。

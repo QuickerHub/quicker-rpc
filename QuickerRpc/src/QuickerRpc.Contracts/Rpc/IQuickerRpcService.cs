@@ -402,6 +402,11 @@ public interface IQuickerRpcService
         bool expand = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Windowed full-style catalog, distinct from the legacy maxResults/expand search.</summary>
+    Task<QuickerRpcFontAwesomePageResult> SearchFontAwesomeIconsPageAsync(
+        string? query, string? style, int skip = 0, int take = 96,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Resolve fa: specs to SVG path data (FontAwesome5 catalog in Quicker).</summary>
     Task<QuickerRpcResolveFontAwesomeIconsResult> ResolveFontAwesomeIconsAsync(
         IList<string> specs,

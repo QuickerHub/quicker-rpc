@@ -5,7 +5,7 @@ using QuickerRpc.Plugin.V2.Reflection;
 
 namespace QuickerRpc.Plugin.V2.Adapters;
 
-internal sealed class V2DesignerReadHost : IQuickerRpcDesignerHost, IQuickerRpcDesignerReadAvailability
+internal sealed class V2DesignerReadHost : IQuickerRpcDesignerHost, IQuickerRpcDesignerReadAvailability, IQuickerRpcDesignerFontAwesomePageHost
 {
     private const string UnsupportedMessage = "UNSUPPORTED_HOST: The selected V2 host does not provide this Designer operation.";
     private readonly IV2DesignerReadNativePort _native;
@@ -15,6 +15,41 @@ internal sealed class V2DesignerReadHost : IQuickerRpcDesignerHost, IQuickerRpcD
     public bool IsStepQuickInsertAvailable => _native.IsQuickInsertAvailable;
     public bool IsToolboxModulesAvailable => _native.IsToolboxAvailable;
     public bool IsFontAwesomeGeometryAvailable => _native.IsFaGeometryAvailable;
+    public bool IsFontAwesomePageAvailable => (_native as IV2DesignerFontAwesomePageNativePort)?.IsFaPageAvailable ?? false;
+
+    public async Task<QuickerRpcFontAwesomePageResult> SearchFontAwesomeIconsPageAsync(string? query, string? style,
+        int skip = 0, int take = 96, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var available = IsFontAwesomePageAvailable;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!available) return new() { Success = false, ErrorMessage = UnsupportedMessage };
+            var page = await ((IV2DesignerFontAwesomePageNativePort)_native).SearchFaPageAsync(query ?? "", style ?? "", skip, take, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var normalizedStyle = (style ?? "").Trim();
+            if (normalizedStyle.Equals("Brand", StringComparison.OrdinalIgnoreCase)) normalizedStyle = "Brands";
+            var normalizedSkip = Math.Max(0, skip);
+            var normalizedTake = take <= 0 ? 96 : Math.Min(take, 300);
+            var expectedCount = Math.Min(normalizedTake, Math.Max(0L, (long)page.TotalCount - normalizedSkip));
+            if (page.Names is null || page.Names.Any(string.IsNullOrWhiteSpace) || page.Names.Count != expectedCount || page.TotalCount < 0
+                || page.Skip != normalizedSkip || page.Take != normalizedTake || page.Query != (query ?? "").Trim()
+                || page.Style != (normalizedStyle.Length == 0 ? null : normalizedStyle)
+                || page.HasMore != ((long)page.Skip + page.Names.Count < page.TotalCount))
+                throw new InvalidDataException("Native Font Awesome paging returned inconsistent criteria or page facts.");
+            var result = new QuickerRpcFontAwesomePageResult { Success = true, Names = page.Names.ToList(), TotalCount = page.TotalCount, Skip = page.Skip,
+                Take = page.Take, HasMore = page.HasMore, Query = page.Query, Style = page.Style };
+            cancellationToken.ThrowIfCancellationRequested();
+            return result;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new() { Success = false, ErrorMessage = UnsupportedMessage + " " + error.Message };
+        }
+    }
 
     public Task<QuickerRpcDesignerSearchPageResult> SearchStepQuickInsertAsync(string? keyword, int skip,
         IList<QuickerRpcQuickInsertSubProgramInput>? subPrograms, CancellationToken cancellationToken = default) =>

@@ -7,6 +7,13 @@ using Newtonsoft.Json;
 namespace QuickerRpc.Plugin.V2.Reflection;
 
 internal sealed record V2DesignerNativeFaVector(string Icon, string Path, double Width, double Height, string Fill);
+internal sealed record V2DesignerNativeFaPage(IReadOnlyList<string> Names, int TotalCount, int Skip, int Take, bool HasMore, string Query, string? Style);
+
+internal interface IV2DesignerFontAwesomePageNativePort
+{
+    bool IsFaPageAvailable { get; }
+    Task<V2DesignerNativeFaPage> SearchFaPageAsync(string query, string style, int skip, int take, CancellationToken token);
+}
 
 internal interface IV2DesignerReadNativePort
 {
@@ -19,15 +26,17 @@ internal interface IV2DesignerReadNativePort
 }
 
 /// <summary>Owns only an in-memory search snapshot and exact readonly native leaves.</summary>
-internal sealed class V2DesignerReadNativePort : IV2DesignerReadNativePort
+internal sealed class V2DesignerReadNativePort : IV2DesignerReadNativePort, IV2DesignerFontAwesomePageNativePort
 {
     private const string CatalogDataType = "Quicker.Modules.Headless.HostAdapter.QuickerDesignerPluginDataService";
     private const string CatalogDtoType = "Quicker.Designer.Grpc.V1.GetStepRunnersResponse";
     private const string SearchType = "Quicker.Designer.Search.DesignerStepRunnerSearchService";
     private const string FaResolverType = "Quicker.Designer.Plugin.QuickerPluginFontAwesomePathResolver";
     private const string FaDtoType = "Quicker.Designer.Contracts.Rpc.DesignerFaIconVectorRpcDto";
+    private const string FaPageDtoType = "Quicker.Designer.Plugin.FaIconSearchPage";
     private readonly Func<CatalogBinding?> _catalog;
     private readonly Func<FaBinding?> _fa;
+    private readonly Func<FaPageBinding?> _faPage;
     private readonly Func<bool> _hasDispatcher;
     private readonly Func<Func<Task<string>>, CancellationToken, Task<string>> _dispatch;
     private readonly object _catalogGate = new();
@@ -35,18 +44,50 @@ internal sealed class V2DesignerReadNativePort : IV2DesignerReadNativePort
 
     internal V2DesignerReadNativePort() : this(
         () => QuickerV2Runtime.IsRunningInQuicker ? CatalogBinding.TryCreate(
-            QuickerV2Runtime.ResolveType(CatalogDataType), QuickerV2Runtime.ResolveType(CatalogDtoType), QuickerV2Runtime.ResolveType(SearchType)) : null,
+            FindLoadedNativeType(CatalogDataType), FindLoadedNativeType(CatalogDtoType), FindLoadedNativeType(SearchType)) : null,
         () => QuickerV2Runtime.IsRunningInQuicker ? FaBinding.TryCreate(
-            QuickerV2Runtime.ResolveType(FaResolverType), QuickerV2Runtime.ResolveType(FaDtoType)) : null,
-        () => Application.Current?.Dispatcher is { HasShutdownStarted: false, HasShutdownFinished: false }, DispatchAsync) { }
+            FindLoadedNativeType(FaResolverType), FindLoadedNativeType(FaDtoType)) : null,
+        () => Application.Current?.Dispatcher is { HasShutdownStarted: false, HasShutdownFinished: false }, DispatchAsync,
+        () => QuickerV2Runtime.IsRunningInQuicker ? FaPageBinding.TryCreate(
+            FindLoadedNativeType(FaResolverType), FindLoadedNativeType(FaPageDtoType)) : null) { }
 
     internal V2DesignerReadNativePort(Func<CatalogBinding?> catalog, Func<FaBinding?> fa, Func<bool> hasDispatcher,
         Func<Func<Task<string>>, CancellationToken, Task<string>> dispatch)
-    { _catalog = catalog; _fa = fa; _hasDispatcher = hasDispatcher; _dispatch = dispatch; }
+        : this(catalog, fa, hasDispatcher, dispatch, () => null) { }
+
+    internal V2DesignerReadNativePort(Func<CatalogBinding?> catalog, Func<FaBinding?> fa, Func<bool> hasDispatcher,
+        Func<Func<Task<string>>, CancellationToken, Task<string>> dispatch, Func<FaPageBinding?> faPage)
+    { _catalog = catalog; _fa = fa; _hasDispatcher = hasDispatcher; _dispatch = dispatch; _faPage = faPage; }
 
     public bool IsQuickInsertAvailable => Probe(() => _catalog()?.QuickInsert is not null);
     public bool IsToolboxAvailable => Probe(() => _catalog()?.Toolbox is not null);
     public bool IsFaGeometryAvailable => Probe(() => _fa() is not null);
+    public bool IsFaPageAvailable => Probe(() => _faPage() is not null);
+
+    internal static Type? FindLoadedNativeType(string fullName, IEnumerable<Assembly>? loaded = null)
+    {
+        // ResolveType also loads satellite files. Read probes only inspect exact already loaded owners.
+        var owners = fullName switch
+        {
+            CatalogDataType or FaResolverType => new[] { "Quicker" },
+            CatalogDtoType or FaDtoType => new[] { "Quicker.Headless.Designer.Contracts" },
+            SearchType => new[] { "Quicker.Headless.Designer.Core" },
+            FaPageDtoType => new[] { "Quicker", "Quicker.Headless.Core" },
+            _ => Array.Empty<string>(),
+        };
+        if (owners.Length == 0) return null;
+        foreach (var assembly in loaded ?? AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                if (assembly.IsDynamic || !owners.Contains(assembly.GetName().Name, StringComparer.Ordinal)) continue;
+                var type = assembly.GetType(fullName, throwOnError: false, ignoreCase: false);
+                if (type is not null) return type;
+            }
+            catch { /* Unavailable metadata is unsupported; never load another assembly or inspect its files. */ }
+        }
+        return null;
+    }
 
     private bool Probe(Func<bool> read)
     {
@@ -99,6 +140,20 @@ internal sealed class V2DesignerReadNativePort : IV2DesignerReadNativePort
         var vector = JsonConvert.DeserializeObject<V2DesignerNativeFaVector>(json);
         token.ThrowIfCancellationRequested();
         return vector;
+    }
+
+    public async Task<V2DesignerNativeFaPage> SearchFaPageAsync(string query, string style, int skip, int take, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var binding = _faPage();
+        token.ThrowIfCancellationRequested();
+        if (binding is null) throw new NotSupportedException("The native Font Awesome catalog paging API is unavailable.");
+        var json = await RunAsync(() => Task.FromResult(JsonConvert.SerializeObject(binding.Search(query, style, skip, take))), token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        var page = JsonConvert.DeserializeObject<V2DesignerNativeFaPage>(json)
+            ?? throw new InvalidDataException("Native Font Awesome paging returned no page.");
+        token.ThrowIfCancellationRequested();
+        return page;
     }
 
     private async Task<string> RunAsync(Func<Task<string>> work, CancellationToken token)
@@ -204,6 +259,38 @@ internal sealed class V2DesignerReadNativePort : IV2DesignerReadNativePort
             if (!_dto.IsInstanceOfType(value)) throw new InvalidDataException("Native Font Awesome geometry returned an invalid DTO.");
             return new((string?)_icon.GetValue(value) ?? "", (string?)_path.GetValue(value) ?? "", (double)_width.GetValue(value)!,
                 (double)_height.GetValue(value)!, (string?)_fill.GetValue(value) ?? "");
+        }
+    }
+
+    internal sealed class FaPageBinding
+    {
+        private readonly Type _dto;
+        private readonly MethodInfo _search;
+        private readonly PropertyInfo[] _properties;
+        private FaPageBinding(Type dto, MethodInfo search, PropertyInfo[] properties)
+        { _dto = dto; _search = search; _properties = properties; }
+
+        internal static FaPageBinding? TryCreate(Type? resolver, Type? dto)
+        {
+            if (resolver is null || dto is null) return null;
+            var method = Exact(resolver, "SearchPage", BindingFlags.Public | BindingFlags.Static,
+                [typeof(string), typeof(string), typeof(int), typeof(int)], dto);
+            var properties = new[] { "Names", "TotalCount", "Skip", "Take", "HasMore", "Query", "Style" }
+                .Select(key => dto.GetProperty(key, BindingFlags.Public | BindingFlags.Instance)).ToArray();
+            var types = new[] { typeof(IReadOnlyList<string>), typeof(int), typeof(int), typeof(int), typeof(bool), typeof(string), typeof(string) };
+            if (method is null || properties.Where((property, index) => property?.GetMethod is not { IsPublic: true, IsStatic: false }
+                || property.GetIndexParameters().Length != 0 || property.PropertyType != types[index]).Any()) return null;
+            return new(dto, method, properties.Select(property => property!).ToArray());
+        }
+
+        internal V2DesignerNativeFaPage Search(string query, string style, int skip, int take)
+        {
+            var value = Invoke(_search, null, query, style, skip, take);
+            if (value is null || !_dto.IsInstanceOfType(value) || _properties[0].GetValue(value) is not IReadOnlyList<string> names
+                || _properties[5].GetValue(value) is not string returnedQuery)
+                throw new InvalidDataException("Native Font Awesome paging returned an invalid DTO.");
+            return new(names.ToArray(), (int)_properties[1].GetValue(value)!, (int)_properties[2].GetValue(value)!,
+                (int)_properties[3].GetValue(value)!, (bool)_properties[4].GetValue(value)!, returnedQuery, (string?)_properties[6].GetValue(value));
         }
     }
 

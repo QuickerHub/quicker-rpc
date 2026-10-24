@@ -33,6 +33,7 @@ public static class QuickerRpcMethodPolicy
         or nameof(IQuickerRpcService.SearchToolboxModulesAsync)
         or nameof(IQuickerRpcService.ReadClipboardSpecialFormatAsync)
         or nameof(IQuickerRpcService.SearchFontAwesomeIconsAsync)
+        or nameof(IQuickerRpcService.SearchFontAwesomeIconsPageAsync)
         or nameof(IQuickerRpcService.ResolveFontAwesomeIconsAsync)
         or nameof(IQuickerRpcService.CheckExpressionSyntaxAsync)
         or nameof(IQuickerRpcService.ListBrowserTabsAsync)
@@ -61,6 +62,7 @@ public static class QuickerRpcMethodPolicy
         "ApplyActionPatchToActionAsync" => QuickerRpcHostCapabilityNames.ActionLegacyBodyPatch,
         "UpdateActionMetadataAsync" => QuickerRpcHostCapabilityNames.ActionPresentationWrite,
         "GetActionDesignerContextAsync" => QuickerRpcHostCapabilityNames.DesignerContextRead,
+        nameof(IQuickerRpcService.SearchFontAwesomeIconsPageAsync) => QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead,
         _ => null,
     };
 }

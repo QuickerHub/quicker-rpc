@@ -19,7 +19,7 @@ public sealed class MethodPolicyTests
             "GetCompressedActionByIdAsync", "GetActionProgramSourceAsync", "GetCompressedSharedActionAsync", "SearchActionLibraryAsync",
             "SearchStepRunnersAsync", "ListStepRunnersAsync", "GetStepRunnerDetailAsync", "GetStepRunnerUiDetailAsync", "GetActionStepSummariesAsync",
             "SearchStepQuickInsertAsync", "SearchToolboxModulesAsync", "ReadClipboardSpecialFormatAsync", "SearchFontAwesomeIconsAsync",
-            "ResolveFontAwesomeIconsAsync", "CheckExpressionSyntaxAsync", "ListBrowserTabsAsync", "CheckCSharpScriptSyntaxAsync",
+            "SearchFontAwesomeIconsPageAsync", "ResolveFontAwesomeIconsAsync", "CheckExpressionSyntaxAsync", "ListBrowserTabsAsync", "CheckCSharpScriptSyntaxAsync",
             "SearchSettingsAsync", "ListSettingsAsync", "GetSettingAsync", "ListSettingsPagesAsync", "ListSettingsDirectLinksAsync",
             "ResolveSettingsIntentAsync", "ResolveLauncherIntentAsync", "ListTriggersAsync", "ListTriggerEventTypesAsync",
             "GetSearchIndexStatusAsync", "GetActionDesignerContextAsync",
@@ -43,4 +43,9 @@ public sealed class MethodPolicyTests
     public void Storage_apply_requires_the_source_write_capability() => Assert.AreEqual(
         QuickerRpcHostCapabilityNames.ActionSourceWrite,
         QuickerRpcMethodPolicy.Capability(nameof(IQuickerRpcService.ApplyActionProgramSourceWithStorageAsync)));
+
+    [TestMethod]
+    public void Icon_page_requires_its_independent_read_capability() => Assert.AreEqual(
+        QuickerRpcHostCapabilityNames.DesignerFontAwesomePageRead,
+        QuickerRpcMethodPolicy.Capability(nameof(IQuickerRpcService.SearchFontAwesomeIconsPageAsync)));
 }

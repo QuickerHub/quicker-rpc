@@ -16,16 +16,40 @@ public sealed class FontAwesomeIconSearchService
 {
     private readonly Lazy<IReadOnlyList<FontAwesomeIconEntry>> _catalog;
     private readonly Lazy<ImmutableHashSet<string>> _enumNames;
+    private readonly Lazy<IReadOnlyList<string>> _pageNames;
 
     public FontAwesomeIconSearchService()
     {
         _catalog = new Lazy<IReadOnlyList<FontAwesomeIconEntry>>(BuildCatalog, isThreadSafe: true);
+        _pageNames = new Lazy<IReadOnlyList<string>>(() => _catalog.Value.Select(entry => entry.Name).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray(), isThreadSafe: true);
         _enumNames = new Lazy<ImmutableHashSet<string>>(
             () => _catalog.Value.Select(e => e.Name).ToImmutableHashSet(StringComparer.Ordinal),
             isThreadSafe: true);
     }
 
     public ICollection<string> KnownEnumNames => _enumNames.Value;
+    public bool IsPageAvailable
+    {
+        get
+        {
+            try { return FontAwesomeIconPageSearch.IsKeywordResourceAvailable && HasPageEnum(); }
+            catch { return false; }
+        }
+    }
+    // Keep dependency resolution inside a separate call so a missing enum assembly is caught by the probe.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static bool HasPageEnum() => typeof(EFontAwesomeIcon).IsEnum;
+
+    public QuickerRpcFontAwesomePageResult SearchPage(string? query, string? style, int skip, int take)
+    {
+        try
+        {
+            var page = FontAwesomeIconPageSearch.Search(_pageNames.Value, query, style, skip, take);
+            return new() { Success = true, Names = page.Names.ToList(), Query = page.Query, Style = page.Style,
+                Skip = page.Skip, Take = page.Take, TotalCount = page.TotalCount, HasMore = page.HasMore };
+        }
+        catch (Exception error) { return new() { Success = false, ErrorMessage = "UNSUPPORTED_HOST: Font Awesome paging is unavailable. " + error.Message }; }
+    }
 
     public bool TryValidateIconSpec(string? spec, bool allowEmpty, out string? errorMessage) =>
         FontAwesomeIconSpecValidator.TryValidate(spec, allowEmpty, KnownEnumNames, out errorMessage);
