@@ -6,6 +6,7 @@ import { chromium } from "playwright";
 // Extend the existing explicit local DOM check without changing the shared CI scripts.
 import "../../../components/action-editor/ActionResourceInsertion.browser.test";
 import "../steps/paramEditors/ColorTextTool.browser.test";
+import "../steps/paramEditors/ErrorMessageOutput.browser.test";
 
 // Exercise the production editor, variable form, history hook and registry.
 // Step edits and resource leaves are isolated from catalogs and real hosts.
