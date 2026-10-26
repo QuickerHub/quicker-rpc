@@ -222,7 +222,7 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 | 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | Node、Console/serve/MCP 与 V1/V2 后端读取路径已合入，移除永久目录与结果复用；跨 turn/同 turn 更新、先空后有、移除模块、定义变化、精确控制值及失败回归通过。174 V1 的 9 次真实 Node 只读调用均保留来源与绑定；174 已在官方 V2 2.3.20 验证 Agent/UI 模块定义、重复读取与三个原生输入契约，缺失模块仍明确不可用 |
 | Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | Agent 模块结果已带 SchemaJson.knowledge，区分 runtime-definition、bundled-adapter 和 unknown，保留原生 HelpLink；内置引用另标 bundled-fallback 与包版本/索引指纹。原 schema 数值/日期文本保持不变；UI 投影尚未附此 metadata |
 | 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。StepRunner 两层超限投影保留有界实际 knowledge，明确 schema 不完整及 metadata preserved/partial/unknown；缺失来源不补证明，参数名摘要不能代替规则，全文定向读取/原文 artifact 仍未实现。UI 目录/详情不复用已完成结果，弹窗打开/恢复重新取原生 get-ui，失败不确认旧定义，保留人工草稿/历史及旧请求隔离；UI metadata 仍为 unknown。MCP 已按 turn 完整分页并序列化 schema；真实升级验收继续。旧/迟到结果不得覆盖当前来源或掩盖失败 |
-| codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 本地 guide 提供实际 codec 格式/实现 descriptor 与 bundled 文档内容指纹，原生能力保持 unknown；离线查询先于宿主选择派发。Node Docs 每次读取当前本地正文、引用和 schema；缺件明确 Markdown-only/unknown，不隐式连接宿主。网站 corpus 核验实际文件字节并保留抓取时间；两者均不替代当前原生模块定义，Node 对当前 gateway codec 的显式消费仍待接入 |
+| codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 本地 guide 提供实际 codec 格式/实现 descriptor 与 bundled 文档内容指纹，原生能力保持 unknown；离线查询先于宿主选择派发。Node Docs 每次读取当前本地正文、引用和 schema；缺件明确 Markdown-only/unknown，不隐式连接宿主。动作编写意图或预加载技能不再禁止显式 get/search/index；保留请求内计数、工具权限和原生模块 schema 的权威边界。网站 corpus 核验实际文件字节并保留抓取时间；两者均不替代当前原生模块定义，Node 对当前 gateway codec 的显式消费仍待接入 |
 
 固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，
 不能用 knowledge 获取成功或反编译字段映射替代真实保存语义。
@@ -230,7 +230,7 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 本轮按用户要求收敛为一个可用候选：合入已冻结的 UI 参数页签、知识刷新、codec/文档来源
 及其必要修复后，执行组合 CI、真实界面、本机 V1 动作读写与局域网 V2 只读验证。
 V2 完整 source 保存、超大 schema 定向读取和后续通信协议不在本轮扩展范围；验证并交付后
-停止自动追加开发。174 已完成本机安装、V1 YAML 保存/读回/原生正文恢复及局域网 V2 只读验收，主线七项 CI 全部通过。用户现授权将已验收能力正式打包为 0.15.0（插件 0.15.0.0），同步双宿主依赖包、Agent 安装包和下载入口；本次仅处理发版与换机可用性，不追加功能重构。发布结果见对应 GitHub Release。
+停止自动追加开发。174 已完成本机安装、V1 YAML 保存/读回/原生正文恢复及局域网 V2 只读验收，主线七项 CI 全部通过。随后已正式发布 0.15.0（插件 0.15.0.0），双宿主依赖包、Agent 安装包及下载入口已同步，官方 V2 2.3.20 已验证加载正式 DLL 与三个原生输入契约。发布结果见 [v0.15.0 Release](https://github.com/QuickerHub/quicker-rpc/releases/tag/v0.15.0)。恢复长期目标后的首批修复针对文档读取的固定意图拦截和模型浮层的键盘操作；不修改已发布制品，V2 source 与其余未完成项继续保留原验收门槛。
 
 #### 统一 RPC 与动作设计器：当前主线
 
