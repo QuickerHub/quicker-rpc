@@ -1063,7 +1063,7 @@ export function DocsToolBody({
   toolName: string;
   input?: unknown;
 }) {
-  if (output.ok && parseDocsToolInlineResult(output)) {
+  if (parseDocsToolInlineResult(output)) {
     return <DocsToolOutputView output={output} />;
   }
   return (

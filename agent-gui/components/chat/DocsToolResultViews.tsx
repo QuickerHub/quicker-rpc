@@ -9,7 +9,9 @@ import type {
 } from "@/lib/docs-tool-view";
 import { parseDocsToolInlineResult } from "@/lib/docs-tool-view";
 import type { DocsGetDoc } from "@/lib/docs-tool";
+import { useOptionalDocsViewer } from "@/lib/docs-viewer";
 import { MarkdownMessage } from "./MarkdownMessage";
+import { DocsKnowledgeView } from "./DocsKnowledgeView";
 
 function DocsResultMeta({
   parts,
@@ -155,14 +157,17 @@ export function DocsSnippetResultView({ view }: { view: DocsSnippetResultView })
 }
 
 export function DocsGetMarkdownResultView({ doc }: { doc: DocsGetDoc }) {
+  const viewer = useOptionalDocsViewer();
   return (
     <div className="tool-result-list docs-get-result">
+      {viewer ? <button type="button" className="docs-get-result__open" onClick={() => viewer.openDoc(doc)}>在文档中打开</button> : null}
+      <DocsKnowledgeView doc={doc} />
       {doc.description ? (
         <p className="docs-get-result__desc">{doc.description}</p>
       ) : null}
-      <div className="tool-doc-markdown">
+      {doc.markdown ? <div className="tool-doc-markdown">
         <MarkdownMessage content={doc.markdown} variant="assistant" />
-      </div>
+      </div> : null}
     </div>
   );
 }

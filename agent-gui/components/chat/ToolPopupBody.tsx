@@ -71,7 +71,6 @@ export function ToolPopupBody({
   if (
     isDocsTool(toolName)
     && isStructuredToolResult(output)
-    && output.ok
     && parseDocsToolInlineResult(output)
   ) {
     return (

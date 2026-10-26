@@ -172,6 +172,8 @@ export type DocsToolInlineResult =
 export function parseDocsToolInlineResult(
   output: StructuredToolResult,
 ): DocsToolInlineResult | null {
+  const doc = parseDocsVisualDoc(output);
+  if (doc) return { kind: "get", doc };
   if (!output.ok || output.source !== "local") return null;
   const search = parseDocsSearchResult(output);
   if (search) return { kind: "search", view: search };
@@ -179,8 +181,6 @@ export function parseDocsToolInlineResult(
   if (index) return { kind: "index", view: index };
   const snippet = parseDocsSnippetResult(output);
   if (snippet) return { kind: "snippet", view: snippet };
-  const doc = parseDocsVisualDoc(output);
-  if (doc) return { kind: "get", doc };
   return null;
 }
 

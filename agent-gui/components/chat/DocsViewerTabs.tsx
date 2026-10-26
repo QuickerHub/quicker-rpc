@@ -5,6 +5,7 @@ import { useDocsViewer } from "@/lib/docs-viewer";
 import { useDelayedTrue } from "@/lib/use-delayed-true";
 
 import { MarkdownMessage } from "./MarkdownMessage";
+import { DocsKnowledgeView } from "./DocsKnowledgeView";
 
 export function DocsViewerPanel() {
   const { activeDoc } = useDocsViewer();
@@ -38,11 +39,10 @@ export function DocsViewerPanel() {
     );
   }
 
-  if (!activeDoc.markdown) return null;
-
   return wrap(
     <div className="workspace-explorer-docs-body" aria-label={activeDoc.title}>
-      <MarkdownMessage content={activeDoc.markdown} variant="assistant" />
+      <DocsKnowledgeView doc={activeDoc} />
+      {activeDoc.markdown ? <MarkdownMessage content={activeDoc.markdown} variant="assistant" /> : null}
     </div>,
   );
 }
