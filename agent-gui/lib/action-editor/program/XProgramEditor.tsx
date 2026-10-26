@@ -84,7 +84,7 @@ function XProgramEditorInner({
   const localKeyboardOwnerId = useId();
   const keyboardOwnerId = documentKeyboardOwnerId ?? localKeyboardOwnerId;
   const editorRootRef = useRef<HTMLDivElement>(null);
-  const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, changeVariables, present } = useXProgramEditorHistory(initialPresent, control);
+  const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, changeVariables, exportVariables, pasteVariables, present } = useXProgramEditorHistory(initialPresent, control);
   const variableOwner = useMemo(() => ({}), [control, editorTabId, programDocumentKey, workspaceContext?.cwd, workspaceContext?.projectDir]);
   const currentVariableOwner = useRef<object | null>(variableOwner);
   currentVariableOwner.current = variableOwner;
@@ -307,6 +307,8 @@ function XProgramEditorInner({
                   owner={variableOwner}
                   getCurrentPresent={stateHandle.getPresent}
                   onVariableChange={onVariableChange}
+                  exportVariables={exportVariables}
+                  pasteVariables={pasteVariables}
                   onCommitVariables={commitVariables}
                   onCloseDrawer={() => { if (handle.flushPendingEdits?.() !== false) setVariablesOpen(false); }}
                   onStepHighlightFilter={(filterText) => {
