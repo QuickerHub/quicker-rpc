@@ -54,6 +54,7 @@ export type ChatComposerFooterHandle = {
 };
 
 type ChatComposerFooterProps = {
+  active?: boolean;
   ephemeral: boolean;
   editAnchorMessageId: string | null;
   isEmptyThread: boolean;
@@ -90,6 +91,7 @@ const ChatComposerFooterInner = forwardRef<
   ChatComposerFooterProps
 >(function ChatComposerFooterInner(
   {
+    active = true,
     ephemeral,
     editAnchorMessageId,
     isEmptyThread,
@@ -311,6 +313,7 @@ const ChatComposerFooterInner = forwardRef<
                   />
                 ) : null}
                 <ModelSelector
+                  active={active}
                   selection={llmSelection}
                   onChange={onLlmSelectionChange}
                   onNeedSettings={handleModelNeedSettings}

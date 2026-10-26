@@ -1237,6 +1237,7 @@ function ChatPanel({
       composer={
       <ChatComposerFooter
         ref={composerRef}
+        active={visible}
         ephemeral={ephemeral}
         editAnchorMessageId={editAnchorMessageId}
         isEmptyThread={isEmptyThread}
