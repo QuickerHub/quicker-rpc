@@ -726,10 +726,27 @@ export function ActionProjectDataEditor({
     projectInfo?.name,
   ]);
 
+  const beforeDocumentSync = useCallback(() => {
+    if (!active || !session || sessionRef.current !== session || session.isClosed()) return false;
+    if (workspaceRef.current?.flushPendingEdits() === false || workspaceRef.current?.isLiveEditingBlocked()) {
+      setSaveError("请先修正或放弃未确认的编辑，再同步到 Quicker。");
+      return false;
+    }
+    if (session.getState().dirty) {
+      setDirty(true);
+      setSaveError("当前编辑尚未保存到工作区，请先保存后再同步到 Quicker。");
+      return false;
+    }
+    return true;
+  }, [active, session]);
+
   const handlePinStepToChat = useCallback(
     (stepId: string) => {
       if (!active || !session || sessionRef.current !== session || session.isClosed()) return;
-      workspaceRef.current?.flushPendingEdits();
+      if (workspaceRef.current?.flushPendingEdits() === false) {
+        setPinStepFeedback("请先修正或放弃未确认的变量修改，再添加到对话。");
+        return;
+      }
       if (sessionRef.current !== session || session.isClosed()) return;
       const result = resolveProgramDocumentStepPin(session.getState().content, stepId);
       if (!result.ok) {
@@ -764,7 +781,10 @@ export function ActionProjectDataEditor({
 
   const handleSave = useCallback(async () => {
     if (!active || !session || externalConflict || metadataConflict || hostSyncBusy || targetBlocked) return;
-    workspaceRef.current?.flushPendingEdits();
+    if (workspaceRef.current?.flushPendingEdits() === false) {
+      setSaveError("请先修正或放弃未确认的变量修改，再保存到工作区。");
+      return;
+    }
     const started = session.beginSave(() => session.readSnapshot());
     if (!started.ok) {
       setSaveError(started.error);
@@ -878,6 +898,7 @@ export function ActionProjectDataEditor({
                 blockReason={targetError || (projectBinding === undefined ? "正在读取动作目标" : projectBinding === null ? "未绑定宿主，无法同步到 Quicker" : undefined) || externalConflict || metadataConflict || (dirty || saving ? "请先保存当前编辑再同步到 Quicker" : undefined)}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
+                beforeSync={beforeDocumentSync}
                 onBusyChange={handleSyncBusyChange}
               />
               {deleteTarget ? (
@@ -906,6 +927,7 @@ export function ActionProjectDataEditor({
                 blockReason={externalConflict || metadataConflict || (dirty || saving ? "请先点击「保存到工作区」再同步到 Quicker" : undefined)}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
+                beforeSync={beforeDocumentSync}
                 onBusyChange={handleSyncBusyChange}
               />
               {deleteTarget ? (

@@ -477,6 +477,17 @@ payload、live snapshot 或 overrides。文档级按钮/快捷键和 portal 归�
 普通输入保持原生 undo，步骤/变量的延迟草稿在文档 undo/save 前同步 flush。保存只读取
 该 session，source 切换和晚确认不重建历史。独立 X 入口继续使用原本的本地历史。
 
+变量改名、删除和未使用清理共用 `programVariableReferences` 的局部引用分析，文档入口
+`applyProgramDocumentVariableChange` 再核验原始 wire 的别名、完整原值和所属 surface，
+在同一次 Session 事务中提交声明、可确认引用及原正文的摘要表达式。稳定 ID 与未知字段
+保留，主程序和内部子程序不跨局部作用域改写。外置正文、动态引用或未覆盖的原生表示
+不能作为“没有引用”的证据；子程序接口及动作 metadata 中未授权迁移的引用明确拒绝。
+这不授予现有步骤 pin 修改整个变量表的权限。
+
+表单 flusher 返回 `false` 时，Workspace 将失败传给保存、同步、步骤 pin、实时读取和
+文档历史/生命周期入口，旧 void flusher 保持成功语义。失败草稿继续由原表单持有，可
+修正或显式放弃；同步前再检查 Session 已保存，不能把画面中的未确认编辑当作已落盘。
+
 `applyProgramDocumentSubProgramProperties` 在同一 `session.transact` 内修改内部子程序
 属性及所有可证实的内部字面调用，沿用完整身份/revision 与历史。它操作保真 raw 文档，
 不由 typed projection 重建正文；动态绑定、未知表达式和外部 link/template 缓存保持原文。
@@ -485,13 +496,13 @@ payload、live snapshot 或 overrides。文档级按钮/快捷键和 portal 归�
 内部子程序属性弹窗已通过 Workspace 双击和上下文菜单接入该入口。打开及应用前同步
 flush 编辑草稿，应用时重新读取 revision，并核验打开时的完整身份和原属性；失配保留
 弹窗草稿。portal 复用文档 keyboard owner，隐藏时保留状态，关闭恢复当前页签焦点。
-属性确认及字面重命名共用原 Session 时间线；完整图标选择器仍须继续迁移。
+属性确认及字面重命名共用原 Session 时间线；原生图标库和其它属性仍须继续迁移。
 创建与删除也只操作这份 raw 文档：`createProgramDocumentSubProgram` 接调用方 ID 并
 追加根定义；`prepareProgramDocumentSubProgramDelete` 给出原 Session 所属预览，提交
 必须仍是同一完整身份、revision 和目标指纹。删除会重新扫描原生存储调用及文本窗口
 `$sp$` 引用，拒绝仍被使用的定义；动态表达式保持不求值的边界，不冒充完整静态分析。
 foreign 缓存仅参与保守引用检查，不能作为可编辑目标。每次成功提交只占一个原历史项，
-迟到保存只推进原票据基线。纯层已验证，创建/删除的界面确认与页签接线仍待迁移。
+迟到保存只推进原票据基线。创建/删除的界面确认与页签由同一 Workspace 接线。
 原生未知字段与外置文件引用在 projection overlay 及实际 `writeWorkspaceFile` 的磁盘
 规范化链中保留；后续 host adapter 仍须加入存储版本/CAS，这不等于已实现宿主事务。
 

@@ -36,6 +36,7 @@ import { ownsProgramKeyboardTarget } from "../shared/programKeyboardOwner";
 import type { RegisterToolboxInsert } from "../toolbox/toolboxInsertionRegistry";
 import type { ResourceCallOrigin } from "../steps/toolboxStepFactory";
 import type { XProgramEditorControl } from "./programDocumentEditorController";
+import type { ProgramVariableChangeRequest, ProgramVariableChangeResult } from "./programVariableReferences";
 
 export type XProgramEditorProps = {
   initialPresent: XProgramPresent;
@@ -83,10 +84,18 @@ function XProgramEditorInner({
   const localKeyboardOwnerId = useId();
   const keyboardOwnerId = documentKeyboardOwnerId ?? localKeyboardOwnerId;
   const editorRootRef = useRef<HTMLDivElement>(null);
-  const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, present } = useXProgramEditorHistory(initialPresent, control);
-  const draftFlushers = useRef(new Set<() => void>());
+  const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, changeVariables, present } = useXProgramEditorHistory(initialPresent, control);
+  const variableOwner = useMemo(() => ({}), [control, editorTabId, programDocumentKey, workspaceContext?.cwd, workspaceContext?.projectDir]);
+  const currentVariableOwner = useRef<object | null>(variableOwner);
+  currentVariableOwner.current = variableOwner;
+  useLayoutEffect(() => { currentVariableOwner.current = variableOwner; return () => { currentVariableOwner.current = null; }; }, [variableOwner]);
+  const onVariableChange = useCallback((request: ProgramVariableChangeRequest): ProgramVariableChangeResult => {
+    if (currentVariableOwner.current !== variableOwner) return { ok: false, code: "identity_conflict", error: "编辑文档已切换，请重新核对变量。" };
+    return changeVariables(request);
+  }, [changeVariables, variableOwner]);
+  const draftFlushers = useRef(new Set<() => boolean | void>());
   const liveEditingBlockers = useRef(new Set<() => boolean>());
-  const registerDraftFlusher = useCallback((flush: () => void) => {
+  const registerDraftFlusher = useCallback((flush: () => boolean | void) => {
     draftFlushers.current.add(flush);
     return () => { draftFlushers.current.delete(flush); };
   }, []);
@@ -95,7 +104,7 @@ function XProgramEditorInner({
     return () => { liveEditingBlockers.current.delete(isBlocked); };
   }, []);
   const handle = useMemo<XProgramEditorHandle>(() => ({ ...stateHandle,
-    flushPendingEdits: () => { for (const flush of draftFlushers.current) flush(); },
+    flushPendingEdits: () => { for (const flush of draftFlushers.current) if (flush() === false) return false; return true; },
     isLiveEditingBlocked: () => [...liveEditingBlockers.current].some((isBlocked) => isBlocked()),
   }), [stateHandle]);
   const bridge = useActiveXProgramBridgeOptional();
@@ -155,7 +164,7 @@ function XProgramEditorInner({
       }
       const key = event.key.toLowerCase();
       if (key !== "z" && key !== "y") return;
-      handle.flushPendingEdits?.();
+      if (handle.flushPendingEdits?.() === false) { event.preventDefault(); return; }
       const h = histRef.current;
       if (key === "z" && !event.shiftKey) {
         if (!h || h.past.length === 0) {
@@ -190,11 +199,12 @@ function XProgramEditorInner({
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.key !== "Escape") return;
       event.preventDefault();
+      if (handle.flushPendingEdits?.() === false) return;
       setVariablesOpen(false);
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [active, variablesOpen]);
+  }, [active, handle, variablesOpen]);
 
   return (
     <div
@@ -209,7 +219,7 @@ function XProgramEditorInner({
           className="variable-toolbar-btn"
           title="撤销 (Ctrl+Z)"
           disabled={!canUndo}
-          onClick={() => dispatch({ type: "undo" })}
+          onClick={() => { if (handle.flushPendingEdits?.() !== false) dispatch({ type: "undo" }); }}
         >
           <IconControl spec={AD_ICONIFY_SPEC.undo} size={12} resourceBaseUrl={backendBaseUrl} />
         </button>
@@ -218,7 +228,7 @@ function XProgramEditorInner({
           className="variable-toolbar-btn"
           title="重做 (Ctrl+Y / Ctrl+Shift+Z)"
           disabled={!canRedo}
-          onClick={() => dispatch({ type: "redo" })}
+          onClick={() => { if (handle.flushPendingEdits?.() !== false) dispatch({ type: "redo" }); }}
         >
           <IconControl spec={AD_ICONIFY_SPEC.redo} size={12} resourceBaseUrl={backendBaseUrl} />
         </button>
@@ -231,7 +241,7 @@ function XProgramEditorInner({
           title={variablesOpen ? "收起变量" : "编辑变量"}
           aria-label={variablesOpen ? "收起变量面板" : "打开变量面板"}
           aria-expanded={variablesOpen}
-          onClick={() => setVariablesOpen((open) => !open)}
+          onClick={() => { if (!variablesOpen || handle.flushPendingEdits?.() !== false) setVariablesOpen(!variablesOpen); }}
         >
           <IconControl
             spec={AD_ICONIFY_SPEC.variableInput}
@@ -280,7 +290,7 @@ function XProgramEditorInner({
               type="button"
               className="x-program-editor-variables-backdrop"
               aria-label="关闭变量面板"
-              onClick={() => setVariablesOpen(false)}
+              onClick={() => { if (handle.flushPendingEdits?.() !== false) setVariablesOpen(false); }}
             />
             <div
               className="x-program-editor-variables-drawer"
@@ -292,12 +302,13 @@ function XProgramEditorInner({
                   active={active}
                   programSurface={programSurface}
                   variables={present.variables}
-                  steps={present.steps}
                   registerDraftFlusher={registerDraftFlusher}
-                  workspaceContext={workspaceContext}
-                  stepParamFileContents={stepParamFileContents}
+                  registerLiveEditingBlocker={registerLiveEditingBlocker}
+                  owner={variableOwner}
+                  getCurrentPresent={stateHandle.getPresent}
+                  onVariableChange={onVariableChange}
                   onCommitVariables={commitVariables}
-                  onCloseDrawer={() => setVariablesOpen(false)}
+                  onCloseDrawer={() => { if (handle.flushPendingEdits?.() !== false) setVariablesOpen(false); }}
                   onStepHighlightFilter={(filterText) => {
                     showToast(`步骤高亮筛选（占位）：${filterText}`, {
                       variant: "info",

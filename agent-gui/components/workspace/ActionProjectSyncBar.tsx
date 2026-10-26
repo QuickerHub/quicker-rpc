@@ -43,6 +43,8 @@ type ActionProjectSyncBarProps = {
   hasLocalChanges?: boolean;
   className?: string;
   onSynced?: () => void | Promise<void>;
+  /** Flush and validate the owning editor before any pull/push or its status-driven decision. */
+  beforeSync?: () => boolean;
   onBusyChange?: (busy: boolean) => void;
 };
 
@@ -101,6 +103,7 @@ export function ActionProjectSyncBar({
   hasLocalChanges = false,
   className,
   onSynced,
+  beforeSync,
   onBusyChange,
 }: ActionProjectSyncBarProps) {
   const targetKey = actionProjectSyncTargetKey(target);
@@ -114,6 +117,7 @@ export function ActionProjectSyncBar({
   const [busyState, setBusyState] = useState({ owner, value: false });
   const busy = busyState.owner === owner && busyState.value;
   const onBusyChangeRef = useRef(onBusyChange); onBusyChangeRef.current = onBusyChange;
+  const beforeSyncRef = useRef(beforeSync); beforeSyncRef.current = beforeSync;
   const setBusy = useCallback((value: boolean) => {
     if (!isCurrent()) return;
     // The renderer's live document port must freeze before the native request starts,
@@ -236,7 +240,7 @@ export function ActionProjectSyncBar({
         | { ok: false; error: string; versionConflict?: boolean }
       >,
     ) => {
-      if (!targetReady || !isCurrent()) return false;
+      if (!targetReady || !isCurrent() || beforeSyncRef.current?.() === false) return false;
       if (!cwd.trim()) {
         applyStatusResult({ ok: false, error: "未设置工作目录" });
         return false;
@@ -367,6 +371,7 @@ export function ActionProjectSyncBar({
 
   const runSmartSync = useCallback(async () => {
     if (!active || busy || blocked || !targetReady || !isCurrent()) return;
+    if (beforeSyncRef.current?.() === false) return;
     if (!cwd.trim()) {
       applyStatusResult({ ok: false, error: "未设置工作目录" });
       return;

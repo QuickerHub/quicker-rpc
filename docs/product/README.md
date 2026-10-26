@@ -329,7 +329,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 |---|---|---|
 | `ActionDesignerPage` / `ActionDesignerEditorPane` | 文档载入、保存、脏状态、宿主目标、版本冲突和外部更新 | 磁盘入口已接 body controller、持久目标展示/保存票据与完整身份 CAS；主程序与文档拥有的内部子程序步骤已通过私有 pin 接入原 Agent/根文档会话，嵌套备注编辑及撤销已有真实 DOM 验证；更多编辑/保存、原生 V2 storage 与选择宿主仍待接线 |
 | `ProgramEditorTabWorkspace` / active bridge / snapshot | 主程序、递归子程序、多 surface、切页、选择和撤销/重做 | 主/嵌套正文、变量和三项属性共用 Session present/history；按钮/快捷键、portal、未 blur 草稿 flush 和晚保存已通过真实 DOM。子程序属性、内部引用重命名、创建与带引用校验的确认删除已接线；完整属性和资源目录继续迁移 |
-| `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 已有编辑器继续复用；逐项对照新版行为，不以旧代码存在作为迁移证明 |
+| `XProgramEditor` / steps / param editors / variables | 模块插入、参数编辑、分支、变量、文件引用、即时草稿与校验 | 变量改名、删除和未使用清理已接局部作用域的同 Session 引用事务；保留稳定 ID、未知字段/精确数值和同步期间其它修改。输入/输出、分支、可核验表达式、常见脚本字面访问及内联表单参与分析；失败保留草稿并阻止 Save/Sync/Pin，支持显式放弃恢复。外置正文、动态/未覆盖语法、缺失原生 ReplaceVariable 事实的普通占位符和接口调用者迁移仍明确拒绝；不新增 Agent 变量权限。其余交互继续逐项对照新版行为，不以旧代码存在作为迁移证明 |
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；V1 runtime 目录已实测完整分页。V1 组合动作（已知 XAction）打开额外要求正文读能力，按完整目标复用本地文件或只向空目录导出；原工作台保留已有实例、dirty/undo，异步/未知收据不抢焦点、不重放。fixture、真实 DOM 与隔离开发态前端检查通过；169 已有项目复用/重查/owner拒绝已有真实HTTP验收，fresh export与native GUI点击待验收。全局子程序调用插入/拖放已接同一参数确认和文档事务，schema/IO失败不确认、换owner不误插、新变量与调用一起撤销；动作引用插入/拖放也已接同一参数确认与事务，39 项真实 DOM 和迟到请求对新搜索/取消的隔离通过；两个调用链原生 GUI 验收、V2/子程序打开和资源写操作仍待迁移，不以受限搜索冒充完整目录 |
 | `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。主动作/子程序共用 FA 搜索、风格分页、选色和手填规格；上传图标库及其它属性仍待原生契约 |

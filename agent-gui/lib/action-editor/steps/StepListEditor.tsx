@@ -276,7 +276,7 @@ export type StepListEditorProps = {
   registerToolboxInsert?: RegisterToolboxInsert;
   resourceCallOrigin?: ResourceCallOrigin;
   readProgramPresent?: () => XProgramPresent;
-  flushProgramEdits?: () => void;
+  flushProgramEdits?: () => boolean | void;
   registerDraftFlusher?: (flush: () => void) => () => void;
   registerLiveEditingBlocker?: (isBlocked: () => boolean) => () => void;
 };
@@ -948,7 +948,9 @@ export default function StepListEditor({
       || resourceCallOrigin?.catalogKey !== catalogPort?.key)) {
       notifyClipboard?.("资源调用来自其它文档、编辑面或已过期目标，未插入步骤。", "error"); return;
     }
-    if (payload.resourceCall && flushProgramEdits) flushSync(flushProgramEdits);
+    if (payload.resourceCall && flushProgramEdits && flushSync(flushProgramEdits) === false) {
+      notifyClipboard?.("请先修正或放弃未确认的变量修改。", "error"); return;
+    }
     flushCompactSync();
     setQuickInsert(null);
     const generation = insertGeneration.current;
@@ -982,7 +984,9 @@ export default function StepListEditor({
     const resource = pendingToolboxInsert?.resourceCall;
     if (resource && (!activeRef.current || !catalogPort?.canInsertResourceCall(resource.kind) || resource.generation !== insertGeneration.current || resource.origin !== resourceCallOrigin
       || resource.origin.documentKey !== programDocumentKey || resource.origin.catalogKey !== catalogPort?.key)) return false;
-    if (resource && flushProgramEdits) flushSync(flushProgramEdits);
+    if (resource && flushProgramEdits && flushSync(flushProgramEdits) === false) {
+      notifyClipboard?.("请先修正或放弃未确认的变量修改。", "error"); return false;
+    }
     flushCompactSync();
     if (!next.stepId) return false;
     const compactNext = compactActionStepParams(next, popupRunnerItem);
@@ -1228,6 +1232,10 @@ export default function StepListEditor({
       }
 
       const tag = ae?.tagName?.toLowerCase() ?? "";
+      // Enter belongs to the focused control, including step buttons. This
+      // window capture listener must not turn a pin/toolbar activation into an insertion.
+      if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.altKey
+        && (target.closest('button, [role="button"], a[href]') || ae?.closest('button, [role="button"], a[href]'))) return;
       const isTextField =
         tag === "input" ||
         tag === "textarea" ||

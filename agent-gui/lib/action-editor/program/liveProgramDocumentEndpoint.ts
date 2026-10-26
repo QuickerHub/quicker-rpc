@@ -25,7 +25,7 @@ export function createProgramDocumentLiveEndpoint(options: {
   controller: ProgramDocumentEditorController;
   catalogPort?: DesignerCatalogPort;
   isCurrent(): boolean;
-  flushPendingEdits(): void;
+  flushPendingEdits(): boolean | void;
   isLiveEditingBlocked?(): boolean;
 }): LiveProgramDocumentEndpoint {
   const current = () => options.isCurrent() && !options.session.isClosed();
@@ -44,7 +44,12 @@ export function createProgramDocumentLiveEndpoint(options: {
       if (identity.projectBinding === undefined) return;
       return { owner: options.owner, sessionId: options.sessionId, identity: { ...identity, projectBinding: identity.projectBinding } };
     },
-    flushPendingEdits() { assertAvailable(); options.flushPendingEdits(); assertAvailable(); },
+    flushPendingEdits() {
+      assertAvailable();
+      if (options.flushPendingEdits() === false) throw Object.assign(
+        Error("The original program document has an unconfirmed variable edit; correct or discard it first."), { code: "LIVE_DOCUMENT_BUSY" });
+      assertAvailable();
+    },
     read() {
       const blocked = unavailable(); if (blocked) return blocked;
       const state = options.session.getState(), steps = collectSteps(options.session.readSnapshot());

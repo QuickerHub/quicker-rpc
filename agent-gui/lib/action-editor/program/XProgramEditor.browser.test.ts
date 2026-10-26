@@ -147,23 +147,26 @@ test("live editor snapshots every dirty edit, reads same-event writes, isolates 
 
     // A keyboard/programmatic tab switch has no outside pointer event to close the portal.
     await page.getByRole("button", { name: "打开变量面板", exact: true }).first().click();
-    const variableInput = page.locator('[data-workspace="a"] input[title="变量名"]');
-    await variableInput.fill("edited-variable");
+    const variableInput = page.locator('[data-workspace="a"] input[title="备注"]');
+    await variableInput.fill("edited variable description");
     await page.locator('[data-workspace="a"] .variable-form-type-picker-trigger').click();
     await page.waitForSelector(".variable-form-type-picker-popup--portal");
     await page.evaluate(() => (window as any).fixture.a.setActive("source"));
     await page.waitForFunction(() => document.querySelector('[data-workspace="a"]')?.getAttribute("data-active") === "source");
     assert.equal(await page.locator(".variable-form-type-picker-popup--portal").count(), 0);
-    await page.waitForFunction(() => (window as any).fixture.a.read().variables[0].key === "edited-variable");
+    await page.waitForFunction(() => (window as any).fixture.a.read().variables[0].desc === "edited variable description");
+    assert.equal(await page.evaluate(() => (window as any).fixture.a.read().variables[0].key), "var_main");
     assert.equal(await page.evaluate(() => (window as any).fixture.a.read().variables[0].defaultValueFile), "files/default.txt");
     await page.keyboard.press("Escape");
     await page.locator('[data-workspace="a"] > button').click();
-    assert.equal(await variableInput.inputValue(), "edited-variable");
+    assert.equal(await variableInput.inputValue(), "edited variable description");
     assert.equal(await page.locator('[data-workspace="a"] .variable-row.selected').getAttribute("data-variable-id"), "var-main");
     assert.equal(await page.locator(".variable-form-type-picker-popup--portal").count(), 0);
     await page.locator('[data-workspace="a"] [data-edit]:visible').focus();
     await page.keyboard.press("Control+z");
+    assert.equal(await page.evaluate(() => (window as any).fixture.a.read().variables[0].desc), "");
     assert.equal(await page.evaluate(() => (window as any).fixture.a.read().variables[0].key), "var_main");
+    assert.equal(await page.evaluate(() => (window as any).fixture.a.read().variables[0].defaultValueFile), "files/default.txt");
     await page.evaluate(() => (window as any).fixture.a.setMounted(false));
     await page.waitForFunction(() => (window as any).fixture.a.read() == null);
     assert.equal(await page.evaluate(() => (window as any).fixture.b.read().steps[0].stepId), "other");

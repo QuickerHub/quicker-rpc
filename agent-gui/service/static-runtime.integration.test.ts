@@ -18,6 +18,7 @@ type ModelRequest = { model: string; tools?: { function?: { name?: string; param
 type LiveReceipt = { ok: boolean; source: string; action: string; complete?: boolean; content?: string;
   revision?: number; revisionBefore?: number; revisionAfter?: number; dirty?: boolean; persisted: boolean;
   applied?: boolean; changed?: boolean; undoable?: boolean; target: unknown;
+  code?: string; application?: string;
   stepInputSchema?: { stepId: string; contract: StepRunnerInputContract; editableInputKeys: string[] } };
 function schemaScopeId(schema: unknown): string | undefined {
   if (!schema || typeof schema !== "object") return;
@@ -73,11 +74,13 @@ test("relocated static renderer + production Node API preserve chat, settings, h
   const requests: string[] = [], hostOperations: string[] = [];
   const modelRequests: ModelRequest[] = [], modelErrors: string[] = [];
   let liveScopeId: string | undefined, liveRead: LiveReceipt | undefined, liveEdit: LiveReceipt | undefined;
+  let liveConflict: LiveReceipt | undefined, liveFreshRead: LiveReceipt | undefined;
   let inputScopeId: string | undefined, inputRead: LiveReceipt | undefined, inputEdit: LiveReceipt | undefined;
   let releaseEdit!: () => void;
   const editAllowed = new Promise<void>((done) => { releaseEdit = done; });
   const humanNote = "Human draft changed after the real pin, without blur";
   const agentNote = "Agent updated only the original pinned step";
+  const oldVariableKey = "原名称", renamedVariableKey = "当前名称";
   const inputActionId = "44444444-4444-4444-8444-444444444444";
   const inputProjectBinding = { schemaVersion: 1, kind: "action", actionId: inputActionId, hostBinding: {
     hostInstanceId: "static-input-fixture", hostSessionId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -157,11 +160,11 @@ test("relocated static renderer + production Node API preserve chat, settings, h
         } else {
           liveScopeId ??= scopeId; assert.equal(scopeId, liveScopeId, "automatic continuations retain the original manual scope");
         }
-        const receipt = (id: string) => {
+        const receipt = (id: string, allowFailure = false) => {
           const message = request.messages.find((item) => item.role === "tool" && item.tool_call_id === id);
           if (!message) return;
           const result = JSON.parse(message.content) as { ok: boolean; data: LiveReceipt };
-          assert.equal(result.ok, true, message.content);
+          if (!allowFailure) assert.equal(result.ok, true, message.content);
           return result.data;
         };
         if (inputTurn) {
@@ -191,13 +194,32 @@ test("relocated static renderer + production Node API preserve chat, settings, h
           toolStream(res, "live-input-read", { scopeId, action: "read_live", stepSchemaFor: "input-step" });
           return;
         }
-        const edited = receipt("live-designer-edit");
+        const edited = receipt("live-designer-current-edit");
         if (edited) {
           liveEdit = edited;
           assert.equal(edited.source, "live_document"); assert.equal(edited.applied, true);
           assert.equal(edited.persisted, false); assert.equal(edited.dirty, true);
-          assert.deepEqual(edited.target, liveRead!.target);
+          assert.deepEqual(edited.target, liveFreshRead!.target);
           modelStream(res, { role: "assistant", content: "Live Designer acceptance complete" }, "stop");
+          return;
+        }
+        const stale = receipt("live-designer-edit", true);
+        if (stale) {
+          liveConflict = stale;
+          assert.equal(stale.ok, false); assert.equal(stale.code, "revision_conflict");
+          assert.equal(stale.application, "not_applied"); assert.equal(stale.persisted, false);
+          const fresh = receipt("live-designer-current-read");
+          if (fresh) {
+            liveFreshRead = fresh;
+            assert.equal(fresh.action, "read_live"); assert.ok(fresh.revision! > liveRead!.revision!);
+            const current = JSON.parse(fresh.content!);
+            assert.equal(current.variables[0].key, renamedVariableKey);
+            assert.equal(current.steps[0].inputParams["text.var"], renamedVariableKey);
+            assert.equal(current.steps[0].outputParams.result, renamedVariableKey);
+            assert.equal(current.steps[0].note, humanNote);
+            toolStream(res, "live-designer-current-edit", { scopeId, action: "edit_live", readOperationId: "live-designer-current-read",
+              expectedRevision: fresh.revision, stepId: "live-step", note: agentNote });
+          } else toolStream(res, "live-designer-current-read", { scopeId, action: "read_live" });
           return;
         }
         const read = receipt("live-designer-read");
@@ -240,8 +262,9 @@ test("relocated static renderer + production Node API preserve chat, settings, h
   writeFileSync(join(actionDirectory, "info.json"), originalInfo);
   const liveActionId = "22222222-2222-4222-8222-222222222222";
   const liveDirectory = join(workspace, ".quicker/actions", liveActionId);
-  const liveBody = '{"steps":[{"stepId":"live-step","stepRunnerKey":"sys:fixture","note":"Live original"},{"stepId":"not-pinned","stepRunnerKey":"sys:fixture","note":"Unpinned unchanged"}],"variables":[],"subPrograms":[],"futureInt":9007199254740993}';
-  const liveInfo = JSON.stringify({ kind: "action", id: liveActionId, title: "Live Designer acceptance", editVersion: 1 });
+  const liveBody = `{"steps":[{"stepId":"live-step","stepRunnerKey":"sys:fixture","note":"Live original","inputParams":{"text.var":${JSON.stringify(oldVariableKey)}},"outputParams":{"result":${JSON.stringify(oldVariableKey)}}},{"stepId":"not-pinned","stepRunnerKey":"sys:fixture","note":"Unpinned unchanged"}],"variables":[{"id":"owned-variable","key":${JSON.stringify(oldVariableKey)},"varType":0,"default":"human default","futureDecimal":0.123456789012345678901}],"subPrograms":[],"futureInt":9007199254740993}`;
+  const liveInfo = JSON.stringify({ kind: "action", id: liveActionId, title: "Live Designer acceptance", description: "", icon: "", editVersion: 1 })
+    .replace(/}$/, ',"futureMetadataInt":9223372036854775807}');
   mkdirSync(liveDirectory, { recursive: true });
   writeFileSync(join(liveDirectory, "data.json"), liveBody); writeFileSync(join(liveDirectory, "info.json"), liveInfo);
   const companionDirectory = join(workspace, ".quicker/actions/33333333-3333-4333-8333-333333333333");
@@ -424,6 +447,11 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     await page.getByRole("button", { name: "发送", exact: true }).click();
     await until(() => Boolean(liveRead) || modelErrors.length > 0, "client read_live receipt reaches the fake model");
     assert.deepEqual(modelErrors, []); assert.ok(liveRead);
+    // Keep the real model response pending while a human edits the same Session.
+    await editor.getByRole("button", { name: "打开变量面板", exact: true }).click();
+    const variableName = editor.getByTitle("变量名", { exact: true });
+    await variableName.fill(renamedVariableKey);
+    assert.equal(JSON.parse(liveRead.content!).variables[0].key, oldVariableKey);
     // Hold the model's edit response while the user presents a different document.
     await page.getByRole("button", { name: "资源管理器", exact: true }).click();
     await page.locator(".explorer-tree-row").filter({ hasText: "Live companion" }).click();
@@ -431,10 +459,11 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     releaseEdit();
     await page.getByText("Live Designer acceptance complete", { exact: true }).waitFor({ timeout: 20_000 });
     assert.deepEqual(modelErrors, []); assert.ok(liveEdit);
-    assert.equal(modelRequests.filter((request) => schemaScopeId(request.tools?.find((item) => item.function?.name === "workspace_program")?.function?.parameters)).length, 3,
-      "one manual SPA turn continues through read, edit and final in the existing SDK loop");
-    assert.equal(liveEdit.revisionBefore, liveRead.revision);
-    assert.equal(liveEdit.revisionAfter, liveRead.revision! + 1);
+    assert.equal(modelRequests.filter((request) => schemaScopeId(request.tools?.find((item) => item.function?.name === "workspace_program")?.function?.parameters)).length, 5,
+      "one manual SPA turn rejects a stale edit, reads the current document and edits through the same SDK loop");
+    assert.ok(liveConflict); assert.ok(liveFreshRead);
+    assert.equal(liveEdit.revisionBefore, liveFreshRead.revision);
+    assert.equal(liveEdit.revisionAfter, liveFreshRead.revision! + 1);
     assert.equal(await note.inputValue(), "Companion unchanged", "late Agent edit does not replace or focus the presented document");
     await page.locator(".workspace-side-panel-tabs").getByRole("tab", { name: /Live Designer acceptance/ }).click();
     await page.waitForFunction((expected) => document.querySelector<HTMLInputElement>("[data-workspace-document]:not([hidden]) .step-form-note-input")?.value === expected, agentNote);
@@ -443,10 +472,31 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     await page.screenshot({ path: join(root, "live-designer-agent-unsaved.png") });
     await editor.locator('[title="撤销 (Ctrl+Z)"]').click();
     assert.equal(await note.inputValue(), humanNote, "one Agent undo retains human edits made after pin");
+    assert.equal(await variableName.inputValue(), renamedVariableKey, "Agent undo retains the human rename transaction");
     const liveDiskHashes = { body: sha256(readFileSync(join(liveDirectory, "data.json"), "utf8")), metadata: sha256(readFileSync(join(liveDirectory, "info.json"), "utf8")) };
     assert.deepEqual(liveDiskHashes, { body: sha256(liveBody), metadata: sha256(liveInfo) }, "live read/edit do not persist source or metadata");
     assert.equal(JSON.parse(readFileSync(join(companionDirectory, "data.json"), "utf8")).steps[0].note, "Companion unchanged");
     await page.screenshot({ path: join(root, "live-designer-one-undo.png") });
+    await editor.locator('[title="撤销 (Ctrl+Z)"]').click();
+    assert.equal(await variableName.inputValue(), oldVariableKey, "the next undo restores the variable declaration and references together");
+    await editor.locator('[title="重做 (Ctrl+Y / Ctrl+Shift+Z)"]').click();
+    await editor.locator('[title="重做 (Ctrl+Y / Ctrl+Shift+Z)"]').click();
+    await editor.getByRole("button", { name: "保存到工作区", exact: true }).click();
+    // Observe the actual save acknowledgement before reading disk; a concurrent
+    // read while the writer is publishing bytes is not a completed-save result.
+    await page.waitForFunction(() => {
+      const button = document.querySelector<HTMLButtonElement>("[data-workspace-document]:not([hidden]) .action-project-data-editor-save");
+      return button?.disabled && button.textContent?.trim() === "保存到工作区";
+    });
+    const liveSavedBody = readFileSync(join(liveDirectory, "data.json"), "utf8");
+    const savedLive = JSON.parse(liveSavedBody);
+    assert.equal(savedLive.steps[0].note, agentNote);
+    assert.equal(savedLive.variables[0].key, renamedVariableKey);
+    assert.equal(savedLive.steps[0].inputParams["text.var"], renamedVariableKey);
+    assert.equal(savedLive.steps[0].outputParams.result, renamedVariableKey);
+    assert.equal(savedLive.steps[1].note, "Unpinned unchanged");
+    assert.match(liveSavedBody, /9007199254740993/); assert.match(liveSavedBody, /0\.123456789012345678901/);
+    assert.equal(readFileSync(join(liveDirectory, "info.json"), "utf8"), liveInfo);
     phase("live-note-and-undo-complete");
     // A second real manual pin/send targets an independently bound document and native input schema.
     await page.getByRole("button", { name: "资源管理器", exact: true }).click();
@@ -521,7 +571,8 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     phase("frontend-check-complete");
     assert.deepEqual(hostOperations.filter((op) => /(?:^|\.)(?:run|execute|save|apply|overwrite|write|extract|export)(?:\.|$)/i.test(op)), []);
     verification = { ok: true, requests, hostOperations, errors, frontendCheck: check, ownedRuntimeOrigins: runtimeOrigins,
-      liveDesigner: { scopeId: liveScopeId, read: liveRead, edit: liveEdit, diskHashes: liveDiskHashes },
+      liveDesigner: { scopeId: liveScopeId, read: liveRead, staleEdit: liveConflict, currentRead: liveFreshRead, edit: liveEdit,
+        diskHashesBeforeHumanSave: liveDiskHashes, savedBodyHash: sha256(liveSavedBody) },
       liveInputs: { scopeId: inputScopeId, read: inputRead, edit: inputEdit, contractInvocations, changedInputSource, undoneInputSource, diskHashes: inputDiskHashes } };
     writeFileSync(join(root, "ui-acceptance.json"), JSON.stringify(verification, null, 2));
   } catch (error) {
@@ -546,7 +597,8 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     fixture.closeAllConnections();
     await new Promise<void>((done) => fixture.close(() => done()));
     writeFileSync(join(root, "service-stderr.log"), stderr);
-    writeFileSync(join(root, "live-model-evidence.json"), JSON.stringify({ requests: modelRequests, errors: modelErrors, read: liveRead, edit: liveEdit,
+    writeFileSync(join(root, "live-model-evidence.json"), JSON.stringify({ requests: modelRequests, errors: modelErrors, read: liveRead,
+      staleEdit: liveConflict, currentRead: liveFreshRead, edit: liveEdit,
       inputScopeId, inputRead, inputEdit, contractInvocations }, null, 2));
     assert.equal(child.exitCode, 0, stderr);
     assert.equal(forced, false, "IPC parent disconnect drains the owned service and children");

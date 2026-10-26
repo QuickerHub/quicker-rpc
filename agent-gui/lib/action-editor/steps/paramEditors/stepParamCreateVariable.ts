@@ -27,7 +27,11 @@ export function normalizeParamNameForVariable(presetVarName: string): string {
   return text;
 }
 
-/** Mirrors VariableHelper.IsValidVarName (C# identifier); allows literal `params` like desktop editor. */
+/** CodeDom's C# identifier categories; references also accept its escaped-identifier spelling. */
+export const ACTION_VARIABLE_IDENTIFIER_SOURCE = String.raw`@?[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Mn}\p{Mc}\p{Nd}\p{Pc}]*`;
+const variableIdentifier = new RegExp(`^(?:${ACTION_VARIABLE_IDENTIFIER_SOURCE})$`, "u");
+
+/** Mirrors VariableHelper.IsValidVarName (C# CodeDom); allows literal `params` like desktop editor. */
 export function isValidActionVariableKey(key: string): boolean {
   const trimmed = key.trim();
   if (!trimmed) {
@@ -36,10 +40,11 @@ export function isValidActionVariableKey(key: string): boolean {
   if (trimmed === "params") {
     return true;
   }
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) {
+  // CodeDom checks UTF-16 chars, so surrogate pairs and format characters are not identifiers.
+  if (!variableIdentifier.test(trimmed) || /[\uD800-\uDFFF]/.test(trimmed)) {
     return false;
   }
-  return !CSHARP_RESERVED.has(trimmed);
+  return trimmed.startsWith("@") || !CSHARP_RESERVED.has(trimmed);
 }
 
 /** Enum params create Text variables on desktop (XActionUiHelper.CreateVariable). */

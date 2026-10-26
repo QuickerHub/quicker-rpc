@@ -12,13 +12,14 @@ function fixture() {
   const session = createProgramDocumentSession({ content: '{"steps":[{"stepId":"one","stepRunnerKey":"sys:fixture","note":"before","inputParams":{"text":"before"}}],"variables":[],"subPrograms":[]}',
     identity: { documentKey: "fixture", projectBinding: null } });
   const controller = createProgramDocumentEditorController(session, { isCurrent: () => true, onChange() {} });
-  let blocked = false, flushes = 0, metadataCalls = 0, pendingNote: string | undefined;
+  let blocked = false, flushRejected = false, flushes = 0, metadataCalls = 0, pendingNote: string | undefined;
   let metadata = async () => ({ fixture: true } as unknown as StepRunnerInputContract);
   const endpoint = createProgramDocumentLiveEndpoint({ owner, sessionId: "fixture-session", session, controller, isCurrent: () => true,
     isLiveEditingBlocked: () => blocked,
     catalogPort: { readInputContract: () => { metadataCalls++; return metadata(); } } as unknown as DesignerCatalogPort,
     flushPendingEdits() {
       flushes++;
+      if (flushRejected) return false;
       if (pendingNote !== undefined) {
         const present = controller.getSurface("main").getPresent(); present.steps[0]!.note = pendingNote;
         pendingNote = undefined; controller.getSurface("main").commit(present);
@@ -27,6 +28,7 @@ function fixture() {
   });
   const request = () => ({ expectedRevision: session.getState().revision, expectedIdentity: session.getState().identity, stepId: "one" });
   return { endpoint, session, controller, request, block(value: boolean) { blocked = value; }, draft(value: string) { pendingNote = value; },
+    rejectFlush(value: boolean) { flushRejected = value; },
     metadata(read: typeof metadata) { metadata = read; }, counts: () => ({ flushes, metadataCalls }) };
 }
 
@@ -67,4 +69,13 @@ test("a modal is scoped to its original endpoint rather than another document", 
   assert.throws(() => hidden.endpoint.flushPendingEdits(), { code: "LIVE_DOCUMENT_BUSY" });
   foreground.endpoint.flushPendingEdits(); assert.equal(foreground.endpoint.read().ok, true);
   assert.deepEqual(hidden.counts(), { flushes: 0, metadataCalls: 0 });
+});
+
+test("a rejected form flush stops live capture without mutating or clearing the human draft", () => {
+  const f = fixture(), before = f.session.getState();
+  f.draft("retained human draft"); f.rejectFlush(true);
+  assert.throws(() => f.endpoint.flushPendingEdits(), { code: "LIVE_DOCUMENT_BUSY" });
+  assert.equal(f.session.getState(), before);
+  f.rejectFlush(false); f.endpoint.flushPendingEdits();
+  assert.match(f.session.getState().content, /retained human draft/);
 });
