@@ -16,6 +16,9 @@ import { parseActionProjectBinding, type ActionProjectBinding } from "../../acti
 import { withDesignerCatalogContext, type DesignerCatalogScope } from "./designerCatalogContext";
 import { createAgentApiRouter } from "../../agent-service/api-router";
 import { agentApiRoutes } from "../../agent-service/api-routes.generated";
+import { createDesignerCatalogPort } from "./designerCatalogPort";
+import { fetchStepRunnerDetailItem } from "../shared/designerHostGrpcApi";
+import { readStepRunnerUiKnowledge, STEP_RUNNER_UI_KNOWLEDGE_FORMAT } from "../api/stepRunnerKnowledge";
 
 const actionId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const base = "http://catalog-fixture.invalid:19477";
@@ -244,5 +247,78 @@ test("bound UI requests reach native invoke with exact control literals through 
     const invoke: Invoke = JSON.parse(String(init?.body));
     assert.equal(invoke.op,"step-runner.getUi"); seen.push(invoke.args.controlField);
     return Response.json({ok:true,data:catalogReply(invoke)});
+  });
+});
+
+function knowledgeSchema(invoke: Invoke) {
+  return { stepRunnerKey: invoke.args.key, name: "Current UI", icon: "fixture", inputs: [{ key: "value", valueType: "Text" }],
+    knowledge: { schemaVersion: 1, source: { provider: "qkrpc.step-runner", kind: "runtime-definition", ...invoke.hostBinding,
+      adapterAssembly: "fixture.adapter", adapterVersion: "fixture" },
+      schema: { format: STEP_RUNNER_UI_KNOWLEDGE_FORMAT, revision: `sha256:${"a".repeat(64)}` },
+      requestedControlFieldValue: invoke.args.controlField ?? null, retrievedAt: "2026-10-26T00:00:00Z",
+      nativeHelpLink: "https://fixture.invalid/native-help", extension: { zero: 0, disabled: false } },
+  };
+}
+
+test("UI metadata survives actual bound route, mapper and client without querying Agent get", async () => {
+  const seen: Invoke[] = [];
+  await fixture(async ({ scope }) => {
+    const port = createDesignerCatalogPort(scope(a), async (_url, init) => get(new Request("http://fixture.invalid/api/step-runner/get", init)));
+    try {
+      for (const control of [undefined, "", " ", " A "]) {
+        const item = await fetchStepRunnerDetailItem("sys:fixture", control, undefined, port);
+        assert.ok(item); const value = readStepRunnerUiKnowledge(item);
+        assert.equal(value.knowledgeState.status, "available");
+        assert.deepEqual(value.knowledge, knowledgeSchema(seen.at(-1)!).knowledge);
+        assert.equal(item.inputParamDefs[0]?.key, "value");
+      }
+      assert.equal(seen.length, 4); assert.ok(seen.every(invoke => invoke.op === "step-runner.getUi"));
+    } finally { port.dispose(); }
+  }, async (_url, init) => {
+    const invoke: Invoke = JSON.parse(String(init?.body)); seen.push(invoke);
+    return Response.json({ ok: true, data: { ok: true, payload: { success: true, schema: knowledgeSchema(invoke) } } });
+  });
+});
+
+test("legacy or unsupported UI knowledge stays unknown while target/control/key mismatches fail closed", async () => {
+  let change: (schema: ReturnType<typeof knowledgeSchema>) => unknown = value => value;
+  let calls = 0;
+  await fixture(async ({ scope }) => {
+    const route = routes[1];
+    for (const mutate of [
+      (value: any) => { delete value.knowledge; return value; },
+      (value: any) => { value.knowledge.schema.format = "future.ui"; return value; },
+      (value: any) => { value.knowledge.source.kind = "unknown"; return value; },
+      (value: any) => { value.knowledge.source.provider = "future.provider"; return value; },
+    ]) {
+      change = mutate; const response = await get(request(route, scope(a))); assert.equal(response.status, 200);
+      const { item } = await response.json(); assert.equal(item.knowledgeState.status, "unknown"); assert.equal(item.inputParamDefs[0].key, "value");
+      if (item.knowledge) assert.deepEqual(item.knowledge.extension, { zero: 0, disabled: false });
+    }
+    for (const mutate of [
+      (value: any) => { value.stepRunnerKey = "other"; return value; },
+      (value: any) => { delete value.stepRunnerKey; return value; },
+      (value: any) => { value.stepRunnerKey = 123; return value; },
+      (value: any) => { value.knowledge.requestedControlFieldValue = " mode "; return value; },
+      ...["hostInstanceId", "hostSessionId", "endpoint", "hostKind"].map(field => (value: any) => { value.knowledge.source[field] = "wrong"; return value; }),
+    ]) {
+      change = mutate; const before = calls; const response = await get(request(route, scope(a))); const data = await response.json();
+      assert.equal(response.status, 409); assert.equal(data.code, "KNOWLEDGE_TARGET_MISMATCH"); assert.equal(data.item, undefined);
+      assert.equal(calls, before + 1, "Mismatches do not retry or substitute another source");
+    }
+  }, async (_url, init) => {
+    const invoke: Invoke = JSON.parse(String(init?.body)); calls++;
+    assert.equal(invoke.op, "step-runner.getUi");
+    return Response.json({ ok: true, data: { schema: change(knowledgeSchema(invoke)) } });
+  });
+});
+
+test("a failed UI response carrying old successful knowledge never returns an item", async () => {
+  await fixture(async ({ scope }) => {
+    const response = await get(request(routes[1], scope(a))); assert.equal(response.status, 503);
+    assert.equal((await response.json()).item, undefined);
+  }, async (_url, init) => {
+    const invoke: Invoke = JSON.parse(String(init?.body));
+    return Response.json({ ok: true, data: { payload: { success: false, schema: knowledgeSchema(invoke) } } });
   });
 });

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.Contracts.Rpc;
@@ -120,8 +121,10 @@ public sealed class StepRunnerKnowledgeProviderTests
         Assert.AreEqual("runtime-definition", wire.RootElement.GetProperty("knowledge").GetProperty("source").GetProperty("kind").GetString());
     }
 
-    [TestMethod]
-    public async Task Opaque_native_schema_numeric_lexemes_and_original_text_survive_the_provider_and_runtime_Async()
+    [DataTestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task Opaque_native_schema_numeric_lexemes_and_original_text_survive_the_provider_and_runtime_Async(bool forAgent)
     {
         const string nativeJson = """
             {
@@ -134,10 +137,11 @@ public sealed class StepRunnerKnowledgeProviderTests
             """;
         var read = StepRunnerKnowledgeProvider.ReadCurrent(() => new[] { new NativeRunner() }, row => QuickerV2StepRunnerMapper.MapRunner(row, captureKnowledgeEvidence: true));
         var mapped = StepRunnerCatalogMapper.GetDetail(read.Catalog, "fixture:new").Schema!;
-        var produced = StepRunnerKnowledgeProvider.DecorateSchema(read, mapped, nativeJson, "");
+        var format = forAgent ? StepRunnerKnowledgeFormats.Agent : StepRunnerKnowledgeFormats.Ui;
+        var produced = StepRunnerKnowledgeProvider.DecorateSchema(read, mapped, nativeJson, "", format);
         var port = new Port { Override = produced };
         var runtime = Runtime(Host(port));
-        var delivered = (await runtime.GetStepRunnerDetailAsync("fixture:new", "")).SchemaJson!;
+        var delivered = (await (forAgent ? runtime.GetStepRunnerDetailAsync("fixture:new", "") : runtime.GetStepRunnerUiDetailAsync("fixture:new", ""))).SchemaJson!;
         StringAssert.StartsWith(delivered, nativeJson.Substring(0, nativeJson.LastIndexOf('}')));
         using var original = System.Text.Json.JsonDocument.Parse(nativeJson);
         using var wire = System.Text.Json.JsonDocument.Parse(delivered);
@@ -145,14 +149,73 @@ public sealed class StepRunnerKnowledgeProviderTests
             Assert.AreEqual(property.Value.GetRawText(), wire.RootElement.GetProperty(property.Name).GetRawText(), property.Name);
         var revision = wire.RootElement.GetProperty("knowledge").GetProperty("schema").GetProperty("revision").GetString();
         var changed = StepRunnerKnowledgeProvider.DecorateSchema(read, mapped,
-            nativeJson.Replace("0.123456789012345678901234567890123456789", "0.123456789012345678901234567890123456788"), "");
+            nativeJson.Replace("0.123456789012345678901234567890123456789", "0.123456789012345678901234567890123456788"), "", format);
         using var changedDoc = System.Text.Json.JsonDocument.Parse(changed);
         Assert.AreNotEqual(revision, changedDoc.RootElement.GetProperty("knowledge").GetProperty("schema").GetProperty("revision").GetString());
         port.Override = nativeJson;
-        using var legacy = System.Text.Json.JsonDocument.Parse((await runtime.GetStepRunnerDetailAsync("fixture:new")).SchemaJson!);
+        using var legacy = System.Text.Json.JsonDocument.Parse((await (forAgent ? runtime.GetStepRunnerDetailAsync("fixture:new") : runtime.GetStepRunnerUiDetailAsync("fixture:new"))).SchemaJson!);
         foreach (var property in original.RootElement.EnumerateObject())
             Assert.AreEqual(property.Value.GetRawText(), legacy.RootElement.GetProperty(property.Name).GetRawText(), "Legacy " + property.Name);
         Assert.AreEqual("unknown", legacy.RootElement.GetProperty("knowledge").GetProperty("source").GetProperty("kind").GetString());
+        Assert.AreEqual(format, legacy.RootElement.GetProperty("knowledge").GetProperty("schema").GetProperty("format").GetString());
+    }
+
+    [TestMethod]
+    public void Ui_projection_reuses_the_current_provider_but_fingerprints_its_own_content()
+    {
+        var runner = new NativeRunner();
+        StepRunnerKnowledgeProvider.ReadResult Read() => StepRunnerKnowledgeProvider.ReadCurrent(() => new[] { runner }, row => QuickerV2StepRunnerMapper.MapRunner(row, captureKnowledgeEvidence: true));
+        var snapshot = Read();
+        foreach (var control in new string?[] { null, "", " ", " A " })
+        {
+            var agent = JObject.Parse(StepRunnerKnowledgeProvider.GetDetail(snapshot, runner.Key, control, true).SchemaJson!);
+            var ui = JObject.Parse(StepRunnerKnowledgeProvider.GetDetail(snapshot, runner.Key, control, false).SchemaJson!);
+            Assert.AreEqual(StepRunnerKnowledgeFormats.Agent, agent["knowledge"]!["schema"]!["format"]!.Value<string>());
+            Assert.AreEqual(StepRunnerKnowledgeFormats.Ui, ui["knowledge"]!["schema"]!["format"]!.Value<string>());
+            Assert.AreNotEqual(Revision(agent), Revision(ui));
+            Assert.IsTrue(JToken.DeepEquals(agent["knowledge"]!["source"], ui["knowledge"]!["source"]));
+            Assert.AreEqual(runner.HelpLink, ui["knowledge"]!["nativeHelpLink"]!.Value<string>());
+            Assert.IsTrue(JToken.DeepEquals(control is null ? JValue.CreateNull() : new JValue(control), ui["knowledge"]!["requestedControlFieldValue"]));
+        }
+        var first = JObject.Parse(StepRunnerKnowledgeProvider.GetDetail(snapshot, runner.Key, null, false).SchemaJson!);
+        runner.Name = "Updated";
+        var updated = JObject.Parse(StepRunnerKnowledgeProvider.GetDetail(Read(), runner.Key, null, false).SchemaJson!);
+        Assert.AreNotEqual(Revision(first), Revision(updated));
+        Assert.AreEqual("Native", first["name"]!.Value<string>());
+    }
+
+    [TestMethod]
+    public async Task Ui_runtime_stamps_current_owner_once_and_rejects_mismatched_owner_control_or_key_Async()
+    {
+        var port = new Port(); var runtime = Runtime(Host(port, QuickerHostKind.V2, "2.fixture"));
+        var first = JObject.Parse((await runtime.GetStepRunnerUiDetailAsync("fixture:new", " ")).SchemaJson!);
+        Assert.AreEqual(1, port.UiReads); Assert.AreEqual(0, port.Reads);
+        Assert.AreEqual("runtime-definition", first["knowledge"]!["source"]!["kind"]!.Value<string>());
+        Assert.AreEqual("v2", first["knowledge"]!["source"]!["hostKind"]!.Value<string>());
+        Assert.IsTrue(DateTimeOffset.TryParse(first["knowledge"]!["retrievedAt"]!.Value<string>(), out _));
+        var again = JObject.Parse((await runtime.GetStepRunnerUiDetailAsync("fixture:new", " ")).SchemaJson!);
+        Assert.AreEqual(Revision(first), Revision(again));
+        foreach (var field in new[] { "hostInstanceId", "hostSessionId", "endpoint", "hostKind" })
+        {
+            var wrong = (JObject)first.DeepClone(); wrong["knowledge"]!["source"]![field] = "another-owner";
+            port.Override = wrong.ToString(Formatting.None);
+            var failed = await runtime.GetStepRunnerUiDetailAsync("fixture:new", " ");
+            Assert.IsFalse(failed.Success); StringAssert.Contains(failed.ErrorMessage, "KNOWLEDGE_TARGET_MISMATCH"); Assert.IsNull(failed.SchemaJson);
+        }
+        foreach (var wrong in new[] { "{\"stepRunnerKey\":\"fixture:other\"}", "{\"stepRunnerKey\":\"fixture:new\",\"knowledge\":{\"requestedControlFieldValue\":\"\"}}" })
+        {
+            port.Override = wrong;
+            Assert.IsFalse((await runtime.GetStepRunnerUiDetailAsync("fixture:new", " ")).Success);
+        }
+        port.Override = "{\"stepRunnerKey\":\"fixture:new\",\"knowledge\":{\"schemaVersion\":99}}";
+        var unknown = JObject.Parse((await runtime.GetStepRunnerUiDetailAsync("fixture:new", " ")).SchemaJson!);
+        Assert.AreEqual("unknown", unknown["knowledge"]!["source"]!["kind"]!.Value<string>());
+        Assert.AreEqual(StepRunnerKnowledgeFormats.Ui, unknown["knowledge"]!["schema"]!["format"]!.Value<string>());
+        using var stop = new CancellationTokenSource(); port.AfterRead = stop.Cancel;
+        await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => runtime.GetStepRunnerUiDetailAsync("fixture:new", cancellationToken: stop.Token));
+        var reads = port.UiReads;
+        await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => runtime.GetStepRunnerUiDetailAsync("fixture:new", cancellationToken: stop.Token));
+        Assert.AreEqual(reads, port.UiReads); Assert.AreEqual(0, port.Reads);
     }
 
     [TestMethod]
@@ -241,19 +304,25 @@ public sealed class StepRunnerKnowledgeProviderTests
     internal sealed class Port : IQuickerRpcStepRunnerHost
     {
         internal int Reads;
+        internal int UiReads;
         internal string? Override;
         internal Action? AfterRead;
         public Task<QuickerRpcStepRunnerDetailResult> GetDetailAsync(string key, string? controlFieldValue = null, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Reads++;
+            return Task.FromResult(Read(key, controlFieldValue, true));
+        }
+        private QuickerRpcStepRunnerDetailResult Read(string key, string? controlFieldValue, bool forAgent)
+        {
             var result = Override is not null ? new QuickerRpcStepRunnerDetailResult { Success = true, SchemaJson = Override }
                 : StepRunnerKnowledgeProvider.GetDetail(StepRunnerKnowledgeProvider.ReadCurrent(() => new[] { new NativeRunner() },
-                    runner => QuickerV2StepRunnerMapper.MapRunner(runner, captureKnowledgeEvidence: true)), key, controlFieldValue, true);
+                    runner => QuickerV2StepRunnerMapper.MapRunner(runner, captureKnowledgeEvidence: true)), key, controlFieldValue, forAgent);
             AfterRead?.Invoke();
-            return Task.FromResult(result);
+            return result;
         }
-        public Task<QuickerRpcStepRunnerDetailResult> GetUiDetailAsync(string key, string? controlFieldValue = null, CancellationToken cancellationToken = default) => throw new AssertFailedException("No UI fallback.");
+        public Task<QuickerRpcStepRunnerDetailResult> GetUiDetailAsync(string key, string? controlFieldValue = null, CancellationToken cancellationToken = default)
+        { cancellationToken.ThrowIfCancellationRequested(); UiReads++; return Task.FromResult(Read(key, controlFieldValue, false)); }
         public Task<QuickerRpcSearchStepRunnersResult> SearchAsync(string keyword, int? maxResults = null, CancellationToken cancellationToken = default) => throw new AssertFailedException();
         public Task<QuickerRpcSearchStepRunnersResult> ListAsync(int? maxResults = null, CancellationToken cancellationToken = default) => throw new AssertFailedException();
         public Task<QuickerRpcActionStepSummariesResult> SummarizeStepsAsync(IList<QuickerRpcActionStepSummaryInput> steps, string? embeddedSubProgramsJson = null, CancellationToken cancellationToken = default) => throw new AssertFailedException();

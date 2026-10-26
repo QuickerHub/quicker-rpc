@@ -16,7 +16,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
 export function readStepRunnerUiKnowledge(item: unknown): StepRunnerUiKnowledge {
   const data = record(item), knowledge = record(data?.knowledge), state = record(data?.knowledgeState);
   return { ...(knowledge ? { knowledge } : {}), knowledgeState: {
-    status: state?.status === "available" ? "available" : "unknown",
+    status: knowledge && state?.status === "available" ? "available" : "unknown",
     ...(typeof state?.reason === "string" ? { reason: state.reason } : {}),
   } };
 }
@@ -31,7 +31,7 @@ export function inspectStepRunnerUiKnowledge(schema: Record<string, unknown>, ex
   key: string; controlField?: string; hostBinding?: QkrpcHostBinding;
 }): StepRunnerUiKnowledge {
   const key = schema.stepRunnerKey ?? schema.StepRunnerKey ?? schema.key ?? schema.Key;
-  if (typeof key === "string" && key !== expected.key.trim()) throw new KnowledgeTargetMismatch("key");
+  if (typeof key !== "string" || key !== expected.key.trim()) throw new KnowledgeTargetMismatch("key");
   const knowledge = record(schema.knowledge);
   const source = record(knowledge?.source), format = record(knowledge?.schema);
   const control = knowledge?.requestedControlFieldValue;

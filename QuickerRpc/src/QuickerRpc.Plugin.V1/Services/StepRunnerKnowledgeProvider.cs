@@ -78,21 +78,17 @@ internal static class StepRunnerKnowledgeProvider
         var mapped = StepRunnerCatalogMapper.GetDetail(read.Catalog, key, controlFieldValue);
         if (mapped.Schema is null)
             return new QuickerRpcStepRunnerDetailResult { Success = mapped.Success, ErrorMessage = mapped.ErrorMessage };
-        if (!forAgent)
-            return new QuickerRpcStepRunnerDetailResult
-            {
-                Success = mapped.Success, ErrorMessage = mapped.ErrorMessage,
-                SchemaJson = StepRunnerUiSchemaJson.Serialize(mapped.Schema),
-            };
-
         return new QuickerRpcStepRunnerDetailResult
         {
             Success = mapped.Success, ErrorMessage = mapped.ErrorMessage,
-            SchemaJson = DecorateSchema(read, mapped.Schema, StepRunnerAgentSchemaJson.Serialize(mapped.Schema), controlFieldValue),
+            SchemaJson = DecorateSchema(read, mapped.Schema,
+                forAgent ? StepRunnerAgentSchemaJson.Serialize(mapped.Schema) : StepRunnerUiSchemaJson.Serialize(mapped.Schema),
+                controlFieldValue, forAgent ? StepRunnerKnowledgeFormats.Agent : StepRunnerKnowledgeFormats.Ui),
         };
     }
 
-    internal static string DecorateSchema(ReadResult read, StepRunnerAgentSchema mapped, string schemaJson, string? controlFieldValue)
+    internal static string DecorateSchema(ReadResult read, StepRunnerAgentSchema mapped, string schemaJson, string? controlFieldValue,
+        string schemaFormat = StepRunnerKnowledgeFormats.Agent)
     {
         var parsed = LosslessProgramJson.ParseObject(schemaJson);
         if (parsed["knowledge"] is not null || parsed["stepRunnerKey"]?.Value<string>() != mapped.StepRunnerKey)
@@ -112,7 +108,7 @@ internal static class StepRunnerKnowledgeProvider
         {
             ["schemaVersion"] = 1,
             ["source"] = new JObject { ["provider"] = "qkrpc.step-runner", ["kind"] = kind },
-            ["schema"] = new JObject { ["format"] = "qkrpc.agent-step-runner.v1", ["revision"] = Fingerprint(content) },
+            ["schema"] = new JObject { ["format"] = schemaFormat, ["revision"] = Fingerprint(content) },
             ["requestedControlFieldValue"] = controlFieldValue is null ? JValue.CreateNull() : new JValue(controlFieldValue),
             ["nativeHelpLink"] = kind == "runtime-definition" && definition?.HelpLink is string help
                 ? new JValue(help) : JValue.CreateNull(),
