@@ -83,11 +83,9 @@ try {
   assert.match(runtimeOwner, /^[a-f0-9-]{36}$/i, "runtime state belongs to the service's current owner namespace");
   for (const kind of ["browser", "terminal"]) {
     const result = runtimeReplies[kind], url = new URL(result.base);
-    const state = JSON.parse(readFileSync(join(config.root, "data/runtime", runtimeOwner, `${kind}-runtime.json`), "utf8"));
-    assert.equal(state.ownerPid, config.info.uiPid);
-    assert.equal(state.port, Number(url.port));
-    // The PowerShell owner verifies each PID/listener before this origin is fetched.
-    evidence.runtime[kind] = { ...state, base: result.base };
+    // The native Job owner derives the current PID from this exact listener,
+    // rather than treating a cached on-disk PID as process identity.
+    evidence.runtime[kind] = { port: Number(url.port), base: result.base, runtimeOwner };
   }
   await page.screenshot({ path: join(config.root, `epoch-${config.epoch}-main.png`) });
   writeFileSync(join(config.root, `epoch-${config.epoch}-before-exit.json`), JSON.stringify(evidence, null, 2));

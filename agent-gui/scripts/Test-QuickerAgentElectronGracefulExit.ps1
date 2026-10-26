@@ -87,10 +87,16 @@ try {
                     $roles = @{ root = $rootHandle; ui = $uiHandle }
                     foreach ($kind in @('browser', 'terminal')) {
                         $runtime = $before.runtime.$kind
-                        $handle = $owner.RetainProcess([int]$runtime.pid); $tracked += $handle; $roles[$kind] = $handle
-                        if ($handle.ImagePath -ine $uiHandle.ImagePath -or $runtime.ownerPid -ne $info.uiPid -or
-                            -not (Test-OwnedSmokeListener $owner $runtime.port $runtime.pid)) { throw 'Runtime process/listener no longer belongs to this exact Node owner.' }
-                        $listeners += @{ port = [int]$runtime.port; pid = [int]$runtime.pid }
+                        $rows = @(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.LocalPort -eq $runtime.port })
+                        if ($rows.Count -ne 1) { throw 'Runtime has no unique exact loopback listener.' }
+                        $processId = [int]$rows[0].OwningProcess
+                        $handle = $owner.RetainProcess($processId); $tracked += $handle; $roles[$kind] = $handle
+                        $metadata = Get-CimInstance Win32_Process -Filter "ProcessId=$processId" -ErrorAction Stop
+                        $entry = Join-Path (Split-Path -Parent $exe) "resources/app/$kind-runtime/server.mjs"
+                        if ($handle.ImagePath -ine $uiHandle.ImagePath -or $metadata.ParentProcessId -ne $info.uiPid -or
+                            -not $metadata.CommandLine.Contains($entry, [StringComparison]::OrdinalIgnoreCase) -or
+                            -not (Test-OwnedSmokeListener $owner $runtime.port $processId)) { throw 'Runtime process/listener no longer belongs to this exact Node owner and package entry.' }
+                        $listeners += @{ port = [int]$runtime.port; pid = $processId }
                     }
                     $jobSnapshot = $owner.GetProcessSnapshot()
                     foreach ($processId in $jobSnapshot.ProcessIds) {
