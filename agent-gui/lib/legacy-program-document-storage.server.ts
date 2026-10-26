@@ -7,7 +7,7 @@ import {
   readProgramDocumentMetadata,
   validateProgramDocumentMetadataForSave,
 } from "./action-editor/document/programDocumentMetadata";
-import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult, ProgramDocumentTargetResult } from "./program-document-save";
+import type { LegacyProgramDocumentSaveRequest as ProgramDocumentSaveRequest, ProgramDocumentSaveResult, ProgramDocumentTargetResult } from "./program-document-save";
 import { runWithQkrpcCwdAsync } from "./qkrpc-request-context";
 import { MAX_UI_READ_BYTES } from "./workspace-file-helpers";
 import { resolveWorkspaceRoot, writeWorkspaceFile } from "./workspace-fs";

@@ -16,6 +16,7 @@ export type ExternalParamFileContentOptions = {
 export type ExternalParamFileEditorState = {
   editorValue: string;
   isExternalFile: boolean;
+  readOnly?: boolean;
   filePath: string | null;
   loading: boolean;
   loadError: string | null;
@@ -119,6 +120,7 @@ export function useExternalParamFileContent(
   const flushFileWrite = useCallback(
     async (content: string): Promise<void> => {
       if (!workspace || !filePath) return;
+      if (workspace.fileWritesReadOnly) { setSaveError("当前源码包的外置资源只读，请保留文件引用。"); return; }
       setSaving(true);
       setSaveError(null);
       const absolute = projectRelativeFilePath(workspace.projectDir, filePath);
@@ -136,6 +138,7 @@ export function useExternalParamFileContent(
   const onEditorChange = useCallback(
     (value: string): void => {
       if (isExternalFile && workspace && filePath) {
+        if (workspace.fileWritesReadOnly) { setSaveError("当前源码包的外置资源只读，请保留文件引用。"); return; }
         userEditedRef.current = true;
         setFileContent(value);
         setSaveError(null);
@@ -158,6 +161,7 @@ export function useExternalParamFileContent(
   return {
     editorValue,
     isExternalFile,
+    readOnly: isExternalFile && workspace?.fileWritesReadOnly === true,
     filePath,
     loading: isExternalFile && loading,
     loadError: isExternalFile ? loadError : null,

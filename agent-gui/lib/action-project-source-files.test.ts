@@ -21,3 +21,10 @@ test("buildActionProjectSourceFileTabs orders data, info, then files", () => {
   assert.equal(tabs[0]?.path, dataPath);
   assert.equal(tabs[1]?.path, `${projectDir}/info.json`);
 });
+
+test("source bundle tabs retain the actual YAML label and project-relative resource paths", () => {
+  assert.deepEqual(buildActionProjectSourceFileTabs(".tmp/owned", ".tmp/owned/program.source.yaml", [
+    { path: "program.source.yaml", kind: "file" }, { path: "quicker.source.json", kind: "file" },
+    { path: ".qkrpc/baseline.json", kind: "file" }, { path: "files/script.cs", kind: "file" },
+  ]), [{ path: ".tmp/owned/program.source.yaml", label: "program.source.yaml" }, { path: ".tmp/owned/files/script.cs", label: "files/script.cs" }]);
+});

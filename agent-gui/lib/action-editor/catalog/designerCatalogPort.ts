@@ -3,6 +3,7 @@ import {
   designerCatalogTargetKey,
   readDesignerCatalogContext,
   withDesignerCatalogContext,
+  designerCatalogHostBinding,
   type DesignerCatalogScope,
 } from "./designerCatalogContext";
 import { parseActionProjectBinding, sameActionProjectBinding } from "../../action-project-binding";
@@ -40,8 +41,9 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
   const values = new Map<string, unknown>();
   const pending = new Map<string, Pending>();
   let closed = false;
-  const remoteEnabled = context === undefined || (context !== null && context.expectedProjectBinding !== null);
-  const documentBound = context !== undefined && context !== null && context.expectedProjectBinding !== null;
+  const observedHost = designerCatalogHostBinding(context);
+  const remoteEnabled = context === undefined || Boolean(observedHost);
+  const documentBound = context !== undefined && context !== null && Boolean(observedHost);
 
   function shared<T>(requestKey: string, load: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (closed) return Promise.reject(new DesignerCatalogError("STALE_CATALOG_OWNER", "The document catalog has closed."));
@@ -94,12 +96,12 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
     },
     /** A local gesture needs a bound catalog; the exact call runner UI schema is verified before insertion. */
     canInsertResourceCall(kind: "action" | "global_subprogram"): boolean {
-      return !closed && documentBound && context?.expectedProjectBinding?.hostBinding.hostKind === "v1"
-        && context.expectedProjectBinding.hostBinding.capabilities[kind === "action" ? "resource.action.page.read" : "resource.globalSubprogram.page.read"] === true;
+      return !closed && context?.format !== "source-bundle" && documentBound && observedHost?.hostKind === "v1"
+        && observedHost.capabilities[kind === "action" ? "resource.action.page.read" : "resource.globalSubprogram.page.read"] === true;
     },
     get resourceActionOpenAvailable(): boolean {
-      return !closed && documentBound && Boolean(context?.cwd) && context?.expectedProjectBinding?.hostBinding.hostKind === "v1"
-        && context.expectedProjectBinding.hostBinding.capabilities[DESIGNER_RESOURCE_ACTION_OPEN_CAPABILITY] === true;
+      return !closed && context?.format !== "source-bundle" && documentBound && Boolean(context?.cwd) && observedHost?.hostKind === "v1"
+        && observedHost.capabilities[DESIGNER_RESOURCE_ACTION_OPEN_CAPABILITY] === true;
     },
     /** Local export has a persistence receipt: do not share, cache, retry, or cancel it when the catalog view hides. */
     async openResourceAction(actionId: string, requestId: string, sourceOwner: WorkspaceDocumentOwner): Promise<DesignerResourceActionOpenResult> {
@@ -143,16 +145,16 @@ export function createDesignerCatalogPort(scope: DesignerCatalogScope, fetcher: 
       }
     },
     supportsCapability(name: string): boolean {
-      return !closed && documentBound && context?.expectedProjectBinding?.hostBinding.capabilities[name] === true;
+      return !closed && documentBound && observedHost?.capabilities[name] === true;
     },
     /** Fresh native facts only; the shared request belongs to this document, not one observer. */
     async readInputContract(input: { stepRunnerKey: string; controlFieldValue?: string }, signal?: AbortSignal): Promise<StepRunnerInputContract> {
       if (closed) throw new DesignerCatalogError("STALE_CATALOG_OWNER", "The document catalog has closed.");
       signal?.throwIfAborted();
-      if (!documentBound || !context?.expectedProjectBinding)
+      if (!documentBound)
         throw new DesignerCatalogError("HOST_BINDING_REQUIRED", "A resolved document target is required for input contracts.");
       const target = readDesignerCatalogContext({ catalogContext: context });
-      const host = target?.expectedProjectBinding?.hostBinding;
+      const host = designerCatalogHostBinding(target);
       if (!host || (host.hostKind !== "v1" && host.hostKind !== "v2")
         || host.capabilities[STEP_RUNNER_INPUT_CONTRACT_CAPABILITY] !== true)
         throw new DesignerCatalogError("INPUT_CONTRACT_UNSUPPORTED", "The bound host does not provide runtime input contracts.", 503);

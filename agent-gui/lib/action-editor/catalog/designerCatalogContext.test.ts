@@ -37,3 +37,17 @@ test("catalog errors keep machine-readable identity codes without retry advice",
   const failure = designerCatalogFailure(new DesignerCatalogError("PROJECT_IDENTITY_LOADING", "Wait for this document's target."));
   assert.deepEqual(failure, { ok: false, code: "PROJECT_IDENTITY_LOADING", error: "Wait for this document's target.", retryable: false });
 });
+
+test("source catalog context keeps its actual format, owner and snapshot without a legacy project binding", () => {
+  const source: DesignerCatalogContext = { cwd: "D:/fixture", projectDirectory: "owned", format: "source-bundle", expectedProjectBinding: null,
+    sourceBundle: { ownerToken: "owner", expectedSnapshot: "snapshot", hostBinding: record.hostBinding } };
+  assert.deepEqual(readDesignerCatalogContext(withDesignerCatalogContext({}, source)), source);
+  const key = designerCatalogTargetKey(source);
+  for (const other of [{ ...source, sourceBundle: { ...source.sourceBundle!, ownerToken: "new-owner" } },
+    { ...source, sourceBundle: { ...source.sourceBundle!, expectedSnapshot: "different-snapshot" } }, context]) assert.notEqual(designerCatalogTargetKey(other), key);
+  for (const invalid of [{ ...source, expectedProjectBinding: record }, { ...source, cwd: undefined },
+    { ...source, format: undefined }, { ...source, sourceBundle: undefined },
+    { ...source, sourceBundle: { ...source.sourceBundle, hostBinding: undefined } }]) {
+    assert.throws(() => readDesignerCatalogContext({ catalogContext: invalid }), /source|Source|format/);
+  }
+});

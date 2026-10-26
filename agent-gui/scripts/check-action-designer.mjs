@@ -21,3 +21,14 @@ const result = spawnSync(process.execPath, [
 ], { cwd: root, stdio: "inherit" });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
+// The source-bundle spec also executes production server routes in its Node
+// worker; isolate their server condition from the existing client-only specs.
+if (result.status === 0) {
+  const source = spawnSync(process.execPath, [
+    "--conditions=react-server", "--import", "tsx", "--test", "--test-concurrency=1",
+    "--test-timeout=300000", "--import", "./scripts/agent-offline-network-guard.mjs",
+    "components/action-editor/SourceBundleDocumentEditor.browser.test.ts",
+  ], { cwd: root, stdio: "inherit" });
+  if (source.error) throw source.error;
+  process.exitCode = source.status ?? 1;
+}

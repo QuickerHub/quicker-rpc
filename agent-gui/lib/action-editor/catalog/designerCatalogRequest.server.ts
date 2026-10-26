@@ -6,6 +6,7 @@ import { sameActionProjectBinding } from "../../action-project-binding";
 import type { QkrpcRunOptions } from "../../qkrpc";
 import type { QkrpcRunResult } from "../../qkrpc-types";
 import { DesignerCatalogError, designerCatalogFailure, readDesignerCatalogContext, type DesignerCatalogScope } from "./designerCatalogContext";
+import { withSourceBundleCatalog } from "../../source-bundle-document.server";
 
 export type DesignerCatalogRequest = {
   scope: DesignerCatalogScope;
@@ -32,6 +33,12 @@ export async function runDesignerCatalogRequest(req: Request, envelope: unknown,
     const scope = readDesignerCatalogContext(envelope);
     return await runWithAgentRequestContextAsync({ cwd: scope?.cwd, abortSignal, executionState }, async () => {
       if (scope === null) throw new DesignerCatalogError("PROJECT_IDENTITY_LOADING", "The document target has not been resolved.");
+      if (scope?.format === "source-bundle") {
+        const source = scope.sourceBundle!;
+        return withSourceBundleCatalog({ path: `${scope.projectDirectory.replace(/\/$/, "")}/program.source.yaml`,
+          ownerToken: source.ownerToken, expectedSnapshot: source.expectedSnapshot }, source.hostBinding,
+          hostBinding => run({ scope, bound: true, rpcOptions: { abortSignal, hostBinding } }), abortSignal);
+      }
       if (scope && !scope.expectedProjectBinding) throw new DesignerCatalogError("HOST_BINDING_REQUIRED", "An unbound local document cannot query a host catalog.");
       const target = scope?.expectedProjectBinding ? { projectDirectory: scope.projectDirectory, projectBinding: scope.expectedProjectBinding } : undefined;
       const verified = target ? await requireActionProjectBinding(target.projectBinding.actionId, target) : undefined;

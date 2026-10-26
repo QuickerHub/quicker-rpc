@@ -63,6 +63,8 @@ export type QkrpcRunOptions = {
   hostBinding?: QkrpcHostBinding;
   expectedProjectBinding?: ActionProjectBinding | null;
   projectDirectory?: string;
+  /** Internal document protocols need complete JSON text rather than tool-display truncation. */
+  maxOutputChars?: number;
 };
 
 const MAX_STDOUT_CHARS = 120_000;
@@ -167,13 +169,13 @@ function resolveCwd(): string {
   return resolveEffectiveWorkingDirectory(undefined);
 }
 
-function truncate(text: string): { text: string; truncated: boolean } {
-  if (text.length <= MAX_STDOUT_CHARS) {
+function truncate(text: string, limit = MAX_STDOUT_CHARS): { text: string; truncated: boolean } {
+  if (text.length <= limit) {
     return { text, truncated: false };
   }
-  const head = text.slice(0, MAX_STDOUT_CHARS);
+  const head = text.slice(0, limit);
   return {
-    text: `${head}\n\n…[truncated ${text.length - MAX_STDOUT_CHARS} chars; narrow the query]`,
+    text: `${head}\n\n…[truncated ${text.length - limit} chars; narrow the query]`,
     truncated: true,
   };
 }
@@ -433,7 +435,7 @@ async function spawnQkrpcCli(
       settled = true;
       cleanup();
       if (cancelling) { reject(abortSignal?.reason); return; }
-      const { text, truncated: wasTruncated } = truncate(stdout);
+      const { text, truncated: wasTruncated } = truncate(stdout, options?.maxOutputChars);
       const exitCode = code ?? 1;
       resolve({
         ok: exitCode === 0,
@@ -511,6 +513,41 @@ export async function runQkrpcCliDirect(
   const json = options?.json !== false;
   const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
   return runBoundQkrpcCli(finalArgs, options);
+}
+
+/** Internal offline document protocol. Never enters the Agent connectivity/retry/bootstrap gate. */
+export async function runQkrpcSourceDocument(
+  args: Record<string, unknown>,
+  options?: Pick<QkrpcRunOptions, "abortSignal" | "timeoutMs" | "binaryPath" | "maxOutputChars">,
+): Promise<QkrpcRunResult> {
+  const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
+  abortSignal?.throwIfAborted();
+  if (!isCliTransportForced() && currentQkrpcTarget()?.gateway !== "cli") {
+    let dispatched = false;
+    let result: QkrpcRunResult | null;
+    try {
+      result = await invokeQkrpcHttp({ op: "source.document", args }, { ...options, abortSignal, onDispatch: () => { dispatched = true; } });
+    } catch (error) {
+      if (args.mode !== "save-local" || !dispatched) throw error;
+      return bindingFailure("WRITE_RESULT_UNKNOWN", "Local source save was dispatched before cancellation/failure. Inspect the bundle; do not replay.");
+    }
+    if (result) return result;
+    if (mustNotSpawnCli()) return serveTransportError(formatServeUnreachableMessage());
+  }
+  let started: boolean | undefined;
+  let result: QkrpcRunResult;
+  try {
+    result = await spawnQkrpcCli(["source", "document", "--json"], {
+      ...options, maxOutputChars: options?.maxOutputChars ?? 16 * 1024 * 1024, abortSignal, stdin: JSON.stringify(args),
+    }, (value) => { started = value; });
+  } catch (error) {
+    if (args.mode !== "save-local" || started === false) throw error;
+    return bindingFailure("WRITE_RESULT_UNKNOWN", "Local source save process may have written files before cancellation. Inspect the bundle; do not replay.");
+  }
+  if (args.mode === "save-local" && started !== false && result.parsed === null) {
+    return bindingFailure("WRITE_RESULT_UNKNOWN", "Local source save acknowledgement is unknown. Inspect the bundle before another save; do not replay.");
+  }
+  return result;
 }
 
 export async function runQkrpc(

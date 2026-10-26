@@ -14,7 +14,7 @@ export type ActionProjectMetaSummaryProps = {
   className?: string;
 };
 
-/** Read-only action/subprogram icon + title + description (from info.json). */
+/** Read-only metadata supplied by the owning document's storage adapter. */
 export function ActionProjectMetaSummary({
   icon,
   title,

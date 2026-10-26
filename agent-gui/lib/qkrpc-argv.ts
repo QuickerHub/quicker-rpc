@@ -196,6 +196,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         args: {
           dir: flagStr(flags, "dir"),
           dryRun: flagBool(flags, "dry-run"),
+          ...(flagStr(flags, "expected-source-snapshot") !== undefined ? { expectedSnapshot: flagStr(flags, "expected-source-snapshot") } : {}),
         },
       };
     }

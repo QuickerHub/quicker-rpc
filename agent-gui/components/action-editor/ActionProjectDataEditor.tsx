@@ -57,7 +57,7 @@ import type { ProgramDocumentMetadataPatch } from "@/lib/action-editor/document/
 import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult } from "@/lib/program-document-save";
 import { readProgramDocumentTargetClient, saveProgramDocumentClient } from "@/lib/program-document-save-client";
 import { actionProjectSyncTargetKey, type ActionProjectSyncTarget } from "@/lib/action-project-sync-target";
-import { ActionProjectTargetSummary } from "./ActionProjectTargetSummary";
+import { ActionProjectTargetSummary, SourceBundleTargetSummary } from "./ActionProjectTargetSummary";
 import {
   fetchGlobalSubProgramCatalog,
 } from "@/lib/action-editor/subprograms/globalSubProgramCatalog";
@@ -74,6 +74,8 @@ import { ActionDesignerHelpDialog } from "@/components/action-editor/ActionDesig
 import { useLiveProgramDocumentRegistry } from "@/lib/live-program-document.client";
 import { useWorkspaceDocumentNavigation } from "@/lib/workspace-document-navigation";
 import { createProgramDocumentLiveEndpoint } from "@/lib/action-editor/program/liveProgramDocumentEndpoint";
+import type { SourceBundleEditorStorage } from "./SourceBundleDocumentEditor";
+import { sourceBundleDirectory } from "@/lib/source-bundle-document";
 import "@/components/action-editor/action-editor-theme.css";
 import "@/components/action-editor/action-editor.css";
 import "@/components/action-editor/action-project-data-editor.css";
@@ -139,6 +141,7 @@ function ActionProjectSourceFileTabs({
 }
 
 export type ActionProjectDataEditorProps = {
+  sourceStorage?: SourceBundleEditorStorage;
   /** Presentation only; hiding the editor retains its session and pending saves. */
   active?: boolean;
   onPinStepToChat?: (tag: ProgramStepTag) => void;
@@ -166,6 +169,7 @@ function displayTitleFromProjectInfo(
 }
 
 export function ActionProjectDataEditor({
+  sourceStorage,
   active = true,
   onPinStepToChat,
   path,
@@ -178,6 +182,16 @@ export function ActionProjectDataEditor({
   onSaved,
   onSynced,
 }: ActionProjectDataEditorProps): JSX.Element {
+  const sourceClient = sourceStorage?.client;
+  const sourceDocument = sourceStorage?.state.document;
+  const sourceTitle = useMemo(() => {
+    if (!sourceDocument) return undefined;
+    try {
+      const identity: unknown = JSON.parse(sourceDocument.identityJson);
+      if (identity && typeof identity === "object" && "title" in identity && typeof identity.title === "string") return identity.title;
+    } catch { /* Display an explicit action identity when a title is unavailable. */ }
+    return sourceDocument.actionId;
+  }, [sourceDocument?.identityJson, sourceDocument?.actionId]);
   const liveDocuments = useLiveProgramDocumentRegistry();
   const liveNavigation = useWorkspaceDocumentNavigation();
   const liveInstanceId = useId();
@@ -188,6 +202,7 @@ export function ActionProjectDataEditor({
   const [sourceFilePreviews, setSourceFilePreviews] = useState<
     Record<string, SourceFilePreview>
   >({});
+  const [sourceYamlPreview, setSourceYamlPreview] = useState<SourceFilePreview>({ content: "", truncated: false, loading: true });
   const [editorContent, setEditorContent] = useState(content);
   const [contentTruncated, setContentTruncated] = useState(truncated);
   const [reloadError, setReloadError] = useState<string | null>(null);
@@ -296,12 +311,16 @@ export function ActionProjectDataEditor({
     try {
       const session = createProgramDocumentSession({ content: editorContent, identity: {
         documentKey: `${normalizeWorkspacePath(cwd)}::${normalizeWorkspacePath(path)}`,
+        ...(sourceDocument ? { storage: {
+          key: JSON.stringify(["source-bundle", sourceDocument.projectDirectoryAbsolute, sourceDocument.actionId, sourceDocument.hostBinding]),
+          version: sourceDocument.sourceSnapshot.revision,
+        } } : {}),
       } });
       return { session };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
-  }, [editorContent, parsed.ok, contentTruncated, cwd, path]);
+  }, [editorContent, parsed.ok, contentTruncated, cwd, path, sourceClient]);
   const session = sessionResult && "session" in sessionResult ? sessionResult.session : null;
   sessionRef.current = session ?? null;
   useEffect(() => {
@@ -337,11 +356,13 @@ export function ActionProjectDataEditor({
     return basenamePath(parent);
   }, [path]);
   const actionId = useMemo(() => {
+    if (sourceDocument) return sourceDocument.actionId;
     if (isEmbeddedSubProgram || isGlobalSubProgram) return "";
     return session?.getState().identity.projectBinding?.actionId ?? resolveActionIdFromProject(projectFolder, projectInfo ?? undefined) ?? "";
-  }, [isEmbeddedSubProgram, isGlobalSubProgram, projectFolder, projectInfo, session, documentRevision]);
+  }, [isEmbeddedSubProgram, isGlobalSubProgram, projectFolder, projectInfo, session, documentRevision, sourceDocument?.actionId]);
   const syncActionId = isEmbeddedSubProgram ? (parentActionId ?? "") : actionId;
   const projectDirectory = useMemo(() => {
+    if (sourceClient) return sourceBundleDirectory(path) || ".";
     if (isEmbeddedSubProgram) {
       return embeddedSubProgramProjectDirFromDataPath(path);
     }
@@ -349,7 +370,7 @@ export function ActionProjectDataEditor({
       return globalSubProgramProjectDirFromDataPath(path);
     }
     return projectFolder ? actionProjectDirFromName(projectFolder) : undefined;
-  }, [isEmbeddedSubProgram, isGlobalSubProgram, path, projectFolder]);
+  }, [isEmbeddedSubProgram, isGlobalSubProgram, path, projectFolder, sourceClient]);
   const syncProjectDirectory = useMemo(() => {
     if (isEmbeddedSubProgram && parentActionId) {
       return actionProjectDirFromName(parentActionId);
@@ -360,17 +381,21 @@ export function ActionProjectDataEditor({
     const projectDir = projectDirectory?.trim();
     const activeCwd = cwd.trim();
     if (!projectDir || !activeCwd) return undefined;
-    return { cwd: activeCwd, projectDir };
-  }, [cwd, projectDirectory]);
+    return { cwd: activeCwd, projectDir, ...(sourceClient ? { fileWritesReadOnly: true } : {}) };
+  }, [cwd, projectDirectory, sourceClient]);
   const infoJsonPath = useMemo(() => actionProjectInfoPathFromDataPath(path), [path]);
-  const metadataEnabled = Boolean(onSaveDocument) && !isEmbeddedSubProgram && !isGlobalSubProgram;
+  const metadataEnabled = !sourceClient && Boolean(onSaveDocument) && !isEmbeddedSubProgram && !isGlobalSubProgram;
   const mainAction = !isEmbeddedSubProgram && !isGlobalSubProgram;
   const projectBinding = session?.getState().identity.projectBinding;
-  const targetError = targetFailure && targetFailure.session === session ? targetFailure.error : undefined;
-  const targetBlocked = mainAction && (projectBinding === undefined || Boolean(targetError));
+  const targetError = sourceStorage?.state.error ?? (targetFailure && targetFailure.session === session ? targetFailure.error : undefined);
+  const targetBlocked = sourceClient ? sourceStorage!.state.blocked || sourceDocument?.capabilities.saveLocal !== true
+    : mainAction && (projectBinding === undefined || Boolean(targetError));
   const syncTarget: ActionProjectSyncTarget | undefined = mainAction && projectDirectory && projectBinding
     ? { projectDirectory, projectBinding } : undefined;
-  const catalogScope: DesignerCatalogScope = !mainAction ? undefined
+  const catalogScope: DesignerCatalogScope = sourceClient ? targetBlocked || !sourceDocument || !sourceStorage?.state.ownerToken || !projectDirectory ? null : {
+    format: "source-bundle", cwd, projectDirectory, expectedProjectBinding: null,
+    sourceBundle: { ownerToken: sourceStorage.state.ownerToken, expectedSnapshot: sourceDocument.sourceSnapshot.revision, hostBinding: sourceDocument.hostBinding },
+  } : !mainAction ? undefined
     : targetBlocked || !projectDirectory ? null
     : { cwd, projectDirectory, expectedProjectBinding: projectBinding ?? null };
   const catalogPort = useDocumentDesignerCatalogPort(catalogScope, session ?? null);
@@ -395,7 +420,7 @@ export function ActionProjectDataEditor({
     return () => ac.abort();
   }, [isEmbeddedSubProgram, isGlobalSubProgram, path, catalogPort]);
   const targetKey = actionProjectSyncTargetKey(syncTarget);
-  const syncOwnerKey = `${documentOwnerKey}::${targetKey}`;
+  const syncOwnerKey = `${documentOwnerKey}::${sourceClient ? sourceStorage?.state.ownerToken ?? "source-loading" : targetKey}`;
   const syncOwnerRef = useRef({ key: syncOwnerKey, session });
   syncOwnerRef.current = { key: syncOwnerKey, session };
   const hostSyncBusy = syncBusyOwner?.key === syncOwnerKey && syncBusyOwner.busy;
@@ -411,7 +436,7 @@ export function ActionProjectDataEditor({
   }, [syncOwnerKey, session]);
 
   useEffect(() => {
-    if (!mainAction || !session) return;
+    if (sourceClient || !mainAction || !session) return;
     const cancel = new AbortController();
     const isCurrent = () => !cancel.signal.aborted && sessionRef.current === session && documentOwnerKeyRef.current === documentOwnerKey;
     void (async () => {
@@ -424,9 +449,14 @@ export function ActionProjectDataEditor({
       setDocumentRevision((revision) => revision + 1);
     })();
     return () => cancel.abort();
-  }, [mainAction, session, documentOwnerKey, cwd, path]);
+  }, [mainAction, session, documentOwnerKey, cwd, path, sourceClient]);
 
   useEffect(() => {
+    if (sourceDocument && projectDirectory) {
+      setSourceFileTabs(buildActionProjectSourceFileTabs(projectDirectory, path,
+        sourceDocument.sourceSnapshot.files.map(file => ({ path: file.path, kind: "file" as const }))));
+      return;
+    }
     if (tab !== "source" || !projectDirectory?.trim() || !cwd.trim()) {
       return;
     }
@@ -447,7 +477,7 @@ export function ActionProjectDataEditor({
     return () => {
       cancelled = true;
     };
-  }, [cwd, path, projectDirectory, tab, infoRefreshKey]);
+  }, [cwd, path, projectDirectory, tab, infoRefreshKey, sourceDocument]);
 
   useEffect(() => {
     const normalizedPath = normalizeWorkspacePath(sourceFileTab);
@@ -502,6 +532,7 @@ export function ActionProjectDataEditor({
     const normalizedPath = normalizeWorkspacePath(sourceFileTab);
     const normalizedDataPath = normalizeWorkspacePath(path);
     if (normalizedPath === normalizedDataPath) {
+      if (sourceClient) return { path: normalizedDataPath, ...sourceYamlPreview, totalChars: undefined };
       return {
         path: normalizedDataPath,
         content: session?.getState().content ?? editorContent,
@@ -533,9 +564,12 @@ export function ActionProjectDataEditor({
     sourceFilePreviews,
     session,
     documentRevision,
+    sourceClient,
+    sourceYamlPreview,
   ]);
 
   const refreshProjectInfo = useCallback(async (isCurrent: () => boolean): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (sourceClient) return { ok: true };
     const readId = ++projectInfoReadRef.current;
     const ownsRead = () => isCurrent() && projectInfoReadRef.current === readId;
     if (!infoJsonPath) {
@@ -577,7 +611,7 @@ export function ActionProjectDataEditor({
       if (ownsRead() && metadataEnabled) setMetadataError(message);
       return { ok: false, error: message };
     }
-  }, [cwd, infoJsonPath, session, metadataEnabled]);
+  }, [cwd, infoJsonPath, session, metadataEnabled, sourceClient]);
 
   useEffect(() => {
     let cancelled = false;
@@ -611,7 +645,7 @@ export function ActionProjectDataEditor({
   }, [documentOwnerKey, session, refreshProjectInfo, onSynced]);
 
   const liveMetadata = session?.readMetadata();
-  const metaTitle = liveMetadata?.title ?? displayTitleFromProjectInfo(projectInfo, projectFolder);
+  const metaTitle = sourceTitle ?? liveMetadata?.title ?? displayTitleFromProjectInfo(projectInfo, projectFolder);
   const metaDescription = liveMetadata?.description ?? projectInfo?.description?.trim() ?? "";
   const metaIcon = liveMetadata?.icon ?? projectInfo?.icon;
 
@@ -664,7 +698,7 @@ export function ActionProjectDataEditor({
   const liveSessionId = useMemo(() => session ? `${liveInstanceId}:${++liveGeneration.current}` : undefined, [session, liveInstanceId]);
   const liveOwner = liveNavigation?.owner;
   useLayoutEffect(() => {
-    if (!liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
+    if (sourceClient || !liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
       || liveOwner.cwd !== cwd || liveOwner.path.replace(/\\/g, "/") !== path.replace(/\\/g, "/")) return;
     const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController, catalogPort,
       isCurrent: () => sessionRef.current === session && liveAvailability.current.session === session && liveAvailability.current.available
@@ -673,7 +707,7 @@ export function ActionProjectDataEditor({
       isLiveEditingBlocked: () => workspaceRef.current?.isLiveEditingBlocked() ?? true,
     });
     return liveDocuments.register(liveOwner, endpoint);
-  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, catalogPort]);
+  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, catalogPort, sourceClient]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
   }, []);
@@ -742,6 +776,7 @@ export function ActionProjectDataEditor({
 
   const handlePinStepToChat = useCallback(
     (stepId: string) => {
+      if (sourceClient) return;
       if (!active || !session || sessionRef.current !== session || session.isClosed()) return;
       if (workspaceRef.current?.flushPendingEdits() === false) {
         setPinStepFeedback("请先修正或放弃未确认的变量修改，再添加到对话。");
@@ -776,7 +811,7 @@ export function ActionProjectDataEditor({
       setPinStepFeedback("已添加到左侧当前对话输入框");
       window.setTimeout(() => setPinStepFeedback(null), 2500);
     },
-    [active, onPinStepToChat, programPinMeta, session],
+    [active, onPinStepToChat, programPinMeta, session, sourceClient],
   );
 
   const handleSave = useCallback(async () => {
@@ -795,7 +830,8 @@ export function ActionProjectDataEditor({
     let outcome: ProgramDocumentSaveResult;
     try {
       const ticket = started.ticket;
-      if (onSaveDocument || mainAction) {
+      if (sourceClient) outcome = await sourceClient.save(ticket);
+      else if (onSaveDocument || mainAction) {
         const request: ProgramDocumentSaveRequest = { path, content: ticket.content, expectedContent: ticket.baselineContent,
           ...(ticket.metadata ? { metadata: { content: ticket.metadata.content, expectedContent: ticket.metadata.baselineContent } } : {}),
           ...(mainAction ? { expectedProjectBinding: ticket.identity.projectBinding } : {}),
@@ -808,7 +844,9 @@ export function ActionProjectDataEditor({
     } catch (error) {
       outcome = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
-    const completed = session.completeSave(started.ticket, outcome);
+    const completed = session.completeSave(started.ticket, outcome.ok && outcome.sourceDocument ? { ok: true, identity: {
+      ...started.ticket.identity, storage: { ...started.ticket.identity.storage!, version: outcome.sourceDocument.sourceSnapshot.revision },
+    } } : outcome);
     if (sessionRef.current !== session || !sessionMountRef.current?.mounted) return;
     setSaving(completed.state.saving);
     setDirty(completed.state.dirty);
@@ -832,7 +870,39 @@ export function ActionProjectDataEditor({
     setHasSavedLocalChanges(true);
     setInfoRefreshKey((value) => value + 1);
     onSaved?.();
-  }, [active, onSave, onSaveDocument, onSaved, session, externalConflict, metadataConflict, path, cwd, hostSyncBusy, targetBlocked, mainAction]);
+  }, [active, onSave, onSaveDocument, onSaved, session, externalConflict, metadataConflict, path, cwd, hostSyncBusy, targetBlocked, mainAction, sourceClient]);
+
+  useEffect(() => {
+    if (!sourceClient || !sourceDocument || !session || tab !== "source" || normalizeWorkspacePath(sourceFileTab) !== normalizeWorkspacePath(path)) return;
+    const current = session.getState();
+    if (current.saving) { setSourceYamlPreview({ content: "", truncated: false, loading: true }); return; }
+    if (!current.bodyDirty) { setSourceYamlPreview({ content: sourceDocument.sourceYaml, truncated: false, loading: false }); return; }
+    const ownerToken = sourceStorage?.state.ownerToken;
+    let cancelled = false;
+    setSourceYamlPreview({ content: "", truncated: false, loading: true });
+    void sourceClient.preview(current.content, current.baselineContent).then(result => {
+      if (cancelled || sessionRef.current !== session || session.getState().revision !== current.revision
+        || sourceClient.getState().ownerToken !== ownerToken) return;
+      setSourceYamlPreview(result.ok ? { content: result.document.preview!.sourceYaml, truncated: false, loading: false }
+        : { content: "", truncated: false, loading: false, error: result.error });
+    });
+    return () => { cancelled = true; };
+  }, [sourceClient, sourceDocument, session, documentRevision, saving, tab, sourceFileTab, path, sourceStorage?.state.ownerToken]);
+
+  const handleSourceSync = useCallback(async () => {
+    if (!sourceClient || !session || !active || targetBlocked || hostSyncBusy || !beforeDocumentSync()) return;
+    const identity = session.getState().identity;
+    handleSyncBusyChange(true); setSaveError(null);
+    try {
+      const result = await sourceClient.sync();
+      if (sessionRef.current !== session || !sessionMountRef.current?.mounted) return;
+      if (!result.ok) { setSaveError(result.error); return; }
+      const reconciled = session.reconcileStorageVersion(identity, result.document.sourceSnapshot.revision);
+      if (!reconciled.ok) { setSaveError(reconciled.error); return; }
+      setDocumentRevision(value => value + 1);
+      await onSynced?.();
+    } finally { if (sessionRef.current === session) handleSyncBusyChange(false); }
+  }, [sourceClient, session, active, targetBlocked, hostSyncBusy, beforeDocumentSync, handleSyncBusyChange, onSynced]);
 
   if (contentTruncated) {
     return (
@@ -875,8 +945,18 @@ export function ActionProjectDataEditor({
           title={metaTitle}
           description={metaDescription}
         />
-        {mainAction ? <ActionProjectTargetSummary binding={projectBinding} error={targetError} /> : null}
-        {actionId ? (
+        {mainAction && !sourceClient ? <ActionProjectTargetSummary binding={projectBinding} error={targetError} /> : null}
+        {sourceDocument ? <SourceBundleTargetSummary actionId={sourceDocument.actionId} host={sourceDocument.hostBinding} /> : null}
+        {sourceClient && sourceDocument ? <div className="action-project-data-editor-actions" data-source-bundle-status>
+          <p className="workspace-explorer-hint">{sourceDocument.pending.status === "pending" ? "本地待同步" : "本地与提交基线一致"} · 当前宿主状态未核验</p>
+          <p className="workspace-explorer-hint">动作标题、说明和图标只读；外置资源只读，文件引用保留。源码行号映射尚未提供，暂不能加入实时对话。</p>
+          {targetError ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">{targetError}</p> : null}
+          <button type="button" className="action-project-data-editor-sync" onClick={() => void handleSourceSync()}
+            disabled={!active || dirty || saving || hostSyncBusy || targetBlocked || sourceDocument.hostBinding?.capabilities["action.source.write"] !== true}>
+            {hostSyncBusy ? "同步中…" : "同步到 Quicker"}
+          </button>
+          <details><summary>源码 codec 来源</summary><pre>{JSON.stringify(sourceDocument.codec, null, 2)}</pre></details>
+        </div> : actionId ? (
           <div className="action-project-data-editor-actions">
             <div className="action-project-data-editor-actions-row">
               <ActionProjectToolbar
@@ -974,9 +1054,9 @@ export function ActionProjectDataEditor({
           role="tab"
           aria-selected={tab === "source"}
           className={`action-project-data-editor-tab${tab === "source" ? " active" : ""}`}
-          onClick={() => setTab("source")}
+          onClick={() => { if (!sourceClient || workspaceRef.current?.flushPendingEdits() !== false) setTab("source"); else setSaveError("请先修正或放弃未确认的修改，再查看源码。"); }}
         >
-          源码 JSON
+          {sourceClient ? "源码 YAML（只读）" : "源码 JSON"}
         </button>
         <div className="action-project-data-editor-tab-actions">
           <button
@@ -1041,7 +1121,7 @@ export function ActionProjectDataEditor({
               globalSubPrograms={globalCatalogState.port === catalogPort ? globalCatalogState.items : []}
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
               onHandleChange={handleWorkspaceChange}
-              onPinStepToChat={handlePinStepToChat}
+              onPinStepToChat={sourceClient ? undefined : handlePinStepToChat}
               metadataPanel={metadataEnabled && liveMetadata ? <ProgramAppearanceEditor
                 value={liveMetadata} disabled={!active || hostSyncBusy} onChange={handleMetadataChange} onSave={() => void handleSave()} /> : undefined}
             />
