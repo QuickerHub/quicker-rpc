@@ -14,6 +14,11 @@ metadata
 
 `build-agent` 使用 `Publish-QuickerAgent.ps1 -SkipQkrpcBuild` 一次性编译并打 Electron NSIS 包。
 
+Release 仅上传 `qkrpc-{版本}-win-x64.zip`、`qkrpc-{版本}-win-x64-setup.exe`、
+`quicker-agent-{版本}-x64-setup.exe` 和 `latest.yml`。CI artifacts 与本地补发入口也使用
+版本化文件，不再上传无版本号副本。`latest.yml` 保留对版本化 Agent 安装包的引用；
+固定下载入口通过 Release 元数据或下载页解析版本，无需额外附件。
+
 构建前会跑 **preflight-release-gate**（含 `verify-nsis-installer-assets.mjs`），在几秒内拦截 NSIS 资源路径错误。
 
 ## workflow_dispatch 是什么

@@ -75,6 +75,6 @@ EdgeOne 暂不支持 CLI 添加自定义域名，需在**国内**控制台操作
 
 - QuickerAgent（Bitiful，先读 version.txt）：`https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/version.txt` → `quicker-agent-<版本>-x64-setup.exe`
 - QuickerAgent（版本归档示例）：`https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/quicker-agent-0.8.5-x64-setup.exe`
-- qkrpc CLI（GitHub latest）：`https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe`
+- qkrpc CLI：构建时读取 GitHub 最新 Release tag，生成 `https://github.com/QuickerHub/quicker-rpc/releases/download/v<版本>/qkrpc-<版本>-win-x64-setup.exe`；API 不可用时使用 `version.json`。固定入口为 [最新 Release 页面](https://github.com/QuickerHub/quicker-rpc/releases/latest)。
 
 `release-cli.yml` 默认**不在 CI 上传 Bitiful**（海外 runner 直传国内 OSS 慢）。维护者用 `publish/Upload-QuickerAgentToBitiful.ps1` 本地上传；`-WaitForCi` 会自动调用。需恢复 CI 上传时在仓库 Variables 设 `BITIFUL_UPLOAD_IN_CI=true`。

@@ -920,7 +920,7 @@ function Get-QkrpcLatestAgentSetupName {
 }
 
 function Get-QkrpcLatestAgentSetupDownloadUrl {
-    return 'https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe'
+    return 'https://github.com/QuickerHub/quicker-rpc/releases/latest'
 }
 
 function Get-QkrpcPinnedAgentSetupDownloadUrl {
@@ -931,7 +931,8 @@ function Get-QkrpcPinnedAgentSetupDownloadUrl {
         $normalizedTag = "v$normalizedTag"
     }
 
-    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/quicker-agent-win-x64-setup.exe"
+    $setupName = Get-QuickerAgentSetupName -Version $normalizedTag
+    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/$setupName"
 }
 
 function Get-QuickerAgentPinnedSetupDownloadUrl {
@@ -979,7 +980,7 @@ function Download-QuickerAgentInstallerFromRelease {
 }
 
 function Get-QkrpcLatestSetupDownloadUrl {
-    return 'https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe'
+    return 'https://github.com/QuickerHub/quicker-rpc/releases/latest'
 }
 
 function Get-QkrpcPinnedSetupDownloadUrl {
@@ -990,7 +991,8 @@ function Get-QkrpcPinnedSetupDownloadUrl {
         $normalizedTag = "v$normalizedTag"
     }
 
-    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/qkrpc-win-x64-setup.exe"
+    $setupName = Get-QuickerRpcCliSetupName -Version $normalizedTag
+    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/$setupName"
 }
 
 function Get-QuickerRpcSemVerFromVersion {
@@ -1280,12 +1282,10 @@ function New-QkrpcReleaseNotesBody {
         [string]$Changelog = ''
     )
 
-    $setupLatest = Get-QkrpcLatestSetupDownloadUrl
     $setupPinned = Get-QkrpcPinnedSetupDownloadUrl -Tag $Tag
-    $setupAsset = Get-QkrpcLatestCliSetupName
-    $agentLatest = Get-QkrpcLatestAgentSetupDownloadUrl
+    $setupAsset = Get-QuickerRpcCliSetupName -Version $Tag
     $agentPinned = Get-QkrpcPinnedAgentSetupDownloadUrl -Tag $Tag
-    $agentAsset = Get-QkrpcLatestAgentSetupName
+    $agentAsset = Get-QuickerAgentSetupName -Version $Tag
 
     $sections = @()
     if (-not [string]::IsNullOrWhiteSpace($Changelog)) {
@@ -1305,20 +1305,20 @@ function New-QkrpcReleaseNotesBody {
         '',
         '### Install qkrpc CLI',
         '',
-        "1. Download [**$setupAsset**]($setupLatest) from GitHub Releases (or pinned: $setupPinned).",
+        "1. Download [**$setupAsset**]($setupPinned) from this GitHub Release.",
         '2. Run the installer (adds `%LOCALAPPDATA%\Programs\qkrpc` to user PATH).',
         '3. Open a **new** terminal.',
         '',
         'Silent install (optional):',
         '',
         '```powershell',
-        "Invoke-WebRequest -Uri '$setupLatest' -OutFile `"`$env:TEMP\qkrpc-setup.exe`" -UseBasicParsing",
+        "Invoke-WebRequest -Uri '$setupPinned' -OutFile `"`$env:TEMP\qkrpc-setup.exe`" -UseBasicParsing",
         'Start-Process -FilePath "$env:TEMP\qkrpc-setup.exe" -ArgumentList "/VERYSILENT" -Wait',
         '```',
         '',
         '### Install QuickerAgent (desktop UI)',
         '',
-        "Download [**$agentAsset**]($agentLatest) (or pinned: $agentPinned). Bundles the static React UI, Node Agent service, portable Node, and qkrpc; still requires Quicker + the appropriate V1/V2 RPC plugin and model configuration.",
+        "Download [**$agentAsset**]($agentPinned). Bundles the static React UI, Node Agent service, portable Node, and qkrpc; still requires Quicker + the appropriate V1/V2 RPC plugin and model configuration.",
         '',
         '### Verify',
         '',

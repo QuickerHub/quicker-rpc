@@ -141,7 +141,7 @@ qkrpc action run --id <guid> --trace --json   # MCP: qkrpc_action_debug
 - **交付事实**：分别记录分支实现、CI、主线合并、本地安装和真实 V1/V2 动作验收；部分保存、未验证能力与剩余工作保留明确状态。跨对话延续以本文件及产品计划为准，无需依赖聊天记忆。正式发布仍走下述发布规则。
 - **日常热更新**：`-t` 只递增 `QuickerRpc/version.json` **第四段** revision；**不能**代替 getquicker 正式包。
 - **正式发布**：第三段 +1（`X.Y.Z.R` → `X.Y.(Z+1).0`）；`QuickerRpc/version.json` 只能递增。Cursor **`/publish`** → [quicker-rpc-publish](.cursor/skills/quicker-rpc-publish/SKILL.md)。
-- **GitHub Release CLI**：`.\publish\Publish-GitHubRelease.ps1`；用户安装 [Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 的 `qkrpc-win-x64-setup.exe`。
+- **GitHub Release CLI**：`.\publish\Publish-GitHubRelease.ps1`；用户安装 [Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 的 `qkrpc-{版本}-win-x64-setup.exe`；Release 不上传无版本号副本。
 - **合并前**：相关 `dotnet test` 通过；改 agent-gui UI 则 `dev_frontend_check` 通过。
 
 | 产物 | 路径 |

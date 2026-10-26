@@ -41,13 +41,13 @@ metadata:
 | Changelog | `publish/changelogs/vX.Y.Z.md`（**必须 commit 后再打 tag**） |
 | Quicker 包 | `quicker.rpc`（`build.ps1 -Publish -NoVersion`） |
 | 分享动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
-| CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-win-x64-setup.exe`（latest）、zip 便携包 |
+| CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-{semver}-win-x64.zip`；不上传无版本号副本 |
 | Agent Release | `quicker-agent-{semver}-x64-setup.exe`（GitHub Release + **本地/CI** Bitiful）；Bitiful 同步 `version.txt` + **`latest.yml`**（electron-updater；须与 Release 版本一致；**勿**依赖仓库内陈旧的 `publish/latest.yml`）；**勿**上传 `quicker-agent-win-x64-setup.exe` 固定别名 |
 | QuickerAgent 动作页 | `aa5917ad-1256-4c73-7022-08debe3efcbe`；源文件 `quicker-agent/actions/.../page.html`（`{{QUICKER_AGENT_SEMVER}}` 由 `Sync-QuickerAgentActionDoc.ps1` 填充；手动 sync 默认 Bitiful `version.txt`，`-WaitForCi` 传 Release 版本） |
 
 ## 用户安装 CLI
 
-下载 [qkrpc-win-x64-setup.exe](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe) 并运行。**安装包由 GitHub Actions**（`release-cli.yml` + Inno Setup）编译；本地发布无需 Inno Setup。离线兜底：`Publish-GitHubRelease.ps1 -LocalBuild`（需本机 ISCC）。
+从 [最新 Release](https://github.com/QuickerHub/quicker-rpc/releases/latest) 下载 `qkrpc-{版本}-win-x64-setup.exe` 并运行。**安装包由 GitHub Actions**（`release-cli.yml` + Inno Setup）编译；本地发布无需 Inno Setup。离线兜底：`Publish-GitHubRelease.ps1 -LocalBuild`（需本机 ISCC）。
 
 ## 脚本说明
 

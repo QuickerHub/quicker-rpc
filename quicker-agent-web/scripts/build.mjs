@@ -20,8 +20,6 @@ const GITHUB_REPO = "QuickerHub/quicker-rpc";
 const BITIFUL_DOWNLOAD_PREFIX =
   "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent";
 const BITIFUL_VERSION_TXT_URL = `${BITIFUL_DOWNLOAD_PREFIX}/version.txt`;
-const QKRPC_DOWNLOAD_URL =
-  "https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe";
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 const REPO_URL = `https://github.com/${GITHUB_REPO}`;
 const README_URL = `${REPO_URL}#quickeragent-agent-gui`;
@@ -133,13 +131,14 @@ async function main() {
   const downloadVersion = bitifulVersion ?? fromJson.semver;
   const displayVersion = releaseTag.replace(/^v/i, "");
   const downloadUrl = `${BITIFUL_DOWNLOAD_PREFIX}/quicker-agent-${downloadVersion}-x64-setup.exe`;
+  const qkrpcDownloadUrl = `${REPO_URL}/releases/download/${releaseTag}/qkrpc-${displayVersion}-win-x64-setup.exe`;
 
   const vars = {
     RELEASE_TAG: releaseTag,
     DISPLAY_VERSION: displayVersion,
     VERSION_FULL: fromJson.full,
     DOWNLOAD_URL: downloadUrl,
-    QKRPC_DOWNLOAD_URL,
+    QKRPC_DOWNLOAD_URL: qkrpcDownloadUrl,
     RELEASES_URL,
     REPO_URL,
     README_URL,

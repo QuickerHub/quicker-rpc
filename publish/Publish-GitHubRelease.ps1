@@ -67,11 +67,9 @@ Assert-QuickerRpcVersionMonotonic `
 $tagName = "v$semantic"
 $zipName = Get-QuickerRpcCliZipName -Version $semantic
 $zipPath = Join-Path $RepoRoot "publish\$zipName"
-$latestZipPath = Join-Path $RepoRoot "publish\$((Get-QkrpcLatestCliZipName))"
 $setupName = Get-QuickerRpcCliSetupName -Version $semantic
 $setupPath = Join-Path $RepoRoot "publish\$setupName"
-$latestSetupPath = Join-Path $RepoRoot "publish\$((Get-QkrpcLatestCliSetupName))"
-$installUrl = Get-QkrpcLatestSetupDownloadUrl
+$installUrl = Get-QkrpcPinnedSetupDownloadUrl -Tag $tagName
 
 if (-not $ReleaseTitle) {
     $ReleaseTitle = "qkrpc $tagName"
@@ -91,10 +89,6 @@ Run publish-rpc.ps1 first (or omit -SkipBuild with -LocalBuild).
 "@
     }
 
-    if (-not (Test-Path -LiteralPath $latestZipPath)) {
-        throw "Latest CLI zip alias not found: $latestZipPath"
-    }
-
     if (-not (Test-Path -LiteralPath $setupPath)) {
         throw @"
 CLI setup installer not found: $setupPath
@@ -102,11 +96,7 @@ Run publish-rpc.ps1 first (requires Inno Setup 6 / ISCC.exe), or omit -SkipBuild
 "@
     }
 
-    if (-not (Test-Path -LiteralPath $latestSetupPath)) {
-        throw "Latest setup alias not found: $latestSetupPath"
-    }
-
-    return @($zipPath, $latestZipPath, $setupPath, $latestSetupPath)
+    return @($zipPath, $setupPath)
 }
 
 function Invoke-LocalReleaseUpload {
