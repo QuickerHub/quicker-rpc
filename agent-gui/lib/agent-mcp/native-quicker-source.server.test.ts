@@ -273,6 +273,16 @@ test("file snapshots reject replacement or edits within either API and reported 
   assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, pathBefore: { ...path, ino: Number.MAX_SAFE_INTEGER + 1 } }, "win32"), false);
 });
 
+test("production bigint snapshots preserve inode and timestamp precision above JavaScript safe integers", () => {
+  const path = { dev: 0n, ino: 10414574141510902n, birthtimeMs: 1770000000000n, mtimeMs: 1770000001000n, size: 177n,
+    birthtimeNs: 1770000000000000001n, mtimeNs: 1770000001000000001n };
+  const handle = { ...path, dev: 382828426n };
+  const snapshot = { pathBefore: path, pathAfter: { ...path }, handleBefore: handle, handleAfter: { ...handle } };
+  assert.equal(localMcpFileSnapshotsMatch(snapshot, "win32"), true);
+  assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, pathAfter: { ...path, ino: path.ino + 1n } }, "win32"), false);
+  assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, handleAfter: { ...handle, mtimeNs: handle.mtimeNs + 1n } }, "win32"), false);
+});
+
 test("production file reader reads an owned file and rejects cloud-named and linked roots", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "qkrpc-native-source-"));
   t.after(() => rm(root, { recursive: true, force: true }));

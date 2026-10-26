@@ -111,42 +111,47 @@ export async function assertSafeLocalMcpPath(path: string, signal?: AbortSignal,
 export async function readGuardedLocalMcpFile(path: string, signal?: AbortSignal): Promise<SourceFile> {
   await assertSafeLocalMcpPath(path, signal);
   const absolute = resolve(path);
-  const pathBefore = await lstat(absolute);
+  const pathBefore = await lstat(absolute, { bigint: true });
   if (!pathBefore.isFile() || pathBefore.isSymbolicLink()) throw new NativeQuickerMcpError("unavailable");
   const handle = await open(absolute, "r");
   try {
-    const before = await handle.stat();
+    const before = await handle.stat({ bigint: true });
     if (!before.isFile() || before.size > MAX_SETTINGS_BYTES
       || !localMcpFileSnapshotsMatch({ pathBefore, pathAfter: pathBefore, handleBefore: before, handleAfter: before })) throw new NativeQuickerMcpError("unavailable");
     const bytes = Buffer.alloc(MAX_SETTINGS_BYTES + 1);
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
-    const after = await handle.stat();
-    const current = await lstat(absolute);
-    if (bytesRead > MAX_SETTINGS_BYTES || bytesRead !== before.size || !current.isFile() || current.isSymbolicLink()
+    const after = await handle.stat({ bigint: true });
+    const current = await lstat(absolute, { bigint: true });
+    if (bytesRead > MAX_SETTINGS_BYTES || BigInt(bytesRead) !== before.size || !current.isFile() || current.isSymbolicLink()
       || !localMcpFileSnapshotsMatch({ pathBefore, pathAfter: current, handleBefore: before, handleAfter: after })) throw new NativeQuickerMcpError("unavailable");
     signal?.throwIfAborted();
     // Preserve both stable observations; Windows path stat may not report a device number.
     return { raw: bytes.subarray(0, bytesRead), fileIdentity: JSON.stringify({
-      path: [pathBefore.dev, pathBefore.ino, pathBefore.birthtimeMs],
-      handle: [before.dev, before.ino, before.birthtimeMs],
+      path: [String(pathBefore.dev), String(pathBefore.ino), String(pathBefore.birthtimeNs)],
+      handle: [String(before.dev), String(before.ino), String(before.birthtimeNs)],
     }) };
   } finally { await handle.close(); }
 }
 
-type LocalMcpFileSnapshot = { dev: number; ino: number; birthtimeMs: number; mtimeMs: number; size: number };
+type LocalMcpFileSnapshot = {
+  dev: number | bigint; ino: number | bigint; birthtimeMs: number | bigint;
+  mtimeMs: number | bigint; size: number | bigint; birthtimeNs?: bigint; mtimeNs?: bigint;
+};
 /** Compare within each API first; only Windows path.dev=0 means "not reported" across APIs. */
 export function localMcpFileSnapshotsMatch(snapshots: {
   pathBefore: LocalMcpFileSnapshot; pathAfter: LocalMcpFileSnapshot;
   handleBefore: LocalMcpFileSnapshot; handleAfter: LocalMcpFileSnapshot;
 }, platform: NodeJS.Platform = process.platform): boolean {
   const { pathBefore, pathAfter, handleBefore, handleAfter } = snapshots;
-  const valid = (value: LocalMcpFileSnapshot) => [value.dev, value.ino, value.size].every((n) => Number.isSafeInteger(n) && n >= 0)
-    && Number.isFinite(value.birthtimeMs) && Number.isFinite(value.mtimeMs);
+  const valid = (value: LocalMcpFileSnapshot) => [value.dev, value.ino, value.size].every((n) => typeof n === "bigint" ? n >= 0n : Number.isSafeInteger(n) && n >= 0)
+    && [value.birthtimeMs, value.mtimeMs].every((n) => typeof n === "bigint" || Number.isFinite(n));
   const same = (a: LocalMcpFileSnapshot, b: LocalMcpFileSnapshot) => a.dev === b.dev && a.ino === b.ino
-    && a.birthtimeMs === b.birthtimeMs && a.mtimeMs === b.mtimeMs && a.size === b.size;
+    && a.birthtimeMs === b.birthtimeMs && a.mtimeMs === b.mtimeMs && a.size === b.size
+    && a.birthtimeNs === b.birthtimeNs && a.mtimeNs === b.mtimeNs;
   const sameAcrossApis = (path: LocalMcpFileSnapshot, handle: LocalMcpFileSnapshot) =>
-    (path.dev === handle.dev || platform === "win32" && path.dev === 0)
-    && path.ino === handle.ino && path.birthtimeMs === handle.birthtimeMs && path.mtimeMs === handle.mtimeMs && path.size === handle.size;
+    (path.dev === handle.dev || platform === "win32" && (path.dev === 0 || path.dev === 0n))
+    && path.ino === handle.ino && path.birthtimeMs === handle.birthtimeMs && path.mtimeMs === handle.mtimeMs && path.size === handle.size
+    && path.birthtimeNs === handle.birthtimeNs && path.mtimeNs === handle.mtimeNs;
   return [pathBefore, pathAfter, handleBefore, handleAfter].every(valid)
     && same(pathBefore, pathAfter) && same(handleBefore, handleAfter)
     && sameAcrossApis(pathBefore, handleBefore) && sameAcrossApis(pathAfter, handleAfter);
