@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuickerRpc.AgentModel.XAction.Source;
 using QuickerRpc.Console.Serve;
 
 namespace QuickerRpc.Console;
@@ -11,6 +12,7 @@ internal static partial class Program
         {
             id = options.Id ?? options.Code, dir = options.Dir, dryRun = options.DryRun,
             minLines = options.MinLines, noAutoFiles = options.NoAutoFiles,
+            expectedSnapshot = options.ExpectedSourceSnapshot,
         });
         QuickerRpc.Contracts.Rpc.QuickerRpcHostBinding? attemptedBinding = null;
         try
@@ -21,7 +23,7 @@ internal static partial class Program
             else
             {
                 // Validate the local snapshot before connecting to Quicker.
-                var prepared = save ? ActionSourceWorkspace.Prepare(options.Dir ?? string.Empty) : null;
+                var prepared = save ? ActionSourceWorkspace.Prepare(options.Dir ?? string.Empty, options.ExpectedSourceSnapshot) : null;
                 attemptedBinding = prepared?.HostBinding;
                 if (save && prepared!.HostBinding is null)
                     throw new QuickerRpcClientException(QuickerRpc.Contracts.Rpc.QuickerRpcBindingErrors.Required,
@@ -47,12 +49,18 @@ internal static partial class Program
                         options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
                 var token = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
                 result = save
-                    ? await ActionSourceServeOps.SaveAsync(session.Rpc, args, token).ConfigureAwait(false)
+                    ? await ActionSourceServeOps.SavePreparedAsync(session.Rpc, args, prepared!, token).ConfigureAwait(false)
                     : await ActionSourceServeOps.OpenAsync(session.Rpc, args, token).ConfigureAwait(false);
                 result.HostBinding = attemptedBinding ?? QuickerRpcClient.GetBinding(session.Rpc);
             }
             global::System.Console.WriteLine(JsonSerializer.Serialize(result, QkrpcJson.CliOutput));
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (ProgramSourceException ex)
+        {
+            global::System.Console.WriteLine(JsonSerializer.Serialize(new ServeInvokeResponse
+            { Ok = false, Error = ex.Code, Message = ex.Message, HostBinding = attemptedBinding }, QkrpcJson.CliOutput));
+            return ExitCodes.Error;
         }
         catch (QuickerRpcClientException ex)
         {

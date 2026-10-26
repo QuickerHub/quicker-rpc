@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using QuickerRpc.AgentModel.Guides;
 using QuickerRpc.AgentModel.Schemas;
+using QuickerRpc.AgentModel.XAction.Source;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console.Serve;
@@ -36,6 +37,7 @@ internal static class ServeInvokeDispatcher
             return Fail("MISSING_OP", "Provide op (e.g. ping, wait, action.list).");
         }
         var localGuide = normalized.StartsWith("guide.", StringComparison.Ordinal);
+        var localOnly = localGuide || normalized == "source.document";
         var schemaReadRequested = normalized == "step-runner.get" && args.ValueKind == JsonValueKind.Object && args.TryGetProperty("read", out _);
         if (schemaReadRequested)
         {
@@ -52,7 +54,7 @@ internal static class ServeInvokeDispatcher
         ServeInvokeResponse TimedOut() => new()
         {
             Ok = false, Error = "RPC_TIMEOUT", Message = $"RPC timed out after {timeoutSeconds}s.",
-            HostBinding = localGuide ? null : pool.Binding ?? binding,
+            HostBinding = localOnly ? null : pool.Binding ?? binding,
         };
         ServeInvokeResponse Complete(ServeInvokeResponse response)
         {
@@ -63,7 +65,7 @@ internal static class ServeInvokeDispatcher
         {
             var preservesWriteReceipt = failure.Error == QuickerRpcBindingErrors.UnknownWriteResult;
             if (!preservesWriteReceipt) requestAbort.ThrowIfCancellationRequested();
-            if (!localGuide)
+            if (!localOnly)
             {
                 failure.HostBinding ??= pool.Binding ?? binding;
                 await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
@@ -87,6 +89,9 @@ internal static class ServeInvokeDispatcher
                     _ => Fail("UNKNOWN_OP", $"Unknown guide op: {op}"),
                 });
             }
+            if (normalized == "source.document")
+                // Local writes can carry a confirmed/partial receipt even if cancellation arrived late.
+                return ActionSourceServeOps.Document(args, cancellationToken);
             if (normalized == "resource.catalog.page" && !ResourceCatalogServeOps.TryPrepare(args, out _, out _, out var invalidCatalog))
                 return Complete(invalidCatalog!);
             if (normalized == "action.binding")
@@ -132,9 +137,12 @@ internal static class ServeInvokeDispatcher
                     }
                 }
             }
+            ActionSourceWorkspace.Prepared? preparedSource = null;
             if (normalized == "action.save" && !ServeJsonArgs.GetBool(args, "dryRun"))
             {
-                var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty);
+                var prepared = ActionSourceWorkspace.Prepare(ActionSourceServeOps.ResolveDirectory(args) ?? string.Empty,
+                    ActionSourceServeOps.ExpectedSnapshot(args));
+                preparedSource = prepared;
                 if (prepared.HostBinding is null) return Complete(Fail(QuickerRpcBindingErrors.Required, "This bundle has no verified host binding. Reopen explicitly."));
                 if (binding is not null && !binding.SameDestination(prepared.HostBinding))
                     return Complete(Fail(QuickerRpcBindingErrors.Mismatch, "Requested host differs from the source bundle."));
@@ -156,14 +164,20 @@ internal static class ServeInvokeDispatcher
             {
                 "ping" => await PingAsync(pool, cancellationToken).ConfigureAwait(false),
                 "wait" => await WaitAsync(args, cancellationToken).ConfigureAwait(false),
-                "action.save" when ServeJsonArgs.GetBool(args, "dryRun") =>
-                    await ActionSourceServeOps.SaveAsync(null, args, cancellationToken).ConfigureAwait(false),
+                "action.save" => await ActionSourceServeOps.SavePreparedAsync(
+                    await pool.GetRpcAsync(cancellationToken).ConfigureAwait(false), args, preparedSource!, cancellationToken).ConfigureAwait(false),
                 _ => await RpcOpAsync(pool, normalized, args, cancellationToken)
                     .ConfigureAwait(false),
             };
             response.HostBinding = pool.Binding ?? binding;
+            if (response.Error == QuickerRpcBindingErrors.UnknownWriteResult)
+                await pool.InvalidateDisconnectedAsync().ConfigureAwait(false);
             // An operation's receipt may describe persisted or unconfirmed writes even after cancellation.
             return response;
+        }
+        catch (ProgramSourceException ex)
+        {
+            return await FailureAsync(Fail(ex.Code, ex.Message)).ConfigureAwait(false);
         }
         catch (QuickerRpcClientException ex)
         {
@@ -210,7 +224,6 @@ internal static class ServeInvokeDispatcher
             "action.mention-search" => await ActionMentionSearchAsync(pool, args, token).ConfigureAwait(false),
             "action.get" => await ActionGetAsync(rpc, args, token).ConfigureAwait(false),
             "action.open" => await ActionSourceServeOps.OpenAsync(rpc, args, token).ConfigureAwait(false),
-            "action.save" => await ActionSourceServeOps.SaveAsync(rpc, args, token).ConfigureAwait(false),
             "action.shared.get" => await ActionSharedGetAsync(rpc, args, token).ConfigureAwait(false),
             "action.library.search" => await ActionLibrarySearchAsync(rpc, args, token).ConfigureAwait(false),
             "action.create" => await ActionCreateAsync(rpc, args, token).ConfigureAwait(false),

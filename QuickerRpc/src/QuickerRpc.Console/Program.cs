@@ -64,6 +64,11 @@ internal static partial class Program
             return await RunTriggerFromArgsAsync(args).ConfigureAwait(false);
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "source", StringComparison.OrdinalIgnoreCase))
+        {
+            return await RunSourceDocumentFromArgsAsync(args).ConfigureAwait(false);
+        }
+
         // CommandLineParser non-generic ParseArguments supports at most 16 verb types.
         var result = Parser.Default.ParseArguments(args,
             typeof(PingOptions),
@@ -1707,6 +1712,9 @@ public sealed class ActionOptions
 
     [Option("dry-run", HelpText = "For action save: validate YAML, resource files and roundtrip offline without saving.")]
     public bool DryRun { get; set; }
+
+    [Option("expected-source-snapshot", HelpText = "For action save: require the exact source.document snapshot before connecting or saving.")]
+    public string? ExpectedSourceSnapshot { get; set; }
 
     [Option("min-lines", Default = 4, HelpText = "For extract: externalize value strings with more than N lines.")]
     public int MinLines { get; set; }

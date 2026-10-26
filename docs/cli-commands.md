@@ -13,7 +13,7 @@ qkrpc <command> --help
 
 - 自动化与 Agent 使用 `--json`；成功退出码为 `0`，失败为 `1`。
 - 连接失败使用 `qkrpc wait --json`，不要循环调用 shell probe。
-- 大 JSON 使用 `--patch-file`、`--xaction-file` 或磁盘项目，不放在命令行参数中。
+- 大 JSON 使用对应命令的文件入口或磁盘项目，不放在命令行参数中；`source document` 只从 stdin 读取请求 JSON。
 - 现有 V1 动作默认先读 `qkrpc guide get --topic program-source --json`；创建与旧 JSON 流程读 `authoring-workflow`。V2 用原生 MCP。
 - step 参数固定走 `step-runner search -> step-runner get`，禁止猜键名。
 
@@ -26,6 +26,7 @@ qkrpc <command> --help
 | `agent setup`、`mcp` | Agent 插件/MCP 安装与 stdio server |
 | `guide`、`step-runner` | 动作编写指南和步骤 schema |
 | `action` | 查询、V1 YAML 源 open/save、创建、旧 workspace 同步、运行、调试、分享 |
+| `source document` | 已有 source bundle 的本地 inspect / preview / save-local；请求 JSON 从 stdin 读取 |
 | `subprogram` | 全局子程序查询、workspace 同步和分享 |
 | `profile`、`process` | Quicker 动作页与虚拟场景布局 |
 | `settings`、`launcher` | 设置读写、打开设置页、统一意图解析 |
@@ -93,8 +94,38 @@ qkrpc subprogram apply --dir .quicker/subprograms/<project> --json
 与 Designer 状态。成功后可继续编辑同一目录，工具更新基线且不重写用户源文件。
 
 YAML 入口覆盖现有 V1 动作程序体；创建、元数据和全局子程序使用原命令。
-旧 `get` / `patch` / `apply` 接口保持兼容。QuickerAgent 内置编辑仍走
-`workspace_program` 的 `data.json` / `files/` → patch；不要混用两种目录格式。
+旧 `get` / `patch` / `apply` 接口及 `workspace_program` 的兼容 JSON 流程保持原入口；
+不要混用 source bundle 与 `data.json` 项目目录格式。
+
+### source bundle 本地文档端口
+
+`source.document` 复用 `action open` 导出的 YAML、资源与基线。`inspect` 读取本地文档，
+`preview` 校验候选正文与资源但不写文件，`save-local` 仅保存 YAML 和明确提交的资源。
+三种模式都不发现或连接 Quicker，也不更新原生 checkpoint。HTTP 调用
+`POST /v1/invoke`，使用 `op: source.document`；CLI 的 stdin 只传同一 `args` 对象：
+
+```powershell
+'{"dir":"D:/owned/action","mode":"inspect"}' | qkrpc source document --json
+Get-Content -LiteralPath .tmp/source-document-request.json -Raw -Encoding utf8 | qkrpc source document --json
+```
+
+`editorJson` 和 `baselineEditorJson` 都是完整的 lossless JSON **文本字符串**，不能经普通
+数值解析或有损编辑器导出重建。`preview` / `save-local` 必须带观察到的
+`sourceSnapshot.revision` 作为 `expectedSnapshot`；资源按相对 `files/` 路径和 Base64 字节提交。
+保存确认返回原样提交的 `editorJson`，包括本轮 GUI ID；调用方只推进存储基线，不能覆盖
+保存期间的新草稿。完整请求、身份限制和错误恢复见
+[source bundle 文档协议](authoring/source-bundle-document.md)。
+
+本地保存不表示宿主已保存。显式同步仍使用原 `action save`，可携带同一快照以拒绝陈旧正文：
+
+```powershell
+qkrpc action save --dir D:/owned/action --expected-source-snapshot '<最新 sourceSnapshot.revision>' --dry-run --json
+qkrpc action save --dir D:/owned/action --expected-source-snapshot '<同一 revision>' --json
+```
+
+保存结果分别报告宿主 `persisted` 与 checkpoint 状态；不能把 `ok: false`、缺失字段或超时
+解释为“没有写入”。`SOURCE_DOCUMENT_PARTIAL`、`SOURCE_CHECKPOINT_FAILED`、
+`SOURCE_SAVE_ACK_INVALID` 和 `WRITE_RESULT_UNKNOWN` 都需核对收据与当前状态，不能自动重放。
 
 ## 分享与危险操作
 

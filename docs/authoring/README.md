@@ -8,6 +8,10 @@ YAML codec 负责源格式与规范 wire 的转换，V1 写回另做原生基线
 QuickerAgent 用 `qkrpc_action_open/save` 和既有文件工具，显式 `dryRun:true` 后再 `false`；
 V2 使用原生 MCP；`workspace_program` 兼容 JSON、新建、元数据和全局子程序保留原流程。
 
+编辑器或脚本需要在同一 bundle 上检查、预览和本地保存时，使用
+[source bundle 文档协议](source-bundle-document.md)。该端口保留 YAML/资源与原生 checkpoint
+的边界，显式同步仍走原 `action save`；不是另一种目录格式或原生写入权限。
+
 ## 管线
 
 [PIPELINE.md](PIPELINE.md) — src → `docs:gen` → 运行时消费者；常见错误与 skill 晋升。
