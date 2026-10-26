@@ -6,6 +6,7 @@ import { AccountUsageSection } from "@/components/chat/AccountUsageSection";
 import { AppVersionSection } from "@/components/chat/AppVersionSection";
 import { LlmKeysSettingsSection } from "@/components/chat/LlmKeysSettingsSection";
 import { LauncherSettingsSection } from "@/components/chat/LauncherSettingsSection";
+import { QuickerNativeMcpSettingsSection } from "@/components/chat/QuickerNativeMcpSettingsSection";
 import type { AppSettingsTabId } from "@/lib/app-settings-tabs";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import { buildQkrpcPingUserSummary } from "@/lib/qkrpc-ping-diagnostics";
@@ -13,6 +14,7 @@ import type { PingState, RefreshPingOptions } from "@/lib/use-qkrpc-ping";
 import { useAppVersionSnapshot } from "@/lib/use-app-versions";
 
 type AppSettingsPanelProps = {
+  cwd: string;
   active: boolean;
   activeTab: AppSettingsTabId;
   ping: PingState;
@@ -23,6 +25,7 @@ type AppSettingsPanelProps = {
 };
 
 export function AppSettingsPanel({
+  cwd,
   active,
   activeTab,
   ping,
@@ -104,6 +107,7 @@ export function AppSettingsPanel({
                 ))}
               </ul>
             ) : null}
+            <QuickerNativeMcpSettingsSection cwd={cwd} active={tabActive && activeTab === "general"} disabled={disabled} />
           </section>
         </div>
 

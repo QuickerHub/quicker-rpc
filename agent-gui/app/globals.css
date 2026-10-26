@@ -1323,6 +1323,7 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 
 .app-settings-top-grid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
   margin-bottom: 0.65rem;
@@ -1350,6 +1351,41 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   padding-top: 0.85rem;
   border-top: 1px solid var(--border);
 }
+
+.native-mcp-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-top: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.native-mcp-settings p { margin: 0; }
+.native-mcp-settings-row, .native-mcp-settings-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.native-mcp-settings-row { justify-content: space-between; }
+.native-mcp-settings-hint, .native-mcp-settings-status { color: var(--muted); }
+.native-mcp-settings-error, .native-mcp-settings-probe[role="alert"] { color: var(--err); }
+.native-mcp-settings-switch {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.native-mcp-settings-switch-knob { width: 12px; height: 12px; border-radius: 50%; background: currentColor; }
+.native-mcp-settings-switch[aria-checked="true"] { justify-content: flex-end; background: var(--text); color: var(--bg); }
+.native-mcp-settings [aria-disabled="true"] { opacity: 0.55; cursor: default; }
+.native-mcp-settings button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
 
 .app-settings-section-block--compact {
   margin-top: 0.75rem;

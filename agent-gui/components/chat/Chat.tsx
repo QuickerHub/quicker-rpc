@@ -1675,6 +1675,7 @@ export function Chat() {
                 </div>
               </div>
               <AppSettingsPopup
+                cwd={activeThreadWorkingDirectory}
                 open={settingsOpen}
                 onClose={closeSettings}
                 ping={ping}
