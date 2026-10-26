@@ -10,7 +10,7 @@ import { resolveRuntimeEntry } from "./runtime-entry.mjs";
 const UI_PORT_PREFERRED = 3000;
 const QKRPC_PORT_DEFAULT = 9477;
 
-/** @typedef {{ child: import('node:child_process').ChildProcess, port: number, smokeJobOwned?: boolean }} ManagedChild */
+/** @typedef {{ child: import('node:child_process').ChildProcess, port: number }} ManagedChild */
 
 /** @type {{ qkrpc?: ManagedChild, node?: ManagedChild }} */
 const children = {};
@@ -172,8 +172,8 @@ export function shutdownBackends() {
     const qkrpc = children.qkrpc;
     await guard?.close();
     if (node) {
-      // The smoke launcher owns the native Job handle, including startup failures.
-      if (!node.smokeJobOwned) await stopAgentChild(node.child);
+      // The smoke Job is failure containment; normal shutdown still drains the child.
+      await stopAgentChild(node.child);
       if (children.node === node) children.node = undefined;
     }
     if (qkrpc) {
@@ -327,7 +327,7 @@ function spawnQkrpc(qkrpcDir, host, port) {
   return child;
 }
 
-function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwned = false, entry = resolveRuntimeEntry(appDir)) {
+function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, entry = resolveRuntimeEntry(appDir)) {
   const serverJs = entry.path;
   if (!existsSync(serverJs)) {
     throw new Error(`Agent runtime entry not found: ${serverJs}`);
@@ -339,7 +339,7 @@ function spawnNodeServer(appDir, nodeExe, host, port, envExtra = {}, smokeJobOwn
     env: buildBundledChildEnv(host, port, envExtra),
   });
   child.stderr?.on("data", (chunk) => console.error(`[agent service] ${chunk.toString().trimEnd()}`));
-  children.node = { child, port, smokeJobOwned };
+  children.node = { child, port };
   return child;
 }
 
@@ -388,7 +388,7 @@ async function startOwnedBackends(runtime, signal) {
       QKRPC_HTTP_URL: `http://${host}:${smokeRpcGuard.port}`, QKRPC_TRANSPORT: "http",
       HOME: process.env.HOME, AGENT_GUI_ROOT: process.env.AGENT_GUI_ROOT,
       AGENT_GUI_DEFAULT_CWD: process.env.AGENT_GUI_DEFAULT_CWD,
-    }, true, entry);
+    }, entry);
     await waitForChildSpawn(child, "isolated smoke node", signal);
     signal.throwIfAborted();
     writeSmokeHandshake(runtime.smoke, { uiPort, uiPid: child.pid, rpcPort: smokeRpcGuard.port, rpcPid: process.pid });
@@ -409,7 +409,7 @@ async function startOwnedBackends(runtime, signal) {
   }
 
   signal.throwIfAborted();
-  const nodeChild = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, nodeEnv, false, entry);
+  const nodeChild = spawnNodeServer(runtime.appDir, runtime.nodeExe, host, uiPort, nodeEnv, entry);
   await waitForChildSpawn(nodeChild, "node", signal);
   const uiOk = await httpProbe(host, uiPort, "/", "status200", 60_000, signal);
   if (!uiOk) throw new Error(`timeout waiting for UI http://${host}:${uiPort}/`);

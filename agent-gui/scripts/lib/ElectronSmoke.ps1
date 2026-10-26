@@ -74,7 +74,7 @@ function Test-OwnedSmokeListener {
 }
 
 function Wait-OwnedElectronSmokeUi {
-    param($Run, $Owner, [int]$TimeoutSec = 90)
+    param($Run, $Owner, [int]$TimeoutSec = 90, [switch]$DeferWindowApproval)
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     $readyPath = Join-Path $Run.Root 'ready.json'
     while ((Get-Date) -lt $deadline) {
@@ -89,7 +89,9 @@ function Wait-OwnedElectronSmokeUi {
                         if ($response.StatusCode -ne 200) { throw 'Owned UI is not ready' }
                     }
                     if (-not (Test-OwnedSmokeListener $Owner $info.uiPort $info.uiPid)) { throw 'Smoke UI listener changed ownership' }
-                    @{ protocol = $Run.Protocol; runId = $Run.RunId } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $Run.Root 'approved.json')
+                    if (-not $DeferWindowApproval) {
+                        @{ protocol = $Run.Protocol; runId = $Run.RunId } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $Run.Root 'approved.json')
+                    }
                     return $info
                 } catch { if ($Owner.HasExited) { throw }; }
             }

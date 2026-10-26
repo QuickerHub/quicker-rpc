@@ -14,7 +14,8 @@ for (const failure of [false, true]) {
     const profile = resolve("fixture", "dedicated profile");
     process.env.QUICKER_AGENT_DATA_DIR = profile;
     const servers = [];
-    const spawned = [], killed = [], writes = [];
+    const spawned = [], killed = [], writes = [], messages = [];
+    let releaseExit;
     const readFile = fs.readFileSync;
     const serverFactory = () => {
       const server = new EventEmitter();
@@ -28,13 +29,18 @@ for (const failure of [false, true]) {
     };
     const mocks = [
       mock.method(http, "createServer", serverFactory), mock.method(net, "createServer", serverFactory),
-      mock.method(fs, "existsSync", (path) => !String(path).endsWith("runtime-manifest.json")),
+      mock.method(fs, "existsSync", () => true),
       mock.method(fs, "readFileSync", (path, ...args) => String(path).endsWith("runtime-mode.json")
-        ? JSON.stringify({ format: "quicker-agent-runtime-mode", version: 1, mode: "legacy-next" }) : readFile(path, ...args)),
+        ? JSON.stringify({ format: "quicker-agent-runtime-mode", version: 1, mode: "static" })
+        : String(path).endsWith("runtime-manifest.json") ? JSON.stringify({ format: "quicker-agent-static-runtime", version: 1, next: false }) : readFile(path, ...args)),
       mock.method(fs, "writeFileSync", (path) => { writes.push(path); }), mock.method(fs, "renameSync", () => {}),
       mock.method(childProcess, "spawn", (executable, args, options) => {
         spawned.push({ executable, args, options });
-        const child = Object.assign(new EventEmitter(), { pid: 602, kill() { killed.push(602); } });
+        const child = Object.assign(new EventEmitter(), { pid: failure ? undefined : 602, connected: true, exitCode: null, signalCode: null,
+          kill() { killed.push(602); },
+          send(message, done) { messages.push(message); done(); },
+        });
+        releaseExit = () => { child.exitCode = 0; child.emit("exit", 0); };
         queueMicrotask(() => child.emit(failure ? "error" : "spawn", ...(failure ? [new Error("synthetic spawn failure")] : [])));
         return child;
       }),
@@ -53,15 +59,22 @@ for (const failure of [false, true]) {
         assert.equal(writes.length, 1);
         const shutdown = shutdownBackends();
         assert.equal(shutdown, shutdownBackends(), "reentrant quit/update callers share cleanup completion");
+        let complete = false;
+        void shutdown.then(() => { complete = true; });
+        await new Promise((done) => setImmediate(done));
+        assert.deepEqual(messages, ["shutdown"], "smoke uses the normal product IPC drain");
+        assert.equal(complete, false, "a Job owner must not bypass waiting for actual child exit");
+        releaseExit();
         await shutdown;
       }
       assert.equal(spawned.length, 1);
       assert.equal(spawned[0].executable, "fixture-node");
       assert.equal(spawned[0].options.env.QKRPC_HTTP_URL, "http://127.0.0.1:45000");
       assert.equal(spawned[0].options.env.QUICKER_AGENT_DATA_DIR, profile, "the shared normal/smoke child environment preserves the selected profile");
-      assert.deepEqual(killed, [], "the launcher Job owner performs all smoke process cleanup");
+      assert.deepEqual(killed, [], "a responsive child exits before the forced fallback");
       assert.ok(servers.every((server) => server.closed === 1));
     } finally {
+      releaseExit?.();
       if (previousProfile === undefined) delete process.env.QUICKER_AGENT_DATA_DIR;
       else process.env.QUICKER_AGENT_DATA_DIR = previousProfile;
       for (const patch of mocks) patch.mock.restore();
