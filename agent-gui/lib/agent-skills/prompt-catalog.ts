@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getAgentSkill } from "@/lib/agent-skills/discover";
 import {
@@ -46,22 +46,8 @@ export async function formatPreloadedSkillsCatalogForPrompt(
   return any ? lines.join("\n") : "";
 }
 
-type EssentialsCache = { mtimeMs: number; content: string };
-
-let essentialsCache: EssentialsCache | null = null;
-
-async function tierFileMtimeMs(skillDir: string, skillName: string): Promise<number> {
-  const tierFile = SKILL_TIER2_BODY_FILES[skillName];
-  if (!tierFile) return 0;
-  try {
-    return (await stat(join(skillDir, tierFile))).mtimeMs;
-  } catch {
-    return 0;
-  }
-}
-
-async function readTierMarkdown(skillName: string): Promise<string> {
-  const skillDir = join(resolveSkillsRoot(), skillName);
+async function readTierMarkdown(root: string, skillName: string): Promise<string> {
+  const skillDir = join(root, skillName);
   const tierFile = SKILL_TIER2_BODY_FILES[skillName];
   if (!tierFile) return "";
   return readFile(join(skillDir, tierFile), "utf8");
@@ -72,16 +58,10 @@ export async function formatPreloadedSkillsEssentialsForPrompt(
   _cwd?: string,
 ): Promise<string> {
   const root = resolveSkillsRoot();
-  let mtimeMs = 0;
-  for (const name of PRELOADED_SKILL_NAMES) {
-    mtimeMs = Math.max(mtimeMs, await tierFileMtimeMs(join(root, name), name));
-  }
-  if (essentialsCache && essentialsCache.mtimeMs === mtimeMs) {
-    return essentialsCache.content;
-  }
-
-  const authoringBody = await readTierMarkdown("quicker-authoring");
-  const evalBody = await readTierMarkdown("quicker-eval-expression");
+  const [authoringBody, evalBody] = await Promise.all([
+    readTierMarkdown(root, "quicker-authoring"),
+    readTierMarkdown(root, "quicker-eval-expression"),
+  ]);
   const authoringEssentials = extractMarkdownSections(
     authoringBody,
     AUTHORING_ESSENTIAL_SECTIONS,
@@ -106,7 +86,5 @@ export async function formatPreloadedSkillsEssentialsForPrompt(
     evalEssentials,
   ];
 
-  const content = lines.join("\n").trimEnd();
-  essentialsCache = { mtimeMs, content };
-  return content;
+  return lines.join("\n").trimEnd();
 }

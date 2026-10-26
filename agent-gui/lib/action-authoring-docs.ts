@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type ActionAuthoringDoc,
@@ -101,9 +101,6 @@ type TopicsManifest = {
   referenceFiles?: Record<string, string>;
   referenceCatalog?: Record<string, ReferenceCatalogEntry[]>;
 };
-
-let cachedPromptRoot: string | null = null;
-let cachedPromptBlock: { content: string; mtimeMs: number } | null = null;
 
 function contentRevision(content: string): string {
   return `sha256:${createHash("sha256").update(content).digest("hex")}`;
@@ -370,39 +367,13 @@ async function isDeclaredTopic(topic: string): Promise<boolean> {
 }
 
 export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
-  const root = skillsRoot();
   const loaded = await loadSkillInstructions(AUTHORING_SKILL);
   if (!loaded?.body) return "";
-
-  let mtimeMs = 0;
-  try {
-    mtimeMs = (await stat(loaded.skillMdPath)).mtimeMs;
-    const tier0 = join(root, "prompt-tier0.md");
-    try {
-      mtimeMs = Math.max(mtimeMs, (await stat(tier0)).mtimeMs);
-    } catch {
-      // optional tier-2 override
-    }
-  } catch {
-    return "";
-  }
-
-  if (
-    cachedPromptBlock
-    && cachedPromptBlock.mtimeMs === mtimeMs
-    && cachedPromptRoot === root
-  ) {
-    return cachedPromptBlock.content;
-  }
-
-  const content = await formatAllPreloadedSkillsForPrompt({
+  return formatAllPreloadedSkillsForPrompt({
     [AUTHORING_SKILL]: {
       suffix: DOCS_AGENT_ROUTING_HINT,
     },
   });
-  cachedPromptBlock = { content, mtimeMs };
-  cachedPromptRoot = root;
-  return content;
 }
 
 /** English layer headings for system-prompt topic index (UI catalog keeps Chinese labels). */

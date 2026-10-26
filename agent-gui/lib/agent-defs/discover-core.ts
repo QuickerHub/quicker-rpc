@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   parseCommandDef,
@@ -7,7 +7,6 @@ import {
 } from "@/lib/agent-defs/parse";
 import {
   resolveAgentsDir,
-  resolveBundledAgentDefsRoot,
   resolveBundledAgentsRoot,
   resolveBundledCommandsRoot,
   resolveBundledSkillsRoot,
@@ -24,51 +23,6 @@ import type {
   SubagentDef,
 } from "@/lib/agent-defs/types";
 import { AGENT_DEF_SCOPE_ORDER } from "@/lib/agent-defs/types";
-
-type CacheEntry = {
-  cwd: string;
-  mtimeMs: number;
-  catalog: AgentDefsCatalog;
-};
-
-let cached: CacheEntry | null = null;
-
-async function dirMtimeMs(dir: string): Promise<number> {
-  let max = 0;
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return 0;
-  }
-  for (const ent of entries) {
-    const p = join(dir, ent.name);
-    try {
-      const st = await stat(p);
-      max = Math.max(max, st.mtimeMs);
-      if (ent.isDirectory()) {
-        max = Math.max(max, await dirMtimeMs(p));
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return max;
-}
-
-async function computeDiscoveryMtime(cwd: string): Promise<number> {
-  const roots = [
-    resolveWorkspaceAgentDefsRoot(cwd),
-    resolveUserAgentDefsRoot(),
-    resolveBundledSkillsRoot(),
-    resolveBundledAgentDefsRoot(),
-  ];
-  let max = 0;
-  for (const root of roots) {
-    max = Math.max(max, await dirMtimeMs(root));
-  }
-  return max;
-}
 
 async function readMdFiles(dir: string): Promise<Array<{ path: string; raw: string }>> {
   let entries;
@@ -184,14 +138,6 @@ function mergeByName<T extends { name: string; scope: AgentDefScope }>(
 
 export async function discoverAgentDefs(cwd = ""): Promise<AgentDefsCatalog> {
   const normalizedCwd = cwd.trim();
-  const mtime = await computeDiscoveryMtime(normalizedCwd);
-  if (
-    cached
-    && cached.cwd === normalizedCwd
-    && cached.mtimeMs === mtime
-  ) {
-    return cached.catalog;
-  }
 
   const diagnostics: AgentDefDiagnostic[] = [];
   const workspaceRoot = normalizedCwd
@@ -260,7 +206,6 @@ export async function discoverAgentDefs(cwd = ""): Promise<AgentDefsCatalog> {
     diagnostics,
   };
 
-  cached = { cwd: normalizedCwd, mtimeMs: mtime, catalog };
   return catalog;
 }
 
@@ -283,5 +228,5 @@ export async function getSubagent(
 }
 
 export function resetAgentDefsCache(): void {
-  cached = null;
+  // Compatibility hook: discovery now reads and merges current definitions per call.
 }
