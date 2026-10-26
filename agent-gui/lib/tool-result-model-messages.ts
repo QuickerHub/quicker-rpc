@@ -1,6 +1,6 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { isStructuredToolResult } from "@/lib/tool-result";
-import { projectStepRunnerKnowledge } from "./tool-knowledge-projection";
+import { projectStepRunnerKnowledge, projectStepRunnerSchemaRead, projectStepRunnerSchemaReadOutput } from "./tool-knowledge-projection";
 import { projectGatewayGuideKnowledge } from "./gateway-guide-projection";
 
 export const TOOL_OUTPUT_MAX_INLINE_CHARS = 8 * 1024;
@@ -17,6 +17,7 @@ function serializeForBudget(value: unknown): string | null {
 
 function projectLargeOutput(output: unknown, serialized: string): unknown {
   const knowledgeProjection = projectStepRunnerKnowledge(output);
+  const schemaRead = projectStepRunnerSchemaRead(output);
   const gatewayKnowledgeProjection = projectGatewayGuideKnowledge(output);
   let headChars = TOOL_OUTPUT_HEAD_CHARS;
   let tailChars = TOOL_OUTPUT_TAIL_CHARS;
@@ -28,9 +29,10 @@ function projectLargeOutput(output: unknown, serialized: string): unknown {
       head: serialized.slice(0, headChars),
       tail: tailChars ? serialized.slice(-tailChars) : "",
       ...(knowledgeProjection ? { knowledgeProjection } : {}),
+      ...(schemaRead ? { schemaRead } : {}),
       ...(gatewayKnowledgeProjection ? { gatewayKnowledgeProjection } : {}),
       notice: knowledgeProjection
-        ? "StepRunner schema was omitted for the model budget. The metadata projection is incomplete schema, not editing authority; an identical get will not recover it."
+        ? "StepRunner schema was omitted. Use schemaRead.input for a selection when present; start does not prove server support. Metadata is not editing authority."
         : "Output was deterministically projected for model context. Use narrower parameters, paging, or a file read to inspect omitted content.",
     };
 
@@ -64,6 +66,8 @@ function projectLargeOutput(output: unknown, serialized: string): unknown {
 
 /** Tool result payload sent to the LLM: strip UI data, then enforce a stable context budget. */
 export function buildModelFacingToolOutput(output: unknown): unknown {
+  const receipt = projectStepRunnerSchemaRead(output);
+  if (isStructuredToolResult(output) && receipt && receipt.status !== "start") return projectStepRunnerSchemaReadOutput(output)!;
   let modelFacing = output;
   if (isStructuredToolResult(output) && output.displayData !== undefined) {
     const { displayData: _display, ...stripped } = output;

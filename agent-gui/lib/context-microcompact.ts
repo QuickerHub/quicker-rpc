@@ -5,6 +5,7 @@ import {
   estimatePartTokens,
 } from "@/lib/context-token-estimate";
 import { buildMicrocompactPayload } from "@/lib/tool-result-agent-view";
+import { projectStepRunnerSchemaRead } from "./tool-knowledge-projection";
 
 const COMPACT_PLACEHOLDER = "[compact: large tool output omitted; see recent turns]";
 
@@ -30,7 +31,7 @@ function compactToolOutput(
     return part.output;
   }
   const out = part.output as Record<string, unknown>;
-  if (typeof out.summary === "string" || out.truncated === true) {
+  if (typeof out.summary === "string" || out.truncated === true || projectStepRunnerSchemaRead(out)) {
     return buildMicrocompactPayload(out);
   }
   const compact: Record<string, unknown> = {

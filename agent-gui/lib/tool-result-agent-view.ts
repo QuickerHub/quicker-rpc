@@ -41,7 +41,8 @@ import {
   QKRPC_SUBPROGRAM_QUERY_TOOL,
 } from "@/lib/qkrpc-subprogram-tool";
 import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
-import { projectStepRunnerKnowledge } from "./tool-knowledge-projection";
+import { projectStepRunnerKnowledge, projectStepRunnerSchemaRead, projectStepRunnerSchemaReadOutput } from "./tool-knowledge-projection";
+import { startStepRunnerSchemaRead } from "./step-runner-schema-read";
 import { projectGatewayGuideKnowledge } from "./gateway-guide-projection";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import { WORKSPACE_PROGRAM_TOOL } from "@/lib/workspace-program-tool";
@@ -1212,6 +1213,8 @@ function applyGlobalBudget(
         : "Repeat the tool with narrower parameters."),
   };
   const knowledgeProjection = projectStepRunnerKnowledge(result);
+  const schemaRead = projectStepRunnerSchemaRead(result);
+  if (schemaRead) compactData.schemaRead = schemaRead;
   const gatewayKnowledgeProjection = projectGatewayGuideKnowledge(result);
   if (gatewayKnowledgeProjection) {
     compactData.gatewayKnowledgeProjection = gatewayKnowledgeProjection;
@@ -1219,7 +1222,7 @@ function applyGlobalBudget(
   }
   if (knowledgeProjection) {
     compactData.knowledgeProjection = knowledgeProjection;
-    compactData.readHint = "Schema is incomplete; full schema is not available to the model through this result. Do not repeat an identical get to recover it.";
+    compactData.readHint = "Schema is incomplete. Use schemaRead.input to request a bounded selection when present; start does not prove server support.";
   }
 
   const displayData = result.displayData ?? data ?? result.data;
@@ -1321,7 +1324,7 @@ function compressStepRunnerGetResult(
 
   return withCompressedResult(shaped, {
     data: shaped.data as Record<string, unknown>,
-    displayData: data,
+    displayData: result.displayData ?? data,
     agentSummary: key
       ? `step_runner_get ${key} · schema compressed`
       : "step_runner_get · schema compressed",
@@ -1392,6 +1395,18 @@ export function formatToolResultForAgent(
 ): Record<string, unknown> {
   if (!isStructuredToolResult(result)) return result;
 
+  if (toolName === "qkrpc_step_runner_get") {
+    const page = projectStepRunnerSchemaReadOutput(result);
+    if (page) return { ...page, displayData: result.displayData ?? result.data };
+    const data = readRecord(result.data);
+    const payload = data && unwrapQkrpcPayload(data);
+    const schemaJson = payload && (readString(payload.schemaJson) ?? readString(payload.SchemaJson));
+    if (data && ((isToolResultAgentViewCompressionEnabled() && (schemaJson?.length ?? 0) > STEP_RUNNER_GET_SCHEMA_SOFT_CHARS)
+      || estimateStructuredResultChars(result) > AGENT_PAYLOAD_SOFT_CHARS)) {
+      result = { ...result, data: { ...data, schemaRead: startStepRunnerSchemaRead(input) }, displayData: result.displayData ?? data };
+    }
+  }
+
   const shaped = applyAlwaysOnToolResultShape(toolName, input, result);
   if (!isStructuredToolResult(shaped)) return shaped;
   let next: StructuredToolResult = shaped;
@@ -1414,6 +1429,8 @@ export function formatToolResultForAgent(
 export function buildMicrocompactPayload(
   output: Record<string, unknown>,
 ): Record<string, unknown> {
+  const schemaPage = projectStepRunnerSchemaReadOutput(output, true);
+  if (schemaPage) return { ...schemaPage };
   const compact: Record<string, unknown> = {
     compact: true,
     note: "[compact: large tool output omitted; see recent turns]",
