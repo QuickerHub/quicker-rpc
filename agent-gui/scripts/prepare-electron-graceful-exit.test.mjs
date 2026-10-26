@@ -21,7 +21,7 @@ test("acceptance staging rejects unknown, occupied, outside and redirected outpu
 
 test("supplied bundle is copied unchanged except the documented fetch/config guard", async () => {
   const root = mkdtempSync(join(repo, ".tmp/graceful-stage-copy-")), source = join(root, "source"), output = join(root, "output");
-  const keys = ["QUICKER_AGENT_SMOKE_ROOT", "QKRPC_HTTP_URL", "BUNDLED_LLM_REMOTE_CONFIG_DISABLED", "BUNDLED_LLM_CONFIG", "LLM_CONFIG_PATH"];
+  const keys = ["QUICKER_AGENT_SMOKE_ROOT", "QUICKER_AGENT_DATA_DIR", "QKRPC_HTTP_URL", "BUNDLED_LLM_REMOTE_CONFIG_DISABLED", "BUNDLED_LLM_CONFIG", "LLM_CONFIG_PATH"];
   const originalEnv = Object.fromEntries(keys.map(key => [key, process.env[key]])), originalFetch = globalThis.fetch;
   try {
     for (const directory of ["resources/node", "resources/app/lib"]) mkdirSync(join(source, directory), { recursive: true });
@@ -44,7 +44,9 @@ test("supplied bundle is copied unchanged except the documented fetch/config gua
     assert.ok(verifyPreparedPackage(join(output, "prepared.json")) > 0);
     assert.equal(readFileSync(join(copied, "lib/service-main.mjs"), "utf8"), fixtureFiles["resources/app/lib/service-main.mjs"]);
     assert.equal(readFileSync(join(copied, "service.acceptance-original.mjs"), "utf8"), fixtureFiles["resources/app/service.mjs"]);
-    process.env.QUICKER_AGENT_SMOKE_ROOT = root;
+    // Only the normal selected data directory is forwarded into the Node child.
+    delete process.env.QUICKER_AGENT_SMOKE_ROOT;
+    process.env.QUICKER_AGENT_DATA_DIR = join(root, "data");
     process.env.QKRPC_HTTP_URL = "http://127.0.0.1:45123";
     const allowedCalls = [];
     globalThis.fetch = async (input, options) => { assert.equal(options.redirect, "error"); allowedCalls.push(input); return "owned response"; };

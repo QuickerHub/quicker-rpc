@@ -116,12 +116,14 @@ try {
             foreach ($name in @('root', 'ui', 'browser', 'terminal')) {
                 $handle = $roles[$name]
                 $roleEvidence[$name] = @{ pid = $handle.Pid; exitCode = $handle.ExitCode; exitedUtc = $handle.ExitTimeUtc }
-                if (-not $handle.HasExited -or $handle.ExitCode -ne 0) { throw 'A product root/runtime did not exit naturally with code 0.' }
             }
-            if ($roles.ui.ExitTimeUtc -gt $roles.root.ExitTimeUtc -or $roles.browser.ExitTimeUtc -gt $roles.ui.ExitTimeUtc -or $roles.terminal.ExitTimeUtc -gt $roles.ui.ExitTimeUtc) { throw 'Owned services exited after their parent; normal product drain was not demonstrated.' }
             $originalListeners = Get-OriginalListeners $listeners
             $receipt.beforeJobDispose = @{ utc = [DateTime]::UtcNow.ToString('O'); activeProcessCount = $remaining.ActiveProcessCount; processIds = $remaining.ProcessIds
                 allRetainedExited = @($tracked | Where-Object { -not $_.HasExited }).Count -eq 0; originalListeners = $originalListeners; processes = $processes; roles = $roleEvidence }
+            foreach ($handle in $roles.Values) {
+                if (-not $handle.HasExited -or $handle.ExitCode -ne 0) { throw 'A product root/runtime did not exit naturally with code 0.' }
+            }
+            if ($roles.ui.ExitTimeUtc -gt $roles.root.ExitTimeUtc -or $roles.browser.ExitTimeUtc -gt $roles.ui.ExitTimeUtc -or $roles.terminal.ExitTimeUtc -gt $roles.ui.ExitTimeUtc) { throw 'Owned services exited after their parent; normal product drain was not demonstrated.' }
             if ($remaining.ActiveProcessCount -ne 0 -or $remaining.ProcessIds.Count -ne 0 -or $originalListeners.Count -ne 0 -or -not $receipt.beforeJobDispose.allRetainedExited) { throw 'Owned resources remained before Job dispose.' }
             $receipt.status = 'PASSED'
         } catch {
@@ -129,13 +131,17 @@ try {
         } finally {
             # This is the first Job close. Success must already be proven above.
             if ($null -ne $owner) {
-                $receipt.forcedJobCleanup = $receipt.status -ne 'PASSED'
+                $receipt.failureContainmentInvoked = $receipt.status -ne 'PASSED'
+                try { $receipt.jobAtDispose = @{ processIds = $owner.GetProcessIds() }; $receipt.forcedJobCleanup = $receipt.jobAtDispose.processIds.Count -gt 0 }
+                catch { $receipt.forcedJobCleanup = $null; $receipt.jobObservationError = $_.Exception.Message }
                 $receipt.jobDisposeUtc = [DateTime]::UtcNow.ToString('O')
                 $owner.Dispose(); $receipt.jobDisposed = $true
-                $cleanupDeadline = [DateTime]::UtcNow.AddSeconds(10)
-                while (@($tracked | Where-Object { -not $_.HasExited }).Count -gt 0 -and [DateTime]::UtcNow -lt $cleanupDeadline) { Start-Sleep -Milliseconds 100 }
-                $receipt.afterJobDispose = @{ retainedExited = @($tracked | Where-Object { -not $_.HasExited }).Count -eq 0
-                    originalListenersGone = $listeners.Count -eq 0 -or @(Get-OriginalListeners $listeners).Count -eq 0 }
+                try {
+                    $cleanupDeadline = [DateTime]::UtcNow.AddSeconds(10)
+                    while (@($tracked | Where-Object { -not $_.HasExited }).Count -gt 0 -and [DateTime]::UtcNow -lt $cleanupDeadline) { Start-Sleep -Milliseconds 100 }
+                    $receipt.afterJobDispose = @{ retainedExited = @($tracked | Where-Object { -not $_.HasExited }).Count -eq 0
+                        originalListenersGone = $listeners.Count -eq 0 -or @(Get-OriginalListeners $listeners).Count -eq 0 }
+                } catch { $receipt.cleanupObservationError = $_.Exception.Message }
             }
             if ($null -ne $driver) { if (-not $driver.HasExited) { $driver.Kill($true); $driver.WaitForExit(5000) | Out-Null }; $driver.Dispose() }
             foreach ($handle in $tracked) { $handle.Dispose() }

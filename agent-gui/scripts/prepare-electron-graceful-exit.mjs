@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const within = (root, target) => { const rel = relative(root, target); return rel && rel !== ".." && !rel.startsWith("../") && !rel.startsWith("..\\") && !isAbsolute(rel); };
 
-function inventory(root) {
+export function inventory(root) {
   const entries = [];
   const visit = (directory) => {
     for (const name of readdirSync(directory).sort()) {
@@ -36,6 +36,14 @@ export function verifyPreparedPackage(path) {
   if (!within(join(repo, ".tmp"), root) || path !== join(root, "prepared.json") || receipt.format !== "quicker-agent.graceful-exit-staging.v1") throw new Error("Unknown acceptance package");
   const expected = JSON.parse(readFileSync(join(root, "package-files.json"), "utf8"));
   if (sha(JSON.stringify(expected)) !== receipt.inventorySha256 || JSON.stringify(inventory(join(root, "win-unpacked"))) !== JSON.stringify(expected)) throw new Error("Sealed acceptance package contents changed");
+  const before = JSON.parse(readFileSync(join(root, "app-before-guard.json"), "utf8")), app = join(root, "win-unpacked/resources/app");
+  if (sha(JSON.stringify(before)) !== receipt.beforeGuardInventorySha256) throw new Error("Pre-instrumentation inventory changed");
+  const after = inventory(app), added = ["acceptance-egress-guard.mjs", "service.acceptance-original.mjs"];
+  if (JSON.stringify(after.filter(entry => ![...added, "service.mjs"].includes(entry.name))) !== JSON.stringify(before.filter(entry => entry.name !== "service.mjs"))) throw new Error("Unexpected runtime instrumentation delta");
+  const original = readFileSync(join(app, "service.acceptance-original.mjs"));
+  if (sha(original) !== before.find(entry => entry.name === "service.mjs")?.sha256 ||
+      readFileSync(join(app, "service.mjs"), "utf8") !== "import './acceptance-egress-guard.mjs';\n" + original.toString("utf8") ||
+      readFileSync(join(app, "acceptance-egress-guard.mjs"), "utf8") !== acceptanceGuardSource()) throw new Error("Runtime does not contain the exact documented acceptance guard");
   return expected.length;
 }
 
@@ -99,21 +107,7 @@ export async function prepareGracefulExit(argv) {
   writeFileSync(join(output, "app-before-guard.json"), JSON.stringify(beforeGuard));
   const service = join(app, "service.mjs"), original = readFileSync(service, "utf8");
   writeFileSync(join(app, "service.acceptance-original.mjs"), original);
-  writeFileSync(join(app, "acceptance-egress-guard.mjs"), `import { appendFileSync } from 'node:fs';
-import { join } from 'node:path';
-process.env.BUNDLED_LLM_REMOTE_CONFIG_DISABLED='1';
-process.env.BUNDLED_LLM_CONFIG='{}';
-process.env.LLM_CONFIG_PATH=join(process.env.QUICKER_AGENT_SMOKE_ROOT,'absent-model-config.json');
-const original=globalThis.fetch;
-globalThis.fetch=(input, options)=>{
-  const url=new URL(typeof input==='string'||input instanceof URL?input:input.url);
-  const allowed=[process.env.QKRPC_HTTP_URL,...['PORT','QUICKER_BROWSER_PORT','QUICKER_TERMINAL_PORT'].map(k=>'http://127.0.0.1:'+process.env[k])];
-  const permitted=allowed.includes(url.origin);
-  appendFileSync(join(process.env.QUICKER_AGENT_SMOKE_ROOT,'service-egress.jsonl'),JSON.stringify({origin:url.origin,permitted})+'\\n');
-  if(!permitted) throw new Error('Acceptance denied outbound origin '+url.origin);
-  return original(input,{...options,redirect:'error'});
-};
-`);
+  writeFileSync(join(app, "acceptance-egress-guard.mjs"), acceptanceGuardSource());
   writeFileSync(service, "import './acceptance-egress-guard.mjs';\n" + original);
   const afterGuard = inventory(app);
   const remaining = afterGuard.filter(entry => !["acceptance-egress-guard.mjs", "service.acceptance-original.mjs", "service.mjs"].includes(entry.name));
@@ -132,6 +126,27 @@ globalThis.fetch=(input, options)=>{
   for (const fact of facts) if (sha(readFileSync(fact.path)) !== fact.sha256) throw new Error("Supplied production package changed during staging");
   console.log(`Graceful exit package: ${join(output, "prepared.json")}`);
   return receipt;
+}
+
+export function acceptanceGuardSource() {
+  return `import { appendFileSync } from 'node:fs';
+import { join, dirname, isAbsolute } from 'node:path';
+const profile=process.env.QUICKER_AGENT_DATA_DIR;
+if(!profile||!isAbsolute(profile)) throw new Error('Acceptance requires an explicit isolated data directory');
+const root=dirname(profile);
+process.env.BUNDLED_LLM_REMOTE_CONFIG_DISABLED='1';
+process.env.BUNDLED_LLM_CONFIG='{}';
+process.env.LLM_CONFIG_PATH=join(root,'absent-model-config.json');
+const original=globalThis.fetch;
+globalThis.fetch=(input, options)=>{
+  const url=new URL(typeof input==='string'||input instanceof URL?input:input.url);
+  const allowed=[process.env.QKRPC_HTTP_URL,...['PORT','QUICKER_BROWSER_PORT','QUICKER_TERMINAL_PORT'].map(k=>'http://127.0.0.1:'+process.env[k])];
+  const permitted=allowed.includes(url.origin);
+  appendFileSync(join(root,'service-egress.jsonl'),JSON.stringify({origin:url.origin,permitted})+'\\n');
+  if(!permitted) throw new Error('Acceptance denied outbound origin '+url.origin);
+  return original(input,{...options,redirect:'error'});
+};
+`;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
