@@ -19,6 +19,13 @@ import { awaitMcpConnection } from "./connect-timeout";
 import { createMcpClientOwner, type McpClientOwner } from "./client-owner";
 import { createMcpTransportFetch } from "./transport-fetch";
 import { readMcpToolCatalog, type McpServerCatalog } from "./catalog";
+import { nativeQuickerMcpFailure, resolveQuickerNativeMcpSource, NativeQuickerMcpError, type NativeQuickerMcpSource, type NativeQuickerSourceDependencies } from "./native-quicker-source.server";
+
+const nativeSources = new WeakMap<MCPClient, NativeQuickerMcpSource>();
+export function nativeMcpClientIdentity(client: MCPClient): string | undefined { return nativeSources.get(client)?.identity; }
+export function nativeMcpClientFailure(client: MCPClient | undefined, error: unknown) {
+  return nativeQuickerMcpFailure(client && nativeSources.get(client)?.failure() || error);
+}
 
 export type LoadedAgentMcpTools = {
   tools: ToolSet;
@@ -29,10 +36,11 @@ export type LoadedAgentMcpTools = {
   dispose: () => Promise<void>;
 };
 
-async function connectServer(
+export async function connectAgentMcpServer(
   server: AgentMcpServerConfig,
   workspaceCwd: string,
   owner: McpClientOwner,
+  nativeDependencies?: NativeQuickerSourceDependencies,
 ): Promise<MCPClient> {
   const abortSignal = owner.signal;
   abortSignal.throwIfAborted();
@@ -60,15 +68,42 @@ async function connectServer(
     }), { ...connectionOptions, onAbandon: closeTransport });
   }
 
-  return awaitMcpConnection(createMCPClient({
-    clientName: `quicker-agent:${server.name}`,
-    transport: {
-      type: server.transport,
-      url: server.url!,
-      headers: expandMcpStringRecord(server.headers),
-      fetch: createMcpTransportFetch({ abortSignal: signal }),
-    },
-  }), { ...connectionOptions, onAbandon: () => connection.abort() });
+  const native = server.source === "quicker-native" ? await resolveQuickerNativeMcpSource(abortSignal, nativeDependencies) : undefined;
+  try {
+    const client = await awaitMcpConnection(createMCPClient({
+      clientName: `quicker-agent:${server.name}`,
+      transport: {
+        type: server.transport,
+        url: native?.url ?? server.url!,
+        headers: native ? undefined : expandMcpStringRecord(server.headers),
+        fetch: createMcpTransportFetch({ abortSignal: signal, fetch: native?.fetch }),
+      },
+    }), { ...connectionOptions, onAbandon: () => connection.abort() });
+    if (native) {
+      nativeSources.set(client, native);
+      try {
+        await native.assertCurrent(true, abortSignal);
+        native.assertPublicData({ serverInfo: client.serverInfo, instructions: client.instructions });
+        if ((typeof client.serverInfo?.name === "string" && client.serverInfo.name.length > 256)
+          || (typeof client.serverInfo?.version === "string" && client.serverInfo.version.length > 128)) throw new Error("Invalid native server identity");
+        const listTools = client.listTools.bind(client);
+        client.listTools = async (...args) => {
+          const result = await listTools(...args);
+          await native.assertCurrent(true, abortSignal);
+          native.assertPublicData(result);
+          return result;
+        };
+      } catch (error) {
+        await (await owner.register(client))();
+        throw error;
+      }
+    }
+    return client;
+  } catch (error) {
+    abortSignal.throwIfAborted();
+    if (native) throw native.failure() ?? new Error(nativeQuickerMcpFailure(error).message);
+    throw error;
+  }
 }
 
 function exposeServerTools(
@@ -101,7 +136,7 @@ export async function loadConfiguredMcpTools(
   options: { chatMode: ChatMode; abortSignal?: AbortSignal } = { chatMode: "agent" },
   dependencies: {
     loadConfig?: typeof loadAgentMcpConfig;
-    connectServer?: typeof connectServer;
+    connectServer?: typeof connectAgentMcpServer;
     readCatalog?: typeof readMcpToolCatalog;
   } = {},
 ): Promise<LoadedAgentMcpTools> {
@@ -117,10 +152,12 @@ export async function loadConfiguredMcpTools(
     const catalogs: McpServerCatalog[] = [];
 
     for (const server of config.servers) {
+      if (!server.enabled) continue;
       let closeClient: (() => Promise<void>) | undefined;
+      let client: MCPClient | undefined;
       try {
         signal.throwIfAborted();
-        const client = await (dependencies.connectServer ?? connectServer)(server, cwd, owner);
+        client = await (dependencies.connectServer ?? connectAgentMcpServer)(server, cwd, owner);
         closeClient = await owner.register(client);
         signal.throwIfAborted();
         const catalog = await (dependencies.readCatalog ?? readMcpToolCatalog)(client, {
@@ -140,6 +177,30 @@ export async function loadConfiguredMcpTools(
           throw new Error("MCP SDK mapped tool names do not match permitted definitions");
         }
         const exposed = exposeServerTools(server, mapped);
+        if (server.source === "quicker-native") {
+          for (const definition of Object.values(exposed)) {
+            const execute = definition.execute;
+            if (execute) definition.execute = async (...args) => {
+              const source = client ? nativeSources.get(client) : undefined;
+              const dispatchedBefore = source?.toolDispatchCount() ?? 0;
+              try {
+                const result = await execute(...args);
+                await source?.assertCurrent(true, signal); source?.assertPublicData(result);
+                return result;
+              }
+              catch (error) {
+                signal.throwIfAborted();
+                const failure = source?.failure();
+                const sent = (source?.toolDispatchCount() ?? 0) > dispatchedBefore;
+                // HTTP success does not establish a tool result: decoding or body streaming can still fail.
+                // Concurrent protocol requests share the client; another request's 401/403 cannot
+                // prove that this already-dispatched tool did not execute.
+                if (sent) throw new NativeQuickerMcpError(failure?.code === "source_changed" ? "source_changed" : "error", true);
+                throw new Error(nativeMcpClientFailure(client, error).message);
+              }
+            };
+          }
+        }
         signal.throwIfAborted();
         for (const toolId of Object.keys(exposed)) {
           if (tools[toolId]) {
@@ -159,7 +220,8 @@ export async function loadConfiguredMcpTools(
         signal.throwIfAborted();
         diagnostics.push({
           path: server.configPath,
-          message: `MCP server "${server.name}" failed: ${error instanceof Error ? error.message : String(error)}`,
+          message: server.source === "quicker-native" ? nativeMcpClientFailure(client, error).message
+            : `MCP server "${server.name}" failed: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
     }
