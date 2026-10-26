@@ -254,7 +254,7 @@ function verificationHintsForIntent(intent: AgentTurnIntent, userText?: string):
     return [
       "Multi-var: one sys:evalexpression with {a}=Convert.ToDouble(1); {b}=…; {c}={a}+{b}; then showText.",
       "Prefer qkrpc_action_create with inline programData (steps+variables) then patch — skip empty write_data round-trip.",
-      "step_runner search → get once per module key — do not repeat search; do not call docs.",
+      "Use step_runner search → get for current native module keys and inputs; use docs for YAML, authoring or expression syntax when needed.",
       "After create with body on disk: patch → diagnostics or qkrpc_action_debug.",
     ];
   }
@@ -264,7 +264,7 @@ function verificationHintsForIntent(intent: AgentTurnIntent, userText?: string):
       "Transform in a single sys:evalexpression (LINQ) — not csscript; not multiple redundant searches.",
       "New action: step_runner search → get → create → write_data → patch → diagnostics or debug.",
       "After qkrpc_action_create, edit empty data.json via write_data — skip read_data.",
-      "When intent-matched skills are preloaded, do NOT call docs for step keys or expression syntax.",
+      "Preloaded skills provide workflow guidance; docs remains available for YAML, authoring and expression syntax, but does not replace current native module definitions.",
     ];
   }
   switch (intent) {

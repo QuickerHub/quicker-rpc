@@ -155,42 +155,10 @@ export const PATTERN_SKILL_OR_QUERIES: Readonly<Record<string, string>> = {
     "repeat|delay|simpleIf",
 };
 
-/** Only these skills hard-limit step_runner_search to one OR query per turn. */
-export const STRICT_SINGLE_STEP_RUNNER_SEARCH_SKILLS = new Set([
-  "quicker-authoring-clipboard-pipeline",
-]);
-
 export type ScoredPatternSkill = {
   skill: string;
   score: number;
 };
-
-export function shouldStrictSingleStepRunnerSearch(
-  matchedSkills: readonly string[],
-): boolean {
-  return matchedSkills.some((skill) =>
-    STRICT_SINGLE_STEP_RUNNER_SEARCH_SKILLS.has(skill),
-  );
-}
-
-export function shouldBlockDocsForPreloadedSkills(
-  scored: readonly ScoredPatternSkill[],
-): boolean {
-  if (scored.length === 0) {
-    return false;
-  }
-  const top = scored[0];
-  if (STRICT_SINGLE_STEP_RUNNER_SEARCH_SKILLS.has(top.skill)) {
-    return true;
-  }
-  if (
-    top.skill === "quicker-authoring-evalexpression-multi-var"
-    && top.score >= 2
-  ) {
-    return true;
-  }
-  return false;
-}
 
 export function suggestStepRunnerOrQuery(matchedSkills: readonly string[]): string | undefined {
   for (const skill of matchedSkills) {
@@ -349,7 +317,7 @@ export async function formatIntentMatchedSkillsForPrompt(
   const blocks: string[] = [
     "## Intent-matched skills (this turn)",
     "Brief excerpts preloaded from user intent.",
-    "Do NOT call docs for step module keys or evalexpression/$= syntax when this block covers the workflow — use qkrpc_step_runner_search → get; quicker-eval-expression is session-preloaded.",
+    "Use qkrpc_step_runner_search → get for current native module keys and inputs. These skill excerpts are workflow guidance, not current native definitions; docs remains available for YAML, authoring and expression syntax.",
     "",
   ];
 

@@ -4,7 +4,6 @@ import {
   extractSkillBriefForPreload,
   rankPatternSkills,
   rankPatternSkillsScored,
-  shouldBlockDocsForPreloadedSkills,
 } from "./skill-intent-preload.ts";
 
 const HTTP_SKILL_BODY = `# HTTP skill
@@ -97,7 +96,7 @@ test("rankPatternSkills prioritizes getquicker skill for scrape prompt", () => {
   assert.equal(skills[0], "quicker-authoring-getquicker-user-actions");
 });
 
-test("shouldBlockDocsForPreloadedSkills skips getquicker scrape prompt", () => {
+test("rankPatternSkillsScored prioritizes getquicker scrape prompt", () => {
   const userText =
     "做一个 Quicker 动作，不要弹窗或文本窗口。运行时用 `{quicker_in_param}` 接收 getquicker 用户分享页链接。"
     + "抓取该用户全部公开动作（含分页），把获赞总数写入输出变量 `totalLikes`，动作个数写入 `actionCount`。";
@@ -105,7 +104,7 @@ test("shouldBlockDocsForPreloadedSkills skips getquicker scrape prompt", () => {
     userText,
     intent: "action_authoring",
   });
-  assert.equal(shouldBlockDocsForPreloadedSkills(scored), false);
+  assert.equal(scored[0]?.skill, "quicker-authoring-getquicker-user-actions");
 });
 
 test("formatIntentMatchedSkillsForPrompt loads HTTP skill excerpt", async () => {
@@ -119,4 +118,6 @@ test("formatIntentMatchedSkillsForPrompt loads HTTP skill excerpt", async () => 
   assert.ok(block.includes("Intent-matched skills"));
   assert.ok(block.includes("quicker-authoring-http-json-api"));
   assert.ok(block.includes("sys:http"));
+  assert.match(block, /docs remains available for YAML, authoring and expression syntax/);
+  assert.match(block, /not current native definitions/);
 });

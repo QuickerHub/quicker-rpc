@@ -10,6 +10,10 @@ const repo = resolve(import.meta.dirname, "../..");
 let owned: string;
 let api: typeof import("./action-authoring-docs") & { executeDocsTool(input: unknown): Promise<any>; setRoot(root: string, standalone?: boolean): void; networkCalls(): number; manifestReadsValue: number;
   loadSkillInstructions: typeof import("./agent-skills/load").loadSkillInstructions;
+  runWithAgentRequestContext: typeof import("./qkrpc-request-context").runWithAgentRequestContext;
+  getDocsCallCountThisTurn: typeof import("./program-turn-context").getDocsCallCountThisTurn;
+  buildAgentTurnState: typeof import("./agent-turn-state").buildAgentTurnState;
+  rankPatternSkillsScored: typeof import("./agent-skills/skill-intent-preload").rankPatternSkillsScored;
   holdNextRead(path: string): { captured: Promise<void>; release(): void };
 };
 before(async () => {
@@ -30,19 +34,15 @@ before(async () => {
       export async function formatAllPreloadedSkillsForPrompt(){return ''}`,
     http: `let count=0;export function networkCalls(){return count}export async function invokeQkrpcHttp(){count++;return {ok:true,parsed:{schema:{title:'implicit remote fallback'}}}}`,
     repo: `import {root,standalone} from 'fixture:skills';export function resolveQuickerRpcRepoRoot(){return standalone?null:root}`,
-    context: `export function getRequestCwd(){}export function getRequestLastUserText(){}`,
     feedback: `export const attachToolFeedback=r=>r;export const formatLocalToolResult=(data,ok=true)=>({data,ok});`,
     view: `export const formatToolResultForAgent=(_tool,_input,result)=>result`,
-    state: `export const buildAgentTurnState=()=>({intent:'general'})`,
-    preload: `export const rankPatternSkills=()=>[];export const rankPatternSkillsScored=()=>[];export const shouldBlockDocsForPreloadedSkills=()=>false`,
-    turn: `export function incrementDocsCallCountThisTurn(){}`,
     ai: `export const tool=value=>value`, empty: "",
   };
   const aliases: Record<string, string> = { "node:fs/promises": "fs", "@/lib/agent-skills": "skills", "@/lib/agent-skills/discover": "skills", "@/lib/qkrpc-http": "http",
-    "@/lib/qkrpc-request-context": "context", "@/lib/tool-result": "feedback", "@/lib/tool-result-agent-view": "view",
-    "@/lib/agent-turn-state": "state", "@/lib/agent-skills/skill-intent-preload": "preload", "@/lib/program-turn-context": "turn", "@/lib/repo-root": "repo", ai: "ai", "server-only": "empty" };
+    "@/lib/tool-result": "feedback", "@/lib/tool-result-agent-view": "view",
+    "@/lib/repo-root": "repo", ai: "ai", "server-only": "empty" };
   const output = join(owned, "fixture.mjs");
-  await build({ stdin: { contents: `export * from ${JSON.stringify(join(repo, "agent-gui/lib/action-authoring-docs.ts"))};export {executeDocsTool} from ${JSON.stringify(join(repo, "agent-gui/lib/docs-tool.server.ts"))};export {loadSkillInstructions} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-skills/load.ts"))};export {setRoot,reads as manifestReadsValue} from 'fixture:skills';export {networkCalls} from 'fixture:http';export {holdNextRead} from 'fixture:fs';`, resolveDir: join(repo, "agent-gui") },
+  await build({ stdin: { contents: `export * from ${JSON.stringify(join(repo, "agent-gui/lib/action-authoring-docs.ts"))};export {executeDocsTool} from ${JSON.stringify(join(repo, "agent-gui/lib/docs-tool.server.ts"))};export {loadSkillInstructions} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-skills/load.ts"))};export {runWithAgentRequestContext} from ${JSON.stringify(join(repo, "agent-gui/lib/qkrpc-request-context.ts"))};export {getDocsCallCountThisTurn} from ${JSON.stringify(join(repo, "agent-gui/lib/program-turn-context.ts"))};export {buildAgentTurnState} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-turn-state.ts"))};export {rankPatternSkillsScored} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-skills/skill-intent-preload.ts"))};export {setRoot,reads as manifestReadsValue} from 'fixture:skills';export {networkCalls} from 'fixture:http';export {holdNextRead} from 'fixture:fs';`, resolveDir: join(repo, "agent-gui") },
     outfile: output, bundle: true, platform: "node", format: "esm", tsconfig: join(repo, "agent-gui/tsconfig.json"), plugins: [{ name: "owned-docs-ports", setup(builder) {
       builder.onResolve({ filter: /.*/ }, args => { if (args.path === "fixture-real-fs") return { path: "node:fs/promises", external: true }; const key = args.path.startsWith("fixture:") ? args.path.slice(8) : aliases[args.path]; return key ? { path: key, namespace: "docs-fixture" } : undefined; });
       builder.onLoad({ filter: /.*/, namespace: "docs-fixture" }, args => ({ contents: modules[args.path], resolveDir: join(repo, "agent-gui"), loader: "js" }));
@@ -64,6 +64,53 @@ async function fixture(topic = "alpha") {
   await mkdir(join(skill, "references/alpha")); await writeFile(join(skill, "references/alpha/extra.md"), "# Extra\n\noldreference");
   await utimes(join(skill, "SKILL.md"), new Date("2030-01-01"), new Date("2030-01-01"));
   api.setRoot(root); return { root, skill, file };
+}
+
+for (const scenario of [
+  { userText: "修改动作：剪贴板文本去掉空行、去重并排序后写回剪贴板。", skill: "quicker-authoring-clipboard-pipeline" },
+  { userText: "修改动作：用一个表达式步骤同时设置多变量 a=1、b=2、c=a+b。", skill: "quicker-authoring-evalexpression-multi-var" },
+]) {
+  test(`authoring intent ${scenario.skill} can read current guides without granting native authority`, async () => {
+    const { root } = await fixture("program-source");
+    const turn = api.buildAgentTurnState({ userText: scenario.userText, chatMode: "agent", actionScope: { pinnedLatestAll: [] }, enabledToolIds: ["docs"] });
+    assert.equal(turn.intent, "action_authoring");
+    assert.equal(api.rankPatternSkillsScored({ userText: scenario.userText, intent: turn.intent })[0]?.skill, scenario.skill);
+    assert.match(turn.verificationHints.join("\n"), /docs.*(?:YAML|syntax)/);
+    assert.doesNotMatch(turn.verificationHints.join("\n"), /do not call docs|do NOT call docs/i);
+
+    await api.runWithAgentRequestContext({ cwd: root, lastUserText: scenario.userText, chatMode: "agent" }, async () => {
+      assert.equal(api.getDocsCallCountThisTurn(), 0);
+      const guide = await api.executeDocsTool({ action: "get", topic: "program-source" });
+      assert.equal(guide.ok, true);
+      assert.match(guide.data.markdown, /oldneedle original/);
+      assert.equal(guide.data.knowledge.source.kind, "local-guide");
+      assert.equal(guide.data.knowledge.source.native, false);
+      assert.equal(api.getDocsCallCountThisTurn(), 1);
+
+      const search = await api.executeDocsTool({ action: "search", query: "oldneedle" });
+      assert.equal(search.ok, true);
+      assert.equal(search.data.items.some((item: any) => item.topic === "program-source"), true);
+      assert.equal(api.getDocsCallCountThisTurn(), 2);
+
+      const index = await api.executeDocsTool({ action: "index" });
+      assert.equal(index.ok, true);
+      assert.equal(index.data.topics.some((topic: any) => topic.topic === "program-source"), true);
+      assert.equal(api.getDocsCallCountThisTurn(), 3);
+
+      const missing = await api.executeDocsTool({ action: "get", topic: "missing-topic" });
+      assert.equal(missing.ok, false);
+      assert.equal(missing.data.action, "docs-get");
+      assert.ok(missing.data.errorMessage);
+      assert.equal(api.getDocsCallCountThisTurn(), 4);
+
+      const invalid = await api.executeDocsTool({ action: "get" });
+      assert.equal(invalid.ok, false);
+      assert.equal(invalid.data.errorMessage, "topic is required when action=get");
+      assert.equal(api.getDocsCallCountThisTurn(), 5);
+    });
+    assert.equal(api.getDocsCallCountThisTurn(), 0, "request counters do not escape the turn owner");
+    assert.equal(api.networkCalls(), 0);
+  });
 }
 
 test("a same-mtime or older-mtime replacement updates docs get and search in this process", async () => {
