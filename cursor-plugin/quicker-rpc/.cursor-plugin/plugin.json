@@ -5,10 +5,10 @@
   "version": {
     "Major": 0,
     "Minor": 15,
-    "Build": 0,
-    "Revision": 2,
+    "Build": 1,
+    "Revision": 0,
     "MajorRevision": 0,
-    "MinorRevision": 2
+    "MinorRevision": 0
   },
   "author": {
     "name": "QuickerHub"
