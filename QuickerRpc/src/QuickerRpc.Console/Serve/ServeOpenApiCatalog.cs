@@ -9,6 +9,7 @@ internal static class ServeOpenApiCatalog
         "wait",
         "guide.get",
         "guide.search",
+        "source.document",
         "resource.catalog.page",
         "action.list",
         "action.search",

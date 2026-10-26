@@ -9,7 +9,7 @@ using QuickerRpc.Contracts.Rpc;
 namespace QuickerRpc.Console;
 
 /// <summary>The portable YAML edit surface and its private native checkpoint.</summary>
-internal static class ActionSourceWorkspace
+internal static partial class ActionSourceWorkspace
 {
     internal const string SourceFile = "program.source.yaml";
     internal const string IdentityFile = "quicker.source.json";
@@ -19,7 +19,15 @@ internal static class ActionSourceWorkspace
 
     internal sealed record Prepared(string Directory, string ActionId, long EditVersion, JObject Body, JObject Caw,
         QuickerRpcHostBinding? HostBinding = null,
-        QuickerRpcActionStorageIdentity? StorageIdentity = null);
+        QuickerRpcActionStorageIdentity? StorageIdentity = null)
+    {
+        internal BundleCapture Snapshot { get; init; } = null!;
+        internal string SnapshotRevision => Snapshot.Revision;
+        internal string EditableBodyJson { get; init; } = string.Empty;
+        internal string ConsumedBodyHash => ByteHash(Utf8.GetBytes(EditableBodyJson));
+        internal string FrozenBodyJson { get; init; } = string.Empty;
+        internal string FrozenCawJson { get; init; } = string.Empty;
+    }
 
     internal static object Open(
         string directory, string actionId, long editVersion, string? title, string? readSource,
@@ -76,15 +84,24 @@ internal static class ActionSourceWorkspace
         };
     }
 
-    internal static Prepared Prepare(string directory)
+    internal static Prepared Prepare(string directory, string? expectedSnapshot = null)
     {
         var dir = ResolveDirectory(directory);
-        var identity = ReadJson(dir, IdentityFile);
+        using var lease = ActionProjectHostBinding.ClaimValidation(dir, null);
+        var capture = Capture(dir);
+        RequireExpected(capture, expectedSnapshot, required: false);
+        return PrepareCaptured(capture);
+    }
+
+    private static Prepared PrepareCaptured(BundleCapture capture)
+    {
+        var dir = capture.Directory;
+        var identity = CapturedJson(capture, IdentityFile);
         if (identity.Value<string>("schema") != BundleSchema || identity.Value<string>("kind") != "action")
             throw new InvalidOperationException("Not a qkrpc action source bundle.");
         var actionId = identity.Value<string>("actionId");
         if (!Guid.TryParse(actionId, out _)) throw new InvalidOperationException("Bundle actionId must be a GUID.");
-        var checkpoint = ReadJson(dir, BaselineFile);
+        var checkpoint = CapturedJson(capture, BaselineFile);
         if (!string.Equals(actionId, checkpoint.Value<string>("actionId"), StringComparison.OrdinalIgnoreCase)
             || !long.TryParse(checkpoint.Value<string>("editVersion"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var version)
             || checkpoint.Value<string>("editVersion") != identity.Value<string>("editVersion"))
@@ -97,9 +114,9 @@ internal static class ActionSourceWorkspace
             throw new InvalidOperationException("Source storage identity/checkpoint mismatch. Reopen the action.");
         var storage = identity["storageIdentity"]?.ToObject<QuickerRpcActionStorageIdentity>();
         ValidateStorageIdentity(storage, version);
-        var caw = ProgramSourceCodec.Decode(ReadText(dir, SourceFile));
+        var caw = ProgramSourceCodec.Decode(CapturedText(capture, SourceFile));
         ProgramSourceCodec.RequireLosslessRoundtrip(caw);
-        Materialize(caw, dir);
+        Materialize(caw, path => CapturedText(capture, path));
         caw = V1ProgramSourceCodec.NormalizeForSave(caw, baselineCaw);
         var native = V1ProgramSourceCodec.ToNative(caw, baseline, baselineCaw);
         var originalEnvelope = ReadOnlyEnvelope(baseline);
@@ -111,7 +128,11 @@ internal static class ActionSourceWorkspace
         var binding = identity["hostBinding"] is JObject bindingJson ? bindingJson.ToObject<QuickerRpcHostBinding>() : null;
         if (string.Equals(binding?.HostKind, "v1", StringComparison.OrdinalIgnoreCase))
             RequireV1VariableDefaultScalars(native);
-        return new Prepared(dir, actionId!, version, native, caw, binding, storage);
+        return new Prepared(dir, actionId!, version, native, caw, binding, storage)
+        {
+            Snapshot = capture, EditableBodyJson = EditableBody(native).ToString(Formatting.None),
+            FrozenBodyJson = native.ToString(Formatting.None), FrozenCawJson = caw.ToString(Formatting.None),
+        };
     }
 
     private static void RequireV1VariableDefaultScalars(JObject program, string path = "")
@@ -147,11 +168,7 @@ internal static class ActionSourceWorkspace
                 throw new InvalidOperationException("Saved storage identity changed. Reopen the action.");
         }
         ValidateStorageIdentity(storageIdentity, editVersion);
-        var identity = ReadJson(prepared.Directory, IdentityFile);
-        identity["editVersion"] = editVersion.ToString(CultureInfo.InvariantCulture);
-        if (storageIdentity is not null) identity["storageIdentity"] = StorageJson(storageIdentity);
-        WriteBaseline(prepared.Directory, prepared.ActionId, editVersion, prepared.Body, prepared.Caw, prepared.HostBinding, storageIdentity);
-        WriteJson(Path.Combine(prepared.Directory, IdentityFile), identity);
+        CheckpointCaptured(prepared, editVersion, storageIdentity);
     }
 
     private static void WriteBaseline(string dir, string id, long version, JObject body, JObject caw,
@@ -214,6 +231,9 @@ internal static class ActionSourceWorkspace
     }
 
     private static void Materialize(JObject program, string dir)
+        => Materialize(program, path => ReadText(dir, path));
+
+    private static void Materialize(JObject program, Func<string, string> read)
     {
         VisitProgram(program, (inputs, variable) =>
         {
@@ -226,7 +246,7 @@ internal static class ActionSourceWorkspace
                 var relative = property.Value.Value<string>()!;
                 if (!relative.Replace('\\', '/').StartsWith("files/", StringComparison.Ordinal))
                     throw new InvalidOperationException("File references must be below files/.");
-                property.Replace(new JProperty(key, ReadText(dir, relative)));
+                property.Replace(new JProperty(key, read(relative)));
             }
         });
     }

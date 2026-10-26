@@ -206,10 +206,11 @@ public static class CawCanonicalizer
             return;
         }
 
+        RequireUniqueVariableIds(variables);
         foreach (var variable in variables.OfType<JObject>())
         {
-            variable.Remove("id");
-            variable.Remove("Id");
+            // These can be real native identities. Editor-only identities must be
+            // removed by the editor projection, never guessed from their spelling here.
             OmitBoolIfFalse(variable, "isLocked");
             OmitBoolIfFalse(variable, "saveState");
             OmitBoolIfFalse(variable, "isInput");
@@ -219,6 +220,32 @@ public static class CawCanonicalizer
             OmitStringIfEmpty(variable, "group");
             OmitStringIfEmpty(variable, "customType");
             // Keep empty-string default when present (fixture uses default: "").
+        }
+    }
+
+    internal static string? ReadVariableId(JObject variable)
+    {
+        var camel = variable.Property("id");
+        var pascal = variable.Property("Id");
+        if (camel is not null && pascal is not null)
+            throw new ProgramSourceException(ProgramSourceCodes.CawInvalid, "Ambiguous variable id/Id aliases.");
+        var token = (camel ?? pascal)?.Value;
+        if (token is null || token.Type is JTokenType.Null or JTokenType.Undefined) return null;
+        if (token.Type != JTokenType.String)
+            throw new ProgramSourceException(ProgramSourceCodes.CawInvalid, "Variable identity must be a string.");
+        var id = token.Value<string>();
+        return string.IsNullOrWhiteSpace(id) ? null : id;
+    }
+
+    internal static void RequireUniqueVariableIds(JArray? variables)
+    {
+        if (variables is null) return;
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var variable in variables.OfType<JObject>())
+        {
+            var id = ReadVariableId(variable);
+            if (id is not null && !ids.Add(id))
+                throw new ProgramSourceException(ProgramSourceCodes.CawInvalid, "Duplicate variable ID: " + id);
         }
     }
 
@@ -270,41 +297,18 @@ public static class CawCanonicalizer
 
     private static void OmitEmptyContainers(JToken token, bool structural)
     {
-        if (token is JObject obj)
+        if (!structural || token is not JObject root) return;
+        VisitStructuralOwners(root, (owner, kind) =>
         {
-            foreach (var prop in obj.Properties().ToList())
+            foreach (var property in owner.Properties().ToArray())
             {
-                // Inside inputs/outputs (and similar value maps), nested keys like
-                // "outputs": {} are literal data — do not treat as structural omission.
-                var childStructural = structural
-                    && prop.Name is not "inputs"
-                    and not "outputs"
-                    and not "inputParamInfo"
-                    and not "outputParamInfo"
-                    and not "tableDef";
-
-                OmitEmptyContainers(prop.Value, childStructural);
-
-                if (structural)
-                {
-                    if (prop.Value is JObject { Count: 0 } && IsOmittableEmptyMap(prop.Name))
-                    {
-                        prop.Remove();
-                    }
-                    else if (prop.Value is JArray { Count: 0 } && IsOmittableEmptyArray(prop.Name))
-                    {
-                        prop.Remove();
-                    }
-                }
+                var knownMap = kind == KeyOrderKind.Step && property.Name is "inputs" or "outputs"
+                    || kind == KeyOrderKind.Variable && property.Name is "inputParamInfo" or "outputParamInfo" or "tableDef";
+                if (knownMap && property.Value is JObject { Count: 0 }
+                    || kind == KeyOrderKind.Step && IsOmittableEmptyArray(property.Name) && property.Value is JArray { Count: 0 })
+                    property.Remove();
             }
-        }
-        else if (token is JArray array)
-        {
-            foreach (var child in array)
-            {
-                OmitEmptyContainers(child, structural);
-            }
-        }
+        });
     }
 
     private static bool IsOmittableEmptyMap(string name) =>
@@ -360,30 +364,36 @@ public static class CawCanonicalizer
 
     private static void OmitNulls(JToken token, HashSet<JToken> inputLiterals)
     {
-        // input:null 表示未设置；对象/数组中的 null 是数据，不能按结构属性省略。
-        if (inputLiterals.Contains(token))
+        if (token is not JObject root) return;
+        VisitStructuralOwners(root, (owner, kind) =>
         {
-            return;
-        }
-
-        if (token is JObject obj)
-        {
-            foreach (var prop in obj.Properties().ToList())
+            foreach (var property in owner.Properties().ToArray())
             {
-                if (prop.Value.Type is JTokenType.Null or JTokenType.Undefined)
-                {
-                    prop.Remove();
-                    continue;
-                }
-
-                OmitNulls(prop.Value, inputLiterals);
+                // Only optional structural containers use null as absence. Literal,
+                // metadata and extension nulls are data, including names such as
+                // future.outputs; never recurse into opaque extension objects.
+                var container = kind == KeyOrderKind.Root && property.Name is "steps" or "variables" or "subPrograms"
+                    || kind == KeyOrderKind.Step && property.Name is "inputs" or "outputs" or "ifSteps" or "elseSteps";
+                if (container && property.Value.Type is JTokenType.Null or JTokenType.Undefined) property.Remove();
             }
-        }
-        else if (token is JArray array)
+        });
+    }
+
+    private static void VisitStructuralOwners(JObject program, Action<JObject, KeyOrderKind> visit)
+    {
+        visit(program, KeyOrderKind.Root);
+        if (program["variables"] is JArray variables)
+            foreach (var variable in variables.OfType<JObject>()) visit(variable, KeyOrderKind.Variable);
+        if (program["steps"] is JArray steps) VisitSteps(steps);
+        if (program["subPrograms"] is JArray subs)
+            foreach (var sub in subs.OfType<JObject>()) VisitStructuralOwners(sub, visit);
+        void VisitSteps(JArray rows)
         {
-            foreach (var child in array)
+            foreach (var step in rows.OfType<JObject>())
             {
-                OmitNulls(child, inputLiterals);
+                visit(step, KeyOrderKind.Step);
+                if (step["ifSteps"] is JArray thenSteps) VisitSteps(thenSteps);
+                if (step["elseSteps"] is JArray elseSteps) VisitSteps(elseSteps);
             }
         }
     }

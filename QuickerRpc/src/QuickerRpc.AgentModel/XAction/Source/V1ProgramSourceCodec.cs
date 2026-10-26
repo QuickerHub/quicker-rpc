@@ -57,13 +57,14 @@ public static class V1ProgramSourceCodec
     public static JObject ToNative(JObject caw, JObject? baselineNative = null, JObject? baselineCaw = null)
     {
         if (caw is null) throw new ArgumentNullException(nameof(caw));
+        var native = baselineNative is null ? null : NormalizeNativeProgram(baselineNative);
         var baseline = baselineCaw is not null ? CawCanonicalizer.Canonicalize(baselineCaw)
             : baselineNative is null ? null : FromNative(baselineNative);
+        if (native is not null && baseline is not null) RequireConsistentVariableBaselines(native, baseline);
         var current = NormalizeForSave(caw, baseline);
         if (baselineNative is not null && JToken.DeepEquals(current, baseline)) return (JObject)baselineNative.DeepClone();
         // EmptyBodyJson and some old hosts use native camelCase. Edited output has one native
         // PascalCase spelling per known field, never both "steps" and "Steps".
-        var native = baselineNative is null ? null : NormalizeNativeProgram(baselineNative);
         var steps = new Dictionary<string, Tuple<JObject, JObject>>(StringComparer.Ordinal);
         if (native is not null && baseline is not null) CollectBaselineSteps(native, baseline, steps);
         return ToProgram(current, native, baseline, steps);
@@ -78,6 +79,7 @@ public static class V1ProgramSourceCodec
     {
         if (caw is null) throw new ArgumentNullException(nameof(caw));
         var normalized = CawCanonicalizer.Canonicalize(caw);
+        RequireVariableKeys(normalized);
         ProgramSourceSubProgramIdentity.EnsureIds(normalized, baselineCaw);
         RequireUnique(AllSteps(normalized), "stepId", "stepId", "step ID", allowEmpty: true);
         return normalized;
@@ -102,6 +104,7 @@ public static class V1ProgramSourceCodec
         var result = new JArray();
         if (variables is null) return result;
         RequireUnique(variables.OfType<JObject>(), "Key", "key", "variable key");
+        CawCanonicalizer.RequireUniqueVariableIds(variables);
         foreach (var item in variables)
         {
             if (item is not JObject variable) throw Invalid("Each native variable must be an object.");
@@ -253,14 +256,46 @@ public static class V1ProgramSourceCodec
         var result = new JArray();
         if (variables is null) return result;
         RequireUnique(variables.OfType<JObject>(), "key", "key", "variable key");
+        CawCanonicalizer.RequireUniqueVariableIds(variables);
+        CawCanonicalizer.RequireUniqueVariableIds(nativeVariables);
+        CawCanonicalizer.RequireUniqueVariableIds(cawVariables);
+        var usedNativeKeys = new HashSet<string>(StringComparer.Ordinal);
+        var usedCawKeys = new HashSet<string>(StringComparer.Ordinal);
+        var hasUnmatchedIdlessSource = false;
         foreach (var token in variables)
         {
             if (token is not JObject variable) throw Invalid("Each variable must be an object.");
             var key = variable.Value<string>("key");
-            var old = Find(nativeVariables, "Key", key);
-            var oldCaw = Find(cawVariables, "key", key);
+            var id = CawCanonicalizer.ReadVariableId(variable);
+            var old = FindVariableId(nativeVariables, id);
+            var oldCaw = FindVariableId(cawVariables, id);
+            // A source checkpoint may have an ID that old native/source exports
+            // did not expose. Bridge it through the checkpoint's original key.
+            if (old is null && oldCaw is not null)
+                old = Find(nativeVariables, "Key", oldCaw.Value<string>("key"));
+            old ??= Find(nativeVariables, "Key", key);
+            var nativeId = old is null ? null : CawCanonicalizer.ReadVariableId(old);
+            if (id is not null && nativeId is not null && id != nativeId)
+                throw Invalid("Source variable ID conflicts with the native variable: " + key);
+            oldCaw ??= FindVariableId(cawVariables, nativeId);
+            // Old CAW checkpoints deliberately omitted variable IDs. Use the
+            // matched native row's old key, not the edited (possibly renamed) key.
+            oldCaw ??= Find(cawVariables, "key", old?.Value<string>("Key") ?? key);
+            var checkpointId = oldCaw is null ? null : CawCanonicalizer.ReadVariableId(oldCaw);
+            if (checkpointId is not null && (id ?? nativeId) is { } expectedId && checkpointId != expectedId)
+                throw Invalid("Source variable ID conflicts with the baseline checkpoint: " + key);
+            if (old is not null && !usedNativeKeys.Add(old.Value<string>("Key")!))
+                throw Invalid("Multiple source variables match the same native variable.");
+            if (oldCaw is not null && !usedCawKeys.Add(oldCaw.Value<string>("key")!))
+                throw Invalid("Multiple source variables match the same baseline variable.");
+            if (old is null && id is null) hasUnmatchedIdlessSource = true;
             if (old is not null && JToken.DeepEquals(variable, oldCaw)) { result.Add(old.DeepClone()); continue; }
-            var mapped = MergeFields(variable, old, oldCaw, VariableFields);
+            var mapped = MergeFields(variable, old, old is null ? null : oldCaw, VariableFields, "id", "Id");
+            // Omitting an ID from source is not permission to erase an existing
+            // native identity. Only a real source ID may create a new one.
+            var identity = nativeId is not null ? old!["Id"]
+                : variable["id"] ?? variable["Id"] ?? old?["Id"];
+            if (identity is not null) mapped["Id"] = identity.DeepClone();
             if (!JToken.DeepEquals(variable["varType"], oldCaw?["varType"]) || old is null)
             {
                 if (!VarTypeCodec.TryParse(variable["varType"] ?? variable["type"], out var type)) throw Invalid("Unknown variable type for " + key);
@@ -269,7 +304,45 @@ public static class V1ProgramSourceCodec
             }
             result.Add(mapped);
         }
+        if (hasUnmatchedIdlessSource && nativeVariables?.OfType<JObject>().Any(variable =>
+            CawCanonicalizer.ReadVariableId(variable) is not null && !usedNativeKeys.Contains(variable.Value<string>("Key")!)) == true)
+            throw Invalid("An idless source variable cannot replace an identified native variable; retain its real ID for a rename.");
         return result;
+    }
+
+    private static JObject? FindVariableId(JArray? variables, string? id) => id is null ? null
+        : variables?.OfType<JObject>().SingleOrDefault(variable => CawCanonicalizer.ReadVariableId(variable) == id);
+
+    private static void RequireVariableKeys(JObject program)
+    {
+        if (program["variables"] is JArray variables)
+            RequireUnique(variables.OfType<JObject>(), "key", "key", "variable key");
+        if (program["subPrograms"] is JArray subs)
+            foreach (var sub in subs.OfType<JObject>()) RequireVariableKeys(sub);
+    }
+
+    private static void RequireConsistentVariableBaselines(JObject native, JObject caw)
+    {
+        if (caw["variables"] is JArray variables)
+        {
+            RequireUnique(variables.OfType<JObject>(), "key", "key", "baseline variable key");
+            var nativeVariables = native["Variables"] as JArray;
+            foreach (var variable in variables.OfType<JObject>())
+            {
+                var id = CawCanonicalizer.ReadVariableId(variable);
+                if (id is null) continue; // Compatibility with checkpoints made before IDs were retained.
+                var key = variable.Value<string>("key");
+                var byId = FindVariableId(nativeVariables, id);
+                var byKey = Find(nativeVariables, "Key", key);
+                if ((byId is not null && byId.Value<string>("Key") != key)
+                    || (byKey is not null && CawCanonicalizer.ReadVariableId(byKey) is { } nativeId && nativeId != id))
+                    throw Invalid("Baseline variable ID and key identify different native variables.");
+            }
+        }
+        if (caw["subPrograms"] is JArray subs)
+            foreach (var sub in subs.OfType<JObject>())
+                if (Find(native["SubPrograms"] as JArray, "Id", sub.Value<string>("id")) is { } oldSub)
+                    RequireConsistentVariableBaselines(oldSub, sub);
     }
 
     private static JObject MergeFields(JObject current, JObject? oldNative, JObject? oldCaw,
@@ -369,7 +442,11 @@ public static class V1ProgramSourceCodec
         var result = ToPascal(value, ProgramFields);
         if (result["Steps"] is JArray steps) result["Steps"] = NormalizeSteps(steps);
         if (result["Variables"] is JArray variables)
+        {
+            CawCanonicalizer.RequireUniqueVariableIds(variables);
+            RequireUnique(variables.OfType<JObject>(), "Key", "key", "native variable key");
             result["Variables"] = new JArray(variables.Select(variable => variable is JObject obj ? ToPascal(obj, VariableFields) : variable.DeepClone()));
+        }
         if (result["SubPrograms"] is JArray subs)
             result["SubPrograms"] = new JArray(subs.Select(sub => sub is JObject obj ? NormalizeNativeProgram(obj) : sub.DeepClone()));
         return result;
