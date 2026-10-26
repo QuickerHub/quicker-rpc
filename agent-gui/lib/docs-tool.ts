@@ -36,20 +36,54 @@ export function isDocsGetOpenableTool(
   return false;
 }
 
+export type DocsGuideSource = "local" | "gateway";
+
+/** Gateway observations describe this guide read, never native editing authority. */
+export type GatewayGuideKnowledge = {
+  status: "available" | "unknown" | "unavailable";
+  gateway: { transport: "http" | "cli"; identity: string; displayName: string };
+  retrievedAt: string;
+  codec: Record<string, unknown> | null;
+  provenance: Record<string, unknown> | null;
+  reason?: string;
+};
+
 export type DocsGetDoc = {
   topic: string;
   title: string;
   description?: string;
   markdown: string;
   reference?: string;
+  guideSource?: DocsGuideSource;
+  gatewayKnowledge?: GatewayGuideKnowledge;
 };
 
-export function parseDocsGetDoc(output: StructuredToolResult): DocsGetDoc | null {
-  if (!output.ok || output.source !== "local") return null;
-  const data = output.data;
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : null;
+}
+
+export function parseGatewayGuideKnowledge(value: unknown): GatewayGuideKnowledge | undefined {
+  const data = record(value);
+  const gateway = record(data?.gateway);
+  if (!data || !gateway || !["available", "unknown", "unavailable"].includes(String(data.status))
+    || !["http", "cli"].includes(String(gateway.transport))
+    || typeof gateway.identity !== "string" || !gateway.identity
+    || typeof gateway.displayName !== "string" || typeof data.retrievedAt !== "string") return;
+  return {
+    status: data.status as GatewayGuideKnowledge["status"],
+    gateway: { transport: gateway.transport as "http" | "cli", identity: gateway.identity, displayName: gateway.displayName },
+    retrievedAt: data.retrievedAt,
+    codec: record(data.codec), provenance: record(data.provenance),
+    ...(typeof data.reason === "string" ? { reason: data.reason } : {}),
+  };
+}
+
+/** Shared API/tool parser. Failed gateway reads remain inspectable without local fallback. */
+export function parseDocsGetValue(data: unknown): DocsGetDoc | null {
   if (typeof data !== "object" || data === null) return null;
   const d = data as Record<string, unknown>;
-  if (d.action !== "docs-get" || typeof d.markdown !== "string") return null;
+  if (typeof d.markdown !== "string") return null;
   const topic = typeof d.topic === "string" ? d.topic : "doc";
   const title = typeof d.title === "string" && d.title.trim()
     ? d.title.trim()
@@ -62,7 +96,19 @@ export function parseDocsGetDoc(output: StructuredToolResult): DocsGetDoc | null
     typeof d.reference === "string" && d.reference.trim()
       ? d.reference.trim()
       : undefined;
-  return { topic, title, description, markdown: d.markdown, reference };
+  const guideSource = d.guideSource === "gateway" ? "gateway" : "local";
+  const gatewayKnowledge = guideSource === "gateway" ? parseGatewayGuideKnowledge(d.gatewayKnowledge) : undefined;
+  if (guideSource === "gateway" && !gatewayKnowledge) return null;
+  return { topic, title, description, markdown: d.markdown, reference, guideSource, gatewayKnowledge };
+}
+
+export function parseDocsGetDoc(output: StructuredToolResult): DocsGetDoc | null {
+  if (output.source !== "local") return null;
+  const data = record(output.data);
+  if (data?.action !== "docs-get") return null;
+  const doc = parseDocsGetValue(data);
+  if (!output.ok && doc?.gatewayKnowledge?.status !== "unavailable") return null;
+  return doc;
 }
 
 export function parseDocsGetMarkdown(output: StructuredToolResult): string | null {

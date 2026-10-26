@@ -188,7 +188,17 @@ StepRunner 结果还受 24,000 字符的全局摘要与最终模型 JSON 8,192 �
 程序集及 module ID；descriptor 指纹仅标识描述正文。内置指南标为 `bundled-fallback`，
 按实际嵌入文档、reference manifest 和 schema 内容计算指纹，不取文件时间或 Quicker 版本表。
 这些离线结果的 native source 能力始终 unknown；不改变当前绑定、原生 availability 或保存许可。
-Node 文档路由与统一来源消费继续按迁移计划接入，不能把新增离线 descriptor 当作该项全部完成。
+Node 沿现有 `docs get` 增加显式 `source=gateway`，当前限 `program-source`；省略 source
+仍读取本地指南，search/index/reference 不隐式改查远端。一次读取固定已选 HTTP gateway
+或 CLI 可执行文件，直接派发离线 guide；不查询宿主、不自动启动或修复，也不在失败时
+换用本地 CLI。来源身份使用所选端口或 executable 的不透明指纹，显示名称不含凭据；
+它只标识查询通道，实际 codec 实现身份仍以 descriptor 为准。每次显式查询重新读取。
+
+工具结果与 Docs API 保留实际 codec/provenance 和读取时间，缺失或不识别的 metadata
+保持 unknown，失败保持 unavailable。既有文档面板按来源与 gateway 身份区分同名主题；
+工具结果可以原样打开，不因展示重查当前配置。模型超限投影保留有界来源与格式信息，
+超长身份整项省略并声明 partial；原始 metadata 继续留在 UI/历史结果。读取时间和内容
+指纹都不证明宿主此刻支持 source 写入，完整统一查询与升级验收继续按计划推进。
 相同模块更新字段、同宿主更新定义、换会话、先空后有、来源不可用及旧查询晚到分别验证。
 实施状态统一维护在[产品计划](product/README.md#refactor-execution-plan)，不以移除一层缓存
 或定义一个 provider 接口作为整项完成。

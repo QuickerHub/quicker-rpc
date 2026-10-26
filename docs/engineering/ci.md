@@ -43,10 +43,11 @@ Agent 门禁直接执行已有 `agent-gui/scripts/check-agent-offline.mjs`，包
 `test:*` 清单，拒绝 shell 片段、通配符和额外参数，并为每个套件加载相同的网络 guard。
 guard 是进程内防误用检查，允许 tsx IPC，不是系统沙箱；新增测试仍须审计副作用。
 
-Agent 矩阵另以独立步骤运行动作资源打开的 owned-loopback 生命周期 fixture，不加载上述
-网络 guard。它只绑定本次创建的 loopback 临时端口并使用临时工作区及 fake export，验证
-客户端断连后服务仍登记并等待已派发操作；不访问 Quicker、用户资料或外部服务。该步骤
-固定单个 integration test 与 15 秒超时，不将整套原生进程 service 测试纳入此例外。
+Agent 矩阵另以独立步骤运行动作资源打开、Explorer watch 与 gateway guide 重定向的
+owned-loopback fixture，不加载上述网络 guard。它们只绑定本次创建的 loopback 临时端口，
+使用临时工作区及 fake export；验证断连后的已派发操作、watch 生命周期和固定 gateway
+不跟随 HTTP 重定向。它们不访问 Quicker、用户资料或外部服务；明确列出测试并保留
+15 秒文件超时，不将整套原生进程 service 测试纳入此例外。
 
 `test:agent-eval` 检查确定性解析、fixture 与 fake harness；不会调用真实模型。
 `test:authoring-benchmark` 是固定的工具选择与动作编写样例回归：用给定输入检查推荐工具、

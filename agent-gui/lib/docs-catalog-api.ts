@@ -1,5 +1,5 @@
 import type { ActionAuthoringTopicMeta } from "@/lib/action-authoring-docs.shared";
-import type { DocsGetDoc } from "@/lib/docs-tool";
+import { parseDocsGetValue, type DocsGetDoc, type DocsGuideSource } from "@/lib/docs-tool";
 
 export async function fetchDocsCatalog(): Promise<ActionAuthoringTopicMeta[]> {
   const res = await fetch("/api/docs", { cache: "no-store" });
@@ -14,23 +14,22 @@ export async function fetchDocsCatalog(): Promise<ActionAuthoringTopicMeta[]> {
   return data.topics as ActionAuthoringTopicMeta[];
 }
 
-export async function fetchDocByTopic(topic: string): Promise<DocsGetDoc> {
-  const res = await fetch(`/api/docs/${encodeURIComponent(topic)}`, {
+export async function fetchDocByTopic(topic: string, options?: { source?: DocsGuideSource; signal?: AbortSignal }): Promise<DocsGetDoc> {
+  const suffix = options?.source === "gateway" ? "?source=gateway" : "";
+  const res = await fetch(`/api/docs/${encodeURIComponent(topic)}${suffix}`, {
     cache: "no-store",
+    signal: options?.signal,
   });
   const data = await res.json();
-  if (!data.success || typeof data.markdown !== "string") {
+  const doc = parseDocsGetValue(data);
+  if (!doc || (!data.success && doc.gatewayKnowledge?.status !== "unavailable")) {
     throw new Error(
       typeof data.errorMessage === "string"
         ? data.errorMessage
         : `Unknown topic: ${topic}`,
     );
   }
-  return {
-    topic: data.topic,
-    title: data.title,
-    markdown: data.markdown,
-  };
+  return doc;
 }
 
 export async function fetchDocReference(

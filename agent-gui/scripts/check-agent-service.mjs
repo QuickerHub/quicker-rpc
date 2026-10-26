@@ -7,6 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Explicit opt-in: fixtures create their own loopback listeners. Providers/tools
 // are synthetic, and the actual CLI child has an isolated profile + network guard.
 const tests = [
+  "lib/gateway-guide-redirect.integration.test.ts",
   "lib/agent-service/node-http.loopback.test.ts",
   "service/shell-watch.integration.test.ts",
   "lib/designer-resource-action-open.lifecycle.integration.test.ts",

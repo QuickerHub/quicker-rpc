@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -22,15 +23,17 @@ import type { DocsGetDoc } from "@/lib/docs-tool";
 import { openWorkspaceMainEditorTab } from "@/lib/workspace-main-editor-tab";
 import { useOptionalWorkspaceExplorerShell } from "@/lib/workspace-explorer";
 
-export type DocViewerEntry = {
-  topic: string;
-  reference?: string;
-  title: string;
-  description?: string;
+export type DocViewerEntry = Omit<DocsGetDoc, "markdown"> & {
   markdown?: string;
   loading?: boolean;
   error?: string;
 };
+
+function viewerEntryKey(doc: Pick<DocsGetDoc, "topic" | "reference" | "guideSource" | "gatewayKnowledge">): string {
+  if (doc.guideSource !== "gateway") return docViewerEntryKey(doc.topic, doc.reference);
+  const gateway = doc.gatewayKnowledge?.gateway;
+  return JSON.stringify(["gateway", gateway?.transport ?? "unknown", gateway?.identity ?? "unknown", doc.topic, doc.reference ?? null]);
+}
 
 type DocsViewerContextValue = {
   catalogTopics: ActionAuthoringTopicMeta[];
@@ -58,6 +61,10 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, DocViewerEntry>>({});
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null);
+  const entryGenerations = useRef(new Map<string, number>());
+  const nextGeneration = useRef(0);
+
+  useEffect(() => () => { entryGenerations.current.clear(); }, []);
 
   const refreshCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -86,9 +93,11 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
       reference?: string,
     ) => {
       const entryKey = docViewerEntryKey(topic, reference);
+      const generation = ++nextGeneration.current;
+      entryGenerations.current.set(entryKey, generation);
+      const isCurrent = () => entryGenerations.current.get(entryKey) === generation;
       setEntries((prev) => {
         const existing = prev[entryKey];
-        if (existing?.markdown) return prev;
         return {
           ...prev,
           [entryKey]: {
@@ -96,6 +105,7 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
             reference,
             title: titleHint ?? existing?.title ?? topic,
             description: existing?.description,
+            guideSource: "local",
             loading: true,
             error: undefined,
           },
@@ -106,17 +116,16 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
         const doc = reference
           ? await fetchDocReference(topic, reference)
           : await fetchDocByTopic(topic);
+        if (!isCurrent()) return;
         setEntries((prev) => ({
           ...prev,
           [entryKey]: {
-            topic: doc.topic,
-            reference: "reference" in doc ? doc.reference : undefined,
-            title: doc.title,
-            markdown: doc.markdown,
+            ...doc,
             loading: false,
           },
         }));
       } catch (error) {
+        if (!isCurrent()) return;
         const message =
           error instanceof Error ? error.message : "无法加载文档";
         setEntries((prev) => ({
@@ -125,6 +134,7 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
             topic,
             reference,
             title: titleHint ?? prev[entryKey]?.title ?? topic,
+            guideSource: "local",
             loading: false,
             error: message,
           },
@@ -139,15 +149,14 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
       "reference" in doc && typeof doc.reference === "string"
         ? doc.reference
         : undefined;
-    const entryKey = docViewerEntryKey(doc.topic, reference);
+    const entryKey = viewerEntryKey(doc);
+    // A tool receipt supersedes an earlier fetch for this exact source and document.
+    entryGenerations.current.set(entryKey, ++nextGeneration.current);
     setEntries((prev) => ({
       ...prev,
       [entryKey]: {
-        topic: doc.topic,
+        ...doc,
         reference,
-        title: doc.title,
-        description: doc.description,
-        markdown: doc.markdown,
         loading: false,
       },
     }));
@@ -238,4 +247,8 @@ export function useDocsViewer(): DocsViewerContextValue {
     throw new Error("useDocsViewer must be used within DocsViewerProvider");
   }
   return ctx;
+}
+
+export function useOptionalDocsViewer(): DocsViewerContextValue | null {
+  return useContext(DocsViewerContext);
 }

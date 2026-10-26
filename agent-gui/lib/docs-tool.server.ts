@@ -17,7 +17,8 @@ import {
 } from "@/lib/action-authoring-docs.shared";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
-import { DOCS_TOOL } from "@/lib/docs-tool";
+import { DOCS_TOOL, type DocsGuideSource } from "@/lib/docs-tool";
+import { readGatewayProgramSourceGuide } from "./gateway-guide.server";
 import { incrementDocsCallCountThisTurn } from "@/lib/program-turn-context";
 
 /** Public actions for the consolidated docs tool. */
@@ -28,6 +29,7 @@ const DOCS_SEARCH_HINT = DOCS_AGENT_ROUTING_HINT;
 export type DocsToolInput = {
   action: z.infer<typeof docsActionSchema> | "grep";
   topic?: string;
+  source?: DocsGuideSource;
   /** Legacy / docs_get_reference only — not in agent tool schema. */
   reference?: string;
   section?: string;
@@ -52,14 +54,27 @@ function applyDocsAuthoringTurnFeedback(
 
 export async function executeDocsTool(
   input: DocsToolInput,
+  options?: { abortSignal?: AbortSignal },
 ): Promise<Record<string, unknown>> {
-  return applyDocsAuthoringTurnFeedback(await executeDocsToolInner(input));
+  return applyDocsAuthoringTurnFeedback(await executeDocsToolInner(input, options));
 }
 
 async function executeDocsToolInner(
   input: DocsToolInput,
+  options?: { abortSignal?: AbortSignal },
 ): Promise<Record<string, unknown>> {
   const action = normalizeDocsAction(input.action);
+  if (input.source === "gateway") {
+    if (action !== "get" || input.topic?.trim() !== "program-source" || input.reference || input.section) {
+      const error = "source=gateway supports only get(topic=program-source), without reference or section.";
+      return formatLocalToolResult({ action: "docs-get", docsAction: "get", errorMessage: error }, false, error);
+    }
+    const doc = await readGatewayProgramSourceGuide(options);
+    const ok = doc.gatewayKnowledge?.status !== "unavailable";
+    return formatLocalToolResult({ action: "docs-get", docsAction: "get", success: ok, mode: "full", ...doc,
+      hint: "Gateway codec and bundled guide observations only. Native support and write permission require current host capabilities and contracts.",
+    }, ok, ok ? undefined : doc.gatewayKnowledge?.reason);
+  }
 
   switch (action) {
     case "index": {
@@ -208,6 +223,7 @@ async function executeDocsToolInner(
         title: result.doc.title,
         description: result.doc.description,
         markdown: result.doc.markdown,
+        guideSource: "local",
         ...(result.doc.schema ? { schema: result.doc.schema } : {}),
         knowledge: result.doc.knowledge,
         hint: result.doc.knowledge?.schema?.status === "unavailable"
@@ -231,7 +247,8 @@ export const DOCS_TOOL_DEF = tool({
     "Quicker action authoring guides (indexed).",
     DOCS_AGENT_ROUTING_HINT,
     "search(query, scope?, limit?) → items[].snippet when topic id is unknown.",
-    "get(topic) → full local topic; schema topics include schema only when the local JSON resource is available.",
+    "get(topic, source?) → full local topic by default; schema topics include schema only when the local JSON resource is available.",
+    "get(program-source, source=gateway) explicitly reads the current gateway codec and its bundled guide provenance without host discovery or fallback. Missing metadata stays unknown; a failed read stays unavailable. This metadata grants no native/write authority.",
     "Missing/invalid local schema is explicitly unavailable; this tool does not fill it from host, MCP or network.",
     "index() → topic catalog by layer.",
     "scope: references (step-modules) | workflows | all.",
@@ -258,9 +275,10 @@ export const DOCS_TOOL_DEF = tool({
       .string()
       .optional()
       .describe("Required for get — topic id (e.g. authoring-workflow)"),
+    source: z.enum(["local", "gateway"]).optional().describe("Default local. gateway is explicit and only supports get program-source; no fallback or host startup."),
   }),
-  execute: async (input) =>
-    formatToolResultForAgent(DOCS_TOOL, input, await executeDocsTool(input)),
+  execute: async (input, options) =>
+    formatToolResultForAgent(DOCS_TOOL, input, await executeDocsTool(input, { abortSignal: options?.abortSignal })),
 });
 
 export { DOCS_TOOL };

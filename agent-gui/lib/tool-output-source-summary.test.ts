@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { summarizeToolOutput } from "@/components/chat/tool-output";
+import { summarizeToolOutput } from "./tool-output-summary";
 import { QKRPC_ACTION_SAVE_TOOL } from "./qkrpc-action-source";
 import { formatLocalToolResult } from "./tool-result";
 

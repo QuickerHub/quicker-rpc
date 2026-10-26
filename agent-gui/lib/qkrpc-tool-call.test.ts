@@ -22,6 +22,7 @@ test("source open/persistent save honor the existing turn gate while offline val
     ["action", "save", "--dry-run", "unknown"], ["action", "save", "--dry-run", "--dry-run", "false"],
     ["action", "save", "--dry-run", "--dry-run=false"], ["action", "save", "--dry-run", "--DRY-RUN=false"],
     ["action", "save", "--dry-run=true"], ["action", "save", "--dry-run=false"],
+    ["guide", "unknown"],
   ]) {
     const result = await executeSingleQkrpcToolCall(args, {}, dependencies);
     assert.equal(result.ok, false);
@@ -33,7 +34,10 @@ test("source open/persistent save honor the existing turn gate while offline val
   for (const operation of ["wait", "health", "ping"]) {
     assert.equal(await executeSingleQkrpcToolCall([operation], {}, dependencies), success);
   }
-  assert.equal(calls, 5);
+  for (const operation of ["get", "search"]) {
+    assert.equal(await executeSingleQkrpcToolCall(["guide", operation, "--topic", "program-source"], {}, dependencies), success);
+  }
+  assert.equal(calls, 7);
   assert.equal(marks, 0);
 });
 

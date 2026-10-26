@@ -43,15 +43,19 @@ const {
   resolveQkrpcBin,
   resolveQkrpcFromPath,
   resolveUserInstalledQkrpcExe,
+  resolveBundledQkrpcSourceDir,
 } = require("./qkrpc-bin.mjs") as {
   resolveQkrpcBin: (agentGuiRoot: string) => string | null;
   resolveQkrpcFromPath: () => string | null;
   resolveUserInstalledQkrpcExe: () => string | null;
+  resolveBundledQkrpcSourceDir: (agentGuiRoot: string) => string | null;
 };
 
 export type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
 export type QkrpcRunOptions = {
+  /** Internal snapshot of an already selected CLI executable; null means unavailable. */
+  binaryPath?: string | null;
   stdin?: string;
   timeoutMs?: number;
   json?: boolean;
@@ -64,13 +68,22 @@ export type QkrpcRunOptions = {
 const MAX_STDOUT_CHARS = 120_000;
 const QKRPC_EXE = process.platform === "win32" ? "qkrpc.exe" : "qkrpc";
 
-function resolveBin(): string | null {
+export function resolveQkrpcCliBinary(options?: { readOnly?: boolean }): string | null {
   const configured = process.env.QKRPC_BIN?.trim();
+  if (options?.readOnly && configured) return existsSync(configured) ? configured : null;
   if (configured && existsSync(configured)) {
     return configured;
   }
 
   const agentGuiRoot = resolveAgentGuiRoot();
+  if (options?.readOnly) {
+    // Knowledge reads may use existing artifacts, never stage files or reconcile a running serve.
+    const staged = join(agentGuiRoot, ".runtime", "qkrpc", QKRPC_EXE);
+    if (existsSync(staged)) return staged;
+    const sourceDir = resolveBundledQkrpcSourceDir(agentGuiRoot);
+    if (sourceDir) return join(sourceDir, QKRPC_EXE);
+    return resolveUserInstalledQkrpcExe() ?? resolveQkrpcFromPath();
+  }
   const resolved = resolveQkrpcBin(agentGuiRoot);
   if (resolved && existsSync(resolved)) {
     return resolved;
@@ -318,7 +331,7 @@ async function spawnQkrpcCli(
 ): Promise<QkrpcRunResult> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
-  const bin = resolveBin();
+  const bin = options && Object.hasOwn(options, "binaryPath") ? options.binaryPath : resolveQkrpcCliBinary();
   if (!bin) {
     onProcessStart?.(false);
     return {

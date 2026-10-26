@@ -22,7 +22,8 @@ export async function executeSingleQkrpcToolCall(
   const dryRunValue = dryRunIndex < 0 ? undefined : args[dryRunIndex + 1];
   const dryRunEnabled = dryRunMarkers.length === 1 && args[dryRunIndex].toLowerCase() === "--dry-run"
     && (dryRunValue === undefined || dryRunValue.startsWith("--") || dryRunValue.toLowerCase() === "true");
-  const offline = operation === "action" && args[1]?.trim().toLowerCase() === "save" && dryRunEnabled;
+  const offline = (operation === "action" && args[1]?.trim().toLowerCase() === "save" && dryRunEnabled)
+    || (operation === "guide" && ["get", "search"].includes(args[1]?.trim().toLowerCase()));
   if (dependencies.isConnectivityBlocked() && !offline && !["wait", "health", "ping"].includes(operation)) {
     return {
       ok: false, exitCode: 1, stdout: "", truncated: false,

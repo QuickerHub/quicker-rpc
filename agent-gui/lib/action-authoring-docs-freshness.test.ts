@@ -37,6 +37,7 @@ before(async () => {
     feedback: `export const attachToolFeedback=r=>r;export const formatLocalToolResult=(data,ok=true)=>({data,ok});`,
     view: `export const formatToolResultForAgent=(_tool,_input,result)=>result`,
     ai: `export const tool=value=>value`, empty: "",
+    gateway: `export async function readGatewayProgramSourceGuide(){throw Error('Local docs must never query the gateway')}`,
   };
   const aliases: Record<string, string> = { "node:fs/promises": "fs", "@/lib/agent-skills": "skills", "@/lib/agent-skills/discover": "skills", "@/lib/qkrpc-http": "http",
     "@/lib/tool-result": "feedback", "@/lib/tool-result-agent-view": "view",
@@ -44,7 +45,7 @@ before(async () => {
   const output = join(owned, "fixture.mjs");
   await build({ stdin: { contents: `export * from ${JSON.stringify(join(repo, "agent-gui/lib/action-authoring-docs.ts"))};export {executeDocsTool} from ${JSON.stringify(join(repo, "agent-gui/lib/docs-tool.server.ts"))};export {loadSkillInstructions} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-skills/load.ts"))};export {runWithAgentRequestContext} from ${JSON.stringify(join(repo, "agent-gui/lib/qkrpc-request-context.ts"))};export {getDocsCallCountThisTurn} from ${JSON.stringify(join(repo, "agent-gui/lib/program-turn-context.ts"))};export {buildAgentTurnState} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-turn-state.ts"))};export {rankPatternSkillsScored} from ${JSON.stringify(join(repo, "agent-gui/lib/agent-skills/skill-intent-preload.ts"))};export {setRoot,reads as manifestReadsValue} from 'fixture:skills';export {networkCalls} from 'fixture:http';export {holdNextRead} from 'fixture:fs';`, resolveDir: join(repo, "agent-gui") },
     outfile: output, bundle: true, platform: "node", format: "esm", tsconfig: join(repo, "agent-gui/tsconfig.json"), plugins: [{ name: "owned-docs-ports", setup(builder) {
-      builder.onResolve({ filter: /.*/ }, args => { if (args.path === "fixture-real-fs") return { path: "node:fs/promises", external: true }; const key = args.path.startsWith("fixture:") ? args.path.slice(8) : aliases[args.path]; return key ? { path: key, namespace: "docs-fixture" } : undefined; });
+      builder.onResolve({ filter: /.*/ }, args => { if (args.path === "fixture-real-fs") return { path: "node:fs/promises", external: true }; const key = args.path === "./gateway-guide.server" ? "gateway" : args.path.startsWith("fixture:") ? args.path.slice(8) : aliases[args.path]; return key ? { path: key, namespace: "docs-fixture" } : undefined; });
       builder.onLoad({ filter: /.*/, namespace: "docs-fixture" }, args => ({ contents: modules[args.path], resolveDir: join(repo, "agent-gui"), loader: "js" }));
     } }] });
   api = await import(pathToFileURL(output).href);
