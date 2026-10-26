@@ -111,19 +111,45 @@ export async function assertSafeLocalMcpPath(path: string, signal?: AbortSignal,
 export async function readGuardedLocalMcpFile(path: string, signal?: AbortSignal): Promise<SourceFile> {
   await assertSafeLocalMcpPath(path, signal);
   const absolute = resolve(path);
+  const pathBefore = await lstat(absolute);
+  if (!pathBefore.isFile() || pathBefore.isSymbolicLink()) throw new NativeQuickerMcpError("unavailable");
   const handle = await open(absolute, "r");
   try {
     const before = await handle.stat();
-    if (!before.isFile() || before.size > MAX_SETTINGS_BYTES) throw new NativeQuickerMcpError("unavailable");
+    if (!before.isFile() || before.size > MAX_SETTINGS_BYTES
+      || !localMcpFileSnapshotsMatch({ pathBefore, pathAfter: pathBefore, handleBefore: before, handleAfter: before })) throw new NativeQuickerMcpError("unavailable");
     const bytes = Buffer.alloc(MAX_SETTINGS_BYTES + 1);
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
     const after = await handle.stat();
     const current = await lstat(absolute);
-    if (bytesRead > MAX_SETTINGS_BYTES || bytesRead !== before.size || current.isSymbolicLink() || before.ino !== current.ino
-      || before.dev !== current.dev || before.mtimeMs !== after.mtimeMs || before.size !== after.size) throw new NativeQuickerMcpError("unavailable");
+    if (bytesRead > MAX_SETTINGS_BYTES || bytesRead !== before.size || !current.isFile() || current.isSymbolicLink()
+      || !localMcpFileSnapshotsMatch({ pathBefore, pathAfter: current, handleBefore: before, handleAfter: after })) throw new NativeQuickerMcpError("unavailable");
     signal?.throwIfAborted();
-    return { raw: bytes.subarray(0, bytesRead), fileIdentity: JSON.stringify([before.dev, before.ino, before.birthtimeMs]) };
+    // Preserve both stable observations; Windows path stat may not report a device number.
+    return { raw: bytes.subarray(0, bytesRead), fileIdentity: JSON.stringify({
+      path: [pathBefore.dev, pathBefore.ino, pathBefore.birthtimeMs],
+      handle: [before.dev, before.ino, before.birthtimeMs],
+    }) };
   } finally { await handle.close(); }
+}
+
+type LocalMcpFileSnapshot = { dev: number; ino: number; birthtimeMs: number; mtimeMs: number; size: number };
+/** Compare within each API first; only Windows path.dev=0 means "not reported" across APIs. */
+export function localMcpFileSnapshotsMatch(snapshots: {
+  pathBefore: LocalMcpFileSnapshot; pathAfter: LocalMcpFileSnapshot;
+  handleBefore: LocalMcpFileSnapshot; handleAfter: LocalMcpFileSnapshot;
+}, platform: NodeJS.Platform = process.platform): boolean {
+  const { pathBefore, pathAfter, handleBefore, handleAfter } = snapshots;
+  const valid = (value: LocalMcpFileSnapshot) => [value.dev, value.ino, value.size].every((n) => Number.isSafeInteger(n) && n >= 0)
+    && Number.isFinite(value.birthtimeMs) && Number.isFinite(value.mtimeMs);
+  const same = (a: LocalMcpFileSnapshot, b: LocalMcpFileSnapshot) => a.dev === b.dev && a.ino === b.ino
+    && a.birthtimeMs === b.birthtimeMs && a.mtimeMs === b.mtimeMs && a.size === b.size;
+  const sameAcrossApis = (path: LocalMcpFileSnapshot, handle: LocalMcpFileSnapshot) =>
+    (path.dev === handle.dev || platform === "win32" && path.dev === 0)
+    && path.ino === handle.ino && path.birthtimeMs === handle.birthtimeMs && path.mtimeMs === handle.mtimeMs && path.size === handle.size;
+  return [pathBefore, pathAfter, handleBefore, handleAfter].every(valid)
+    && same(pathBefore, pathAfter) && same(handleBefore, handleAfter)
+    && sameAcrossApis(pathBefore, handleBefore) && sameAcrossApis(pathAfter, handleAfter);
 }
 
 type Snapshot = { discovery: QuickerNativeMcpDiscovery; url?: string; token?: string };

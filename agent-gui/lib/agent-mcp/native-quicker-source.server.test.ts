@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { inspectQuickerNativeMcpSource, resolveQuickerNativeMcpSource, NativeQuickerMcpError, nativeSourceAttributesAreSafe, type NativeQuickerSourceDependencies } from "./native-quicker-source.server";
+import { inspectQuickerNativeMcpSource, resolveQuickerNativeMcpSource, NativeQuickerMcpError, nativeSourceAttributesAreSafe, localMcpFileSnapshotsMatch, type NativeQuickerSourceDependencies } from "./native-quicker-source.server";
 import { probeQuickerNativeMcp } from "./native-quicker-probe.server";
 import { connectAgentMcpServer, loadConfiguredMcpTools } from "./load.server";
 import { QUICKER_NATIVE_MCP_SERVER_NAME } from "./config";
@@ -248,6 +248,29 @@ test("UTF8 BOM is accepted but remains part of the source identity", async () =>
   f.raw("\uFEFF" + JSON.stringify(good));
   const after = await inspectQuickerNativeMcpSource(undefined, f.deps);
   assert.equal(after.status, "found"); assert.notEqual(before.identity, after.identity);
+});
+
+test("Windows path stat with unreported device matches the same stable file handle", () => {
+  const path = { dev: 0, ino: 1970324838787964, birthtimeMs: 1770000000000, mtimeMs: 1770000001000, size: 177 };
+  const handle = { ...path, dev: 382828426 };
+  const snapshot = { pathBefore: path, pathAfter: { ...path }, handleBefore: handle, handleAfter: { ...handle } };
+  assert.equal(localMcpFileSnapshotsMatch(snapshot, "win32"), true);
+  assert.equal(localMcpFileSnapshotsMatch(snapshot, "linux"), false);
+  assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, pathBefore: handle, pathAfter: handle }, "win32"), true);
+  assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, pathBefore: handle, pathAfter: handle, handleBefore: path, handleAfter: path }, "win32"), false);
+});
+
+test("file snapshots reject replacement or edits within either API and reported device mismatches", () => {
+  const path = { dev: 0, ino: 1970324838787964, birthtimeMs: 1770000000000, mtimeMs: 1770000001000, size: 177 };
+  const handle = { ...path, dev: 382828426 };
+  const snapshot = { pathBefore: path, pathAfter: { ...path }, handleBefore: handle, handleAfter: { ...handle } };
+  for (const position of ["pathAfter", "handleAfter"] as const) {
+    for (const key of ["dev", "ino", "birthtimeMs", "mtimeMs", "size"] as const) {
+      assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, [position]: { ...snapshot[position], [key]: snapshot[position][key] + 1 } }, "win32"), false, `${position}.${key}`);
+    }
+  }
+  assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, pathBefore: { ...path, dev: 42 }, pathAfter: { ...path, dev: 42 } }, "win32"), false);
+  assert.equal(localMcpFileSnapshotsMatch({ ...snapshot, pathBefore: { ...path, ino: Number.MAX_SAFE_INTEGER + 1 } }, "win32"), false);
 });
 
 test("production file reader reads an owned file and rejects cloud-named and linked roots", async (t) => {
