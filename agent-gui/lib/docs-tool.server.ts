@@ -15,20 +15,10 @@ import {
   DOCS_SEARCH_SCOPES,
   groupTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
-import {
-  attachToolFeedback,
-  formatLocalToolResult,
-} from "@/lib/tool-result";
+import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { DOCS_TOOL } from "@/lib/docs-tool";
-import { buildAgentTurnState } from "@/lib/agent-turn-state";
-import {
-  rankPatternSkills,
-  rankPatternSkillsScored,
-  shouldBlockDocsForPreloadedSkills,
-} from "@/lib/agent-skills/skill-intent-preload";
 import { incrementDocsCallCountThisTurn } from "@/lib/program-turn-context";
-import { getRequestLastUserText } from "@/lib/qkrpc-request-context";
 
 /** Public actions for the consolidated docs tool. */
 const docsActionSchema = z.enum(["search", "get", "index"]);
@@ -53,60 +43,6 @@ function normalizeDocsAction(
   return action;
 }
 
-function maybeBlockDocsForAuthoring(): Record<string, unknown> | null {
-  const userText = getRequestLastUserText()?.trim();
-  if (!userText) {
-    return null;
-  }
-  const turnState = buildAgentTurnState({
-    actionScope: { pinnedLatestAll: [] },
-    chatMode: "agent",
-    enabledToolIds: ["docs"],
-    userText,
-  });
-  if (turnState.intent !== "action_authoring") {
-    return null;
-  }
-  const scored = rankPatternSkillsScored({
-    userText,
-    intent: turnState.intent,
-  });
-  if (!shouldBlockDocsForPreloadedSkills(scored)) {
-    return null;
-  }
-  const matchedSkills = rankPatternSkills({
-    userText,
-    intent: turnState.intent,
-  });
-  incrementDocsCallCountThisTurn();
-  const message =
-    "docs blocked — intent-matched pattern skills and quicker-eval-expression are preloaded; use qkrpc_step_runner_get for step keys.";
-  return attachToolFeedback(
-    formatLocalToolResult(
-      {
-        action: "docs-blocked",
-        docsAction: "blocked",
-        success: false,
-        errorMessage: message,
-        matchedSkills,
-      },
-      false,
-      message,
-    ),
-    {
-      summary: message,
-      retryable: false,
-      nextActions: [
-        {
-          tool: "qkrpc_step_runner_get",
-          priority: "required",
-          reason: "Fetch step schemas from the first search — do not call docs again.",
-        },
-      ],
-    },
-  );
-}
-
 function applyDocsAuthoringTurnFeedback(
   result: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -117,10 +53,6 @@ function applyDocsAuthoringTurnFeedback(
 export async function executeDocsTool(
   input: DocsToolInput,
 ): Promise<Record<string, unknown>> {
-  const blocked = maybeBlockDocsForAuthoring();
-  if (blocked) {
-    return blocked;
-  }
   return applyDocsAuthoringTurnFeedback(await executeDocsToolInner(input));
 }
 
