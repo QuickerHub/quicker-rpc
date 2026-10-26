@@ -139,3 +139,13 @@ test("opaque step and pin expression markers refuse the batch without a Session 
     const inserted=JSON.parse(allowed.session.getState().content).steps[1];assert.equal(carrier==='step'?inserted.future:inserted.inputParams.note.future,'plain opaque metadata');
   }
 });
+
+test("merged CLI lean fields stay readable and preserve their original namespace across clipboard and later edits",()=>{
+  const lean=body.replaceAll('"stepRunnerKey"','"key"').replaceAll('"inputParams"','"inputs"').replaceAll('"outputParams"','"outputs"');
+  const f=fixture(lean),copy=f.main.exportSteps!(['branch']);assert.ok(copy.ok,copy.ok?'':copy.error);
+  const pasted=f.main.pasteSteps!(copy.text,'anchor');assert.ok(pasted.ok,pasted.ok?'':pasted.error);
+  const state=f.session.getState();const changed=f.controller.applyAgentStepNote({stepId:'anchor',note:'after lean paste',expectedRevision:state.revision,expectedIdentity:state.identity});assert.ok(changed.ok);
+  const raw=JSON.parse(f.session.getState().content);assert.equal(raw.steps[0].key,'sys:if');assert.equal(Object.hasOwn(raw.steps[0],'stepRunnerKey'),false);assert.ok(Object.hasOwn(raw.steps[0],'inputs'));
+  assert.equal(raw.steps[1].key,'sys:comment');assert.equal(raw.steps[1].note,'after lean paste');assert.equal(f.controller.getSnapshot().steps[2]!.ifSteps[0]!.inputParams.note!.varKey,'中文_copy');
+  assert.match(f.session.getState().content,/1\.0000000000000001/);assert.match(f.session.getState().content,/9223372036854775807/);
+});

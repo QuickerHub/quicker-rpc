@@ -181,6 +181,18 @@ test('opaque step and pin expressions keep the previous clipboard and document u
       assert.equal(await f.page.evaluate(()=>(window as any).fixture.text),'keep previous clipboard');
       assert.equal(await f.page.evaluate(()=>(window as any).fixture.writes.length+(window as any).fixture.textWrites),0);
       assert.equal(await raw(f.page),before);assert.equal(await f.read(),source);assert.equal(await f.page.evaluate(()=>(window as any).fixture.saved.length),0);
+      assert.equal(await doc(f.page).getByRole('toolbar',{name:'文档历史',exact:true}).getByTitle('撤销 (Ctrl+Z)',{exact:true}).isDisabled(),true);
     }finally{await f.close();}
   }
+});
+
+test('step clipboard reads real CLI lean fields and saves existing namespaces after the main merge',{timeout:90000},async()=>{
+  const source=initial.replaceAll('"stepRunnerKey"','"key"').replaceAll('"inputParams"','"inputs"').replaceAll('"outputParams"','"outputs"');
+  const f=await open(source);try{
+    await key(f.page,'c');await f.page.waitForFunction(()=>(window as any).fixture.writes.length===1);await key(f.page,'v','anchor');
+    await f.page.waitForFunction(()=>document.querySelectorAll('[data-fixture-document]:not([hidden]) [data-step-id]').length>4);await save(f.page);
+    const saved=await f.read(),value=JSON.parse(saved);assert.equal(value.steps.length,3);assert.equal(value.steps[0].key,'sys:if');assert.equal(Object.hasOwn(value.steps[0],'stepRunnerKey'),false);assert.ok(Object.hasOwn(value.steps[0],'inputs'));
+    assert.equal(value.steps[1].key,'sys:comment');assert.equal(Object.hasOwn(value.steps[1],'inputParams'),false);assert.match(saved,/1\.0000000000000001/);assert.match(saved,/9223372036854775807/);
+    const inputs=expandWireInputParams(value.steps[2].ifSteps[0].inputParams??value.steps[2].ifSteps[0].inputs);assert.equal(inputs.note!.varKey,'中文_copy');
+  }finally{await f.close();}
 });
