@@ -5,6 +5,7 @@ import { createStepRunnerKnowledgeTools } from "./step-runner-knowledge-tools.se
 import { runWithAgentRequestContextAsync } from "./qkrpc-request-context";
 import { createTurnExecutionState, disposeTurnExecutionState } from "./agent-harness/turn-execution-state";
 import { formatLocalToolResult, isStructuredToolResult } from "./tool-result";
+import { argvToInvoke } from "./qkrpc-argv";
 
 const options = { toolCallId: "knowledge-fixture", messages: [] } as ToolExecutionOptions;
 function schema(name: string) {
@@ -12,6 +13,17 @@ function schema(name: string) {
     success: true, schemaJson: JSON.stringify({ StepRunnerKey: "sys:fixture", Name: name }),
   } });
 }
+
+test("the existing Agent get forwards read and JSON control literals without a second fetch", async () => {
+  const calls: string[][] = [];
+  const tools = createStepRunnerKnowledgeTools(async args => { calls.push(args); return schema("current"); });
+  const read = { pointer: "/inputs", mode: "children" as const, offset: 0 };
+  for (const controlField of ["", " ", "--flag"]) {
+    await tools.qkrpc_step_runner_get.execute!({ key: "fixture:read", controlField, read }, options);
+    assert.deepEqual(argvToInvoke(calls.at(-1)!), { op: "step-runner.get", args: { key: "fixture:read", controlField, read } });
+  }
+  assert.equal(calls.length, 3);
+});
 
 test("the same conversation fetches changed native schema in a later turn", async () => {
   let calls = 0;

@@ -82,7 +82,7 @@ function parseJsonFlag(
 export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
   const filtered = argv.filter((a) => a !== "--json");
   const literalContract = argv[0] === "step-runner" && ["input-contract", "get", "get-ui"].includes(argv[1]);
-  const { positional, flags } = parseFlags(filtered, literalContract ? new Set(["key", "control-field", "control-field-json"]) : undefined);
+  const { positional, flags } = parseFlags(filtered, literalContract ? new Set(["key", "control-field", "control-field-json", "schema-read"]) : undefined);
 
   if (positional.length === 0) return null;
 
@@ -551,11 +551,18 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
       };
     }
     if (verb === "get") {
+      if ((flags["control-field"] !== undefined && flags["control-field-json"] !== undefined)
+        || (flags["control-field-json"] !== undefined && typeof flags["control-field-json"] !== "string")) return null;
+      const controlField = flags["control-field-json"] === undefined ? flagStr(flags, "control-field") : parseJsonFlag(flags, "control-field-json");
+      if (flags["control-field-json"] !== undefined && typeof controlField !== "string") return null;
+      const read = flags["schema-read"] === undefined ? undefined : parseJsonFlag(flags, "schema-read");
+      if (flags["schema-read"] !== undefined && (!read || typeof read !== "object" || Array.isArray(read))) return null;
       return {
         op: "step-runner.get",
         args: {
           key: flagStr(flags, "key"),
-          controlField: flagStr(flags, "control-field"),
+          controlField,
+          ...(read !== undefined ? { read } : {}),
         },
       };
     }

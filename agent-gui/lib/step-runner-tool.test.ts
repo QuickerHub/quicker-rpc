@@ -10,6 +10,15 @@ import {
   parseStepRunnerSearchResult,
 } from "./step-runner-tool.ts";
 
+test("schema read input preserves exact control values and accepts only the paging contract", () => {
+  const read = { pointer: "/a~1b", mode: "value", offset: 7, expectedObservation: `sha256:${"a".repeat(64)}` };
+  for (const controlField of ["", " ", "--flag", " MiXeD "]) {
+    assert.deepEqual(parseStepRunnerGetInput({ key: "fixture", controlField, read }), { key: "fixture", controlField, read });
+  }
+  for (const read of [null, [], { offset: -1 }, { offset: 1.1 }, { mode: "unknown" }, { arbitrary: true }])
+    assert.equal(parseStepRunnerGetInput({ key: "fixture", read }), null);
+});
+
 test("parseStepRunnerGetInput reads key and optional controlField", () => {
   assert.deepEqual(parseStepRunnerGetInput({ key: "sys:csscript" }), {
     key: "sys:csscript",

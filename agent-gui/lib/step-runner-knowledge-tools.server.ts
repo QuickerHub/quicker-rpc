@@ -5,11 +5,12 @@ import { formatQkrpcResultForAgent, runQkrpcForTool } from "./qkrpc";
 import { incrementStepRunnerSearchCountThisTurn } from "./program-turn-context";
 import { formatLocalToolResult } from "./tool-result";
 import { formatToolResultForAgent } from "./tool-result-agent-view";
+import { runQkrpcSchemaReadForTool } from "./qkrpc-schema-read.server";
 
 type KnowledgeRunner = (args: string[], options: { timeoutMs: number }) => Promise<Record<string, unknown>>;
 
 const nativeRunner: KnowledgeRunner = async (args, options) =>
-  formatQkrpcResultForAgent(await runQkrpcForTool(args, options));
+  formatQkrpcResultForAgent(await (args.includes("--schema-read") ? runQkrpcSchemaReadForTool(args, options) : runQkrpcForTool(args, options)));
 
 /** Reuse requires a provider revision; a thread id cannot certify native knowledge freshness. */
 export function createStepRunnerKnowledgeTools(run: KnowledgeRunner = nativeRunner) {
@@ -38,23 +39,31 @@ export function createStepRunnerKnowledgeTools(run: KnowledgeRunner = nativeRunn
         + "Fetch again when the connected host or module may have changed; old messages are not current schema. "
         + "Read knowledge.source and its host/session: runtime-definition is observed native knowledge; bundled-adapter and unknown do not prove native support. "
         + "A schema revision is a content fingerprint, not a freshness check or write permission. Prefer nativeHelpLink for the current module; bundledReference is supplemental. "
-        + "If schemaJsonOmitted is true, the remaining provenance/parameter names are incomplete; do not infer missing editing rules. "
+        + "If the result is incomplete, use read:{pointer:'',mode:'children'} to find exact paths, then mode:'value' for raw JSON text fragments. Follow nextRead exactly; each page freshly verifies the observation. "
+        + "read requires an existing host binding and cannot start, discover or repair a host. Missing knowledge stays unknown and pages do not grant editing permission. "
         + "Write short wire key/inputs/outputs (never stepKey). "
         + "Var bind: \"paramKey.var\":\"varKey\"; interpolation: $$…{varKey}…; file: paramKey.file. NOT get-ui.",
       inputSchema: z.object({
         key: z.string().optional().describe("items[].key from qkrpc_step_runner_search"),
         runnerKey: z.string().optional().describe("Alias of key — prefer key"),
         controlField: z.string().optional().describe("The exact returned controlField.value, including an explicit empty value"),
+        read: z.object({
+          pointer: z.string().optional().describe("JSON Pointer into Agent schema body, excluding attached knowledge; empty means root"),
+          mode: z.enum(["children", "value"]).optional().describe("children lists direct paths; value pages the selected node's JSON text"),
+          offset: z.number().int().min(0).max(2147483647).optional().describe("Use nextRead; children counts entries, value counts UTF-16 units"),
+          expectedObservation: z.string().optional().describe("Copy the current page observation; required for offset > 0"),
+        }).strict().optional(),
       }).refine((value) => Boolean(value.key?.trim() || value.runnerKey?.trim()), { message: "key (or runnerKey) is required" }),
-      execute: async ({ key, runnerKey, controlField }) => {
+      execute: async ({ key, runnerKey, controlField, read }) => {
         const resolvedKey = (key ?? runnerKey ?? "").trim();
         if (!resolvedKey) {
           return formatToolResultForAgent("qkrpc_step_runner_get", { key, runnerKey, controlField },
             formatLocalToolResult({ error: "key (or runnerKey) is required" }, false, "key (or runnerKey) is required"));
         }
         const args = ["step-runner", "get", "--key", resolvedKey];
-        if (controlField !== undefined) args.push("--control-field", controlField);
-        return formatToolResultForAgent("qkrpc_step_runner_get", { key: resolvedKey, controlField },
+        if (controlField !== undefined) args.push(read ? "--control-field-json" : "--control-field", read ? JSON.stringify(controlField) : controlField);
+        if (read) args.push("--schema-read", JSON.stringify(read));
+        return formatToolResultForAgent("qkrpc_step_runner_get", { key: resolvedKey, controlField, ...(read ? { read } : {}) },
           await run(args, { timeoutMs: 180_000 }));
       },
     }),
