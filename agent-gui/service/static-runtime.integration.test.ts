@@ -263,7 +263,8 @@ test("relocated static renderer + production Node API preserve chat, settings, h
   const liveActionId = "22222222-2222-4222-8222-222222222222";
   const liveDirectory = join(workspace, ".quicker/actions", liveActionId);
   const liveBody = `{"steps":[{"stepId":"live-step","stepRunnerKey":"sys:fixture","note":"Live original","inputParams":{"text.var":${JSON.stringify(oldVariableKey)}},"outputParams":{"result":${JSON.stringify(oldVariableKey)}}},{"stepId":"not-pinned","stepRunnerKey":"sys:fixture","note":"Unpinned unchanged"}],"variables":[{"id":"owned-variable","key":${JSON.stringify(oldVariableKey)},"varType":0,"default":"human default","futureDecimal":0.123456789012345678901}],"subPrograms":[],"futureInt":9007199254740993}`;
-  const liveInfo = JSON.stringify({ kind: "action", id: liveActionId, title: "Live Designer acceptance", editVersion: 1 });
+  const liveInfo = JSON.stringify({ kind: "action", id: liveActionId, title: "Live Designer acceptance", description: "", icon: "", editVersion: 1 })
+    .replace(/}$/, ',"futureMetadataInt":9223372036854775807}');
   mkdirSync(liveDirectory, { recursive: true });
   writeFileSync(join(liveDirectory, "data.json"), liveBody); writeFileSync(join(liveDirectory, "info.json"), liveInfo);
   const companionDirectory = join(workspace, ".quicker/actions/33333333-3333-4333-8333-333333333333");
