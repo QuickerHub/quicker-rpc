@@ -32,6 +32,9 @@ try {
     $script:requests = @()
     function Invoke-WebRequest { param($Uri, $TimeoutSec, $MaximumRedirection, [switch]$UseBasicParsing) $script:requests += $Uri; return @{ StatusCode = 200 } }
     $info | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run.Root 'ready.json')
+    $null = Wait-OwnedElectronSmokeUi $run $fixtureOwner 1 -DeferWindowApproval
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $run.Root 'approved.json'))) 'Renderer loaded before the explicit request guard was installed'
+    $script:requests = @()
     $null = Wait-OwnedElectronSmokeUi $run $fixtureOwner 1
     Assert-True ($script:requests.Count -eq 2) 'Did not restrict HTTP probes to the owned UI'
     Assert-True (@($script:requests | Where-Object { $_ -notlike 'http://127.0.0.1:45123/*' }).Count -eq 0) 'Probed another service'
@@ -44,13 +47,18 @@ try {
     Assert-Throws { Invoke-OwnedElectronSmokeRun { $fixtureOwner } { param($value) Wait-OwnedElectronSmokeUi $run $value 1 } } 'exited before'
     Assert-True ($script:disposed -eq 3) 'Early-exit job was not disposed'
     Add-Type -Path (Join-Path $PSScriptRoot 'lib/ElectronSmokeProcess.cs')
+    $unstarted = [QuickerAgent.Smoke.OwnedJob]::new()
+    Assert-Throws { $unstarted.GetProcessSnapshot() } 'disposed'
+    Assert-Throws { $unstarted.RetainProcess(501) } 'disposed'
     $nativeSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'lib/ElectronSmokeProcess.cs') -Raw
     Assert-True ($nativeSource.IndexOf('AssignProcessToJobObject(owner.job, child.hProcess)') -lt $nativeSource.IndexOf('ResumeThread(child.hThread)')) 'Root resumes before job ownership'
     $mainSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Test-QuickerAgentElectronSmoke.ps1') -Raw
     Assert-True ($mainSource -notmatch 'taskkill|Get-Process|Stop-ElectronOrphanBackends|3000.*3020|127\.0\.0\.1:9477') 'Global process/service behavior remains'
-    $tokens = $null; $errors = $null
-    $null = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Test-QuickerAgentElectronSmoke.ps1'), [ref]$tokens, [ref]$errors)
-    Assert-True ($errors.Count -eq 0) 'Smoke script parse failed'
+    foreach ($scriptName in @('Test-QuickerAgentElectronSmoke.ps1', 'Test-QuickerAgentElectronGracefulExit.ps1')) {
+        $tokens = $null; $errors = $null
+        $null = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $scriptName), [ref]$tokens, [ref]$errors)
+        Assert-True ($errors.Count -eq 0) 'Smoke script parse failed'
+    }
     Write-Host 'Electron smoke isolation offline fixtures passed; native launch not executed.'
 } finally {
     $absolute = Assert-SmokeLocalPath $testRoot

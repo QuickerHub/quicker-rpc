@@ -140,6 +140,51 @@ watcher 曾使整个测试退出失败；接入 runtime 所属 watcher/timer/pen
 它验证打包产物与所属进程的启动，不能代替 NSIS 安装/升级、真实旧用户资料升级、
 V1/V2 专用动作写回或完整新版 Designer 与 Agent 协同。
 
+### 生产 Electron 正常退出验收
+
+`Test-QuickerAgentElectronSmoke.ps1` 的 launch 检查完成后会关闭 Job，这只证明隔离启动与
+故障回收。正常退出另用显式入口，默认 `Plan` 不启动程序：
+
+```powershell
+cd agent-gui
+node --import tsx scripts/prepare-electron-graceful-exit.mjs --runtime-dir=<production-win-unpacked> --out=../.tmp/graceful-exit-package
+pwsh -NoProfile -File scripts/Test-QuickerAgentElectronGracefulExit.ps1 -PreparedPackage ../.tmp/graceful-exit-package/prepared.json -Action Run
+```
+
+prepare 只向新的本仓库 `.tmp` 目录复制 Electron 与 portable 工具，再从当前源码运行默认
+生产构建、暂存并封装 shell；不调用发布密钥 prepare、依赖安装或 NSIS。`--use-bundle`
+只复制指定产物作对照，其产品源码身份保持 unknown，由外部发布收据另行关联。
+源目录与输出不得交叠，复制前检查重定向、云盘及占位属性。
+
+新包保存 guard 前完整 app 清单和 guard 后全部程序文件的大小与 SHA-256。唯一 runtime
+注入为 service bootstrap 的请求/配置隔离及 stdout/stderr 观测：禁止远程模型配置，仅允许本轮服务端口的 fetch，
+拒绝重定向；cleanup 代码不注入测试捷径。运行前重新核验全包及允许差异，另记录当轮
+controller、driver 与原生观察 helper 的 hash；正式制品不被修改。
+
+验收复用独立 profile、`SMOKE_HOST_RPC_DISABLED` 和 owned Job。renderer 加载前先安装
+Chromium 请求 guard，然后通过真实 API 启动 browser/terminal runtime。实时监听 PID 必须
+属于本轮 Job，保留句柄的 Node 路径、父 PID 和 runtime 入口均须匹配；磁盘缓存 PID
+不构成进程身份。关闭通过现有 preload `windowAction(close)`，进入 React 的
+`app-request-exit` handler 和 `graceful_exit`，不直接调用 app.exit、browser.close 或清理函数。
+
+首次 Job dispose 前，root、UI Node、browser 和 terminal 四个角色必须退出码为 0，
+原生退出时间满足子服务不晚于父进程；全部已观察句柄退出、Job 当前 PID 列表为空、原
+监听消失。产品退出仍有独立 10 秒门槛，取原生元数据前的有界等待不延长它。重复退出与
+升级共用原 shutdown Promise；smoke 同样走正常 Node IPC drain，Job 只保留作失败兜底。
+超时、非零退出、顺序错误、残留进程或监听查询失败都不能记为 graceful PASS。
+
+默认重复两轮并重读生成的 history；这不证明真实旧资料升级，也不证明有待保存内容时
+flush 的完整行为。browser runtime 的 Node 服务与 terminal 预热子进程属于本轮观察范围，
+没有打开用户浏览器或执行业务命令。A4 的安装/升级、真实旧资料及完整编辑流程门槛继续保留。
+
+本入口已用源码 `f6fafbed` 的本地生产 runtime/ASAR 与正式 0.15.1 Electron/portable 工具
+完成两轮：每轮观察 15 个所属进程，四个主要角色退出 0，全部所属句柄、Job 列表和原监听
+在首次 dispose 前清空，无强制 Job 回收；合成 history 跨重启可读。请求 guard 的两次修正
+只改变该观测文件，原清单、旧 guard 和更正链均保留。同步日志镜像可能影响时序，本轮耗时
+只描述这一隔离验收组合，不代表未注入观测的正式包性能。这个组合不等于公开安装器的字节副本。
+早期 harness 失败与一次 terminal 启动 503 同样保留；日志发现并发 cold start 会重复启动
+terminal 并报 EADDRINUSE，此并发启动问题尚未修复，不把两轮正常退出写成整体启动稳定性验收。
+
 NSIS 两条正式打包入口共用固定版本模板适配与 .NET Framework 4.7.2 ownership helper。
 构建必须经过上述入口；原始 builder 调用缺少适配标记时拒绝生成安装器。最终安装目录、
 产品注册身份与程序路径先于关闭请求核验；只有精确根程序接收有界 WM_CLOSE，其它程序

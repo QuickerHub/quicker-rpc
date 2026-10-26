@@ -71,6 +71,75 @@ namespace QuickerAgent.Smoke
             finally { CloseHandle(handle); }
         }
 
+        public int ActiveProcessCount { get { return GetProcessSnapshot().ActiveProcessCount; } }
+
+        public int[] GetProcessIds()
+        {
+            return GetProcessSnapshot().ProcessIds;
+        }
+
+        public OwnedJobProcessSnapshot GetProcessSnapshot()
+        {
+            IntPtr currentJob = job;
+            if (currentJob == IntPtr.Zero) throw new ObjectDisposedException("OwnedJob");
+            const int maximumProcesses = 65536;
+            int capacity = 16;
+            for (int attempt = 0; attempt < 16; attempt++)
+            {
+                int size = checked(8 + capacity * IntPtr.Size);
+                IntPtr buffer = Marshal.AllocHGlobal(size);
+                try
+                {
+                    uint returned;
+                    bool success = QueryInformationJobObject(currentJob, 3, buffer, (uint)size, out returned);
+                    int error = success ? 0 : Marshal.GetLastWin32Error();
+                    if (!success && error != 234) throw new Win32Exception(error);
+                    uint assigned = unchecked((uint)Marshal.ReadInt32(buffer, 0));
+                    uint listed = unchecked((uint)Marshal.ReadInt32(buffer, 4));
+                    if (assigned > maximumProcesses || listed > capacity || listed > assigned)
+                        throw new InvalidOperationException("Invalid or excessive owned job process count.");
+                    if (success && assigned == listed)
+                    {
+                        var ids = new int[listed];
+                        var seen = new HashSet<int>();
+                        for (int index = 0; index < ids.Length; index++)
+                        {
+                            long value = Marshal.ReadIntPtr(buffer, 8 + index * IntPtr.Size).ToInt64();
+                            if (value <= 0 || value > Int32.MaxValue || !seen.Add((int)value))
+                                throw new InvalidOperationException("Invalid or duplicate owned job process ID.");
+                            ids[index] = (int)value;
+                        }
+                        return new OwnedJobProcessSnapshot(ids);
+                    }
+                    if (capacity == maximumProcesses)
+                        throw new InvalidOperationException("Owned job process list exceeded its bounded buffer.");
+                    capacity = (int)Math.Min(maximumProcesses, Math.Max((long)capacity * 2, assigned));
+                }
+                finally { Marshal.FreeHGlobal(buffer); }
+            }
+            throw new InvalidOperationException("Owned job process list did not stabilize within bounded retries.");
+        }
+
+        public OwnedProcessSnapshot RetainProcess(int pid)
+        {
+            IntPtr currentJob = job;
+            if (currentJob == IntPtr.Zero) throw new ObjectDisposedException("OwnedJob");
+            if (Array.IndexOf(GetProcessIds(), pid) < 0)
+                throw new InvalidOperationException("Process is not currently assigned to this owned job.");
+            IntPtr handle = OpenProcess(0x00100000 | 0x1000, false, pid); // SYNCHRONIZE | QUERY_LIMITED_INFORMATION
+            if (handle == IntPtr.Zero) throw new Win32Exception();
+            try
+            {
+                bool belongs;
+                if (!IsProcessInJob(handle, currentJob, out belongs)) throw new Win32Exception();
+                if (!belongs) throw new InvalidOperationException("Retained process does not belong to this owned job.");
+                var retained = new OwnedProcessSnapshot(pid, handle);
+                handle = IntPtr.Zero;
+                return retained;
+            }
+            finally { if (handle != IntPtr.Zero) CloseHandle(handle); }
+        }
+
         public void Dispose()
         {
             if (job != IntPtr.Zero) { CloseHandle(job); job = IntPtr.Zero; }
@@ -106,6 +175,7 @@ namespace QuickerAgent.Smoke
         { public IntPtr hProcess, hThread; public uint dwProcessId, dwThreadId; }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
         [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetInformationJobObject(IntPtr job, int kind, IntPtr info, uint size);
+        [DllImport("kernel32.dll", SetLastError = true)] private static extern bool QueryInformationJobObject(IntPtr job, int kind, IntPtr info, uint size, out uint returned);
         [DllImport("kernel32.dll", SetLastError = true)] private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
         [DllImport("kernel32.dll", SetLastError = true)] private static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool CreateProcessW(string application, StringBuilder command, IntPtr processAttributes, IntPtr threadAttributes, bool inherit, uint flags, IntPtr environment, string cwd, ref STARTUPINFO startup, out PROCESS_INFORMATION process);
@@ -113,6 +183,94 @@ namespace QuickerAgent.Smoke
         [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateProcess(IntPtr process, uint code);
         [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
         [DllImport("kernel32.dll")] private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+        [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+    }
+
+    public sealed class OwnedJobProcessSnapshot
+    {
+        private readonly int[] processIds;
+        internal OwnedJobProcessSnapshot(int[] ids) { processIds = ids; }
+        public int[] ProcessIds { get { return (int[])processIds.Clone(); } }
+        public int ActiveProcessCount { get { return processIds.Length; } }
+    }
+
+    // Retained handles keep process identity stable after exit and PID reuse. They
+    // only observe; disposing this snapshot never terminates the process or job.
+    public sealed class OwnedProcessSnapshot : IDisposable
+    {
+        private IntPtr process;
+        public int Pid { get; private set; }
+        public string ImagePath { get; private set; }
+        public DateTime CreationTimeUtc { get; private set; }
+
+        internal OwnedProcessSnapshot(int pid, IntPtr handle)
+        {
+            Pid = pid;
+            var path = new StringBuilder(32768);
+            uint length = (uint)path.Capacity;
+            if (!QueryFullProcessImageNameW(handle, 0, path, ref length)) throw new Win32Exception();
+            ImagePath = path.ToString();
+            FILETIME creation, exit, kernel, user;
+            if (!GetProcessTimes(handle, out creation, out exit, out kernel, out user)) throw new Win32Exception();
+            CreationTimeUtc = creation.ToDateTimeUtc();
+            process = handle;
+        }
+
+        public bool HasExited
+        {
+            get
+            {
+                uint result = WaitForSingleObject(GetHandle(), 0);
+                if (result == 0) return true;
+                if (result == 258) return false;
+                if (result == UInt32.MaxValue) throw new Win32Exception();
+                throw new InvalidOperationException("Unexpected process wait result.");
+            }
+        }
+
+        public int? ExitCode
+        {
+            get
+            {
+                if (!HasExited) return null;
+                uint code;
+                if (!GetExitCodeProcess(GetHandle(), out code)) throw new Win32Exception();
+                return unchecked((int)code);
+            }
+        }
+
+        public DateTime? ExitTimeUtc
+        {
+            get
+            {
+                if (!HasExited) return null;
+                FILETIME creation, exit, kernel, user;
+                if (!GetProcessTimes(GetHandle(), out creation, out exit, out kernel, out user)) throw new Win32Exception();
+                if (exit.Low == 0 && exit.High == 0) throw new InvalidOperationException("Exited process has no exit time.");
+                return exit.ToDateTimeUtc();
+            }
+        }
+
+        private IntPtr GetHandle()
+        {
+            if (process == IntPtr.Zero) throw new ObjectDisposedException("OwnedProcessSnapshot");
+            return process;
+        }
+
+        public void Dispose()
+        {
+            if (process != IntPtr.Zero) { CloseHandle(process); process = IntPtr.Zero; }
+        }
+
+        [StructLayout(LayoutKind.Sequential)] private struct FILETIME
+        {
+            public uint Low, High;
+            public DateTime ToDateTimeUtc() { return DateTime.FromFileTimeUtc(((long)High << 32) | Low); }
+        }
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags, StringBuilder name, ref uint size);
+        [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetProcessTimes(IntPtr process, out FILETIME creation, out FILETIME exit, out FILETIME kernel, out FILETIME user);
+        [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint code);
+        [DllImport("kernel32.dll", SetLastError = true)] private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
         [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
     }
 }

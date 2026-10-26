@@ -65,6 +65,10 @@ jobs:
       - name: TypeScript and explicit offline Agent checks
         working-directory: agent-gui
         run: node scripts/check-agent-offline.mjs
+      - name: Compile desktop smoke observer and check offline isolation fixtures
+        if: ${{ runner.os == 'Windows' }}
+        working-directory: agent-gui
+        run: pwsh -NoProfile -File scripts/Test-QuickerAgentElectronSmokeIsolation.ps1
       - name: Build through the default production entry and verify relocated runtime
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         timeout-minutes: 5

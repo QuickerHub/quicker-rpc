@@ -27,6 +27,7 @@ const tests = [
   "electron/launcher-lifecycle.test.mjs",
   "electron/backend-smoke.test.mjs",
   "electron/backend-startup-lifecycle.test.mjs",
+  "scripts/prepare-electron-graceful-exit.test.mjs",
   "electron/installer-process-ownership.test.mjs",
   "scripts/nsis-overlay-template.test.mjs",
   "scripts/nsis-fixture-template.test.mjs",
