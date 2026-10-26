@@ -6,6 +6,8 @@ export type TaskParentCapabilities = {
   toolCallId?: string;
   tools: ToolSet;
   abortSignal?: AbortSignal;
+  /** Re-project this turn's provider reference after the child has narrowed its tools. */
+  knowledgeForTools?: (toolIds: readonly string[]) => string;
 };
 
 /** Preserve the parent's exact policy wrappers; delegation may only narrow them. */

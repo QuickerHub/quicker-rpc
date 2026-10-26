@@ -142,7 +142,8 @@ export async function executeTaskTool(input: {
   }
 
   const tools = selectSubagentTools(parent.tools, subagent.tools);
-  const system = await buildSubagentSystemPrompt(subagent, cwd);
+  const system = [await buildSubagentSystemPrompt(subagent, cwd), parent.knowledgeForTools?.(Object.keys(tools))]
+    .filter(Boolean).join("\n\n");
 
   try {
     const scoped = await runWithTraceTaskInvocation(parent.toolCallId ?? "task", subagent.name, () => generateText({
@@ -209,12 +210,13 @@ export const TASK_TOOL_DEF = tool({
 export function createTaskToolForParent(
   parentTools: () => ToolSet,
   definition: Tool = TASK_TOOL_DEF,
+  knowledgeForTools?: (toolIds: readonly string[]) => string,
 ): Tool {
   return {
     ...definition,
     execute: (input, options) => executeTaskTool(
       input as { agent?: string; prompt?: string },
-      { tools: parentTools(), abortSignal: options.abortSignal, toolCallId: options.toolCallId },
+      { tools: parentTools(), abortSignal: options.abortSignal, toolCallId: options.toolCallId, knowledgeForTools },
     ),
   } as Tool;
 }

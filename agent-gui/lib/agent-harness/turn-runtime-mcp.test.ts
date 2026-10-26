@@ -13,7 +13,7 @@ import type { LiveProgramDocumentSelection } from "@/lib/live-program-document";
 
 type Probe = { loads: number; connections: number; disposals: number;
   plans: Array<{ enabledToolIds: readonly string[]; readOnlyExecutorToolIds?: readonly string[] }>;
-  baseCalls: unknown[]; readCalls: unknown[] };
+  baseCalls: unknown[]; readCalls: unknown[]; referenceText: string };
 type Prepare = typeof import("./turn-runtime.server").prepareAgentTurnRuntime;
 let compiled = "";
 
@@ -44,7 +44,12 @@ const resourcePorts: Record<string, string> = {
     export async function loadConfiguredMcpTools(_cwd,options){
       options.abortSignal?.throwIfAborted();probe.loads++;
       const client=await connectFixture();
-      return {tools:{mcp__fixture__read:{inputSchema:{},execute:async()=> 'fixture MCP read'}},callPolicyOverrides:{},diagnostics:[],dispose:()=>client.close()};
+      const catalog=(serverName,text)=>({source:{serverName,configPath:'fixture',transport:'http',workspaceCwd:_cwd},
+        serverInfo:{name:'current-server',version:null},pageCount:1,tools:[{name:'read',inputSchema:{type:'object'}}],
+        guidance:{state:'available',text,revision:'body-'+text,retrievedAt:'this-turn'}});
+      return {tools:{mcp__fixture__read:{inputSchema:{},execute:async()=> 'fixture MCP read'}},
+        catalogs:[catalog('fixture',probe.referenceText),catalog('not_selected','HIDDEN SERVER INSTRUCTIONS')],
+        callPolicyOverrides:{},diagnostics:[],dispose:()=>client.close()};
     }`,
   "@/lib/task-tool.server": "export const TASK_TOOL='task';export const createTaskToolForParent=()=>{throw Error('No child loop in fixture')};",
   "@/lib/qkrpc-action-tool.server": "export const executeQkrpcActionGetReadOnly=()=>{throw Error('No host in fixture')};",
@@ -74,7 +79,7 @@ before(async () => {
 });
 
 function fixture() {
-  const probe: Probe = { loads: 0, connections: 0, disposals: 0, plans: [], baseCalls: [], readCalls: [] };
+  const probe: Probe = { loads: 0, connections: 0, disposals: 0, plans: [], baseCalls: [], readCalls: [], referenceText: "CURRENT SERVER KNOWLEDGE" };
   const module = { exports: {} as { prepareAgentTurnRuntime: Prepare } };
   vm.runInNewContext(compiled, {
     module, exports: module.exports, probe, require: createRequire(import.meta.url),
@@ -112,6 +117,7 @@ test("the actual live runtime prompt and client definition describe input edits 
     const runtime = await run.prepare({ mode, enabledToolIds: ["workspace_program", "Read"], liveProgramDocument: selection });
     try {
       const system = runtime.buildSystemForPreparedContext({});
+      assert.doesNotMatch(system, /CURRENT SERVER KNOWLEDGE|MCP provider reference material/);
       const description = runtime.tools.workspace_program?.description ?? "";
       assert.equal(run.probe.loads, 0); assert.equal(runtime.tools.workspace_program?.execute, undefined);
       assert.match(system, /original-live-document/); assert.match(system, /original-live-scope/);
@@ -130,6 +136,7 @@ test("an explicit empty command selection acquires no MCP client in Agent or Ask
     assert.deepEqual(Object.keys(runtime.tools), []);
     assert.equal(run.probe.loads, 0);
     assert.equal(run.probe.connections, 0);
+    assert.doesNotMatch(runtime.buildSystemForPreparedContext({}), /CURRENT SERVER KNOWLEDGE|MCP provider reference material/);
     await runtime.dispose();
     assert.equal(run.probe.disposals, 0);
   }
@@ -143,6 +150,10 @@ test("an omitted restriction still loads MCP and an unknown explicit MCP name is
       assert.equal(run.probe.loads, 1);
       assert.equal(run.probe.connections, 1);
       assert.ok(runtime.tools.mcp__fixture__read);
+      const system = runtime.buildSystemForPreparedContext({});
+      assert.match(system, /CURRENT SERVER KNOWLEDGE/);
+      assert.match(system, /"read":"mcp__fixture__read"/);
+      assert.doesNotMatch(system, /HIDDEN SERVER INSTRUCTIONS/);
       if (allowlist) assert.deepEqual(Object.keys(runtime.tools), allowlist);
       await runtime.dispose();
       assert.equal(run.probe.disposals, 1);
@@ -156,8 +167,24 @@ test("the existing title, benchmark and Launcher gates still acquire no MCP clie
     const runtime = await run.prepare(options);
     assert.equal(run.probe.loads, 0);
     assert.equal(run.probe.connections, 0);
+    assert.doesNotMatch(runtime.buildSystemForPreparedContext({}), /CURRENT SERVER KNOWLEDGE|MCP provider reference material/);
     await runtime.dispose();
   }
+});
+
+test("the next turn uses new initialized instructions without caching by reported server version", async () => {
+  const run = fixture();
+  const first = await run.prepare();
+  run.probe.referenceText = "NEW CURRENT KNOWLEDGE";
+  const second = await run.prepare();
+  try {
+    assert.match(first.buildSystemForPreparedContext({}), /CURRENT SERVER KNOWLEDGE/);
+    assert.doesNotMatch(first.buildSystemForPreparedContext({}), /NEW CURRENT KNOWLEDGE/);
+    assert.match(second.buildSystemForPreparedContext({}), /NEW CURRENT KNOWLEDGE/);
+    assert.doesNotMatch(second.buildSystemForPreparedContext({}), /CURRENT SERVER KNOWLEDGE/);
+    assert.equal(run.probe.connections, 2);
+  } finally { await first.dispose(); await second.dispose(); }
+  assert.equal(run.probe.disposals, 2);
 });
 
 test("a cancelled turn stops before connection and another turn remains independent", async () => {

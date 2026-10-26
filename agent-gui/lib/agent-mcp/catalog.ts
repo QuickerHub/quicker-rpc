@@ -1,11 +1,13 @@
 import type { ListToolsResult } from "@ai-sdk/mcp";
-import { mcpToolId } from "./config";
+import { createHash } from "node:crypto";
+import { mcpToolId } from "./tool-id";
 
 export const MCP_CATALOG_LIMITS = {
   maxPages: 64,
   maxTools: 2048,
   maxBytes: 4 * 1024 * 1024,
   timeoutMs: 15_000,
+  maxInstructionChars: 8_192,
 } as const;
 
 export type McpToolDescriptor = ListToolsResult["tools"][number];
@@ -22,14 +24,33 @@ export type McpServerCatalog = {
   serverInfo: { name: string | null; version: string | null };
   pageCount: number;
   tools: McpToolDescriptor[];
+  /** Same initialization as the catalog, never a cross-turn cache or an authority grant. */
+  guidance?: McpServerGuidance;
+};
+export type McpServerGuidance = {
+  state: "available" | "missing" | "omitted";
+  text?: string;
+  revision: string | null;
+  retrievedAt: string;
+  reason?: "too_large" | "invalid";
 };
 export type McpCatalogClient = {
   readonly serverInfo?: unknown;
+  readonly instructions?: unknown;
   listTools: (options: {
     params?: { cursor: string };
     options: { signal: AbortSignal };
   }) => Promise<ListToolsResult>;
 };
+
+function serverGuidance(value: unknown, maxChars: number): McpServerGuidance {
+  const retrievedAt = new Date().toISOString();
+  if (value === undefined || (typeof value === "string" && !value.trim())) return { state: "missing", revision: null, retrievedAt };
+  if (typeof value !== "string") return { state: "omitted", revision: null, retrievedAt, reason: "invalid" };
+  if (value.length > maxChars) return { state: "omitted", revision: null, retrievedAt, reason: "too_large" };
+  return { state: "available", text: value,
+    revision: `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`, retrievedAt };
+}
 
 function serverInfo(value: unknown): McpServerCatalog["serverInfo"] {
   const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -51,6 +72,8 @@ export async function readMcpToolCatalog(
   const controller = new AbortController();
   const signal = options.abortSignal ? AbortSignal.any([options.abortSignal, controller.signal]) : controller.signal;
   const info = serverInfo(client.serverInfo);
+  const instructionValue = client.instructions;
+  const guidance = serverGuidance(instructionValue, limits.maxInstructionChars);
   const timer = setTimeout(() => controller.abort(new Error(`MCP tool listing timed out after ${limits.timeoutMs}ms`)), limits.timeoutMs);
   let onAbort: (() => void) | undefined;
   try {
@@ -63,6 +86,7 @@ export async function readMcpToolCatalog(
         const page = await client.listTools({ ...(cursor === undefined ? {} : { params: { cursor } }), options: { signal } });
         signal.throwIfAborted();
         if (JSON.stringify(serverInfo(client.serverInfo)) !== JSON.stringify(info)) throw new Error("MCP server identity changed during tool listing");
+        if (client.instructions !== instructionValue) throw new Error("MCP server instructions changed during tool listing");
         if (!page || !Array.isArray(page.tools) || (page.nextCursor !== undefined && typeof page.nextCursor !== "string")) {
           throw new Error("Invalid MCP tool listing page");
         }
@@ -84,7 +108,7 @@ export async function readMcpToolCatalog(
         bytes += Buffer.byteLength(serialized, "utf8");
         if (bytes > limits.maxBytes) throw new Error(`MCP tool listing exceeds ${limits.maxBytes} bytes`);
         tools.push(...(JSON.parse(serialized) as ListToolsResult).tools);
-        if (page.nextCursor === undefined) return { source: { ...source }, serverInfo: info, pageCount, tools };
+        if (page.nextCursor === undefined) return { source: { ...source }, serverInfo: info, pageCount, tools, guidance };
         if (cursors.has(page.nextCursor)) throw new Error("MCP tool listing cursor repeated");
         cursors.add(page.nextCursor);
         cursor = page.nextCursor;
