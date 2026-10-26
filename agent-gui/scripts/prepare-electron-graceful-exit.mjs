@@ -121,7 +121,7 @@ globalThis.fetch=(input, options)=>{
   const files = inventory(unpacked);
   writeFileSync(join(output, "package-files.json"), JSON.stringify(files));
   const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim();
-  const receipt = { format: "quicker-agent.graceful-exit-staging.v1", sourceCommit: head, mode: options.bundle ? "supplied-bundle" : "current-production-build",
+  const receipt = { format: "quicker-agent.graceful-exit-staging.v1", sourceCommit: options.bundle ? null : head, harnessSourceCommit: head, mode: options.bundle ? "supplied-bundle" : "current-production-build",
     sourceRuntime: source, output, executable: join(unpacked, "quicker-agent.exe"), shell, sourceRuntimeFacts: facts,
     sourceChanges: execFileSync("git", ["diff", "--name-only"], { cwd: repo, encoding: "utf8" }).trim().split(/\r?\n/).filter(Boolean),
     inventorySha256: sha(JSON.stringify(files)), packageFileCount: files.length, beforeGuardInventorySha256: sha(JSON.stringify(beforeGuard)),
