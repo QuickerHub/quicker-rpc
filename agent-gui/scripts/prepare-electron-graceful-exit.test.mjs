@@ -23,6 +23,7 @@ test("supplied bundle is copied unchanged except the documented fetch/config gua
   const root = mkdtempSync(join(repo, ".tmp/graceful-stage-copy-")), source = join(root, "source"), output = join(root, "output");
   const keys = ["QUICKER_AGENT_SMOKE_ROOT", "QUICKER_AGENT_DATA_DIR", "QKRPC_HTTP_URL", "BUNDLED_LLM_REMOTE_CONFIG_DISABLED", "BUNDLED_LLM_CONFIG", "LLM_CONFIG_PATH"];
   const originalEnv = Object.fromEntries(keys.map(key => [key, process.env[key]])), originalFetch = globalThis.fetch;
+  const originalStdout = process.stdout.write, originalStderr = process.stderr.write;
   try {
     for (const directory of ["resources/node", "resources/app/lib"]) mkdirSync(join(source, directory), { recursive: true });
     const fixtureFiles = { "quicker-agent.exe": "fixture PE, never executed", "resources/node/node.exe": "fixture Node, never executed", "resources/app.asar": "fixture ASAR, never executed",
@@ -60,6 +61,7 @@ test("supplied bundle is copied unchanged except the documented fetch/config gua
     assert.equal(process.env.LLM_CONFIG_PATH, join(root, "absent-model-config.json"));
   } finally {
     globalThis.fetch = originalFetch;
+    process.stdout.write = originalStdout; process.stderr.write = originalStderr;
     for (const [key, value] of Object.entries(originalEnv)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     rmSync(root, { recursive: true, force: true });
   }

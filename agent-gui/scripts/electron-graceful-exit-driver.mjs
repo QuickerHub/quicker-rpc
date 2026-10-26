@@ -107,9 +107,11 @@ try {
   const disconnected = once(browser, "disconnected");
   evidence.triggerUtc = new Date().toISOString();
   evidence.trigger = "existing preload windowAction(close) -> app-request-exit -> React exit handler -> graceful_exit";
-  await page.evaluate(() => window.__ELECTRON__.windowAction("close"));
   let timer;
-  try { await Promise.race([disconnected, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Product exit exceeded 10s")), 10_000); })]); }
+  try { await Promise.race([
+    (async () => { await page.evaluate(() => window.__ELECTRON__.windowAction("close")); await disconnected; })(),
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Product exit exceeded 10s")), 10_000); }),
+  ]); }
   finally { clearTimeout(timer); }
   assert.ok(evidence.exitEvents.some(event => event.event === "app-request-exit"));
   evidence.disconnectedUtc = new Date().toISOString();

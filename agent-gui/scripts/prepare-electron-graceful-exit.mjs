@@ -121,7 +121,7 @@ export async function prepareGracefulExit(argv) {
     inventorySha256: sha(JSON.stringify(files)), packageFileCount: files.length, beforeGuardInventorySha256: sha(JSON.stringify(beforeGuard)),
     instrumentation: { modified: ["service.mjs"], added: ["service.acceptance-original.mjs", "acceptance-egress-guard.mjs"], allOtherAppFilesIdentical: true },
     artifacts: ["resources/app.asar", "resources/app/service.mjs", "resources/app/service.acceptance-original.mjs", "resources/app/lib/service-main.mjs", "resources/app/runtime-manifest.json"].map(name => ({ name, sha256: sha(readFileSync(join(unpacked, name))) })),
-    limits: ["No installer executed or user upgrade tested", "Fresh source build is a local acceptance package, not a published release", "Only service fetch/config isolation is instrumented; product cleanup is unchanged"] };
+    limits: ["No installer executed or user upgrade tested", "Fresh source build is a local acceptance package, not a published release", "Only service fetch/config isolation and stdout/stderr observation are instrumented; product cleanup is unchanged"] };
   writeFileSync(join(output, "prepared.json"), JSON.stringify(receipt, null, 2));
   for (const fact of facts) if (sha(readFileSync(fact.path)) !== fact.sha256) throw new Error("Supplied production package changed during staging");
   console.log(`Graceful exit package: ${join(output, "prepared.json")}`);
@@ -134,6 +134,10 @@ import { join, dirname, isAbsolute } from 'node:path';
 const profile=process.env.QUICKER_AGENT_DATA_DIR;
 if(!profile||!isAbsolute(profile)) throw new Error('Acceptance requires an explicit isolated data directory');
 const root=dirname(profile);
+for(const [name,stream] of [['stdout',process.stdout],['stderr',process.stderr]]){
+  const write=stream.write;
+  stream.write=function(chunk,...args){appendFileSync(join(root,'service-'+name+'.log'),String(chunk));return Reflect.apply(write,this,[chunk,...args]);};
+}
 process.env.BUNDLED_LLM_REMOTE_CONFIG_DISABLED='1';
 process.env.BUNDLED_LLM_CONFIG='{}';
 process.env.LLM_CONFIG_PATH=join(root,'absent-model-config.json');
