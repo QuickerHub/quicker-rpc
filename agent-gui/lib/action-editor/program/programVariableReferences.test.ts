@@ -162,6 +162,29 @@ test("duplicate form fields and indirect script execution are unknown, never unu
   }
 });
 
+test("escaped script identifiers fail rename, delete and cleanup without mutating the draft", () => {
+  const source = String.raw`quicker\u0047etVar("旧值");`;
+  let observed = "";
+  // The syntax really calls the ordinary API; this is not an inert backslash in a string.
+  Function("quickerGetVar", source)((key: string) => { observed = key; });
+  assert.equal(observed, "旧值");
+  const present = { variables: [variable()], steps: [step(source, "sys:jsscript", "script")] };
+  const before = structuredClone(present);
+  assert.equal(rename(present).ok, false);
+  assert.equal(prepareProgramVariableChange(present, { kind: "delete", expected: present.variables }).ok, false);
+  assert.equal(getUnusedProgramVariables(present).ok, false);
+  assert.deepEqual(present, before);
+
+  const quoted = String.raw`// quicker\u0047etVar("旧值")
+const text = "quicker\\u0047etVar"; quickerGetVar("旧值");`;
+  const safe = rename({ variables: [variable()], steps: [step(quoted, "sys:jsscript", "script")] });
+  assert.equal(safe.ok, true);
+  if (safe.ok) {
+    assert.match(safe.present.steps[0]!.inputParams.script!.value, /quickerGetVar\("新值"\)/);
+    assert.match(safe.present.steps[0]!.inputParams.script!.value, /quicker\\u0047etVar/);
+  }
+});
+
 test("metadata-only edit preserves unsupported bodies and native extensions", () => {
   const original = { ...variable(), defaultValueFile: "files/default.txt", future: { version: "opaque" } };
   const present = { variables: [original], steps: [step('context.GetVarValue(name)', "sys:csscript", "script")] };

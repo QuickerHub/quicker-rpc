@@ -96,6 +96,9 @@ function script(value: string, language: "cs" | "js" | "py", scan: Scan, path: s
       tokens.push({ text: value.slice(start, i), start, end: i, ...(!escaped ? { literal: value.slice(start + 1, i - 1) } : {}) });
       continue;
     }
+    // Escaped identifiers (for example quicker\u0047etVar) are executable names,
+    // not ordinary punctuation. Never declare their variable references complete.
+    if (c === "\\") return unsupported();
     const word = /^[\p{L}_$][\p{L}\p{Nd}_$]*/u.exec(value.slice(i));
     if (word) { i += word[0].length; tokens.push({ text: word[0], start, end: i }); continue; }
     // A JavaScript regex literal could contain names that are not code. Do not guess its grammar.
