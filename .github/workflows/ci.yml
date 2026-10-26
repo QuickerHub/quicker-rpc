@@ -141,10 +141,10 @@ jobs:
       - name: Guarded tool, eval, authoring and trace regressions
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/ci/check-agent-regressions.mjs
-      - name: Owned action-open and Explorer loopback lifecycle
+      - name: Owned action-open, Explorer and gateway loopback checks
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: agent-gui
-        run: node --conditions=react-server --import tsx --test --test-timeout=15000 lib/designer-resource-action-open.lifecycle.integration.test.ts service/action-explorer-watch.integration.test.ts
+        run: node --conditions=react-server --import tsx --test --test-timeout=15000 lib/designer-resource-action-open.lifecycle.integration.test.ts service/action-explorer-watch.integration.test.ts lib/gateway-guide-redirect.integration.test.ts
 
   designer-dom:
     name: Designer DOM (Windows Edge)
