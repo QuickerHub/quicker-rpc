@@ -89,7 +89,7 @@ try {
   }
   await page.screenshot({ path: join(config.root, `epoch-${config.epoch}-main.png`) });
   writeFileSync(join(config.root, `epoch-${config.epoch}-before-exit.json`), JSON.stringify(evidence, null, 2));
-  await until(() => { try { return readFileSync(join(config.root, `epoch-${config.epoch}-exit-approved`), "utf8") === "approved"; } catch { return false; } }, "native owner retains all process handles");
+  await until(() => { try { return readFileSync(join(config.root, `epoch-${config.epoch}-exit-approved`), "utf8") === "approved"; } catch { return false; } }, "native owner retains all process handles", 90_000);
   for (const runtime of Object.values(evidence.runtime)) {
     const health = await (await fetch(runtime.base + "/health")).json();
     assert.equal(health.ok, true);

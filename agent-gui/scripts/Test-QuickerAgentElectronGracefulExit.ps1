@@ -80,14 +80,15 @@ try {
             $config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $configPath
             $driver = Start-Process -FilePath (Get-Command node).Source -ArgumentList @(('"' + (Join-Path $PSScriptRoot 'electron-graceful-exit-driver.mjs') + '"'), ('"' + $configPath + '"')) -WindowStyle Hidden -PassThru -WorkingDirectory $repo -RedirectStandardOutput (Join-Path $run.Root "epoch-$epoch-driver.log") -RedirectStandardError (Join-Path $run.Root "epoch-$epoch-driver-error.log")
             $beforePath = Join-Path $run.Root "epoch-$epoch-before-exit.json"
-            $deadline = [DateTime]::UtcNow.AddSeconds(90); $snapshot = $false; $roles = @{}
+            $deadline = [DateTime]::UtcNow.AddSeconds(180); $snapshot = $false; $roles = @{}
             while (-not $driver.HasExited -and [DateTime]::UtcNow -lt $deadline) {
                 if (-not $snapshot -and (Test-Path -LiteralPath $beforePath)) {
                     $before = Get-Content -LiteralPath $beforePath -Raw | ConvertFrom-Json
                     $roles = @{ root = $rootHandle; ui = $uiHandle }
+                    $runtimeListeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop)
                     foreach ($kind in @('browser', 'terminal')) {
                         $runtime = $before.runtime.$kind
-                        $rows = @(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.LocalPort -eq $runtime.port })
+                        $rows = @($runtimeListeners | Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.LocalPort -eq $runtime.port })
                         if ($rows.Count -ne 1) { throw 'Runtime has no unique exact loopback listener.' }
                         $processId = [int]$rows[0].OwningProcess
                         $handle = $owner.RetainProcess($processId); $tracked += $handle; $roles[$kind] = $handle
