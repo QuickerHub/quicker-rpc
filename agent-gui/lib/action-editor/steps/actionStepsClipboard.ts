@@ -7,12 +7,16 @@ import { coerceWireInputParam } from "@/lib/input-param-wire";
 import type { XProgramEditorSurface } from "../program/xProgramEditorSurface";
 import { getActionDesignerBackendBaseUrl } from "../shared/actionDesignerBackendBaseUrl";
 import type { StepSummaryFileContents } from "./stepSummaryFileRefs";
+import { variableClipboardRowToDto, variableClipboardRowToEditor } from "../program/programVariableClipboard";
+import { parseVariableReferenceJson } from "../program/programVariableReferences";
+import { stringifyLosslessJson } from "../shared/losslessJson";
 
 /** Same as Quicker.Domain.ConstValues.STEPS_CLIPBOARD_TYPE */
 export const STEPS_CLIPBOARD_MIME = "quicker-action-steps";
 
+let nextClipboardVariableId = 1;
 function newVariableId(): string {
-  return `v-${Date.now()}`;
+  return `v-clipboard-${Date.now()}-${nextClipboardVariableId++}`;
 }
 
 function newStepId(): string {
@@ -52,30 +56,14 @@ function actionStepToWire(step: ActionStep): Record<string, unknown> {
   };
 }
 
-function actionVariableToWire(v: ActionVariable): Record<string, unknown> {
-  return {
-    Key: v.key ?? "",
-    Type: v.varType ?? 0,
-    DefaultValue: v.defaultValue ?? "",
-    Desc: v.desc ?? "",
-    IsLocked: Boolean(v.isLocked),
-    SaveState: Boolean(v.saveState),
-    IsInput: Boolean(v.isInput),
-    IsOutput: Boolean(v.isOutput),
-    ParamName: v.paramName ?? "",
-    Group: v.group ?? "",
-    CustomType: v.customType ?? ""
-  };
-}
-
 /** Build JSON matching Newtonsoft default (PascalCase) for ActionStepsDto. */
 export function buildActionStepsClipboardJson(steps: ActionStep[], variables: ActionVariable[]): string {
   const dto = {
-    Variables: variables.map((v) => actionVariableToWire(v)),
+    Variables: variables.map(variableClipboardRowToDto),
     Steps: steps.map((s) => actionStepToWire(s)),
     SubPrograms: [] as unknown[]
   };
-  return JSON.stringify(dto, null, 2);
+  return stringifyLosslessJson(dto, 2);
 }
 
 function readProp<T>(obj: Record<string, unknown>, pascal: string, camel: string): T | undefined {
@@ -148,37 +136,7 @@ export function normalizeActionStepFromClipboard(raw: unknown): ActionStep {
 }
 
 export function normalizeActionVariableFromClipboard(raw: unknown): ActionVariable {
-  if (!raw || typeof raw !== "object") {
-    return ActionVariable.create({
-      id: newVariableId(),
-      key: "",
-      varType: 0,
-      defaultValue: "",
-      desc: "",
-      isLocked: false,
-      saveState: false,
-      isInput: false,
-      isOutput: false,
-      paramName: "",
-      group: "",
-      customType: ""
-    });
-  }
-  const o = raw as Record<string, unknown>;
-  return ActionVariable.create({
-    id: newVariableId(),
-    key: String(readProp<string>(o, "Key", "key") ?? ""),
-    varType: Number(readProp(o, "Type", "varType") ?? 0),
-    defaultValue: String(readProp<string>(o, "DefaultValue", "defaultValue") ?? ""),
-    desc: String(readProp<string>(o, "Desc", "desc") ?? ""),
-    isLocked: Boolean(readProp(o, "IsLocked", "isLocked")),
-    saveState: Boolean(readProp(o, "SaveState", "saveState")),
-    isInput: Boolean(readProp(o, "IsInput", "isInput")),
-    isOutput: Boolean(readProp(o, "IsOutput", "isOutput")),
-    paramName: String(readProp<string>(o, "ParamName", "paramName") ?? ""),
-    group: String(readProp<string>(o, "Group", "group") ?? ""),
-    customType: String(readProp<string>(o, "CustomType", "customType") ?? "")
-  });
+  return { ...variableClipboardRowToEditor(raw), id: newVariableId() };
 }
 
 export type ParsedActionStepsClipboard = {
@@ -189,7 +147,7 @@ export type ParsedActionStepsClipboard = {
 export function parseActionStepsClipboardJson(text: string): ParsedActionStepsClipboard | null {
   let root: unknown;
   try {
-    root = JSON.parse(text) as unknown;
+    root = parseVariableReferenceJson(text);
   } catch {
     return null;
   }
@@ -202,9 +160,12 @@ export function parseActionStepsClipboardJson(text: string): ParsedActionStepsCl
   if (!Array.isArray(stepsRaw) || stepsRaw.length === 0) {
     return null;
   }
-  const steps = stepsRaw.map((s) => normalizeActionStepFromClipboard(s));
-  const variables = Array.isArray(varsRaw) ? varsRaw.map((v) => normalizeActionVariableFromClipboard(v)) : [];
-  return { steps, variables };
+  try {
+    if ((Object.hasOwn(o, "Steps") && Object.hasOwn(o, "steps")) || (Object.hasOwn(o, "Variables") && Object.hasOwn(o, "variables"))) return null;
+    const steps = stepsRaw.map((s) => normalizeActionStepFromClipboard(s));
+    const variables = Array.isArray(varsRaw) ? varsRaw.map((v) => normalizeActionVariableFromClipboard(v)) : [];
+    return { steps, variables };
+  } catch { return null; }
 }
 
 /** Collect variable keys referenced by steps (subset of XActionUiHelper.AddUsedVarKeys). */
@@ -286,7 +247,7 @@ export function adjustPastedVariablesForSurface(
     } else {
       base.saveState = false;
     }
-    return ActionVariable.fromPartial(base);
+    return base;
   });
 }
 

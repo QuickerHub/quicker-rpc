@@ -10,11 +10,15 @@ import { findUniqueOwnedProgramDocumentStep, isSubProgramRecord } from "../docum
 import { parseLosslessJson } from "../shared/losslessJson";
 import { applyProgramDocumentVariableChange } from "../document/programDocumentVariableChanges";
 import type { ProgramVariableChangeRequest, ProgramVariableChangeResult } from "./programVariableReferences";
+import { exportProgramDocumentVariables, pasteProgramDocumentVariables } from "../document/programDocumentVariableClipboard";
+import type { ProgramVariableClipboardExportResult, ProgramVariableClipboardPasteResult } from "./programVariableClipboard";
 
 export type XProgramEditorControl = {
   getPresent(): XProgramPresent;
   commit(present: XProgramPresent): void;
   changeVariables(request: ProgramVariableChangeRequest): ProgramVariableChangeResult;
+  exportVariables(ids: readonly string[]): ProgramVariableClipboardExportResult;
+  pasteVariables(text: string): ProgramVariableClipboardPasteResult;
 };
 
 /** Surface adapters contain no present or history; every read and edit belongs to the session. */
@@ -108,6 +112,16 @@ export function createProgramDocumentEditorController(
       if (!control) {
         control = {
           getPresent: () => cloneXProgramPresent(findSurface(session.readSnapshot(), surface)),
+          exportVariables: (ids) => {
+            if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "原文档已经切换，请重新选择变量" };
+            return exportProgramDocumentVariables(session, surface, ids);
+          },
+          pasteVariables: (text) => {
+            if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "原文档已经切换，无法粘贴变量" };
+            const result = pasteProgramDocumentVariables(session, surface, text, editOptions());
+            options.onChange(result);
+            return result.ok ? { ok: true, changed: result.changed, insertedIds: result.insertedIds ?? [] } : { ok: false, code: result.code, error: result.error };
+          },
           changeVariables: (request) => {
             if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "原文档已经切换，请保留变量草稿并重新打开" };
             const result = applyProgramDocumentVariableChange(session, surface, request, editOptions());
