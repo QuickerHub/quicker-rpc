@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import nativeFixtures from "./fixtures/step-runner-schema-read.native.json";
 import type { AgentUIMessage } from "./chat-types";
 import type { ModelMessage } from "ai";
@@ -272,4 +274,33 @@ test("receipt validation rejects foreign/duplicate child paths and forged starts
   const start = startStepRunnerSchemaRead({ key, controlField: "" });
   assert.equal(readStepRunnerSchemaRead({ ...start, input }).status, "unavailable");
   assert.equal(startStepRunnerSchemaRead({ key: "x".repeat(3000) }).status, "unavailable");
+});
+
+test("generic budget terminates for ok:true without exitCode and for combined metadata beyond the fixed budget", () => {
+  const metadata = {
+    schemaVersion: 1,
+    source: { provider: "qkrpc.step-runner", kind: "runtime-definition",
+      ...Object.fromEntries(["hostKind", "quickerVersion", "adapterAssembly", "adapterVersion", "hostInstanceId", "hostSessionId", "endpoint"].map(name => [name, "x".repeat(490)])) },
+    schema: { format: "qkrpc.agent-step-runner.v1", revision: "r".repeat(490) },
+  };
+  const knowledgeProjection = { schemaComplete: false, metadataStatus: "preserved", knowledge: metadata };
+  const input: StepRunnerSchemaReadInput = { key, read: { pointer: "", mode: "value", offset: 0, expectedObservation: observation } };
+  const read = { ...page(input, '"long"'), content: JSON.stringify("x".repeat(4998)), total: 5000 };
+  const malformed = { ok: true, data: { action: "step-runner-get", payload: { success: true, schemaRead: read }, knowledgeProjection } };
+  const gatewayKnowledge = { status: "available", gateway: { transport: "http", identity: "i".repeat(490), displayName: "d".repeat(490) },
+    retrievedAt: "t".repeat(490), codec: { descriptorRevision: "r".repeat(490), source: { provider: "p".repeat(490), kind: "k".repeat(490), assemblyName: "a".repeat(490) } } };
+  const mixed = { ok: true, exitCode: 0, source: "\u0000".repeat(128), data: { action: "step-runner-get", schemaRead: startStepRunnerSchemaRead({ key: "k".repeat(1700) }),
+    knowledgeProjection, guideSource: "gateway", gatewayKnowledge, excess: "x".repeat(20000) } };
+  // A timeout outside the tested process detects synchronous loops without hanging the test runner.
+  const child = spawnSync(process.execPath, ["--conditions=react-server", "--import", "./scripts/agent-offline-network-guard.mjs", "--import", "tsx", "-e",
+    "const{readFileSync}=require('node:fs');const{buildModelFacingToolOutput}=require('./lib/tool-result-model-messages.ts');process.stdout.write(JSON.stringify(JSON.parse(readFileSync(0,'utf8')).map(buildModelFacingToolOutput)));"],
+  { cwd: fileURLToPath(new URL("../", import.meta.url)), input: JSON.stringify([malformed, mixed]), encoding: "utf8", timeout: 15000 });
+  assert.equal(child.error, undefined, child.error?.message);
+  assert.equal(child.status, 0, child.stderr);
+  const [plain, structured] = JSON.parse(child.stdout);
+  for (const output of [plain, structured]) assert.ok(JSON.stringify(output).length <= 8192);
+  assert.equal(plain.schemaRead, undefined, "A malformed tool envelope cannot retain an atomic page or advance a cursor");
+  assert.deepEqual(receipt(structured), mixed.data.schemaRead, "The exact bounded start descriptor remains callable");
+  assert.equal(structured.data.knowledgeProjection.metadataStatus, "unknown");
+  assert.equal(structured.data.gatewayKnowledgeProjection.metadataStatus, "unknown");
 });
