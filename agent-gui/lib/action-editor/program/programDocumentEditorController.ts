@@ -12,6 +12,8 @@ import { applyProgramDocumentVariableChange } from "../document/programDocumentV
 import type { ProgramVariableChangeRequest, ProgramVariableChangeResult } from "./programVariableReferences";
 import { exportProgramDocumentVariables, pasteProgramDocumentVariables } from "../document/programDocumentVariableClipboard";
 import type { ProgramVariableClipboardExportResult, ProgramVariableClipboardPasteResult } from "./programVariableClipboard";
+import { exportProgramDocumentSteps, pasteProgramDocumentSteps } from "../document/programDocumentStepClipboard";
+import type { StepClipboardExportResult, StepClipboardPasteResult } from "./programStepClipboardCodec";
 
 export type XProgramEditorControl = {
   getPresent(): XProgramPresent;
@@ -19,6 +21,8 @@ export type XProgramEditorControl = {
   changeVariables(request: ProgramVariableChangeRequest): ProgramVariableChangeResult;
   exportVariables(ids: readonly string[]): ProgramVariableClipboardExportResult;
   pasteVariables(text: string): ProgramVariableClipboardPasteResult;
+  exportSteps?(ids: readonly string[]): StepClipboardExportResult;
+  pasteSteps?(text: string, afterId: string | null): StepClipboardPasteResult;
 };
 
 /** Surface adapters contain no present or history; every read and edit belongs to the session. */
@@ -112,6 +116,16 @@ export function createProgramDocumentEditorController(
       if (!control) {
         control = {
           getPresent: () => cloneXProgramPresent(findSurface(session.readSnapshot(), surface)),
+          exportSteps: (ids) => {
+            if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "原文档已经切换，请重新复制步骤" };
+            return exportProgramDocumentSteps(session, surface, ids);
+          },
+          pasteSteps: (text, afterId) => {
+            if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "原文档已经切换，无法粘贴步骤" };
+            const result = pasteProgramDocumentSteps(session, surface, text, afterId, editOptions());
+            options.onChange(result);
+            return result.ok ? { ok: true, changed: result.changed, insertedIds: result.insertedIds ?? [] } : { ok: false, code: result.code, error: result.error };
+          },
           exportVariables: (ids) => {
             if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "原文档已经切换，请重新选择变量" };
             return exportProgramDocumentVariables(session, surface, ids);

@@ -5,6 +5,8 @@ import { allocateVariableClipboardRows, normalizeVariableClipboardRow, parseProg
   type ProgramVariableClipboardExportResult } from "../program/programVariableClipboard";
 import type { ActionProgramSnapshot } from "../program/assembleActionProgramSnapshot";
 
+export { rawSurface as readClipboardSurface, variableRows as readClipboardVariables };
+
 function projectedVariables(snapshot: ActionProgramSnapshot, surface: string): typeof snapshot.variables {
   if (surface === "main") return snapshot.variables;
   const find = (programs: typeof snapshot.subPrograms): typeof snapshot.variables | undefined => {

@@ -19,14 +19,12 @@ import type { XProgramEditorSurface } from "../program/xProgramEditorSurface";
 import { X_PROGRAM_HISTORY_ISOLATE_CLASS, type XProgramPresent } from "../program/xProgramHistory";
 import {
   STEPS_CLIPBOARD_MIME,
-  adjustPastedVariablesForSurface,
-  buildActionStepsClipboardJson,
-  collectUsedVariableKeysForSteps,
-  parseActionStepsClipboardJson,
   readStepsClipboardText,
-  remapStepIdsDeep,
   writeStepsClipboard
 } from "./actionStepsClipboard";
+import { exportProgramSteps, prepareProgramStepsPaste } from "../program/programStepClipboard";
+import type { StepClipboardExportResult, StepClipboardPasteResult } from "../program/programStepClipboardCodec";
+import { isKeyboardInputSurface } from "../shared/keyboardInputSurface";
 import {
   resolveStepListInitialSelection,
   setStepListEditorSession,
@@ -248,6 +246,9 @@ type CompactDraft = {
 
 export type StepListEditorProps = {
   active?: boolean;
+  clipboardOwner?: object;
+  onExportStepsClipboard?: (ids: readonly string[]) => StepClipboardExportResult;
+  onPasteStepsClipboard?: (text: string, afterId: string | null) => StepClipboardPasteResult;
   keyboardOwnerId?: string;
   steps: ActionStep[];
   /** Records one undo snapshot for both steps and variables (host merges). */
@@ -283,6 +284,9 @@ export type StepListEditorProps = {
 
 export default function StepListEditor({
   active = true,
+  clipboardOwner,
+  onExportStepsClipboard,
+  onPasteStepsClipboard,
   keyboardOwnerId,
   steps,
   onCommitSteps,
@@ -305,6 +309,21 @@ export default function StepListEditor({
 }: StepListEditorProps): JSX.Element {
   const catalogPort = useDesignerCatalogPort();
   const catalogContext = useDesignerCatalogContext();
+  const localClipboardOwner = useMemo(() => ({}), [catalogPort, programDocumentKey, programSurface, workspaceContext?.cwd, workspaceContext?.projectDir]);
+  const effectiveClipboardOwner = clipboardOwner ?? localClipboardOwner;
+  const clipboardGeneration = useRef(0);
+  const clipboardContext = useRef({active,owner:effectiveClipboardOwner,readProgramPresent,steps,variables,onExportStepsClipboard,onPasteStepsClipboard,onCommitProgram,onCommitSteps,flushProgramEdits});
+  clipboardContext.current = {active,owner:effectiveClipboardOwner,readProgramPresent,steps,variables,onExportStepsClipboard,onPasteStepsClipboard,onCommitProgram,onCommitSteps,flushProgramEdits};
+  useLayoutEffect(() => {
+    clipboardGeneration.current++;
+    return () => { clipboardGeneration.current++; };
+  }, [active, effectiveClipboardOwner]);
+  const beginClipboardOperation = useCallback(() => {
+    if (!clipboardContext.current.active || clipboardContext.current.owner !== effectiveClipboardOwner) return null;
+    const generation = ++clipboardGeneration.current;
+    return () => clipboardContext.current.active && clipboardContext.current.owner === effectiveClipboardOwner && clipboardGeneration.current === generation
+      && editorTargetIdRef.current == null && !quickInsertActiveRef.current;
+  }, [effectiveClipboardOwner]);
   const activeRef = useRef(active);
   activeRef.current = active;
   const insertGeneration = useRef(0);
@@ -322,6 +341,7 @@ export default function StepListEditor({
   // The owner changes before React commits, so a live callback in the same event cannot miss the modal.
   const setEditorTargetId = useCallback((next: string | null | ((current: string | null) => string | null)) => {
     const value = typeof next === "function" ? next(editorTargetIdRef.current) : next;
+    if (value !== editorTargetIdRef.current) clipboardGeneration.current++;
     editorTargetIdRef.current = value;
     setEditorTargetIdState(value);
   }, []);
@@ -339,6 +359,8 @@ export default function StepListEditor({
   // Opening, closing or cancelling an insertion is a newer intent than any schema still in flight.
   const setQuickInsert = useCallback((next: QuickInsertSession | null): void => {
     insertGeneration.current += 1;
+    clipboardGeneration.current += 1;
+    quickInsertActiveRef.current = next != null;
     setQuickInsertState(next);
   }, []);
   const quickInsertActiveRef = useRef(false);
@@ -1038,123 +1060,56 @@ export default function StepListEditor({
   }, []);
 
   const copySelectedStepsToClipboard = useCallback(async (): Promise<void> => {
-    if (editorTargetIdRef.current != null || quickInsertActiveRef.current) {
-      return;
-    }
-    const roots = normalizeSelectionForMove(steps, selectedIds);
-    if (roots.length === 0) {
-      notifyClipboard?.("请先选择要复制的步骤。", "info");
-      return;
-    }
-    const toCopy: ActionStep[] = [];
-    for (const id of roots) {
-      const s = findStepById(steps, id);
-      if (s) {
-        toCopy.push(structuredClone(s) as ActionStep);
-      }
-    }
-    const keySet = new Set(variables.map((v) => v.key ?? "").filter(Boolean));
-    const used = collectUsedVariableKeysForSteps(toCopy, keySet, fileContentsByPath);
-    const varsOut = variables
-      .filter((v) => used.has(v.key ?? ""))
-      .map((v) => structuredClone(v) as ActionVariable);
-    try {
-      const json = buildActionStepsClipboardJson(toCopy, varsOut);
-      await writeStepsClipboard(json);
-    } catch (error) {
-      notifyClipboard?.(error instanceof Error ? error.message : "复制到剪贴板失败。", "error");
-    }
-  }, [fileContentsByPath, notifyClipboard, selectedIds, steps, variables]);
+    if (editorTargetIdRef.current != null || quickInsertActiveRef.current) return;
+    const isCurrent = beginClipboardOperation(); if (!isCurrent) return;
+    flushCompactSync();
+    const context = clipboardContext.current;
+    if (context.flushProgramEdits && flushSync(context.flushProgramEdits) === false) return;
+    if (!isCurrent()) return;
+    const current = context.readProgramPresent?.() ?? { steps: context.steps, variables: context.variables };
+    const roots = normalizeSelectionForMove(current.steps, selectedIds);
+    const copied = context.onExportStepsClipboard?.(roots) ?? exportProgramSteps(current, roots);
+    if (!copied.ok) { notifyClipboard?.(copied.error, "error"); return; }
+    try { await writeStepsClipboard(copied.text, isCurrent); }
+    catch (error) { if (isCurrent()) notifyClipboard?.(error instanceof Error ? error.message : "复制步骤失败。", "error"); }
+  }, [beginClipboardOperation, flushCompactSync, notifyClipboard, selectedIds]);
 
   const pasteStepsFromClipboard = useCallback(async (): Promise<void> => {
-    if (editorTargetIdRef.current != null || quickInsertActiveRef.current) {
-      return;
-    }
+    if (editorTargetIdRef.current != null || quickInsertActiveRef.current) return;
+    const isCurrent = beginClipboardOperation(); if (!isCurrent) return;
     flushCompactSync();
-    let raw: string | null;
-    try {
-      raw = await readStepsClipboardText();
-    } catch {
-      notifyClipboard?.("无法读取剪贴板。", "error");
-      return;
-    }
-    if (raw == null || raw.trim().length === 0) {
-      notifyClipboard?.(`剪贴板中没有「${STEPS_CLIPBOARD_MIME}」或有效的步骤 JSON。`, "info");
-      return;
-    }
-    const parsed = parseActionStepsClipboardJson(raw);
-    if (!parsed) {
-      notifyClipboard?.("剪贴板中的步骤数据格式不正确。", "error");
-      return;
-    }
-    const rootsPasted = remapStepIdsDeep(parsed.steps, () => stepIdManagerRef.current.nextId());
-    const anchors = normalizeSelectionForMove(steps, selectedIds);
-    let insertAfterId: string | null = null;
-    if (anchors.length > 0) {
-      let best = -1;
-      for (let i = 0; i < steps.length; i++) {
-        if (anchors.includes(steps[i]!.stepId)) {
-          best = i;
-        }
-      }
-      if (best >= 0) {
-        insertAfterId = steps[best]!.stepId;
+    const started = clipboardContext.current;
+    if (started.flushProgramEdits && flushSync(started.flushProgramEdits) === false) return;
+    if (!isCurrent()) return;
+    const before = started.readProgramPresent?.() ?? { steps: started.steps, variables: started.variables };
+    const roots = normalizeSelectionForMove(before.steps, selectedIds);
+    const afterId = before.steps.filter(step => roots.includes(step.stepId)).at(-1)?.stepId ?? null;
+    let text: string | null;
+    try { text = await readStepsClipboardText(isCurrent); }
+    catch { if (isCurrent()) notifyClipboard?.("无法读取剪贴板。", "error"); return; }
+    if (!isCurrent()) return;
+    if (!text?.trim()) { notifyClipboard?.(`剪贴板中没有「${STEPS_CLIPBOARD_MIME}」或步骤 JSON。`, "info"); return; }
+    const context = clipboardContext.current;
+    if (context.flushProgramEdits && flushSync(context.flushProgramEdits) === false) return;
+    flushCompactSync(); if (!isCurrent()) return;
+    let result: StepClipboardPasteResult;
+    if (context.onPasteStepsClipboard) result = context.onPasteStepsClipboard(text, afterId);
+    else {
+      const current = context.readProgramPresent?.() ?? { steps: context.steps, variables: context.variables };
+      const prepared = prepareProgramStepsPaste(current, text, afterId);
+      if (!prepared.ok) result = prepared;
+      else if (!context.onCommitProgram && prepared.present.variables.length !== current.variables.length)
+        result = {ok:false,code:"step_clipboard_unsupported",error:"步骤和变量需要同一程序事务，当前编辑面不支持"};
+      else {
+        if (context.onCommitProgram) context.onCommitProgram(prepared.present); else context.onCommitSteps(prepared.present.steps);
+        result = {ok:true,changed:true,insertedIds:prepared.insertedIds};
       }
     }
-    const nextSteps = structuredClone(steps) as ActionStep[];
-    if (insertAfterId) {
-      const loc = findStepListLocation(nextSteps, insertAfterId);
-      if (loc) {
-        loc.list.splice(loc.index + 1, 0, ...rootsPasted);
-      } else {
-        nextSteps.push(...rootsPasted);
-      }
-    } else {
-      nextSteps.push(...rootsPasted);
-    }
-    const firstNewId = rootsPasted[0]?.stepId ?? "";
-
-    const hasPastedVars = parsed.variables.length > 0;
-    if (hasPastedVars && !onCommitProgram) {
-      notifyClipboard?.("剪贴板包含变量定义，需要宿主提供 onCommitProgram 才能粘贴。", "error");
-      return;
-    }
-    if (hasPastedVars && onCommitProgram) {
-      const adjustedVars = adjustPastedVariablesForSurface(parsed.variables, programSurface);
-      const nextVars = structuredClone(variables) as ActionVariable[];
-      for (const pv of adjustedVars) {
-        const k = pv.key ?? "";
-        if (!k) {
-          continue;
-        }
-        const exist = nextVars.find((v) => (v.key ?? "") === k);
-        if (!exist) {
-          nextVars.push(structuredClone(pv) as ActionVariable);
-        } else if ((exist.varType ?? 0) !== (pv.varType ?? 0)) {
-          notifyClipboard?.(`无法粘贴：变量「${k}」类型与现有定义冲突。`, "error");
-          return;
-        }
-      }
-      onCommitProgram({ steps: nextSteps, variables: nextVars });
-    } else {
-      onCommitSteps(nextSteps);
-    }
-    if (firstNewId) {
-      setSingleSelection(firstNewId);
-    }
-    refocusEditorShell();
-  }, [
-    flushCompactSync,
-    notifyClipboard,
-    onCommitProgram,
-    programSurface,
-    refocusEditorShell,
-    onCommitSteps,
-    selectedIds,
-    setSingleSelection,
-    steps,
-    variables
-  ]);
+    if (!isCurrent()) return;
+    if (!result.ok) { notifyClipboard?.(result.error, "error"); return; }
+    const first = result.insertedIds[0]; if (first) setSingleSelection(first);
+    queueMicrotask(() => { if (isCurrent()) editorShellRef.current?.focus({preventScroll:true}); });
+  }, [beginClipboardOperation, flushCompactSync, notifyClipboard, selectedIds, setSingleSelection]);
 
   const removeStepIds = useCallback((rawIds: string[], preferredFocusId?: string): void => {
     flushCompactSync();
@@ -1237,6 +1192,7 @@ export default function StepListEditor({
       if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.altKey
         && (target.closest('button, [role="button"], a[href]') || ae?.closest('button, [role="button"], a[href]'))) return;
       const isTextField =
+        isKeyboardInputSurface(ae) || isKeyboardInputSurface(event.target) ||
         tag === "input" ||
         tag === "textarea" ||
         tag === "select" ||

@@ -84,7 +84,7 @@ function XProgramEditorInner({
   const localKeyboardOwnerId = useId();
   const keyboardOwnerId = documentKeyboardOwnerId ?? localKeyboardOwnerId;
   const editorRootRef = useRef<HTMLDivElement>(null);
-  const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, changeVariables, exportVariables, pasteVariables, present } = useXProgramEditorHistory(initialPresent, control);
+  const { history: hist, historyRef: histRef, dispatch, handle: stateHandle, changeVariables, exportVariables, pasteVariables, exportSteps, pasteSteps, present } = useXProgramEditorHistory(initialPresent, control);
   const variableOwner = useMemo(() => ({}), [control, editorTabId, programDocumentKey, workspaceContext?.cwd, workspaceContext?.projectDir]);
   const currentVariableOwner = useRef<object | null>(variableOwner);
   currentVariableOwner.current = variableOwner;
@@ -258,6 +258,9 @@ function XProgramEditorInner({
         <div className="x-program-editor-steps">
           <StepListEditor
             active={active}
+            clipboardOwner={variableOwner}
+            onExportStepsClipboard={exportSteps}
+            onPasteStepsClipboard={pasteSteps}
             keyboardOwnerId={keyboardOwnerId}
             steps={present.steps}
             onCommitSteps={commitSteps}

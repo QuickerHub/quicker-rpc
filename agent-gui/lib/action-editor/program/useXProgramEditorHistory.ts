@@ -14,6 +14,8 @@ import type { XProgramEditorHandle } from "./xProgramEditorHandle";
 import type { XProgramEditorControl } from "./programDocumentEditorController";
 import { prepareProgramVariableChange, type ProgramVariableChangeRequest, type ProgramVariableChangeResult } from "./programVariableReferences";
 import { exportProgramVariables, prepareProgramVariablePaste, type ProgramVariableClipboardExportResult, type ProgramVariableClipboardPasteResult } from "./programVariableClipboard";
+import { exportProgramSteps, prepareProgramStepsPaste } from "./programStepClipboard";
+import type { StepClipboardExportResult, StepClipboardPasteResult } from "./programStepClipboardCodec";
 
 /** The ref is the live history owner; React renders its latest committed state. */
 export function useXProgramEditorHistory(initialPresent: XProgramPresent, control?: XProgramEditorControl) {
@@ -61,6 +63,18 @@ export function useXProgramEditorHistory(initialPresent: XProgramPresent, contro
     return { ok: true, changed: prepared.changed, insertedIds: prepared.insertedIds };
   }, [control, dispatch]);
 
+  const exportSteps = useCallback((ids: readonly string[]): StepClipboardExportResult => {
+    if (controlRef.current !== control) return { ok:false,code:"identity_conflict",error:"编辑文档已经切换，请重新复制步骤" };
+    if (control) return control.exportSteps?.(ids) ?? {ok:false,code:"step_clipboard_unsupported",error:"当前文档控制器尚不支持原文步骤复制"};
+    return exportProgramSteps(historyRef.current!.present,ids);
+  },[control]);
+  const pasteSteps = useCallback((text:string,afterId:string|null): StepClipboardPasteResult => {
+    if(controlRef.current!==control)return{ok:false,code:"identity_conflict",error:"编辑文档已经切换，请重新粘贴步骤"};
+    if(control)return control.pasteSteps?.(text,afterId)??{ok:false,code:"step_clipboard_unsupported",error:"当前文档控制器尚不支持原文步骤粘贴"};
+    const prepared=prepareProgramStepsPaste(historyRef.current!.present,text,afterId);if(!prepared.ok)return prepared;
+    dispatch({type:"commitProgram",present:prepared.present});return{ok:true,changed:true,insertedIds:prepared.insertedIds};
+  },[control,dispatch]);
+
   const handle = useMemo<XProgramEditorHandle>(() => ({
     getPresent: () => controlRef.current?.getPresent() ?? cloneXProgramPresent(historyRef.current!.present),
     applyProgram: (present, options) => {
@@ -76,5 +90,5 @@ export function useXProgramEditorHistory(initialPresent: XProgramPresent, contro
     },
   }), [dispatch]);
 
-  return { history, historyRef, dispatch, handle, changeVariables, exportVariables, pasteVariables, present: control?.getPresent() ?? history!.present };
+  return { history, historyRef, dispatch, handle, changeVariables, exportVariables, pasteVariables, exportSteps, pasteSteps, present: control?.getPresent() ?? history!.present };
 }

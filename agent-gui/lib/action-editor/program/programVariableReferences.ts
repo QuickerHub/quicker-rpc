@@ -13,12 +13,20 @@ export type ProgramVariableChangeResult = { ok: true; changed: boolean } | { ok:
 export type PreparedProgramVariableChange = { ok: true; changed: boolean; present: XProgramPresent } | Extract<ProgramVariableChangeResult, { ok: false }>;
 type RecordValue = Record<string, unknown>;
 type Reference = { key: string; path: string };
-type Scan = { references: Reference[]; unknown: string[]; keys?: ReadonlySet<string>; rename?: { from: ActionVariable; to: string } };
+type Scan = { references: Reference[]; unknown: string[]; keys?: ReadonlySet<string>; rename?: { from: ActionVariable; to: string };
+  renames?: ReadonlyMap<string, { to: string; varType: number }>; clipboard?: boolean };
 const bindingPattern = new RegExp(`^(${ACTION_VARIABLE_IDENTIFIER_SOURCE})(.*)$`, "u");
 const isRecord = (value: unknown): value is RecordValue => value !== null && typeof value === "object" && !Array.isArray(value) && !isLosslessJsonNumber(value);
 const fail = (code: string, error: string): Extract<ProgramVariableChangeResult, { ok: false }> => ({ ok: false, code, error });
 const same = (a: unknown, b: unknown) => programDocumentFingerprint(a) === programDocumentFingerprint(b);
+/** Unknown clipboard carriers have no native interpolation contract; keep every such marker opaque. */
+export function hasOpaqueClipboardReference(value: unknown): boolean {
+  if (typeof value === "string") return /[{}]|\$=|\$\$|\$sp\$|GetVarValue|SetVarValue|quickerGetVar|quickerSetVar/u.test(value);
+  if (Array.isArray(value)) return value.some(hasOpaqueClipboardReference);
+  return isRecord(value) && Object.values(value).some(hasOpaqueClipboardReference);
+}
 function possibleReference(value: unknown, scan: Scan): boolean {
+  if (scan.clipboard) return hasOpaqueClipboardReference(value);
   if (typeof value === "string") return [...value.matchAll(new RegExp(`\\{(${ACTION_VARIABLE_IDENTIFIER_SOURCE})(?=\\}|\\.|\\[)`, "gu"))]
     .some((match) => scan.rename ? match[1] === scan.rename.from.key : scan.keys?.has(match[1]!));
   if (Array.isArray(value)) return value.some((item) => possibleReference(item, scan));
@@ -45,11 +53,15 @@ export function parseVariableReferenceJson(content: string): unknown {
 
 function reference(scan: Scan, key: string, path: string): string {
   scan.references.push({ key, path });
-  return scan.rename?.from.key === key ? scan.rename.to : key;
+  return scan.renames?.get(key)?.to ?? (scan.rename?.from.key === key ? scan.rename.to : key);
 }
 
 function binding(value: string, scan: Scan, path: string, members = true): string {
+  if (scan.clipboard && value === "[cliptext]" && path.includes("/inputParams/")) return value;
   const match = bindingPattern.exec(value);
+  if (scan.clipboard && value && (!match || match[2])) {
+    scan.unknown.push(`${path}: 剪贴板尚不支持核验成员或索引绑定`); return value;
+  }
   if (!match || (match[2] && (!members || !/^[.[]/.test(match[2])))) return value;
   return reference(scan, match[1]!, path) + match[2];
 }
@@ -57,14 +69,23 @@ function binding(value: string, scan: Scan, path: string, members = true): strin
 /** Native interpolation happens before expression evaluation, including quoted placeholders. */
 function expression(value: string, scan: Scan, path: string, force = false): string {
   if (!force && !value.startsWith("$=") && !value.startsWith("$$")) return value;
+  if (scan.clipboard) {
+    const exact = new RegExp(`^\\{(${ACTION_VARIABLE_IDENTIFIER_SOURCE})\\}$`, "u");
+    const remainder = value.replace(/\{[^{}]*\}/gu, token => {
+      if (!exact.test(token) && token !== "{[cliptext]}") scan.unknown.push(`${path}: 插值表达式、成员及动态索引尚无完整移交证明`);
+      return "";
+    });
+    if (/[{}]/u.test(remainder)) scan.unknown.push(`${path}: 插值边界不完整`);
+  }
   const updated = value.replace(new RegExp(`\\{(${ACTION_VARIABLE_IDENTIFIER_SOURCE})(?=\\}|\\.|\\[)`, "gu"), (whole, key: string, at: number) => {
     const suffix = value[at + whole.length];
     scan.references.push({ key, path });
-    if (scan.rename?.from.key !== key) return whole;
-    if (suffix !== "}" && scan.rename.from.varType !== CsVarType.List && scan.rename.from.varType !== CsVarType.Dict) {
+    const rename = scan.renames?.get(key) ?? (scan.rename?.from.key === key ? { to: scan.rename.to, varType: scan.rename.from.varType } : undefined);
+    if (!rename) return whole;
+    if (suffix !== "}" && rename.varType !== CsVarType.List && rename.varType !== CsVarType.Dict) {
       scan.unknown.push(`${path}: 集合成员引用与原变量类型不一致`); return whole;
     }
-    return "{" + scan.rename.to;
+    return "{" + rename.to;
   });
   return value.startsWith("$=") ? script(updated, "cs", scan, path) : updated;
 }
@@ -106,8 +127,19 @@ function script(value: string, language: "cs" | "js" | "py", scan: Scan, path: s
     i++; tokens.push({ text: c, start, end: i });
   }
   const patches: { start: number; end: number; text: string }[] = [];
+  if (scan.clipboard) {
+    // Positive grammar for transfer: literals/operators and explicit literal variable APIs.
+    // This does not certify arbitrary C#, generic/delegate calls or unknown native callbacks.
+    const identifiers = new Set(["$", "true", "false", "null", "return", "context", "GetVarValue", "SetVarValue"]);
+    for (const [index, token] of tokens.entries()) {
+      if (/^[\p{L}_$]/u.test(token.text) && !identifiers.has(token.text)) return unsupported();
+      if (!/^[\p{L}\p{Nd}_$]/u.test(token.text) && !/^["']/u.test(token.text) && !/^[+\-*/%&|!=<>?:().,;]$/u.test(token.text)) return unsupported();
+      if (token.text === ")" && tokens[index + 1]?.text === "(") return unsupported();
+    }
+  }
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!;
+    if (scan.clipboard && /^[\p{L}_$]/u.test(token.text) && tokens[i + 1]?.text === "(" && !["GetVarValue", "SetVarValue", "quickerGetVar", "quickerSetVar"].includes(token.text)) return unsupported();
     if (["eval", "exec", "Function", "require", "import", "__import__", "globalThis", "window", "this", "self"].includes(token.text)) return unsupported();
     if (token.text === "]" && tokens[i + 1]?.text === "(") return unsupported();
     const prefix = language === "cs" ? ["context", "."] : language === "py" ? ["quicker", ".", "context", "."] : [];
@@ -191,7 +223,7 @@ function form(value: string, scan: Scan, path: string, operation?: XProgramPrese
     const known = new Set([...keys, ...identifiers, ...targets, ...expressionFields, "options", "Options", "visibleWhen"]);
     for (const [name, data] of Object.entries(field)) if (!known.has(name) && possibleReference(data, scan)) scan.unknown.push(`${path}/${index}/${name}: 未知表单字段可能引用变量`);
   }
-  return scan.rename && !same(body, parseLosslessJson(value)) ? stringifyLosslessJson(body) : value;
+  return (scan.rename || scan.renames) && !same(body, parseLosslessJson(value)) ? stringifyLosslessJson(body) : value;
 }
 
 function httpBody(value: string, mode: XProgramPresent["steps"][number]["inputParams"][string] | undefined, scan: Scan, path: string): string {
@@ -209,7 +241,7 @@ function httpBody(value: string, mode: XProgramPresent["steps"][number]["inputPa
   scan.unknown.push(`${path}: HTTP 正文模式未知`); return value;
 }
 
-function scanProgram(present: XProgramPresent, scan: Scan): void {
+function scanProgram(present: XProgramPresent, scan: Scan, includeVariables = true): void {
   scan.keys ??= new Set(present.variables.map((variable) => variable.key));
   const visit = (steps: XProgramPresent["steps"], path: string): void => {
     for (const [index, step] of steps.entries()) {
@@ -219,7 +251,11 @@ function scanProgram(present: XProgramPresent, scan: Scan): void {
         if (pin.file?.trim()) { scan.unknown.push(`${pinPath}: 外置正文尚未纳入本次事务`); continue; }
         if (pin.varKey?.trim()) { pin.varKey = binding(pin.varKey, scan, pinPath); continue; }
         if (typeof pin.value !== "string") { scan.unknown.push(`${pinPath}: 参数正文不可核验`); continue; }
-        if (key === "formDef" || key === "dynamicFormForDictDef" || key === "formSpec") {
+        if (scan.clipboard && step.stepRunnerKey === "sys:evalexpression" && key === "expression") {
+          const prefixed = pin.value.startsWith("$=");
+          const updated = expression(prefixed ? pin.value : "$=" + pin.value, scan, pinPath);
+          pin.value = prefixed ? updated : updated.slice(2);
+        } else if (key === "formDef" || key === "dynamicFormForDictDef" || key === "formSpec") {
           if (step.stepRunnerKey !== "sys:form") { if (pin.value.trim()) scan.unknown.push(`${pinPath}: 表单参数不属于已知表单模块`); }
           else pin.value = form(pin.value, scan, pinPath,
             key === "dynamicFormForDictDef" ? { varKey: "", value: "dict_dynamic" } : step.inputParams.operation);
@@ -230,7 +266,7 @@ function scanProgram(present: XProgramPresent, scan: Scan): void {
           else scan.unknown.push(`${pinPath}: 脚本语言未知`);
         } else if (step.stepRunnerKey === "sys:http" && key === "body" && /IMG:/i.test(pin.value)) {
           pin.value = httpBody(pin.value, step.inputParams.bodyType, scan, pinPath);
-        } else if (!pin.value.startsWith("$=") && !pin.value.startsWith("$$") && possibleReference(pin.value, scan)) {
+        } else if (!pin.value.startsWith("$=") && !pin.value.startsWith("$$") && (possibleReference(pin.value, scan) || (scan.clipboard && /[{}]/u.test(pin.value)))) {
           scan.unknown.push(`${pinPath}: 普通文本含变量占位符，缺少当前 ReplaceVariable 参数契约`);
         } else pin.value = expression(pin.value, scan, pinPath);
       }
@@ -242,14 +278,21 @@ function scanProgram(present: XProgramPresent, scan: Scan): void {
     }
   };
   visit(present.steps, "steps");
-  for (const [index, variable] of present.variables.entries()) {
+  for (const [index, variable] of (includeVariables ? present.variables : []).entries()) {
     const raw = variable as unknown as RecordValue;
     if (typeof raw.defaultValueFile === "string" && raw.defaultValueFile.trim()) scan.unknown.push(`variables/${index}: 外置默认值尚未纳入本次事务`);
     else if (typeof variable.defaultValue !== "string") scan.unknown.push(`variables/${index}: 默认值结构未知`);
     else variable.defaultValue = expression(variable.defaultValue, scan, `variables/${index}/defaultValue`);
     for (const kind of ["inputParamInfo", "outputParamInfo"] as const) {
       const info = variable[kind];
-      if (info && typeof info.visibleExpression === "string") info.visibleExpression = expression(info.visibleExpression, scan, `variables/${index}/${kind}/visibleExpression`);
+      if (info && typeof info.visibleExpression === "string") {
+        const path = `variables/${index}/${kind}/visibleExpression`;
+        if (scan.clipboard) {
+          const prefixed = info.visibleExpression.startsWith("$=");
+          const updated = expression(prefixed ? info.visibleExpression : "$=" + info.visibleExpression, scan, path);
+          info.visibleExpression = prefixed ? updated : updated.slice(2);
+        } else info.visibleExpression = expression(info.visibleExpression, scan, path);
+      }
       if (info) for (const [name, data] of Object.entries(info)) if (name !== "visibleExpression" && possibleReference(data, scan)) scan.unknown.push(`variables/${index}/${kind}/${name}: 参数扩展引用尚不能核验`);
     }
     const known = new Set(["id", "key", "varType", "defaultValue", "defaultValueFile", "desc", "isLocked", "saveState", "isInput", "isOutput", "paramName", "group", "customType", "inputParamInfo", "outputParamInfo"]);
@@ -262,6 +305,18 @@ export function analyzeProgramVariableReferences(present: XProgramPresent):
   const scan: Scan = { references: [], unknown: [] };
   scanProgram(structuredClone(present), scan);
   return scan.unknown.length ? fail("unsupported_reference", scan.unknown[0]!) : { ok: true, references: scan.references };
+}
+
+/** Reuse the bounded reference grammar; clipboard callers provide only their proven closure. */
+export function transformClipboardVariableReferences(present: XProgramPresent, options: {
+  knownKeys: ReadonlySet<string>;
+  renames?: ReadonlyMap<string, { to: string; varType: number }>;
+  includeVariables?: boolean;
+}): { ok: true; present: XProgramPresent; references: readonly Reference[] } | Extract<ProgramVariableChangeResult, { ok: false }> {
+  const next = structuredClone(present);
+  const scan: Scan = { references: [], unknown: [], keys: options.knownKeys, renames: options.renames, clipboard: true };
+  scanProgram(next, scan, options.includeVariables);
+  return scan.unknown.length ? fail("unsupported_reference", scan.unknown[0]!) : { ok: true, present: next, references: scan.references };
 }
 
 export function getUnusedProgramVariables(present: XProgramPresent):
