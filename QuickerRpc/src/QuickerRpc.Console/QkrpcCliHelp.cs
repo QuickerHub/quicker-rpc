@@ -143,8 +143,11 @@ internal static class QkrpcCliHelp
                 Cmd("action open", "Open a V1 catalog action as YAML source and resources in an empty directory; preserves native fields in a private checkpoint.", "qkrpc action open --id <guid> --dir <empty-directory> [--min-lines 4] [--no-auto-files] [--json]",
                     opts: new[] { Option("id", "Local V1 action GUID.", required: true), Option("dir", "Empty source directory.", required: true), Option("min-lines", "Externalize strings longer than N lines; 0 disables.", defaultValue: "4"), Option("no-auto-files", "Keep multiline values inline."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("action save", "Compile YAML/files and save with the exported edit version. Refuses open Designer; dry-run is fully offline.", "qkrpc action save --dir <source-directory> [--dry-run] [--json]",
-                    opts: new[] { Option("dir", "Directory from action open.", required: true), Option("dry-run", "Validate without connecting or saving."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+                Cmd("action save", "Compile YAML/files once and save with the exported edit version. Refuses open Designer; dry-run is fully offline.", "qkrpc action save --dir <source-directory> [--expected-source-snapshot <revision>] [--dry-run] [--json]",
+                    opts: new[] { Option("dir", "Directory from action open.", required: true), Option("expected-source-snapshot", "Exact source.document snapshot revision; stale source is rejected before connecting."), Option("dry-run", "Validate without connecting or saving."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("source document", "Inspect, preview or save a source bundle locally without discovering or connecting to a host. Read the source.document args JSON object from stdin; editorJson stays JSON text.", "qkrpc source document --json < args.json",
+                    opts: new[] { Option("json", "Structured ServeInvokeResponse output; required. All request fields are read from stdin.") }),
 
                 Cmd("action library search", "Search the public getquicker.net action library (read-only discovery).", "qkrpc action library search --keyword <text> [--page 1] [--days 30] [--limit 20] [--json]",
 

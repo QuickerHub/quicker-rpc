@@ -74,61 +74,42 @@ internal static class QuickerInternalAccess
         }
     }
 
-    public static bool TrySaveEditingAction(ActionItem action, out string? error)
+    public static bool TrySaveEditingAction(ActionItem action, out string? error) =>
+        TrySaveEditingAction(action, out error, out _);
+
+    public static bool TrySaveEditingAction(ActionItem action, out string? error, out bool? persisted)
     {
         error = null;
+        persisted = false;
         if (action is null)
         {
             error = "ActionItem is required.";
             return false;
         }
 
-        var now = AppHelper.GetUtcNowForDb();
-        action.LastEditTimeUtc = now;
-
-        var convert = ActionItem2ConverterDelegate.Value;
-        var saveItem2 = SaveEditingActionItem2Delegate.Value;
-        if (convert is not null && saveItem2 is not null)
-        {
-            try
-            {
-                var action2 = convert(action);
-                TouchActionItem2LastEditTimeUtc(action2, now);
-                saveItem2(action2);
-                return true;
-            }
-            catch (TargetInvocationException ex)
-            {
-                error = ex.InnerException?.Message ?? ex.Message;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return false;
-            }
-        }
-
-        var saveLegacy = SaveEditingActionLegacyDelegate.Value;
-        if (saveLegacy is null)
-        {
-            error = "SaveEditingAction unavailable.";
-            return false;
-        }
-
         try
         {
-            saveLegacy(action);
-            return true;
-        }
-        catch (TargetInvocationException ex)
-        {
-            error = ex.InnerException?.Message ?? ex.Message;
-            return false;
+            var now = AppHelper.GetUtcNowForDb();
+            action.LastEditTimeUtc = now;
+
+            var convert = ActionItem2ConverterDelegate.Value;
+            var saveItem2 = SaveEditingActionItem2Delegate.Value;
+            if (convert is not null && saveItem2 is not null)
+            {
+                return ActionSaveAttempt.TrySave(() =>
+                {
+                    var action2 = convert(action);
+                    TouchActionItem2LastEditTimeUtc(action2, now);
+                    return action2;
+                }, saveItem2, out error, out persisted);
+            }
+
+            return ActionSaveAttempt.TrySave(() => action, SaveEditingActionLegacyDelegate.Value,
+                out error, out persisted);
         }
         catch (Exception ex)
         {
-            error = ex.Message;
+            error = ActionSaveAttempt.FailureMessage(ex);
             return false;
         }
     }
