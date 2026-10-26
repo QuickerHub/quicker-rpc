@@ -62,12 +62,13 @@ try {
         $receipt = [ordered]@{ epoch = $epoch; status = 'STARTED'; jobDisposed = $false; forcedJobCleanup = $false; plan = $plan; harness = $harnessFacts }
         try {
             $inspect = Reserve-GracefulPort; $debug = Reserve-GracefulPort
-            if ($inspect -eq $debug) { throw 'Ephemeral debugger port reservation raced; no other endpoint will be used.' }
+            if ($inspect -eq $debug -or $inspect -in @(3000, 9477) -or $debug -in @(3000, 9477)) { throw 'Ephemeral debugger port reservation raced or selected a reserved user port.' }
             $arguments = '--inspect=127.0.0.1:' + $inspect + ' --remote-debugging-port=' + $debug + ' --remote-debugging-address=127.0.0.1 --user-data-dir="' + (Join-Path $run.Root 'profile') + '"'
             $owner = [QuickerAgent.Smoke.OwnedJob]::Start($exe, $arguments, $run.Root, $environment)
             $rootHandle = $owner.RetainProcess($owner.RootProcessId); $tracked += $rootHandle
             if ($rootHandle.ImagePath -ine $exe) { throw 'Root process executable identity differs from the supplied package.' }
             $info = Wait-OwnedElectronSmokeUi $run $owner $UiTimeoutSec -DeferWindowApproval
+            if ($info.uiPort -in @(3000, 9477) -or $info.rpcPort -in @(3000, 9477)) { throw 'Smoke allocation selected a reserved user port.' }
             $uiHandle = $owner.RetainProcess([int]$info.uiPid); $tracked += $uiHandle
             if ($uiHandle.ImagePath -ine (Join-Path (Split-Path -Parent $exe) 'resources/node/node.exe')) { throw 'UI service is not this package portable Node.' }
             foreach ($port in @($inspect, $debug)) {
@@ -124,9 +125,10 @@ try {
                 $handle = $roles[$name]
                 $roleEvidence[$name] = @{ pid = $handle.Pid; exitCode = $handle.ExitCode; exitedUtc = $handle.ExitTimeUtc }
             }
-            $originalListeners = Get-OriginalListeners $listeners
             $receipt.beforeJobDispose = @{ utc = [DateTime]::UtcNow.ToString('O'); activeProcessCount = $remaining.ActiveProcessCount; processIds = $remaining.ProcessIds
-                allRetainedExited = @($tracked | Where-Object { -not $_.HasExited }).Count -eq 0; originalListeners = $originalListeners; processes = $processes; roles = $roleEvidence }
+                allRetainedExited = @($tracked | Where-Object { -not $_.HasExited }).Count -eq 0; originalListeners = $null; processes = $processes; roles = $roleEvidence }
+            $originalListeners = @(Get-OriginalListeners $listeners)
+            $receipt.beforeJobDispose.originalListeners = $originalListeners
             foreach ($handle in $roles.Values) {
                 if (-not $handle.HasExited -or $handle.ExitCode -ne 0) { throw 'A product root/runtime did not exit naturally with code 0.' }
             }

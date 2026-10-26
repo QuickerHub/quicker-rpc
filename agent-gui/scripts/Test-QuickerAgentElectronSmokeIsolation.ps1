@@ -54,9 +54,11 @@ try {
     Assert-True ($nativeSource.IndexOf('AssignProcessToJobObject(owner.job, child.hProcess)') -lt $nativeSource.IndexOf('ResumeThread(child.hThread)')) 'Root resumes before job ownership'
     $mainSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Test-QuickerAgentElectronSmoke.ps1') -Raw
     Assert-True ($mainSource -notmatch 'taskkill|Get-Process|Stop-ElectronOrphanBackends|3000.*3020|127\.0\.0\.1:9477') 'Global process/service behavior remains'
-    $tokens = $null; $errors = $null
-    $null = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Test-QuickerAgentElectronSmoke.ps1'), [ref]$tokens, [ref]$errors)
-    Assert-True ($errors.Count -eq 0) 'Smoke script parse failed'
+    foreach ($scriptName in @('Test-QuickerAgentElectronSmoke.ps1', 'Test-QuickerAgentElectronGracefulExit.ps1')) {
+        $tokens = $null; $errors = $null
+        $null = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $scriptName), [ref]$tokens, [ref]$errors)
+        Assert-True ($errors.Count -eq 0) 'Smoke script parse failed'
+    }
     Write-Host 'Electron smoke isolation offline fixtures passed; native launch not executed.'
 } finally {
     $absolute = Assert-SmokeLocalPath $testRoot
