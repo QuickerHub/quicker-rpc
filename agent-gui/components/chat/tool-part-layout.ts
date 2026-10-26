@@ -13,7 +13,7 @@ import {
   buildToolSummaryMeta,
   formatToolDisplayName,
   summarizeToolOutput,
-} from "./tool-output";
+} from "@/lib/tool-output-summary";
 import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
 import { isAskQuestionAwaitingInput } from "@/lib/ask-question-tool";
 import { isShellToolName } from "@/lib/host-tool-constants";
