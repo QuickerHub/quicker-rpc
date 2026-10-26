@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { inspectQuickerNativeMcpSource, resolveQuickerNativeMcpSource, NativeQuickerMcpError, nativeSourceAttributesAreSafe, localMcpFileSnapshotsMatch, type NativeQuickerSourceDependencies } from "./native-quicker-source.server";
+import { inspectQuickerNativeMcpSource, resolveQuickerNativeMcpSource, readGuardedLocalMcpFile, NativeQuickerMcpError, nativeSourceAttributesAreSafe, localMcpFileSnapshotsMatch, type NativeQuickerSourceDependencies } from "./native-quicker-source.server";
 import { probeQuickerNativeMcp } from "./native-quicker-probe.server";
 import { connectAgentMcpServer, loadConfiguredMcpTools } from "./load.server";
 import { QUICKER_NATIVE_MCP_SERVER_NAME } from "./config";
@@ -287,7 +287,22 @@ test("production file reader reads an owned file and rejects cloud-named and lin
   const root = await mkdtemp(join(tmpdir(), "qkrpc-native-source-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "server.json"); await writeFile(path, JSON.stringify(good));
-  assert.equal((await inspectQuickerNativeMcpSource(undefined, { settingsPath: () => path })).status, "found");
+  let ownedReads = 0;
+  let readFailure: Record<string, unknown> | undefined;
+  const owned = await inspectQuickerNativeMcpSource(undefined, { settingsPath: () => path, readSourceFile: async (sourcePath, signal) => {
+    ownedReads++;
+    const started = performance.now();
+    try { return await readGuardedLocalMcpFile(sourcePath, signal); }
+    catch (error) {
+      const failed = error as { name?: string; code?: string | number; killed?: boolean; signal?: string | null; stdout?: string | Buffer; stderr?: string | Buffer };
+      const bytes = (value: unknown) => typeof value === "string" || Buffer.isBuffer(value) ? Buffer.byteLength(value) : 0;
+      readFailure = { elapsedMs: Math.round(performance.now() - started), errorName: failed?.name ?? null, code: failed?.code ?? null,
+        killed: failed?.killed ?? null, signal: failed?.signal ?? null, stdoutBytes: bytes(failed?.stdout), stderrBytes: bytes(failed?.stderr) };
+      throw error;
+    }
+  } });
+  assert.equal(ownedReads, 1);
+  assert.equal(owned.status, "found", JSON.stringify(readFailure ?? {}));
   const cloud = join(root, "OneDrive-fixture"); await mkdir(cloud); await writeFile(join(cloud, "server.json"), JSON.stringify(good));
   assert.equal((await inspectQuickerNativeMcpSource(undefined, { settingsPath: () => join(cloud, "server.json") })).status, "unavailable");
   const target = join(root, "target"); await mkdir(target); await writeFile(join(target, "server.json"), JSON.stringify(good));
