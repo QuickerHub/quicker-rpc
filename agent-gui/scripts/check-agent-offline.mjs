@@ -4,6 +4,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const defaultConcurrency = process.platform === "win32" ? 2 : 4;
+const requestedConcurrency = process.env.AGENT_OFFLINE_TEST_CONCURRENCY;
+if (requestedConcurrency !== undefined && (!/^[1-9][0-9]*$/.test(requestedConcurrency)
+  || Number(requestedConcurrency) > defaultConcurrency)) {
+  throw new Error(`AGENT_OFFLINE_TEST_CONCURRENCY must be an integer from 1 to ${defaultConcurrency}.`);
+}
+const concurrency = requestedConcurrency === undefined ? defaultConcurrency : Number(requestedConcurrency);
 // Audited, synthetic tests only. Live agent-eval and Electron smoke are separate opt-ins.
 const tests = [
   "scripts/check-designer-document-dependencies.test.mjs",
@@ -212,13 +219,13 @@ run([
   "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",
   // Cold tsx processes compete for CPU on Windows CI; keep each file's timeout
   // and assertions intact while limiting simultaneous compiler startup.
-  `--test-concurrency=${process.platform === "win32" ? 2 : 4}`,
+  `--test-concurrency=${concurrency}`,
   "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
   ...tests,
 ]);
 run([
   "node_modules/tsx/dist/cli.mjs", "--test",
-  `--test-concurrency=${process.platform === "win32" ? 2 : 4}`,
+  `--test-concurrency=${concurrency}`,
   "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
   ...clientTests,
 ]);
