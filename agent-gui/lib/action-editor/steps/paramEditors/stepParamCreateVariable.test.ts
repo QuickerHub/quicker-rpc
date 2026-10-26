@@ -25,6 +25,8 @@ describe("stepParamCreateVariable", () => {
     assert.equal(isValidActionVariableKey("params"), true);
     assert.equal(isValidActionVariableKey("1bad"), false);
     assert.equal(isValidActionVariableKey("class"), false);
+    for (const key of ["中文", "值\u0301", "Ⅰname", "@class", "@ordinary"]) assert.equal(isValidActionVariableKey(key), true, key);
+    for (const key of ["a\u200c", "a\u200d", "\u0301first", "😀value"]) assert.equal(isValidActionVariableKey(key), false, key);
   });
 
   test("suggests unused keys from param names", () => {

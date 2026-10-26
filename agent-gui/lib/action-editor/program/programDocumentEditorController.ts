@@ -8,10 +8,13 @@ import type { ActionProgramSnapshot } from "./assembleActionProgramSnapshot";
 import { cloneXProgramPresent, type XProgramPresent } from "./xProgramHistory";
 import { findUniqueOwnedProgramDocumentStep, isSubProgramRecord } from "../document/programDocumentSubProgramModel";
 import { parseLosslessJson } from "../shared/losslessJson";
+import { applyProgramDocumentVariableChange } from "../document/programDocumentVariableChanges";
+import type { ProgramVariableChangeRequest, ProgramVariableChangeResult } from "./programVariableReferences";
 
 export type XProgramEditorControl = {
   getPresent(): XProgramPresent;
   commit(present: XProgramPresent): void;
+  changeVariables(request: ProgramVariableChangeRequest): ProgramVariableChangeResult;
 };
 
 /** Surface adapters contain no present or history; every read and edit belongs to the session. */
@@ -105,6 +108,12 @@ export function createProgramDocumentEditorController(
       if (!control) {
         control = {
           getPresent: () => cloneXProgramPresent(findSurface(session.readSnapshot(), surface)),
+          changeVariables: (request) => {
+            if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "原文档已经切换，请保留变量草稿并重新打开" };
+            const result = applyProgramDocumentVariableChange(session, surface, request, editOptions());
+            options.onChange(result);
+            return result.ok ? { ok: true, changed: result.changed } : { ok: false, code: result.code, error: result.error };
+          },
           commit: (present) => {
             if (!options.isCurrent()) return;
             const snapshot = session.readSnapshot();

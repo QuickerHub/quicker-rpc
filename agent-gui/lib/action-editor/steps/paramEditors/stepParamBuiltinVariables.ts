@@ -6,6 +6,12 @@ export const STEP_PARAM_BUILTIN_CLIP_TEXT_KEY = "[cliptext]";
 export const STEP_PARAM_BUILTIN_QUICKER_IN_PARAM_KEY = "quicker_in_param";
 export const STEP_PARAM_CREATE_VARIABLE_ROW_ID = "__create_variable__";
 
+/** Runtime-owned keys must never become user declarations (the native editor has the same rule). */
+export function isReservedVariableKey(key: string | null | undefined): boolean {
+  const normalized = (key ?? "").trim().toLowerCase();
+  return normalized === STEP_PARAM_BUILTIN_QUICKER_IN_PARAM_KEY || normalized === STEP_PARAM_BUILTIN_CLIP_TEXT_KEY;
+}
+
 function buildBuiltinPseudoVariable(key: string, desc: string): ActionVariable {
   return ActionVariable.create({
     id: `builtin-${key}`,
