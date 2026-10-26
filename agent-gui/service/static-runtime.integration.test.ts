@@ -481,9 +481,15 @@ test("relocated static renderer + production Node API preserve chat, settings, h
     await editor.locator('[title="重做 (Ctrl+Y / Ctrl+Shift+Z)"]').click();
     await editor.locator('[title="重做 (Ctrl+Y / Ctrl+Shift+Z)"]').click();
     await editor.getByRole("button", { name: "保存到工作区", exact: true }).click();
-    await until(() => JSON.parse(readFileSync(join(liveDirectory, "data.json"), "utf8")).steps[0].note === agentNote, "human Save persists the composed human and Agent edits");
+    // Observe the actual save acknowledgement before reading disk; a concurrent
+    // read while the writer is publishing bytes is not a completed-save result.
+    await page.waitForFunction(() => {
+      const button = document.querySelector<HTMLButtonElement>("[data-workspace-document]:not([hidden]) .action-project-data-editor-save");
+      return button?.disabled && button.textContent?.trim() === "保存到工作区";
+    });
     const liveSavedBody = readFileSync(join(liveDirectory, "data.json"), "utf8");
     const savedLive = JSON.parse(liveSavedBody);
+    assert.equal(savedLive.steps[0].note, agentNote);
     assert.equal(savedLive.variables[0].key, renamedVariableKey);
     assert.equal(savedLive.steps[0].inputParams["text.var"], renamedVariableKey);
     assert.equal(savedLive.steps[0].outputParams.result, renamedVariableKey);
