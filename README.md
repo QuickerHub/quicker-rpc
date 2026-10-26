@@ -38,6 +38,16 @@
 
 第三方 Agent（Cursor 等）若只需无头读写动作、不需 QuickerAgent UI，用下文 **`qkrpc` + MCP** 即可。
 
+### 在另一台 Quicker V2 电脑上使用
+
+1. 安装 [QuickerAgent 0.15.1](https://github.com/QuickerHub/quicker-rpc/releases/tag/v0.15.1) 或更新版本；国内下载见 [0.15.1 安装包](https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/quicker-agent-0.15.1-x64-setup.exe)。
+2. 更新 [QuickerAgent 动作](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe) 并拉取其公共子程序的最新版本，再运行一次；依赖下载器按当前宿主选择 `quicker.rpc` 或 `quicker.rpc.net10`。Agent 安装器包含 CLI；Quicker 进程内的插件由动作加载。
+3. 使用 V2 原生 MCP 编辑动作时，先启用该电脑上的 Quicker 原生 MCP 服务，再在 Agent 的“设置 → Quicker 连接”中检测并显式启用本机来源。发现和检测不会替用户开启服务或修改 Quicker 的写入与审批设置。
+
+原生 MCP 默认关闭，只保存来源引用，每轮重新读取当前服务说明和工具定义。RPC 与原生
+MCP 分别显示状态；qkrpc 的 V2 完整 source 读写仍关闭。原生编辑须明确目标或返回的
+slot，并遵守服务的冲突与保存要求；不同聊天尚不保证编辑工作集隔离。
+
 ---
 
 ## `qkrpc` CLI 与插件
