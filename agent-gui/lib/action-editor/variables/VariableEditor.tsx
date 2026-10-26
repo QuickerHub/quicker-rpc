@@ -10,7 +10,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { createPortal } from "react-dom";
-import { ActionStep, ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
+import { ActionVariable } from "@/lib/action-editor/types/common";
 import FilterBox from "../shared/FilterBox";
 import { getActionDesignerBackendBaseUrl } from "../shared/actionDesignerBackendBaseUrl";
 import { IconControl } from "../shared/IconControl";
@@ -18,6 +18,8 @@ import { AD_ICONIFY_SPEC } from "../shared/actionDesignerIconify";
 import { dragGhostInlineColors } from "../shared/themeCssVars";
 import { X_PROGRAM_HISTORY_ISOLATE_CLASS, type XProgramPresent } from "../program/xProgramHistory";
 import { getUnusedProgramVariables, type ProgramVariableChangeRequest, type ProgramVariableChangeResult } from "../program/programVariableReferences";
+import type { ProgramVariableClipboardExportResult, ProgramVariableClipboardPasteResult } from "../program/programVariableClipboard";
+import { isKeyboardInputSurface } from "../shared/keyboardInputSurface";
 import type { XProgramEditorSurface } from "../program/xProgramEditorSurface";
 import { useToast } from "../shared/ToastContext";
 import { useMultiSelect } from "../shared/useMultiSelect";
@@ -33,93 +35,22 @@ import {
 } from "./actionVariableUi";
 import { VariableParamInfoPanel } from "./VariableParamInfoPanel";
 import { VariableTableDefPanel } from "./VariableTableDefPanel";
-import {
-  buildActionStepsClipboardJson,
-  parseActionStepsClipboardJson,
-  STEPS_CLIPBOARD_MIME
-} from "../steps/actionStepsClipboard";
+import { STEPS_CLIPBOARD_MIME } from "../steps/actionStepsClipboard";
 
 const CLIPBOARD_MIME = STEPS_CLIPBOARD_MIME;
-const COMMENT_STEP_KEY = "sys:comment";
-const COMMENT_NOTE_PARAM_KEY = "note";
-
-type ParsedVariableClipboard = {
-  variables: ActionVariable[];
-  source: "custom-format" | "text";
-};
-
-function parseVariableClipboardText(raw: string): ActionVariable[] | null {
-  const text = raw.trim();
-  if (text.length === 0) {
-    return null;
-  }
-  const actionStepsDto = parseActionStepsClipboardJson(text);
-  if (actionStepsDto?.variables?.length) {
-    return actionStepsDto.variables;
-  }
+async function readVariableClipboardText(isCurrent: () => boolean): Promise<string | null> {
   try {
-    const parsed = JSON.parse(text) as unknown;
-    if (!Array.isArray(parsed)) {
-      return null;
-    }
-    const incoming = parsed
-      .map((x) => {
-        try {
-          return ActionVariable.fromJSON(x);
-        } catch {
-          return null;
-        }
-      })
-      .filter((x): x is ActionVariable => x != null);
-    return incoming.length > 0 ? incoming : null;
-  } catch {
-    return null;
-  }
-}
-
-function buildVariablesClipboardPayload(variables: ActionVariable[]): string {
-  const varText = `$$${variables.map((x) => `{${actionVariableRowKey(x)}}`).join("")}`;
-  const commentStep = ActionStep.create({
-    stepRunnerKey: COMMENT_STEP_KEY,
-    inputParams: {
-      [COMMENT_NOTE_PARAM_KEY]: ActionStepParam.create({
-        varKey: "",
-        value: varText
-      })
-    },
-    outputParams: {},
-    ifSteps: [],
-    elseSteps: [],
-    note: "",
-    disabled: false,
-    collapsed: false,
-    delayMs: 0,
-    stepId: `s-copy-vars-${Date.now()}`
-  });
-  return buildActionStepsClipboardJson([commentStep], variables);
-}
-
-async function readVariableClipboardPayload(): Promise<ParsedVariableClipboard | null> {
-  try {
-    if (navigator.clipboard?.read) {
+    if (isCurrent() && navigator.clipboard?.read) {
       const items = await navigator.clipboard.read();
-      for (const item of items) {
-        if (item.types.includes(CLIPBOARD_MIME)) {
-          const blob = await item.getType(CLIPBOARD_MIME);
-          const raw = await blob.text();
-          const variables = parseVariableClipboardText(raw);
-          if (variables) {
-            return { variables, source: "custom-format" };
-          }
-        }
-      }
-      for (const item of items) {
-        if (item.types.includes("text/plain")) {
-          const blob = await item.getType("text/plain");
-          const raw = await blob.text();
-          const variables = parseVariableClipboardText(raw);
-          if (variables) {
-            return { variables, source: "text" };
+      if (!isCurrent()) return null;
+      for (const format of [CLIPBOARD_MIME, "text/plain"]) {
+        for (const item of items) {
+          if (item.types.includes(format)) {
+            const blob = await item.getType(format);
+            if (!isCurrent()) return null;
+            const raw = await blob.text();
+            if (!isCurrent()) return null;
+            if (raw.trim()) return raw;
           }
         }
       }
@@ -128,15 +59,12 @@ async function readVariableClipboardPayload(): Promise<ParsedVariableClipboard |
     // ignore and fallback to readText
   }
   try {
+    if (!isCurrent()) return null;
     const raw = await navigator.clipboard.readText();
-    const variables = parseVariableClipboardText(raw);
-    if (variables) {
-      return { variables, source: "text" };
-    }
+    return isCurrent() ? raw : null;
   } catch {
     return null;
   }
-  return null;
 }
 
 function cloneVariableForFormDraft(v: ActionVariable): ActionVariable {
@@ -479,6 +407,8 @@ export type VariableEditorProps = {
   owner: object;
   getCurrentPresent(): XProgramPresent;
   onVariableChange(request: ProgramVariableChangeRequest): ProgramVariableChangeResult;
+  exportVariables(ids: readonly string[]): ProgramVariableClipboardExportResult;
+  pasteVariables(text: string): ProgramVariableClipboardPasteResult;
   variables: ActionVariable[];
   /** Main vs sub program tab: hides subprogram-only variable fields on the main surface. Default `"main"`. */
   programSurface?: XProgramEditorSurface;
@@ -499,6 +429,8 @@ export default function VariableEditor({
   owner,
   getCurrentPresent,
   onVariableChange,
+  exportVariables,
+  pasteVariables,
   variables,
   programSurface = "main",
   onCommitVariables,
@@ -517,6 +449,18 @@ export default function VariableEditor({
   const ownerRef = useRef<object | null>(owner);
   ownerRef.current = owner;
   useLayoutEffect(() => { ownerRef.current = owner; return () => { ownerRef.current = null; }; }, [owner]);
+  const clipboardGenerationRef = useRef(0);
+  const clipboardActiveRef = useRef(active);
+  clipboardActiveRef.current = active;
+  useLayoutEffect(() => {
+    clipboardGenerationRef.current++;
+    return () => { clipboardGenerationRef.current++; };
+  }, [active, owner]);
+  const beginClipboardOperation = useCallback((): (() => boolean) | null => {
+    if (!clipboardActiveRef.current || ownerRef.current !== owner) return null;
+    const generation = ++clipboardGenerationRef.current;
+    return () => clipboardActiveRef.current && ownerRef.current === owner && clipboardGenerationRef.current === generation;
+  }, [owner]);
   const [changeError, setChangeError] = useState<string | null>(null);
   const changeErrorRef = useRef<string | null>(null);
   const reportChangeError = useCallback((error: string) => {
@@ -937,10 +881,14 @@ export default function VariableEditor({
   };
 
   const copySelectionToClipboard = useCallback((): void => {
-    const picked = variables.filter((v) => selectedIds.includes(v.id));
-    if (picked.length === 0) return;
-    const payload = buildVariablesClipboardPayload(picked);
+    const isCurrent = beginClipboardOperation();
+    if (!isCurrent || !selectedIds.length || !flushVariableFormSync() || !isCurrent()) return;
+    const result = exportVariables(selectedIds);
+    if (!result.ok) { reportChangeError(result.error); return; }
+    changeErrorRef.current = null; setChangeError(null);
+    const payload = result.text;
     void (async () => {
+      if (!isCurrent()) return;
       if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
         try {
           const textBlob = new Blob([payload], { type: "text/plain;charset=utf-8" });
@@ -956,42 +904,40 @@ export default function VariableEditor({
         }
       }
       try {
+        if (!isCurrent()) return;
         await navigator.clipboard.writeText(payload);
       } catch {
+        if (!isCurrent()) return;
+        const focused = document.activeElement;
+        const ta = document.createElement("textarea");
         try {
-          const ta = document.createElement("textarea");
           ta.value = payload;
           document.body.appendChild(ta);
           ta.select();
-          document.execCommand("copy");
-          ta.remove();
+          if (!document.execCommand("copy")) throw new Error("Clipboard copy was rejected");
         } catch {
-          /* ignore */
+          if (isCurrent()) showToast("无法复制变量，请检查剪贴板权限。", { variant: "error" });
+        } finally {
+          const restoreFocus = isCurrent() && document.activeElement === ta;
+          ta.remove();
+          if (restoreFocus && focused instanceof HTMLElement && focused.isConnected) focused.focus({ preventScroll: true });
         }
       }
     })();
-  }, [selectedIds, variables]);
+  }, [beginClipboardOperation, exportVariables, flushVariableFormSync, reportChangeError, selectedIds, showToast]);
 
   const pasteFromClipboard = useCallback(async (): Promise<void> => {
-    const payload = await readVariableClipboardPayload();
-    if (!payload || payload.variables.length === 0) {
-      return;
-    }
-    const incoming = payload.variables;
-    const stamped = incoming.map((v) =>
-      ActionVariable.fromPartial({
-        ...v,
-        id: nextVariableId(),
-        key: actionVariableRowKey(v)
-          ? `${actionVariableRowKey(v)}_copy`
-          : `var_${String(Date.now()).slice(-4)}`
-      })
-    );
-    if (!flushVariableFormSync()) return;
-    pendingScrollVariableIdRef.current = stamped[0]?.id ?? null;
-    onCommitVariables((prev) => [...prev, ...stamped]);
-    setSingleSelection(stamped[0]?.id ?? "");
-  }, [flushVariableFormSync, onCommitVariables, setSingleSelection]);
+    const isCurrent = beginClipboardOperation();
+    if (!isCurrent) return;
+    const text = await readVariableClipboardText(isCurrent);
+    if (!isCurrent() || !text?.trim() || !flushVariableFormSync() || !isCurrent()) return;
+    const result = pasteVariables(text);
+    if (!result.ok) { reportChangeError(result.error); return; }
+    if (!isCurrent() || !result.changed) return;
+    changeErrorRef.current = null; setChangeError(null);
+    pendingScrollVariableIdRef.current = result.insertedIds[0] ?? null;
+    setSingleSelection(result.insertedIds[0] ?? "");
+  }, [beginClipboardOperation, flushVariableFormSync, pasteVariables, reportChangeError, setSingleSelection]);
 
   const scrollVariableRowIntoView = useCallback((variableId: string): void => {
     queueMicrotask(() => {
@@ -1014,18 +960,7 @@ export default function VariableEditor({
       if (ae && !el.contains(ae) && ae !== document.body) {
         return;
       }
-      const tag = ae?.tagName?.toLowerCase() ?? "";
-      if (tag === "input" || tag === "textarea" || tag === "select") {
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
-          copySelectionToClipboard();
-          event.preventDefault();
-        }
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
-          void pasteFromClipboard();
-          event.preventDefault();
-        }
-        return;
-      }
+      if (isKeyboardInputSurface(ae) || isKeyboardInputSurface(event.target)) return;
       if (variableFormRef.current?.contains(ae ?? null)) {
         return;
       }
@@ -1097,11 +1032,12 @@ export default function VariableEditor({
           event.preventDefault();
         }
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+      const ownsClipboard = variableListRef.current?.contains(ae) && event.target instanceof Node && variableListRef.current.contains(event.target);
+      if (ownsClipboard && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
         copySelectionToClipboard();
         event.preventDefault();
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+      if (ownsClipboard && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
         void pasteFromClipboard();
         event.preventDefault();
       }

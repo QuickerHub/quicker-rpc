@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { after, afterEach, before, beforeEach, test } from "node:test";
 import { build } from "esbuild";
 import { chromium, type Browser, type Page } from "playwright";
+import { parseLosslessJson } from "../../lib/action-editor/shared/losslessJson";
 
 // The complete editor/controller graph is real. Only host/file/chrome boundaries
 // are replaced, and browser requests can never reach a server or user workspace.
@@ -21,6 +22,13 @@ const makeInfo = id => '{"kind":"action","id":"'+pathFor(id).split('/').at(-2)+'
 const runner = StepRunnerItem.fromPartial({key:'sys:fixture_note',name:'Fixture module',icon:'iconify:mdi:code-tags',inputParamDefs:[],outputParamDefs:[]});
 const capability = StepRunnerItem.fromPartial({key:'sys:fixture_capability',name:'Fixture capability',category:'Text',secondaryCategories:['System'],inputParamDefs:[{key:'mode',name:'Mode',isControlField:true,varType:9,variableMode:1,allowInput:true,selectionItems:[{value:'copy',name:'Copy fixture'}]},{key:'text',name:'Text',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]});
 const state = window.fixture = {calls:[],saved:[],pins:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument};
+state.installClipboardStub=()=>{
+ state.clipboardWrites=[];
+ Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+  writeText:async text=>{state.clipboardWrites.push(text);},
+  readText:async()=>state.clipboardWrites.at(-1)||'',
+ }});
+};
 const bindingFor=id=>({schemaVersion:1,kind:'action',actionId:pathFor(id).split('/').at(-2),hostBinding:{hostInstanceId:'instance-'+id,hostSessionId:(id==='a'?'a':'b').repeat(32),endpoint:'QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_'+(id==='a'?'a':'b').repeat(32),protocolVersion:1,schemaVersion:1,hostKind:id==='a'?'v1':'v2',quickerVersion:window.fixtureOptions?.invalidVersion?{future:true}:'fixture-'+id,capabilities:{'action.legacyBody.read':true,'action.legacyBody.write':true,'resource.globalSubprogram.page.read':Boolean(window.fixtureOptions?.resources&&id==='a')}}});
 state.targetFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id),bindingFor(id)]));state.targetMode=window.fixtureOptions?.targetMode||'bound';state.targetPending=[];state.transportCalls=[];
 state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.json$/,'info.json'),makeInfo(id)]));
@@ -1313,6 +1321,54 @@ test("invalid variable drafts block real APDE save, step pin and sync until corr
     assert.equal(await page.evaluate(() => (window as any).fixture.pins.length), 1);
     await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
     assert.equal(await page.evaluate(() => JSON.parse((window as any).fixture.documentCalls.at(-1).content).variables[0].key), "finalName");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("variable clipboard persists full raw metadata and exact numbers through real APDE save and one undo", { timeout: 60_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => {
+      const f = (window as any).fixture, value = JSON.parse(f.makeDocument("a"));
+      value.steps[0].inputParams = {}; value.steps[0].note = "clipboard persistence fixture";
+      value.variables = [{ id: "copy-source", key: "original", varType: 0, defaultValue: "original default", desc: "copy metadata",
+        inputParamInfo: { inputMethod: 1, isRequired: true, visibleExpression: "$=true", futureInput: "__large_integer__" },
+        outputParamInfo: { visibleExpression: "$=true", futureOutput: "__exact_decimal__" },
+        tableDef: { fields: [{ fieldKey: "code", label: "Code", quickerVarType: 0, futureField: "__large_integer__" }], futureTable: { keep: true } },
+        futureVariable: { number: "__large_integer__", fraction: "__exact_decimal__", text: "literal metadata" } }];
+      const source = JSON.stringify(value).replaceAll('"__large_integer__"', '9223372036854775807')
+        .replaceAll('"__exact_decimal__"', '0.1234567890123456789012345');
+      f.installClipboardStub();
+      f.enableDocumentSave(); f.setDocument("a", source);
+    });
+    await page.waitForFunction(() => (document.querySelector(".step-form-note-input") as HTMLInputElement)?.value === "clipboard persistence fixture");
+    await page.getByRole("button", { name: "打开变量面板", exact: true }).click();
+    const rows = page.locator(".variable-editor [data-variable-id]");
+    await rows.first().click(); await rows.first().focus();
+    await page.keyboard.press("Control+c");
+    await page.waitForFunction(() => (window as any).fixture.clipboardWrites.length === 1);
+    await page.keyboard.press("Control+v");
+    await page.waitForFunction(() => document.querySelectorAll(".variable-editor [data-variable-id]").length === 2);
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => (window as any).fixture.documentCalls.at(-1).content);
+    const body = parseLosslessJson(saved) as { variables: Array<Record<string, unknown>> };
+    assert.equal(body.variables.length, 2);
+    const original = body.variables.find((row) => row.key === "original")!;
+    const pasted = body.variables.find((row) => row.key !== "original")!;
+    assert.notEqual(pasted.id, original.id); assert.equal(pasted.key, "original_copy");
+    assert.deepEqual({ ...pasted, id: original.id, key: original.key }, original, "a new row keeps every raw field and numeric token");
+    assert.ok(saved.includes("9223372036854775807")); assert.ok(saved.includes("0.1234567890123456789012345"));
+    const history = page.getByRole("toolbar", { name: "文档历史", exact: true });
+    await history.getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".variable-editor [data-variable-id]").length === 1);
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const undone = await page.evaluate(() => JSON.parse((window as any).fixture.documentCalls.at(-1).content).variables);
+    assert.equal(undone.length, 1, "the undo can be saved as a new checkpoint without replacing document history");
+    await history.getByTitle("重做 (Ctrl+Y / Ctrl+Shift+Z)", { exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".variable-editor [data-variable-id]").length === 2);
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    const redone = await page.evaluate(() => (window as any).fixture.documentCalls.at(-1).content);
+    assert.deepEqual(parseLosslessJson(redone), parseLosslessJson(saved));
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });

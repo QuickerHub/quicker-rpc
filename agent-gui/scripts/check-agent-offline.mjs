@@ -128,6 +128,8 @@ const tests = [
   "lib/action-editor/document/programDocumentSession.test.ts",
   "lib/action-editor/document/programDocumentStepInputs.test.ts",
   "lib/action-editor/document/programDocumentVariableChanges.test.ts",
+  "lib/action-editor/document/programDocumentVariableClipboard.test.ts",
+  "lib/action-editor/program/programVariableClipboard.test.ts",
   "lib/action-editor/program/programVariableReferences.test.ts",
   "lib/action-editor/steps/paramEditors/stepParamCreateVariable.test.ts",
   "lib/action-editor/document/programDocumentHistory.test.ts",

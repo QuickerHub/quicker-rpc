@@ -1058,11 +1058,11 @@ export default function StepListEditor({
     const varsOut = variables
       .filter((v) => used.has(v.key ?? ""))
       .map((v) => structuredClone(v) as ActionVariable);
-    const json = buildActionStepsClipboardJson(toCopy, varsOut);
     try {
+      const json = buildActionStepsClipboardJson(toCopy, varsOut);
       await writeStepsClipboard(json);
-    } catch {
-      notifyClipboard?.("复制到剪贴板失败。", "error");
+    } catch (error) {
+      notifyClipboard?.(error instanceof Error ? error.message : "复制到剪贴板失败。", "error");
     }
   }, [fileContentsByPath, notifyClipboard, selectedIds, steps, variables]);
 
