@@ -22,6 +22,8 @@ import {
 export type ActionProjectWorkspaceContext = {
   cwd: string;
   projectDir: string;
+  /** Source bundle resources need the document's resource transaction before editing can be enabled. */
+  fileWritesReadOnly?: boolean;
 };
 
 export type FormDefEditorSaveResult =
@@ -204,6 +206,7 @@ export function FormDefEditorDialog({
     const useFile = storageMode === "file" && trimmedFile.length > 0;
 
     if (useFile) {
+      if (workspace?.fileWritesReadOnly) { setSaveError("当前源码包的外置资源只读，请保留文件引用。"); return; }
       if (!workspace) {
         setSaveError("未绑定工作区，无法保存外部 form.json 文件");
         return;
@@ -290,6 +293,7 @@ export function FormDefEditorDialog({
                   type="radio"
                   name="form-def-storage"
                   checked={storageMode === "file"}
+                  disabled={workspace?.fileWritesReadOnly}
                   onChange={() => setStorageMode("file")}
                 />
                 <span>外部文件</span>
@@ -380,7 +384,7 @@ export function FormDefEditorDialog({
           <button
             type="button"
             className="step-editor-popup-btn primary"
-            disabled={loading || saving}
+            disabled={loading || saving || (workspace?.fileWritesReadOnly && storageMode === "file")}
             onClick={() => void handleSave()}
           >
             {saving ? "保存中…" : "确定"}

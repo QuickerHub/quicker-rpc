@@ -1,0 +1,92 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { createSourceBundleDocumentClient } from "./source-bundle-document-client";
+import { createProgramDocumentSession } from "./action-editor/document/programDocumentSession";
+import type { SourceBundleDocument } from "./source-bundle-document";
+
+const body = '{"steps":[{"stepId":"s1","stepRunnerKey":"sys:comment","note":"before"}],"variables":[],"opaque":9223372036854775807}';
+function document(): SourceBundleDocument {
+  return { schemaVersion: 1, kind: "source-bundle-document", mode: "inspect", projectDirectoryAbsolute: "/workspace/owned", actionId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", editVersion: "9223372036854775806",
+    hostBinding: null, storageIdentity: null, identityJson: "{}", sourceYaml: "# unchanged source\n", editorJson: body, codec: { descriptorRevision: "codec" },
+    sourceSnapshot: { revision: "snapshot", managedRevision: "managed", codecRevision: "codec", files: [{ path: "program.source.yaml", sha256: "bytes", bytes: 19 }] },
+    pending: { status: "clean", comparedTo: "managed-native-checkpoint", nativeState: "unobserved", currentBodyHash: "body", baselineBodyHash: "body" },
+    capabilities: { read: true, preview: true, saveLocal: true, metadataWrite: false, nativeSync: "unobserved", snapshotAuthorizesWrite: false },
+    projection: { format: "quicker.editor-json.v1", metadataEditable: false } };
+}
+function ticket() {
+  const session = createProgramDocumentSession({ content: body, identity: { documentKey: "source-session", storage: { key: "source", version: "snapshot" } } });
+  session.transact({ expectedRevision: 0, source: "ui", update(raw) { (raw.steps as { note: string }[])[0].note = "first edit"; } });
+  const started = session.beginSave(() => session.readSnapshot()); assert.ok(started.ok);
+  return { session, ticket: started.ticket };
+}
+async function opened(onPost: (input: Record<string, unknown>) => Promise<Response>) {
+  const originalFetch = globalThis.fetch;
+  let ready!: () => void; const connected = new Promise<void>(done => { ready = done; });
+  let posts = 0, changes = 0;
+  const ownerKey = "source-owner", path = "owned/program.source.yaml";
+  globalThis.fetch = async (url, init) => {
+    if (init?.method === "POST") { posts++; return onPost(JSON.parse(String(init.body))); }
+    assert.ok(String(url).startsWith("/api/workspace?"));
+    return new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(new TextEncoder().encode(JSON.stringify({ ownerKey, path, ownerToken: "lease", document: document() }) + "\n"));
+      init?.signal?.addEventListener("abort", () => { try { controller.close(); } catch {} }, { once: true });
+    } }));
+  };
+  const client = createSourceBundleDocumentClient({ cwd: "/workspace", path, ownerKey, onChange(state) { changes++; if (state.ownerToken) ready(); } });
+  const connection = client.connect(); await connected;
+  return { client, posts: () => posts, changes: () => changes, async close() { client.close(); await connection; globalThis.fetch = originalFetch; } };
+}
+
+test("browser-to-Node source save acknowledgement loss blocks every later save/sync without replay", async () => {
+  for (const kind of ["fetch-throw", "bad-json", "invalid-envelope", "missing-code", "wrong-mode", "wrong-body", "http-conflict"]) {
+    const f = ticket();
+    const openedClient = await opened(async () => {
+      if (kind === "fetch-throw") throw Error("connection lost after fetch began");
+      if (kind === "bad-json") return new Response("{broken", { status: 200 });
+      if (kind === "invalid-envelope") return Response.json({ nope: true });
+      if (kind === "missing-code") return Response.json({ ok: false, error: "unconfirmed" });
+      const ack = { ...document(), mode: kind === "wrong-mode" ? "inspect" : "save-local", editorJson: kind === "wrong-body" ? body : f.ticket.content,
+        saveLocal: { baselineAdvanced: false, normalization: "codec-normalized", writtenFiles: ["program.source.yaml"] } };
+      return Response.json({ ok: true, sourceDocument: ack }, { status: kind === "http-conflict" ? 409 : 200 });
+    });
+    try {
+      const result = await openedClient.client.save(f.ticket); assert.equal(result.ok, false, kind);
+      if (!result.ok) { assert.equal(result.code, "WRITE_RESULT_UNKNOWN", kind); assert.ok(result.sourceReceipt, kind); }
+      assert.equal(openedClient.client.getState().blocked, true, kind); assert.equal(openedClient.posts(), 1, kind);
+      assert.equal((await openedClient.client.save(f.ticket)).ok, false); assert.equal((await openedClient.client.sync()).ok, false);
+      assert.equal(openedClient.posts(), 1, kind); assert.equal(f.session.getState().content, f.ticket.content);
+      assert.deepEqual(openedClient.client.getLastSaveReceipt(), result);
+    } finally { await openedClient.close(); }
+  }
+});
+
+test("source client rejects an invalid local ticket before fetch while a valid owner remains usable", async () => {
+  const f = await opened(async () => assert.fail("invalid ticket cannot dispatch"));
+  try {
+    const result = await f.client.save({ ...ticket().ticket, content: 123 as never });
+    assert.equal(result.ok, false); if (!result.ok) assert.equal(result.code, "SOURCE_DOCUMENT_REQUEST");
+    assert.equal(f.posts(), 0); assert.equal(f.client.getState().blocked, false);
+  } finally { await f.close(); }
+});
+
+test("source save receipt advances only its ticket while concurrent Session edits and history survive", async () => {
+  const f = ticket(); let finish!: (response: Response) => void, dispatched!: () => void;
+  const posted = new Promise<void>(done => { dispatched = done; });
+  const connection = await opened(async request => {
+    assert.equal(request.format, "source-bundle"); assert.equal(request.content, f.ticket.content); assert.equal(request.expectedContent, f.ticket.baselineContent);
+    dispatched(); return new Promise<Response>(done => { finish = done; });
+  });
+  try {
+    const saving = connection.client.save(f.ticket); await posted;
+    f.session.transact({ expectedRevision: f.session.getState().revision, source: "ui", update(raw) { (raw.steps as { note: string }[])[0].note = "second concurrent edit"; } });
+    const ack = { ...document(), mode: "save-local", editorJson: f.ticket.content, sourceSnapshot: { ...document().sourceSnapshot, revision: "saved-snapshot" },
+      saveLocal: { baselineAdvanced: false, normalization: "codec-normalized", writtenFiles: ["program.source.yaml"] } };
+    finish(Response.json({ ok: true, sourceDocument: ack }));
+    const result = await saving; assert.ok(result.ok); f.session.completeSave(f.ticket, result);
+    assert.equal(f.session.getState().baselineContent, f.ticket.content); assert.match(f.session.getState().content, /second concurrent edit/);
+    assert.equal(f.session.getState().dirty, true); assert.equal(f.session.getState().history.canUndo, true);
+    assert.equal(connection.client.getState().document!.sourceSnapshot.revision, "saved-snapshot");
+    assert.equal(connection.client.getState().document!.editorJson, f.ticket.content);
+    assert.match(f.session.getState().content, /9223372036854775807/);
+  } finally { await connection.close(); }
+});

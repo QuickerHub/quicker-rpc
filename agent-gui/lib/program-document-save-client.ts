@@ -32,10 +32,11 @@ export async function saveProgramDocumentClient(
     });
     const result = await response.json() as ProgramDocumentSaveResult;
     if (!result || typeof result.ok !== "boolean" || (!result.ok && typeof result.error !== "string")) return { ok: false, code: "invalid_response", error: "Invalid program document save response." };
+    if (request.format === "source-bundle" && result.ok && !response.ok) return { ok: false, code: "invalid_response", error: "Source save HTTP status contradicts its acknowledgement.", sourceReceipt: result };
     if (result.ok || result.persistedParts?.body || result.persistedParts?.metadata) {
       const path = normalizeWorkspaceFilePath(request.path);
       invalidateWorkspaceFileReadCache(cwd, path);
-      invalidateWorkspaceFileReadCache(cwd, path.replace(/data\.json$/i, "info.json"));
+      if (request.format !== "source-bundle") invalidateWorkspaceFileReadCache(cwd, path.replace(/data\.json$/i, "info.json"));
     }
     return result;
   } catch (error) {

@@ -1,4 +1,4 @@
-import { runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
+import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import {
   buildActionExplorerTree,
   deleteActionProjectFromWorkspace,
@@ -15,8 +15,13 @@ import {
 } from "@/lib/workspace-git.server";
 import { listWorkspaceFiles } from "@/lib/workspace-fs";
 import { readProgramDocumentTarget, saveProgramDocument } from "@/lib/program-document-save.server";
+import { openSourceBundleDocumentResponse, editSourceBundleDocument, syncSourceBundleDocument } from "@/lib/source-bundle-document.server";
 
 export const dynamic = "force-dynamic";
+
+function runWorkspaceRequest<T>(req: Request, cwd: string | undefined, run: () => Promise<T>): Promise<T> {
+  return runWithAgentRequestContextAsync({ cwd, abortSignal: req.signal }, run);
+}
 
 function workspaceApiError(error: unknown, label: string): Response {
   console.error(`[api/workspace] ${label}`, error);
@@ -31,7 +36,8 @@ export async function GET(req: Request) {
   const path = url.searchParams.get("path")?.trim() || "";
 
   try {
-    return await runWithQkrpcCwdAsync(cwd, async () => {
+    return await runWorkspaceRequest(req, cwd, async () => {
+      if (op === "open-source-document") return openSourceBundleDocumentResponse(req, path, url.searchParams.get("ownerKey") ?? "");
       if (op === "program-document-target") {
         if (!path) return Response.json({ ok: false, code: "invalid_path", error: "path is required" }, { status: 400 });
         const result = await readProgramDocumentTarget(path);
@@ -127,17 +133,26 @@ export async function POST(req: Request) {
     projectPath?: string;
     expectedContent?: unknown;
     metadata?: unknown;
+    [key: string]: unknown;
   };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return Response.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ ok: false, code: "invalid_request", error: "A JSON object is required." }, { status: 400 });
+
+  if (body.op === "preview-source-document" || body.op === "sync-source-document") {
+    if (body.cwd !== undefined && typeof body.cwd !== "string") return Response.json({ ok: false, code: "invalid_request", error: "cwd must be a string." }, { status: 400 });
+    const result = await runWorkspaceRequest(req, body.cwd?.trim() || undefined, () => body.op === "preview-source-document"
+      ? editSourceBundleDocument("preview", body) : syncSourceBundleDocument(body));
+    return Response.json(result, { status: result.ok ? 200 : 409 });
+  }
 
   if (body?.op === "save-program-document") {
     if (body.cwd !== undefined && typeof body.cwd !== "string") return Response.json({ ok: false, code: "invalid_request", error: "cwd must be a string." }, { status: 400 });
     try {
-      const result = await runWithQkrpcCwdAsync(body.cwd?.trim() || undefined, () => saveProgramDocument(body));
+      const result = await runWorkspaceRequest(req, body.cwd?.trim() || undefined, () => saveProgramDocument(body));
       return Response.json(result, { status: result.ok ? 200 : result.code === "body_conflict" || result.code === "metadata_conflict" || result.code === "identity_conflict" ? 409 : 400 });
     } catch (error) { return workspaceApiError(error, "save-program-document"); }
   }
@@ -148,7 +163,7 @@ export async function POST(req: Request) {
   const content = body.content;
 
   try {
-    return await runWithQkrpcCwdAsync(cwd, async () => {
+    return await runWorkspaceRequest(req, cwd, async () => {
       if (op === "write") {
         if (!path) {
           return Response.json({ ok: false, error: "path is required" }, { status: 400 });
@@ -158,7 +173,7 @@ export async function POST(req: Request) {
         }
         const result = await writeWorkspaceFileForApi(path, content);
         if (!result.ok) {
-          return Response.json({ ok: false, error: result.error }, { status: 400 });
+          return Response.json({ ok: false, error: result.error, ...("code" in result ? { code: result.code } : {}) }, { status: 400 });
         }
         return Response.json({ ok: true, path: result.path });
       }

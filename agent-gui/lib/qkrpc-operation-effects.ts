@@ -31,10 +31,11 @@ const effectsByOperation = new Map<string, QkrpcOperationEffects>([
 ]);
 
 export function isOfflineSourceInvoke(invoke: QkrpcInvoke): boolean {
-  return invoke.op === "action.binding" || (invoke.op === "action.save" && invoke.args.dryRun === true);
+  return invoke.op === "source.document" || invoke.op === "action.binding" || (invoke.op === "action.save" && invoke.args.dryRun === true);
 }
 
 export function getQkrpcOperationEffects(invoke: QkrpcInvoke): QkrpcOperationEffects {
+  if (invoke.op === "source.document") return invoke.args.mode === "inspect" || invoke.args.mode === "preview" ? READ : LOCAL_EXPORT;
   if (isOfflineSourceInvoke(invoke) || invoke.op.startsWith("guide.")) return READ;
   return effectsByOperation.get(invoke.op) ?? UNKNOWN;
 }

@@ -10,7 +10,7 @@ export type ProjectListEntry = {
   kind: "file" | "directory";
 };
 
-/** Build read-only source sub-tabs for a program project (data.json editor). */
+/** Build read-only source sub-tabs from project-relative entries. */
 export function buildActionProjectSourceFileTabs(
   projectDir: string,
   dataJsonPath: string,
@@ -19,7 +19,7 @@ export function buildActionProjectSourceFileTabs(
   const normalizedProject = projectDir.replace(/\\/g, "/").replace(/\/+$/, "");
   const normalizedData = dataJsonPath.replace(/\\/g, "/");
   const tabs: ActionProjectSourceFileTab[] = [
-    { path: normalizedData, label: "data.json" },
+    { path: normalizedData, label: normalizedData.split("/").at(-1) || "data.json" },
   ];
 
   const filePaths = entries

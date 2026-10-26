@@ -69,6 +69,16 @@ test("runtime input contracts are host reads without local exports or mutation r
   assert.deepEqual(getQkrpcOperationEffects(invoke), { mayMutateHost: false, mayPersistLocal: false });
 });
 
+test("source documents stay offline while local saving is never replay safe", () => {
+  for (const mode of ["inspect", "preview", "save-local", "future-mode", undefined]) {
+    const invoke = { op: "source.document", args: { mode } };
+    assert.equal(isOfflineSourceInvoke(invoke), true);
+    assert.equal(isQkrpcReadOnlyInvoke(invoke), true);
+    assert.deepEqual(getQkrpcOperationEffects(invoke), { mayMutateHost: false, mayPersistLocal: mode !== "inspect" && mode !== "preview" });
+    assert.equal(isQkrpcInvokeReplaySafe(invoke), mode === "inspect" || mode === "preview");
+  }
+});
+
 test("only explicit offline dry-run bypasses conservative write effects", () => {
   for (const dryRun of [undefined, false, "true", 1]) {
     const invoke = { op: "action.save", args: { dryRun } };
