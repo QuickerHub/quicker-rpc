@@ -6,11 +6,15 @@ import { incrementStepRunnerSearchCountThisTurn } from "./program-turn-context";
 import { formatLocalToolResult } from "./tool-result";
 import { formatToolResultForAgent } from "./tool-result-agent-view";
 import { runQkrpcSchemaReadForTool } from "./qkrpc-schema-read.server";
+import { argvToInvoke } from "./qkrpc-argv";
 
 type KnowledgeRunner = (args: string[], options: { timeoutMs: number }) => Promise<Record<string, unknown>>;
 
-const nativeRunner: KnowledgeRunner = async (args, options) =>
-  formatQkrpcResultForAgent(await (args.includes("--schema-read") ? runQkrpcSchemaReadForTool(args, options) : runQkrpcForTool(args, options)));
+const nativeRunner: KnowledgeRunner = async (args, options) => {
+  const invoke = argvToInvoke(args);
+  const read = invoke?.op === "step-runner.get" && invoke.args.read !== undefined;
+  return formatQkrpcResultForAgent(await (read ? runQkrpcSchemaReadForTool(args, options) : runQkrpcForTool(args, options)));
+};
 
 /** Reuse requires a provider revision; a thread id cannot certify native knowledge freshness. */
 export function createStepRunnerKnowledgeTools(run: KnowledgeRunner = nativeRunner) {
@@ -61,7 +65,11 @@ export function createStepRunnerKnowledgeTools(run: KnowledgeRunner = nativeRunn
             formatLocalToolResult({ error: "key (or runnerKey) is required" }, false, "key (or runnerKey) is required"));
         }
         const args = ["step-runner", "get", "--key", resolvedKey];
-        if (controlField !== undefined) args.push(read ? "--control-field-json" : "--control-field", read ? JSON.stringify(controlField) : controlField);
+        if (controlField !== undefined) {
+          if (read) args.push("--control-field-json", JSON.stringify(controlField));
+          else if (controlField.startsWith("--")) args.push(`--control-field=${controlField}`);
+          else args.push("--control-field", controlField);
+        }
         if (read) args.push("--schema-read", JSON.stringify(read));
         return formatToolResultForAgent("qkrpc_step_runner_get", { key: resolvedKey, controlField, ...(read ? { read } : {}) },
           await run(args, { timeoutMs: 180_000 }));

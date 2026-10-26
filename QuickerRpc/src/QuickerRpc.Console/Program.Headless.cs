@@ -221,11 +221,31 @@ internal static partial class Program
                 .ConfigureAwait(false);
         }
 
+        StepRunnerSchemaReader.Request? read = null;
+        string? controlArg;
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            controlArg = StepRunnerInputContractCli.CreateRequest(options).ControlFieldValue;
+            if (options.SchemaRead is not null)
+            {
+                if (!forAgent) return await EmitErrorAndFailAsync(options.Json, "INVALID_SCHEMA_READ", "Schema pages use Agent get, never get-ui.").ConfigureAwait(false);
+                using var json = JsonDocument.Parse(options.SchemaRead);
+                if (!StepRunnerSchemaReader.TryPrepare(key, controlArg, json.RootElement, out read, out var failure))
+                {
+                    global::System.Console.WriteLine(JsonSerializer.Serialize(new { ok = false, action = "step-runner-get", payload = failure }, QkrpcJson.CliOutput));
+                    return ExitCodes.Error;
+                }
+                if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("QKRPC_HOST_BINDING")))
+                    return await EmitErrorAndFailAsync(options.Json, "HOST_BINDING_REQUIRED", "Schema pages require an explicitly bound existing host.").ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or ArgumentException)
+        { return await EmitErrorAndFailAsync(options.Json, "INVALID_SCHEMA_READ", "Invalid schema read or control literal.").ConfigureAwait(false); }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, read is null && !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var controlArg = options.ControlField;
             var response = forAgent
                 ? await session.Proxy
                     .GetStepRunnerDetailAsync(key, controlArg, rpcToken)
@@ -233,13 +253,16 @@ internal static partial class Program
                 : await session.Proxy
                     .GetStepRunnerUiDetailAsync(key, controlArg, rpcToken)
                     .ConfigureAwait(false);
-            var payload = HeadlessCliResponses.ToStepRunnerDetailPayload(response);
+            rpcToken.ThrowIfCancellationRequested();
+            var payload = read is null ? HeadlessCliResponses.ToStepRunnerDetailPayload(response)
+                : StepRunnerSchemaReader.Read(response, read, QuickerRpcClient.GetBinding(session.Proxy), rpcToken);
+            var success = read is null ? response.Success : (bool)((Dictionary<string, object?>)payload)["success"]!;
             var action = forAgent ? "step-runner-get" : "step-runner-get-ui";
 
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new { ok = response.Success, action, payload },
+                    new { ok = success, action, payload },
                     QkrpcJson.CliOutput));
             }
             else
@@ -247,7 +270,7 @@ internal static partial class Program
                 global::System.Console.WriteLine(JsonSerializer.Serialize(payload, QkrpcJson.CliOutput));
             }
 
-            return response.Success ? ExitCodes.Success : ExitCodes.Error;
+            return success ? ExitCodes.Success : ExitCodes.Error;
         }
         catch (QuickerRpcClientException ex)
         {

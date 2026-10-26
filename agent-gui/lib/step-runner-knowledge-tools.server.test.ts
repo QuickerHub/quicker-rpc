@@ -74,11 +74,11 @@ test("search keeps the requested result limit and permits fresh discovery after 
 test("native control values retain case, whitespace and explicit empty values", async () => {
   const calls: string[][] = [];
   const tools = createStepRunnerKnowledgeTools(async (args) => { calls.push([...args]); return schema("control"); });
-  for (const controlField of ["Mode", "mode", " ", ""]) {
+  for (const controlField of ["Mode", "mode", " ", "", "--schema-read", "--control-field-json"]) {
     await tools.qkrpc_step_runner_get.execute!({ key: "sys:fixture", controlField }, options);
   }
-  assert.deepEqual(calls.map((args) => args.at(-1)), ["Mode", "mode", " ", ""]);
-  assert.ok(calls.every((args) => args.at(-2) === "--control-field"));
+  assert.deepEqual(calls.map((args) => argvToInvoke(args)?.args.controlField), ["Mode", "mode", " ", "", "--schema-read", "--control-field-json"]);
+  assert.ok(calls.every((args) => argvToInvoke(args)?.args.read === undefined));
 });
 
 test("an unavailable current schema cannot be replaced by an older successful result", async () => {
