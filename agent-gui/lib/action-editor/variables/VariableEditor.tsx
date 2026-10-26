@@ -16,7 +16,8 @@ import { getActionDesignerBackendBaseUrl } from "../shared/actionDesignerBackend
 import { IconControl } from "../shared/IconControl";
 import { AD_ICONIFY_SPEC } from "../shared/actionDesignerIconify";
 import { dragGhostInlineColors } from "../shared/themeCssVars";
-import { X_PROGRAM_HISTORY_ISOLATE_CLASS } from "../program/xProgramHistory";
+import { X_PROGRAM_HISTORY_ISOLATE_CLASS, type XProgramPresent } from "../program/xProgramHistory";
+import { getUnusedProgramVariables, type ProgramVariableChangeRequest, type ProgramVariableChangeResult } from "../program/programVariableReferences";
 import type { XProgramEditorSurface } from "../program/xProgramEditorSurface";
 import { useToast } from "../shared/ToastContext";
 import { useMultiSelect } from "../shared/useMultiSelect";
@@ -37,10 +38,6 @@ import {
   parseActionStepsClipboardJson,
   STEPS_CLIPBOARD_MIME
 } from "../steps/actionStepsClipboard";
-import { collectUsedVariableKeysForSteps } from "../steps/actionStepsClipboard";
-import { fetchStepParamFileContents } from "../steps/useStepParamFileContents";
-import { collectStepParamFilePaths, type StepSummaryFileContents } from "../steps/stepSummaryFileRefs";
-import type { ActionProjectWorkspaceContext } from "../steps/paramEditors/FormDefEditorDialog";
 
 const CLIPBOARD_MIME = STEPS_CLIPBOARD_MIME;
 const COMMENT_STEP_KEY = "sys:comment";
@@ -477,15 +474,15 @@ function VariableEditorMultiBulkPanel({
 
 export type VariableEditorProps = {
   active?: boolean;
-  registerDraftFlusher?: (flush: () => void) => () => void;
+  registerDraftFlusher?: (flush: () => boolean | void) => () => void;
+  registerLiveEditingBlocker?: (isBlocked: () => boolean) => () => void;
+  owner: object;
+  getCurrentPresent(): XProgramPresent;
+  onVariableChange(request: ProgramVariableChangeRequest): ProgramVariableChangeResult;
   variables: ActionVariable[];
-  steps: ActionStep[];
   /** Main vs sub program tab: hides subprogram-only variable fields on the main surface. Default `"main"`. */
   programSurface?: XProgramEditorSurface;
-  workspaceContext?: ActionProjectWorkspaceContext;
-  /** Prefetched files/… content for external expression params. */
-  stepParamFileContents?: StepSummaryFileContents;
-  /** Records one undo snapshot for both steps and variables (host merges). */
+  /** Existing creation, ordering and bulk-flag edits use the current variables updater. */
   onCommitVariables: (
     updater: ActionVariable[] | ((prev: ActionVariable[]) => ActionVariable[])
   ) => void;
@@ -498,11 +495,12 @@ export type VariableEditorProps = {
 export default function VariableEditor({
   active = true,
   registerDraftFlusher,
+  registerLiveEditingBlocker,
+  owner,
+  getCurrentPresent,
+  onVariableChange,
   variables,
-  steps,
   programSurface = "main",
-  workspaceContext,
-  stepParamFileContents = {},
   onCommitVariables,
   onStepHighlightFilter,
   onCloseDrawer,
@@ -516,6 +514,15 @@ export default function VariableEditor({
   const pendingScrollVariableIdRef = useRef<string | null>(null);
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
   const { showToast } = useToast();
+  const ownerRef = useRef<object | null>(owner);
+  ownerRef.current = owner;
+  useLayoutEffect(() => { ownerRef.current = owner; return () => { ownerRef.current = null; }; }, [owner]);
+  const [changeError, setChangeError] = useState<string | null>(null);
+  const changeErrorRef = useRef<string | null>(null);
+  const reportChangeError = useCallback((error: string) => {
+    changeErrorRef.current = error; setChangeError(error);
+    showToast(error, { variant: "error" });
+  }, [showToast]);
 
   const orderedVariableIds = useMemo(() => variables.map((item) => item.id), [variables]);
 
@@ -571,6 +578,7 @@ export default function VariableEditor({
   const [formDraft, setFormDraft] = useState<ActionVariable | null>(null);
   const formDraftRef = useRef<ActionVariable | null>(null);
   const formBaselineFingerprintRef = useRef<string | null>(null);
+  const formExpectedRef = useRef<ActionVariable | null>(null);
   const variableFormRef = useRef<HTMLDivElement | null>(null);
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const typePickerRef = useRef<HTMLDivElement | null>(null);
@@ -589,16 +597,14 @@ export default function VariableEditor({
     formDraftRef.current = formDraft;
   }, [formDraft]);
 
-  const selectedFromParentFingerprint = useMemo(
-    () => (selectedVariable ? variableFormFingerprint(selectedVariable) : ""),
-    [selectedVariable]
-  );
-
-  useEffect(() => {
+  useLayoutEffect(() => {
+    formDraftRef.current = null;
     setFormDraft(null);
     formBaselineFingerprintRef.current = null;
+    formExpectedRef.current = null;
+    changeErrorRef.current = null; setChangeError(null);
     setTypePickerOpen(false);
-  }, [selectedFromParentFingerprint]);
+  }, [selectedId, owner]);
 
   const variableFormDisplay = useMemo((): ActionVariable | null => {
     if (!selectedVariable) {
@@ -717,34 +723,51 @@ export default function VariableEditor({
     });
   }, [active, typePickerOpen, typePickerPopupRect, varTypeSelectOptions.length]);
 
-  const flushVariableFormIfChanged = useCallback((): void => {
+  const flushVariableFormIfChanged = useCallback((): boolean => {
+    if (ownerRef.current !== owner) return false;
     const sel = selectedVariable;
     const draft = formDraftRef.current;
     const baseFp = formBaselineFingerprintRef.current;
     if (!sel || !draft || draft.id !== sel.id || !baseFp) {
-      setFormDraft(null);
-      formBaselineFingerprintRef.current = null;
-      return;
+      return !draft;
     }
     if (variableFormFingerprint(draft) === baseFp) {
+      formDraftRef.current = null;
       setFormDraft(null);
       formBaselineFingerprintRef.current = null;
-      return;
+      formExpectedRef.current = null;
+      changeErrorRef.current = null; setChangeError(null);
+      return true;
     }
-    onCommitVariables((prev) =>
-      prev.map((item) => (item.id === draft.id ? structuredClone(draft) : item))
-    );
+    const expected = formExpectedRef.current;
+    if (!expected) return false;
+    const result = onVariableChange({ kind: "edit", expected, next: draft });
+    if (!result.ok) { reportChangeError(result.error); return false; }
+    formDraftRef.current = null;
     setFormDraft(null);
     formBaselineFingerprintRef.current = null;
-  }, [onCommitVariables, selectedVariable]);
+    formExpectedRef.current = null;
+    changeErrorRef.current = null; setChangeError(null);
+    return true;
+  }, [onVariableChange, owner, reportChangeError, selectedVariable]);
 
-  const flushVariableFormSync = useCallback((): void => {
+  const flushVariableFormSync = useCallback((): boolean => {
+    let result = false;
     flushSync(() => {
-      flushVariableFormIfChanged();
+      result = flushVariableFormIfChanged();
     });
+    return result;
   }, [flushVariableFormIfChanged]);
 
+  const discardVariableFormDraft = useCallback(() => {
+    if (ownerRef.current !== owner) return;
+    formDraftRef.current = null; formExpectedRef.current = null; formBaselineFingerprintRef.current = null;
+    changeErrorRef.current = null; setChangeError(null); setFormDraft(null); setTypePickerOpen(false);
+    variableFormRef.current?.querySelector<HTMLInputElement>('input[title="变量名"]')?.focus({ preventScroll: true });
+  }, [owner]);
+
   useLayoutEffect(() => registerDraftFlusher?.(flushVariableFormIfChanged), [registerDraftFlusher, flushVariableFormIfChanged]);
+  useLayoutEffect(() => registerLiveEditingBlocker?.(() => !!formDraftRef.current && !!changeErrorRef.current), [registerLiveEditingBlocker]);
 
   useEffect(() => {
     if (active) return;
@@ -755,7 +778,7 @@ export default function VariableEditor({
 
   const applyMultiBooleanField = useCallback(
     (field: "saveState" | "isInput" | "isOutput" | "isLocked", value: boolean) => {
-      flushVariableFormSync();
+      if (!flushVariableFormSync()) return;
       const idSet = new Set(selectedIds);
       onCommitVariables((prev) =>
         prev.map((v) => (idSet.has(v.id) ? { ...structuredClone(v), [field]: value } : v))
@@ -766,9 +789,7 @@ export default function VariableEditor({
 
   useEffect(() => {
     if (selectedIds.length > 1) {
-      flushVariableFormIfChanged();
-      setFormDraft(null);
-      formBaselineFingerprintRef.current = null;
+      if (!flushVariableFormIfChanged()) return;
       setTypePickerOpen(false);
     }
   }, [selectedIds.length, flushVariableFormIfChanged]);
@@ -811,27 +832,24 @@ export default function VariableEditor({
 
   const updateVariableFormDraft = useCallback(
     (partial: Partial<ActionVariable>): void => {
-      if (!selectedVariable) {
+      if (ownerRef.current !== owner || !selectedVariable) {
         return;
       }
       const prevDraft = formDraftRef.current;
       if (!prevDraft || prevDraft.id !== selectedVariable.id) {
         formBaselineFingerprintRef.current = variableFormFingerprint(selectedVariable);
+        formExpectedRef.current = structuredClone(selectedVariable);
       }
-      setFormDraft((prev) => {
-        if (!selectedVariable) {
-          return null;
-        }
-        const same = prev?.id === selectedVariable.id;
-        const base = same ? prev! : cloneVariableForFormDraft(selectedVariable);
-        return structuredClone({ ...base, ...partial, id: selectedVariable.id });
-      });
+      const base = prevDraft?.id === selectedVariable.id ? prevDraft : cloneVariableForFormDraft(selectedVariable);
+      const next = structuredClone({ ...base, ...partial, id: selectedVariable.id });
+      formDraftRef.current = next; setFormDraft(next);
+      changeErrorRef.current = null; setChangeError(null);
     },
-    [selectedVariable]
+    [owner, selectedVariable]
   );
 
   const handleAdd = (): void => {
-    flushVariableFormSync();
+    if (!flushVariableFormSync()) return;
     const next = createEmptyActionVariable();
     pendingScrollVariableIdRef.current = next.id;
     onCommitVariables((prev) => [...prev, next]);
@@ -839,67 +857,38 @@ export default function VariableEditor({
   };
 
   const handleRemove = useCallback((): void => {
-    flushVariableFormSync();
+    if (!flushVariableFormSync()) return;
     if (selectedIds.length === 0) {
       return;
     }
-    const lockedInSelection = variables.filter((v) => selectedIds.includes(v.id) && v.isLocked);
-    if (lockedInSelection.length > 0) {
-      const names = lockedInSelection.map((v) => actionVariableRowKey(v)).join("、");
-      const message =
-        lockedInSelection.length === 1
-          ? `变量「${names}」已保护，无法删除。请先在右侧详情中关闭“保护”。`
-          : `以下变量已保护，无法删除：${names}。请先在右侧详情中分别关闭“保护”。`;
-      showToast(message, { variant: "warning" });
-      queueMicrotask(() => {
-        rootRef.current?.focus({ preventScroll: true });
-      });
-      return;
-    }
+    const current = getCurrentPresent();
     const selectedSet = new Set(selectedIds);
-    const nextFocusId = pickVariableIdAfterDelete(variables, selectedSet);
-    const nextVariables = variables.filter((item) => !selectedSet.has(item.id));
-    onCommitVariables(nextVariables);
+    const expected = current.variables.filter(item => selectedSet.has(item.id));
+    const result = onVariableChange({ kind: "delete", expected });
+    if (!result.ok) { reportChangeError(result.error); return; }
+    changeErrorRef.current = null; setChangeError(null);
+    const nextFocusId = pickVariableIdAfterDelete(current.variables, selectedSet);
     setSingleSelection(nextFocusId);
     queueMicrotask(() => {
       rootRef.current?.focus({ preventScroll: true });
     });
-  }, [flushVariableFormSync, onCommitVariables, selectedIds, variables, setSingleSelection, showToast]);
+  }, [flushVariableFormSync, getCurrentPresent, onVariableChange, reportChangeError, selectedIds, setSingleSelection]);
 
-  const handleClearUnused = async (): Promise<void> => {
-    flushVariableFormSync();
-    const allKeys = new Set(variables.map((v) => actionVariableRowKey(v).trim()).filter((k) => k.length > 0));
-    let fileContents = stepParamFileContents;
-    if (workspaceContext) {
-      const missingPaths = collectStepParamFilePaths(steps).filter(
-        (path) => !(fileContents[path]?.trim()),
-      );
-      if (missingPaths.length > 0) {
-        const loaded = await fetchStepParamFileContents(workspaceContext, missingPaths);
-        fileContents = { ...fileContents, ...loaded };
-      }
-    }
-    const usedVarKeys = collectUsedVariableKeysForSteps(steps, allKeys, fileContents);
-    const keepInterfaceVars = programSurface === "subProgram";
-    const removableIds = new Set<string>();
-    for (const v of variables) {
-      const key = actionVariableRowKey(v).trim();
-      if (!key) {
-        continue;
-      }
-      const isPinned = Boolean(v.isLocked);
-      const isInterfaceVar = keepInterfaceVars && (Boolean(v.isInput) || Boolean(v.isOutput));
-      if (!isPinned && !isInterfaceVar && !usedVarKeys.has(key)) {
-        removableIds.add(v.id);
-      }
-    }
-    if (removableIds.size <= 0) {
+  const handleClearUnused = (): void => {
+    if (!flushVariableFormSync()) return;
+    const current = getCurrentPresent();
+    const unused = getUnusedProgramVariables(current);
+    if (!unused.ok) { reportChangeError(unused.error); return; }
+    if (!unused.variables.length) {
       showToast("没有可清理的未使用变量。", { variant: "info" });
       return;
     }
-    const remaining = variables.filter((v) => !removableIds.has(v.id));
-    const removedCount = variables.length - remaining.length;
-    onCommitVariables(remaining);
+    const result = onVariableChange({ kind: "delete", expected: unused.variables });
+    if (!result.ok) { reportChangeError(result.error); return; }
+    changeErrorRef.current = null; setChangeError(null);
+    const removableIds = new Set(unused.variables.map(variable => variable.id));
+    const remaining = current.variables.filter(variable => !removableIds.has(variable.id));
+    const removedCount = unused.variables.length;
     if (selectedId && removableIds.has(selectedId)) {
       setSingleSelection(remaining[0]?.id ?? "");
     }
@@ -907,7 +896,7 @@ export default function VariableEditor({
   };
 
   const applySort = (mode: "name" | "type" | "group"): void => {
-    flushVariableFormSync();
+    if (!flushVariableFormSync()) return;
     setSortMenuOpen(false);
     onCommitVariables((prev) => {
       if (mode === "name") return sortVariablesByName(prev);
@@ -927,7 +916,7 @@ export default function VariableEditor({
       return;
     }
 
-    flushVariableFormSync();
+    if (!flushVariableFormSync()) return;
     onCommitVariables((prev) => {
       const movingIds = normalizeVariableSelection(prev, draggingIds);
       if (movingIds.length === 0) return prev;
@@ -998,7 +987,7 @@ export default function VariableEditor({
           : `var_${String(Date.now()).slice(-4)}`
       })
     );
-    flushVariableFormSync();
+    if (!flushVariableFormSync()) return;
     pendingScrollVariableIdRef.current = stamped[0]?.id ?? null;
     onCommitVariables((prev) => [...prev, ...stamped]);
     setSingleSelection(stamped[0]?.id ?? "");
@@ -1051,6 +1040,7 @@ export default function VariableEditor({
           return;
         }
         event.preventDefault();
+        if (!flushVariableFormSync()) return;
         setSelectedIds(ids);
         setSelectedId(ids[ids.length - 1] ?? "");
         setSelectionAnchorId(ids[0] ?? "");
@@ -1078,6 +1068,7 @@ export default function VariableEditor({
         if (!nextId) {
           return;
         }
+        if (!flushVariableFormSync()) return;
         if (event.shiftKey) {
           selectItem(nextId, {
             additive: false,
@@ -1122,6 +1113,7 @@ export default function VariableEditor({
     active,
     copySelectionToClipboard,
     handleRemove,
+    flushVariableFormSync,
     onStepHighlightFilter,
     pasteFromClipboard,
     scrollVariableRowIntoView,
@@ -1235,7 +1227,7 @@ export default function VariableEditor({
               className="variable-toolbar-btn variable-toolbar-btn--close"
               title="关闭"
               aria-label="关闭变量面板"
-              onClick={onCloseDrawer}
+              onClick={() => { if (flushVariableFormSync()) onCloseDrawer(); }}
             >
               <IconControl spec={AD_ICONIFY_SPEC.close} size={12} resourceBaseUrl={backendBaseUrl} />
             </button>
@@ -1253,6 +1245,11 @@ export default function VariableEditor({
         ) : null}
       </div>
 
+      {changeError ? <div role="alert" className="variable-form-hint" style={{ color: "var(--ad-fg-error-text)" }}>
+        {changeError}
+        {formDraft ? <div><button type="button" className="variable-toolbar-btn" style={{ width: "auto", padding: "2px 8px" }}
+          onClick={discardVariableFormDraft}>放弃修改</button></div> : null}
+      </div> : null}
       <div className="variable-editor-main">
       <div
         ref={variableListRef}
@@ -1268,7 +1265,7 @@ export default function VariableEditor({
         onDrop={(event) => {
           if (draggingIds.length === 0) return;
           event.preventDefault();
-          flushVariableFormSync();
+          if (!flushVariableFormSync()) return;
           onCommitVariables((prev) => {
             const movingIds = normalizeVariableSelection(prev, draggingIds);
             if (movingIds.length === 0) return prev;
@@ -1295,9 +1292,9 @@ export default function VariableEditor({
               data-variable-id={item.id}
               className={`listbox-item variable-row ${isSelected ? "selected" : ""} ${lineClass}`}
               draggable={!dragDisabled}
-              onDoubleClick={() => setSingleSelection(item.id)}
+              onDoubleClick={() => { if (flushVariableFormSync()) setSingleSelection(item.id); }}
               onDragStart={(event) => {
-                if (dragDisabled) {
+                if (dragDisabled || !flushVariableFormSync()) {
                   event.preventDefault();
                   return;
                 }
@@ -1332,6 +1329,7 @@ export default function VariableEditor({
                 clearDragState();
               }}
               onClick={(event) => {
+                if (!flushVariableFormSync()) return;
                 selectItem(item.id, {
                   additive: event.ctrlKey || event.metaKey,
                   rangeSelect: event.shiftKey,

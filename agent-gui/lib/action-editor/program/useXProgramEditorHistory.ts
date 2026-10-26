@@ -12,6 +12,7 @@ import {
 } from "./xProgramHistory";
 import type { XProgramEditorHandle } from "./xProgramEditorHandle";
 import type { XProgramEditorControl } from "./programDocumentEditorController";
+import { prepareProgramVariableChange, type ProgramVariableChangeRequest, type ProgramVariableChangeResult } from "./programVariableReferences";
 
 /** The ref is the live history owner; React renders its latest committed state. */
 export function useXProgramEditorHistory(initialPresent: XProgramPresent, control?: XProgramEditorControl) {
@@ -36,6 +37,15 @@ export function useXProgramEditorHistory(initialPresent: XProgramPresent, contro
     setHistory(next);
   }, []);
 
+  const changeVariables = useCallback((request: ProgramVariableChangeRequest): ProgramVariableChangeResult => {
+    if (controlRef.current !== control) return { ok: false, code: "identity_conflict", error: "编辑文档已切换，请重新核对变量。" };
+    if (control) return control.changeVariables(request);
+    const prepared = prepareProgramVariableChange(historyRef.current!.present, request);
+    if (!prepared.ok) return prepared;
+    if (prepared.changed) dispatch({ type: "commitProgram", present: prepared.present });
+    return { ok: true, changed: prepared.changed };
+  }, [control, dispatch]);
+
   const handle = useMemo<XProgramEditorHandle>(() => ({
     getPresent: () => controlRef.current?.getPresent() ?? cloneXProgramPresent(historyRef.current!.present),
     applyProgram: (present, options) => {
@@ -51,5 +61,5 @@ export function useXProgramEditorHistory(initialPresent: XProgramPresent, contro
     },
   }), [dispatch]);
 
-  return { history, historyRef, dispatch, handle, present: control?.getPresent() ?? history!.present };
+  return { history, historyRef, dispatch, handle, changeVariables, present: control?.getPresent() ?? history!.present };
 }

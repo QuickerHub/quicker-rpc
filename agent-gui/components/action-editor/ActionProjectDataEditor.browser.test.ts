@@ -20,7 +20,7 @@ const makeDocument = id => JSON.stringify({...body(id),subPrograms:[{id:'child',
 const makeInfo = id => '{"kind":"action","id":"'+pathFor(id).split('/').at(-2)+'","title":"Fixture action","description":"original description","icon":"iconify:mdi:code-tags","editVersion":9223372036854775807,"fixtureFuture":9007199254740993}';
 const runner = StepRunnerItem.fromPartial({key:'sys:fixture_note',name:'Fixture module',icon:'iconify:mdi:code-tags',inputParamDefs:[],outputParamDefs:[]});
 const capability = StepRunnerItem.fromPartial({key:'sys:fixture_capability',name:'Fixture capability',category:'Text',secondaryCategories:['System'],inputParamDefs:[{key:'mode',name:'Mode',isControlField:true,varType:9,variableMode:1,allowInput:true,selectionItems:[{value:'copy',name:'Copy fixture'}]},{key:'text',name:'Text',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]});
-const state = window.fixture = {calls:[],saved:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument};
+const state = window.fixture = {calls:[],saved:[],pins:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument};
 const bindingFor=id=>({schemaVersion:1,kind:'action',actionId:pathFor(id).split('/').at(-2),hostBinding:{hostInstanceId:'instance-'+id,hostSessionId:(id==='a'?'a':'b').repeat(32),endpoint:'QuickerRpc_User_AAAAAAAAAAAAAAAAAAAAAAAA_'+(id==='a'?'a':'b').repeat(32),protocolVersion:1,schemaVersion:1,hostKind:id==='a'?'v1':'v2',quickerVersion:window.fixtureOptions?.invalidVersion?{future:true}:'fixture-'+id,capabilities:{'action.legacyBody.read':true,'action.legacyBody.write':true,'resource.globalSubprogram.page.read':Boolean(window.fixtureOptions?.resources&&id==='a')}}});
 state.targetFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id),bindingFor(id)]));state.targetMode=window.fixtureOptions?.targetMode||'bound';state.targetPending=[];state.transportCalls=[];
 state.infoFiles=Object.fromEntries(['a','b'].map(id=>[pathFor(id).replace(/data.json$/,'info.json'),makeInfo(id)]));
@@ -210,7 +210,7 @@ before(async () => {
       builder.onLoad({ filter: /.*/, namespace: "fixture-boundary" }, (args) => {
         if (args.path.endsWith("workspace-explorer-api")) return { contents: fileBoundary, loader: "js" };
         if (args.path.endsWith("workspace-file-tool")) return { contents: "export const basenamePath=value=>value.replace(/\\\\/g,'/').split('/').pop()||'';export const guessFileLanguage=()=> 'text';", loader: "js" };
-        if (args.path.endsWith("chat-composer-bridge")) return { contents: "export const chatComposerActionsRef={current:{insertProgramStepTag(){},focusComposer(){}}};", loader: "js" };
+        if (args.path.endsWith("chat-composer-bridge")) return { contents: "export const chatComposerActionsRef={current:{insertProgramStepTag(tag){window.fixture.pins.push(tag)},focusComposer(){}}};", loader: "js" };
         if (args.path.endsWith("action-command-client")) return { contents: "export function isQuickerActionMissingError(){return false}export function invokeActionCommand(){window.fixture.unexpected.push('unbound toolbar command');throw new Error('Toolbar must be gated')}", loader: "js" };
         if (args.path.endsWith("action-trace-client")) return { contents: "export function startActionTrace(){window.fixture.unexpected.push('unbound toolbar trace');throw new Error('Toolbar must be gated')}", loader: "js" };
         if (args.path.endsWith("workspace-explorer")) return { contents: "export const workspaceExplorerActionsRef={current:{notifyProjectRemoved(){}}};", loader: "js" };
@@ -1274,6 +1274,45 @@ test("module catalog inserts a capability through the real popup, undo and contr
     assert.equal(saved.steps.length, 2, "nested insert must not mutate the main body");
     assert.equal(saved.subPrograms[0].subPrograms[0].steps.length, 2);
     assert.equal(saved.subPrograms[0].subPrograms[0].steps.at(-1).inputParams.text, "preset text");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("invalid variable drafts block real APDE save, step pin and sync until corrected", { timeout: 60_000 }, async () => {
+  const { page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => {
+      const f = (window as any).fixture, value = JSON.parse(f.makeDocument("a"));
+      value.steps[0].inputParams = { "value.var": "var_a" }; value.steps[0].note = "variable references";
+      value.variables = [{ id: "v-a", key: "var_a", varType: "Text" }, { id: "occupied-id", key: "occupied", varType: "Text" }];
+      f.enableDocumentSave(); f.setDocument("a", JSON.stringify(value));
+    });
+    await page.waitForFunction(() => document.querySelector('.step-form-note-input') instanceof HTMLInputElement
+      && (document.querySelector('.step-form-note-input') as HTMLInputElement).value === "variable references");
+    await editNote(page, "unsaved human body"); await waitSaveEnabled(page);
+    await page.getByRole("button", { name: "打开变量面板", exact: true }).click();
+    const input = page.locator('.variable-form input[title="变量名"]');
+    await input.fill("occupied"); await saveButton(page).click();
+    assert.equal(await input.inputValue(), "occupied");
+    assert.equal(await page.evaluate(() => (window as any).fixture.documentCalls.length), 0);
+    await page.getByRole("button", { name: "添加步骤到对话", exact: true }).press("Enter");
+    assert.equal(await page.evaluate(() => (window as any).fixture.pins.length), 0);
+    assert.equal(await input.inputValue(), "occupied");
+    await input.fill("renamed"); await saveButton(page).click(); await waitClean(page);
+    const saved = await page.evaluate(() => JSON.parse((window as any).fixture.documentCalls.at(-1).content));
+    assert.equal(saved.variables[0].key, "renamed"); assert.equal(saved.steps[0].inputParams["value.var"], "renamed");
+    assert.equal(saved.steps[0].note, "unsaved human body");
+    await input.fill("occupied");
+    const sync = page.getByRole("button", { name: "同步", exact: true });
+    assert.equal(await sync.isEnabled(), true, "the uncommitted draft has not dirtied the persisted session");
+    await sync.click();
+    assert.equal(await page.evaluate(() => (window as any).fixture.syncCalls.filter((call: any) => call.op === "push").length), 0);
+    assert.equal(await input.inputValue(), "occupied");
+    assert.equal(await page.evaluate(() => (window as any).fixture.documentCalls.length), 1);
+    await input.fill("finalName"); await page.getByRole("button", { name: "添加步骤到对话", exact: true }).press("Enter");
+    assert.equal(await page.evaluate(() => (window as any).fixture.pins.length), 1);
+    await waitSaveEnabled(page); await saveButton(page).click(); await waitClean(page);
+    assert.equal(await page.evaluate(() => JSON.parse((window as any).fixture.documentCalls.at(-1).content).variables[0].key), "finalName");
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });
