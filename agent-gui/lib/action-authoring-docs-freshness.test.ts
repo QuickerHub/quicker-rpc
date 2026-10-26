@@ -69,12 +69,13 @@ async function fixture(topic = "alpha") {
 for (const scenario of [
   { userText: "修改动作：剪贴板文本去掉空行、去重并排序后写回剪贴板。", skill: "quicker-authoring-clipboard-pipeline" },
   { userText: "修改动作：用一个表达式步骤同时设置多变量 a=1、b=2、c=a+b。", skill: "quicker-authoring-evalexpression-multi-var" },
+  { userText: "修改动作：调整程序的输入与输出。", skill: null },
 ]) {
-  test(`authoring intent ${scenario.skill} can read current guides without granting native authority`, async () => {
+  test(`authoring intent ${scenario.skill ?? "generic"} can read current guides without granting native authority`, async () => {
     const { root } = await fixture("program-source");
     const turn = api.buildAgentTurnState({ userText: scenario.userText, chatMode: "agent", actionScope: { pinnedLatestAll: [] }, enabledToolIds: ["docs"] });
     assert.equal(turn.intent, "action_authoring");
-    assert.equal(api.rankPatternSkillsScored({ userText: scenario.userText, intent: turn.intent })[0]?.skill, scenario.skill);
+    assert.equal(api.rankPatternSkillsScored({ userText: scenario.userText, intent: turn.intent })[0]?.skill ?? null, scenario.skill);
     assert.match(turn.verificationHints.join("\n"), /docs.*(?:YAML|syntax)/);
     assert.doesNotMatch(turn.verificationHints.join("\n"), /do not call docs|do NOT call docs/i);
 

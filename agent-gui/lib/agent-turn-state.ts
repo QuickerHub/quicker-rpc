@@ -276,7 +276,7 @@ function verificationHintsForIntent(intent: AgentTurnIntent, userText?: string):
         "After qkrpc_action_create, edit empty data.json via write_data — skip read_data.",
         "Do not repeat step_runner_search with the same query — call get on a prior hit key.",
         "Prefer sys:evalexpression for multi-var {var}=; sys:assign for single var — get before write.",
-        "When intent-matched skills are preloaded, do NOT call docs for step keys or expression syntax.",
+        "Preloaded skills provide workflow guidance; docs remains available for YAML, authoring and expression syntax, but does not replace current native module definitions.",
         "Read/Write/StrReplace edit source bundle YAML/files outside .quicker/; legacy .quicker JSON program bodies still use workspace_program.",
         "After patching a program body, run diagnostics or qkrpc_action_debug — never read_data to verify.",
       ];
