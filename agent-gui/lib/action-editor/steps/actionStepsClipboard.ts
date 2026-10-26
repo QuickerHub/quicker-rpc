@@ -3,13 +3,11 @@
  * and ConstValues.STEPS_CLIPBOARD_TYPE ("quicker-action-steps") used by WPF StepListControl.
  */
 import { ActionStep, ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
-import { coerceWireInputParam } from "@/lib/input-param-wire";
 import type { XProgramEditorSurface } from "../program/xProgramEditorSurface";
 import { getActionDesignerBackendBaseUrl } from "../shared/actionDesignerBackendBaseUrl";
 import type { StepSummaryFileContents } from "./stepSummaryFileRefs";
-import { variableClipboardRowToDto, variableClipboardRowToEditor } from "../program/programVariableClipboard";
-import { parseVariableReferenceJson } from "../program/programVariableReferences";
-import { stringifyLosslessJson } from "../shared/losslessJson";
+import { variableClipboardRowToEditor } from "../program/programVariableClipboard";
+import { normalizeClipboardBody, normalizeClipboardStep, clipboardStepProjection, serializeStepClipboardBody, parseStepClipboardBody, type ClipboardRecord } from "../program/programStepClipboardCodec";
 
 /** Same as Quicker.Domain.ConstValues.STEPS_CLIPBOARD_TYPE */
 export const STEPS_CLIPBOARD_MIME = "quicker-action-steps";
@@ -26,149 +24,23 @@ function newStepId(): string {
   return `s-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function stepParamToWire(p: ActionStepParam | undefined): { VarKey?: string | null; Value?: string | null } {
-  return {
-    VarKey: p?.varKey ?? "",
-    Value: p?.value ?? ""
-  };
-}
-
-function actionStepToWire(step: ActionStep): Record<string, unknown> {
-  const input: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(step.inputParams ?? {})) {
-    input[k] = stepParamToWire(v);
-  }
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(step.outputParams ?? {})) {
-    out[k] = v ?? "";
-  }
-  return {
-    StepRunnerKey: step.stepRunnerKey,
-    InputParams: input,
-    OutputParams: out,
-    IfSteps: (step.ifSteps ?? []).map((s) => actionStepToWire(s)),
-    ElseSteps: (step.elseSteps ?? []).map((s) => actionStepToWire(s)),
-    Note: step.note ?? "",
-    Disabled: Boolean(step.disabled),
-    Collapsed: Boolean(step.collapsed),
-    DelayMs: Number(step.delayMs ?? 0),
-    StepId: step.stepId
-  };
-}
-
-/** Build JSON matching Newtonsoft default (PascalCase) for ActionStepsDto. */
+/** Native envelope with lossless, extension-preserving records. Dependency closure belongs to the Session exporter. */
 export function buildActionStepsClipboardJson(steps: ActionStep[], variables: ActionVariable[]): string {
-  const dto = {
-    Variables: variables.map(variableClipboardRowToDto),
-    Steps: steps.map((s) => actionStepToWire(s)),
-    SubPrograms: [] as unknown[]
-  };
-  return stringifyLosslessJson(dto, 2);
+  return serializeStepClipboardBody(normalizeClipboardBody({ steps, variables, subPrograms: [] }));
 }
-
-function readProp<T>(obj: Record<string, unknown>, pascal: string, camel: string): T | undefined {
-  const a = obj[pascal];
-  if (a !== undefined && a !== null) {
-    return a as T;
-  }
-  const b = obj[camel];
-  if (b !== undefined && b !== null) {
-    return b as T;
-  }
-  return undefined;
-}
-
-function normalizeStepParam(raw: unknown): ActionStepParam {
-  const coerced = coerceWireInputParam(raw);
-  return ActionStepParam.create({
-    varKey: coerced.varKey ?? "",
-    value: coerced.value ?? "",
-    ...(coerced.file ? { file: coerced.file } : {}),
-  });
-}
-
 export function normalizeActionStepFromClipboard(raw: unknown): ActionStep {
-  if (!raw || typeof raw !== "object") {
-    return ActionStep.create({
-      stepRunnerKey: "",
-      inputParams: {},
-      outputParams: {},
-      ifSteps: [],
-      elseSteps: [],
-      note: "",
-      disabled: false,
-      collapsed: false,
-      delayMs: 0,
-      stepId: newStepId()
-    });
-  }
-  const o = raw as Record<string, unknown>;
-  const inputParams: { [key: string]: ActionStepParam } = {};
-  const inp = readProp<Record<string, unknown>>(o, "InputParams", "inputParams");
-  if (inp && typeof inp === "object") {
-    for (const [k, v] of Object.entries(inp)) {
-      inputParams[k] = normalizeStepParam(v);
-    }
-  }
-  const outputParams: { [key: string]: string } = {};
-  const outp = readProp<Record<string, unknown>>(o, "OutputParams", "outputParams");
-  if (outp && typeof outp === "object") {
-    for (const [k, v] of Object.entries(outp)) {
-      outputParams[k] = typeof v === "string" ? v : String(v ?? "");
-    }
-  }
-  const ifRaw = readProp<unknown[]>(o, "IfSteps", "ifSteps");
-  const elseRaw = readProp<unknown[]>(o, "ElseSteps", "elseSteps");
-  const ifSteps = Array.isArray(ifRaw) ? ifRaw.map((x) => normalizeActionStepFromClipboard(x)) : [];
-  const elseSteps = Array.isArray(elseRaw) ? elseRaw.map((x) => normalizeActionStepFromClipboard(x)) : [];
-  return ActionStep.create({
-    stepRunnerKey: String(readProp<string>(o, "StepRunnerKey", "stepRunnerKey") ?? ""),
-    inputParams,
-    outputParams,
-    ifSteps,
-    elseSteps,
-    note: String(readProp<string>(o, "Note", "note") ?? ""),
-    disabled: Boolean(readProp(o, "Disabled", "disabled")),
-    collapsed: Boolean(readProp(o, "Collapsed", "collapsed")),
-    delayMs: Number(readProp(o, "DelayMs", "delayMs") ?? 0),
-    stepId: String(readProp<string>(o, "StepId", "stepId") ?? "") || newStepId()
-  });
+  const step=clipboardStepProjection(normalizeClipboardStep(raw));
+  if(!step.stepId)step.stepId=newStepId();return step;
 }
-
 export function normalizeActionVariableFromClipboard(raw: unknown): ActionVariable {
   return { ...variableClipboardRowToEditor(raw), id: newVariableId() };
 }
-
-export type ParsedActionStepsClipboard = {
-  steps: ActionStep[];
-  variables: ActionVariable[];
-};
-
-export function parseActionStepsClipboardJson(text: string): ParsedActionStepsClipboard | null {
-  let root: unknown;
-  try {
-    root = parseVariableReferenceJson(text);
-  } catch {
-    return null;
-  }
-  if (!root || typeof root !== "object") {
-    return null;
-  }
-  const o = root as Record<string, unknown>;
-  const stepsRaw = readProp<unknown[]>(o, "Steps", "steps");
-  const varsRaw = readProp<unknown[]>(o, "Variables", "variables");
-  if (!Array.isArray(stepsRaw) || stepsRaw.length === 0) {
-    return null;
-  }
-  try {
-    if ((Object.hasOwn(o, "Steps") && Object.hasOwn(o, "steps")) || (Object.hasOwn(o, "Variables") && Object.hasOwn(o, "variables"))) return null;
-    const steps = stepsRaw.map((s) => normalizeActionStepFromClipboard(s));
-    const variables = Array.isArray(varsRaw) ? varsRaw.map((v) => normalizeActionVariableFromClipboard(v)) : [];
-    return { steps, variables };
-  } catch { return null; }
+export type ParsedActionStepsClipboard = {steps:ActionStep[];variables:ActionVariable[];subPrograms:ClipboardRecord[]};
+export function parseActionStepsClipboardJson(text:string):ParsedActionStepsClipboard|null {
+  try{const body=parseStepClipboardBody(text);return {steps:body.steps.map(normalizeActionStepFromClipboard),variables:body.variables.map(normalizeActionVariableFromClipboard),subPrograms:body.subPrograms};}catch{return null;}
 }
 
-/** Collect variable keys referenced by steps (subset of XActionUiHelper.AddUsedVarKeys). */
+/** Legacy display helper only. Never use this incomplete scan to authorize clipboard dependency transfer. */
 export function collectUsedVariableKeysForSteps(
   steps: ActionStep[],
   knownKeys: ReadonlySet<string>,
@@ -251,16 +123,20 @@ export function adjustPastedVariablesForSurface(
   });
 }
 
-async function tryClipboardReadCustomMime(): Promise<string | null> {
+async function tryClipboardReadCustomMime(isCurrent: () => boolean): Promise<string | null> {
   try {
     if (!navigator.clipboard?.read) {
       return null;
     }
+    if (!isCurrent()) return null;
     const items = await navigator.clipboard.read();
+    if (!isCurrent()) return null;
     for (const item of items) {
       if (item.types.includes(STEPS_CLIPBOARD_MIME)) {
         const blob = await item.getType(STEPS_CLIPBOARD_MIME);
-        return await blob.text();
+        if (!isCurrent()) return null;
+        const text = await blob.text();
+        return isCurrent() ? text : null;
       }
     }
   } catch {
@@ -269,15 +145,18 @@ async function tryClipboardReadCustomMime(): Promise<string | null> {
   return null;
 }
 
-async function tryReadClipboardByBackend(format: string): Promise<string | null> {
+async function tryReadClipboardByBackend(format: string, isCurrent: () => boolean): Promise<string | null> {
   const baseUrl = getActionDesignerBackendBaseUrl();
   const root = baseUrl.replace(/\/$/, "");
   try {
+    if (!isCurrent()) return null;
     const response = await fetch(`${root}/api/clipboard/read-special-format?format=${encodeURIComponent(format)}`);
+    if (!isCurrent()) return null;
     if (!response.ok) {
       return null;
     }
     const payload = (await response.json()) as { hasData?: boolean; text?: string };
+    if (!isCurrent()) return null;
     if (!payload?.hasData) {
       return null;
     }
@@ -288,18 +167,20 @@ async function tryReadClipboardByBackend(format: string): Promise<string | null>
   }
 }
 
-export async function readStepsClipboardText(): Promise<string | null> {
-  const fromCustom = await tryClipboardReadCustomMime();
-  if (fromCustom != null && fromCustom.trim().length > 0 && parseActionStepsClipboardJson(fromCustom) != null) {
+export async function readStepsClipboardText(isCurrent: () => boolean = () => true): Promise<string | null> {
+  const fromCustom = await tryClipboardReadCustomMime(isCurrent);
+  if (!isCurrent()) return null;
+  if (fromCustom != null && fromCustom.trim().length > 0) {
     return fromCustom;
   }
-  const fromBackend = await tryReadClipboardByBackend(STEPS_CLIPBOARD_MIME);
-  if (fromBackend != null && parseActionStepsClipboardJson(fromBackend) != null) {
+  const fromBackend = await tryReadClipboardByBackend(STEPS_CLIPBOARD_MIME, isCurrent);
+  if (!isCurrent()) return null;
+  if (fromBackend != null) {
     return fromBackend;
   }
   try {
     const plain = await navigator.clipboard.readText();
-    if (plain.trim().length > 0 && parseActionStepsClipboardJson(plain) != null) {
+    if (isCurrent() && plain.trim().length > 0) {
       return plain;
     }
   } catch {
@@ -310,10 +191,11 @@ export async function readStepsClipboardText(): Promise<string | null> {
 
 const PLAIN_UTF8 = "text/plain;charset=utf-8";
 
-async function tryWriteClipboardByBackend(format: string, text: string): Promise<boolean> {
+async function tryWriteClipboardByBackend(format: string, text: string, isCurrent: () => boolean): Promise<boolean> {
   const baseUrl = getActionDesignerBackendBaseUrl();
   const root = baseUrl.replace(/\/$/, "");
   try {
+    if (!isCurrent()) return false;
     const response = await fetch(`${root}/api/clipboard/write-special-format`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -323,18 +205,19 @@ async function tryWriteClipboardByBackend(format: string, text: string): Promise
       return false;
     }
     const payload = (await response.json()) as { ok?: boolean; stub?: boolean };
-    return payload?.ok === true && payload.stub !== true;
+    return isCurrent() && payload?.ok === true && payload.stub !== true;
   } catch {
     return false;
   }
 }
 
-async function tryWriteClipboardByBrowser(serialized: string): Promise<boolean> {
+async function tryWriteClipboardByBrowser(serialized: string, isCurrent: () => boolean): Promise<boolean> {
   const bytes = new TextEncoder().encode(serialized);
   const plainBlob = new Blob([bytes], { type: PLAIN_UTF8 });
 
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
     try {
+      if (!isCurrent()) return false;
       const item = new ClipboardItem({
         [STEPS_CLIPBOARD_MIME]: plainBlob,
         "text/plain": plainBlob
@@ -343,6 +226,7 @@ async function tryWriteClipboardByBrowser(serialized: string): Promise<boolean> 
       return true;
     } catch {
       try {
+        if (!isCurrent()) return false;
         await navigator.clipboard.write([
           new ClipboardItem({
             [STEPS_CLIPBOARD_MIME]: new Blob([bytes], { type: "application/octet-stream" })
@@ -357,6 +241,7 @@ async function tryWriteClipboardByBrowser(serialized: string): Promise<boolean> 
 
   if (navigator.clipboard?.writeText) {
     try {
+      if (!isCurrent()) return false;
       await navigator.clipboard.writeText(serialized);
       return true;
     } catch {
@@ -372,9 +257,12 @@ async function tryWriteClipboardByBrowser(serialized: string): Promise<boolean> 
  * Chromium often rejects ClipboardItem that only contains a non-standard MIME; pairing with
  * `text/plain` (same UTF-8 payload) keeps the custom format while satisfying the browser.
  */
-export async function writeStepsClipboard(serialized: string): Promise<void> {
-  const browserWritten = await tryWriteClipboardByBrowser(serialized);
-  const backendWritten = await tryWriteClipboardByBackend(STEPS_CLIPBOARD_MIME, serialized);
+export async function writeStepsClipboard(serialized: string, isCurrent: () => boolean = () => true): Promise<void> {
+  if (!isCurrent()) return;
+  const browserWritten = await tryWriteClipboardByBrowser(serialized, isCurrent);
+  if (!isCurrent()) return;
+  const backendWritten = await tryWriteClipboardByBackend(STEPS_CLIPBOARD_MIME, serialized, isCurrent);
+  if (!isCurrent()) return;
   if (browserWritten || backendWritten) {
     return;
   }
