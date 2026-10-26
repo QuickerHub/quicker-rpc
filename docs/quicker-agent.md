@@ -84,19 +84,22 @@ QuickerAgent **不替代** Quicker，而是把「找—跑—改—发」这条�
 
 ### 下载
 
-[下载 Windows 版（x64）](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe)
+[下载 0.15.0 Windows 版（x64）](https://github.com/QuickerHub/quicker-rpc/releases/download/v0.15.0/quicker-agent-0.15.0-x64-setup.exe)
+
+本文以已发布的 [0.15.0](https://github.com/QuickerHub/quicker-rpc/releases/tag/v0.15.0) 为准，插件正式版本为 **0.15.0.0**；`main` 上后续改进不代表已包含在这个安装包中。
 
 ### 使用前
 
-1. 电脑已安装 **[Quicker](https://getquicker.net/)** 并保持运行
-2. 在 Quicker 中安装并加载 **QuickerAgent** 插件动作  
-   [从 getquicker 获取 →](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe)
-3. 目前支持 **Windows x64**
+1. 新电脑安装 **[Quicker](https://getquicker.net/)**（V1 或 V2）并保持运行。
+2. 安装上述 QuickerAgent；安装包已内置 **qkrpc CLI**，无需另装 CLI。
+3. 在 Quicker 中安装或更新 [**QuickerAgent** 插件动作](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe)，拉取其公共子程序的最新版本，再运行一次加载插件。
+
+动作的依赖下载链会根据宿主自动选择 **V1：`quicker.rpc`**、**V2：`quicker.rpc.net10`**。安装 Agent 不会代替这一步插件加载。
 
 ### 安装后
 
-1. 在 Quicker 里运行 **QuickerAgent** 动作，或从开始菜单打开应用
-2. 正式版内置对话模型，安装好即可使用；也可在设置里切换自己的模型
+1. Quicker 重启后，运行 **QuickerAgent** 动作加载插件；随后也可从开始菜单打开应用。
+2. 正式版内置对话模型，也可在设置里配置自己的模型。安装不会自动迁移旧电脑的模型、聊天或 MCP 配置。
 
 ---
 
@@ -105,6 +108,10 @@ QuickerAgent **不替代** Quicker，而是把「找—跑—改—发」这条�
 **没有 Quicker 能用吗？**  
 不能。QuickerAgent 是 Quicker 的搭档，需要本机已安装 Quicker 并完成插件加载。
 
+**换到 V2 后能直接完整编辑动作吗？**
+
+0.15.0 的 V2 完整动作源读写尚未开放，继续使用 **Quicker 原生 MCP**。需要先在 V2 启用原生 MCP，再按新电脑实际服务信息手动配置 `%APPDATA%/QuickerAgent/agent-defs/mcp.json` 或工作区 `.quicker/mcp.json`，并设置 `enabled: true`；格式见 [MCP 扩展配置](agent-architecture.md#8-skills-与-mcp-扩展)。0.15 的此入口为实验性手动配置，没有设置页导入或自动发现，不会沿用旧电脑的连接配置。
+
 **我的动作数据安全吗？**  
 与 Quicker 的交互在本机完成。你发给 AI 的聊天内容，由所选模型服务商处理——和日常用大模型聊天一样，可按需在设置里选用自己的接口。
 
@@ -112,7 +119,7 @@ QuickerAgent **不替代** Quicker，而是把「找—跑—改—发」这条�
 智能对话需要联网访问大模型；与 Quicker 的配合始终在本机。
 
 **应用里的编辑器和 Quicker 设计器一样吗？**  
-日常编辑都能覆盖；个别高级场景仍可一键跳转到 Quicker 桌面设计器继续改。
+内置编辑器覆盖已开放的动作编辑能力；具体能力取决于当前宿主。V2 完整动作源编辑按上述原生 MCP 流程处理。
 
 ---
 
