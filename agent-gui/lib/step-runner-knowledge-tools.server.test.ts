@@ -5,6 +5,8 @@ import { createStepRunnerKnowledgeTools } from "./step-runner-knowledge-tools.se
 import { runWithAgentRequestContextAsync } from "./qkrpc-request-context";
 import { createTurnExecutionState, disposeTurnExecutionState } from "./agent-harness/turn-execution-state";
 import { formatLocalToolResult, isStructuredToolResult } from "./tool-result";
+import { argvToInvoke } from "./qkrpc-argv";
+import { markQkrpcConnectivityBlockedThisTurn } from "./qkrpc-connectivity-gate";
 
 const options = { toolCallId: "knowledge-fixture", messages: [] } as ToolExecutionOptions;
 function schema(name: string) {
@@ -12,6 +14,32 @@ function schema(name: string) {
     success: true, schemaJson: JSON.stringify({ StepRunnerKey: "sys:fixture", Name: name }),
   } });
 }
+
+test("the existing Agent get forwards read and JSON control literals without a second fetch", async () => {
+  const calls: string[][] = [];
+  const tools = createStepRunnerKnowledgeTools(async args => { calls.push(args); return schema("current"); });
+  const read = { pointer: "/inputs", mode: "children" as const, offset: 0 };
+  for (const controlField of ["", " ", "--flag"]) {
+    await tools.qkrpc_step_runner_get.execute!({ key: "fixture:read", controlField, read }, options);
+    assert.deepEqual(argvToInvoke(calls.at(-1)!), { op: "step-runner.get", args: { key: "fixture:read", controlField, read } });
+  }
+  assert.equal(calls.length, 3);
+});
+
+test("default native runner treats flag-shaped ordinary controls as values at the real connectivity gate", async () => {
+  const state = createTurnExecutionState();
+  try {
+    await runWithAgentRequestContextAsync({ threadId: "literal-gate", executionState: state }, async () => {
+      markQkrpcConnectivityBlockedThisTurn();
+      for (const controlField of ["--schema-read", "--control-field-json"]) {
+        const result = await createStepRunnerKnowledgeTools().qkrpc_step_runner_get.execute!({ key: "fixture:read", controlField }, options);
+        assert.ok(isStructuredToolResult(result));
+        assert.equal(result.ok, false);
+        assert.equal((result.data as { status?: string }).status, "connectivity_blocked");
+      }
+    });
+  } finally { disposeTurnExecutionState(state); }
+});
 
 test("the same conversation fetches changed native schema in a later turn", async () => {
   let calls = 0;
@@ -62,11 +90,11 @@ test("search keeps the requested result limit and permits fresh discovery after 
 test("native control values retain case, whitespace and explicit empty values", async () => {
   const calls: string[][] = [];
   const tools = createStepRunnerKnowledgeTools(async (args) => { calls.push([...args]); return schema("control"); });
-  for (const controlField of ["Mode", "mode", " ", ""]) {
+  for (const controlField of ["Mode", "mode", " ", "", "--schema-read", "--control-field-json"]) {
     await tools.qkrpc_step_runner_get.execute!({ key: "sys:fixture", controlField }, options);
   }
-  assert.deepEqual(calls.map((args) => args.at(-1)), ["Mode", "mode", " ", ""]);
-  assert.ok(calls.every((args) => args.at(-2) === "--control-field"));
+  assert.deepEqual(calls.map((args) => argvToInvoke(args)?.args.controlField), ["Mode", "mode", " ", "", "--schema-read", "--control-field-json"]);
+  assert.ok(calls.every((args) => argvToInvoke(args)?.args.read === undefined));
 });
 
 test("an unavailable current schema cannot be replaced by an older successful result", async () => {

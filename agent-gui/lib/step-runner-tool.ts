@@ -1,4 +1,5 @@
 import { isStructuredToolResult } from "./tool-result";
+import type { StepRunnerSchemaReadRequest } from "./step-runner-schema-read";
 
 export type StepRunnerGetMeta = {
   key: string;
@@ -61,6 +62,11 @@ function readString(obj: Record<string, unknown>, ...keys: string[]): string | u
       if (trimmed) return trimmed;
     }
   }
+  return undefined;
+}
+
+function readLiteral(obj: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) if (typeof obj[key] === "string") return obj[key] as string;
   return undefined;
 }
 
@@ -155,7 +161,7 @@ function readDocReference(raw: unknown): StepRunnerGetMeta["docReference"] | und
 
 export function parseStepRunnerGetInput(
   input: unknown,
-): { key: string; controlField?: string } | null {
+): { key: string; controlField?: string; read?: StepRunnerSchemaReadRequest } | null {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     return null;
   }
@@ -171,12 +177,24 @@ export function parseStepRunnerGetInput(
       && k !== "runnerKey"
       && k !== "RunnerKey"
       && k !== "controlField"
-      && k !== "ControlField",
+      && k !== "ControlField"
+      && k !== "read",
   );
   if (extraKeys.length > 0) return null;
 
-  const controlField = readString(obj, "controlField", "ControlField");
-  return controlField ? { key, controlField } : { key };
+  let read: StepRunnerSchemaReadRequest | undefined;
+  if (obj.read !== undefined) {
+    if (!obj.read || typeof obj.read !== "object" || Array.isArray(obj.read)) return null;
+    const value = obj.read as Record<string, unknown>;
+    if (Object.keys(value).some(k => !["pointer", "mode", "offset", "expectedObservation"].includes(k))
+      || (value.pointer !== undefined && typeof value.pointer !== "string")
+      || (value.mode !== undefined && value.mode !== "children" && value.mode !== "value")
+      || (value.offset !== undefined && (typeof value.offset !== "number" || !Number.isInteger(value.offset) || value.offset < 0 || value.offset > 2147483647))
+      || (value.expectedObservation !== undefined && typeof value.expectedObservation !== "string")) return null;
+    read = value as StepRunnerSchemaReadRequest;
+  }
+  const controlField = readLiteral(obj, "controlField", "ControlField");
+  return { key, ...(controlField !== undefined ? { controlField } : {}), ...(read ? { read } : {}) };
 }
 
 export function parseStepRunnerGetFromQkrpcData(
@@ -213,7 +231,7 @@ export function formatStepRunnerGetMetaLine(meta: StepRunnerGetMeta): string {
   const parts: string[] = [];
   if (meta.key) parts.push(meta.key);
   if (meta.name) parts.push(meta.name);
-  if (meta.controlField) parts.push(`control: ${meta.controlField}`);
+  if (meta.controlField !== undefined) parts.push(`control: ${JSON.stringify(meta.controlField)}`);
   if (meta.docReference) {
     parts.push(`doc: ${meta.docReference.topic}/${meta.docReference.file}`);
   }
@@ -224,8 +242,8 @@ function readSearchControlFieldFromObject(
   nested: Record<string, unknown>,
 ): StepRunnerSearchControlField | undefined {
   const key = readString(nested, "key", "Key");
-  const value = readString(nested, "value", "Value");
-  if (!key || !value) return undefined;
+  const value = readLiteral(nested, "value", "Value");
+  if (!key || value === undefined) return undefined;
   const name = readString(nested, "name", "Name");
   const visibleInputKeys = readStringList(
     nested,
@@ -276,8 +294,8 @@ function readSearchControlField(
   if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
     return readSearchControlFieldFromObject(nested as Record<string, unknown>);
   }
-  const value = readString(row, "controlFieldValue", "ControlFieldValue");
-  if (!value) return undefined;
+  const value = readLiteral(row, "controlFieldValue", "ControlFieldValue");
+  if (value === undefined) return undefined;
   const key = readString(row, "controlFieldKey", "ControlFieldKey") ?? "type";
   const name = readString(row, "controlFieldName", "ControlFieldName");
   return name ? { key, value, name } : { key, value };
@@ -350,7 +368,7 @@ export function buildStepRunnerGetInputFromSearchItem(
   row: StepRunnerSearchItemRow,
 ): { key: string; controlField?: string } {
   const input: { key: string; controlField?: string } = { key: row.key };
-  if (row.controlField?.value) {
+  if (row.controlField?.value !== undefined) {
     input.controlField = row.controlField.value;
   }
   return input;

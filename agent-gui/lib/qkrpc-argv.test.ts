@@ -2,6 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { argvToInvoke } from "./qkrpc-argv.ts";
 
+test("Agent schema pages and exact JSON control literals reach the same get operation", () => {
+  const read = { pointer: "/inputs/0", mode: "value", offset: 3, expectedObservation: `sha256:${"a".repeat(64)}` };
+  for (const controlField of ["", " ", "--flag", " MiXeD ", "引号\"\\\n"]) {
+    assert.deepEqual(argvToInvoke(["step-runner", "get", "--key", "fixture:read", "--control-field-json", JSON.stringify(controlField), "--schema-read", JSON.stringify(read), "--no-bootstrap"]),
+      { op: "step-runner.get", args: { key: "fixture:read", controlField, read } });
+  }
+  for (const bad of ["false", "null", "[]", "bad JSON"]) {
+    assert.equal(argvToInvoke(["step-runner", "get", "--key", "fixture:read", "--schema-read", bad]), null);
+    assert.equal(argvToInvoke(["step-runner", "get", "--key", "fixture:read", "--control-field-json", bad]), null);
+  }
+});
+
 test("UI and Agent get argv keep inline native control literals exact", () => {
   for (const verb of ["get", "get-ui"]) {
     const op = verb === "get-ui" ? "step-runner.getUi" : "step-runner.get";

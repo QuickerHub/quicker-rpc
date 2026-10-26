@@ -1875,6 +1875,9 @@ public sealed class StepRunnerOptions
     [Option("control-field-json", HelpText = "Exact JSON string control literal for input-contract, including empty values and values beginning with --.")]
     public string? ControlFieldJson { get; set; }
 
+    [Option("schema-read", HelpText = "Agent get only: JSON {pointer,mode:children|value,offset,expectedObservation}; reads an already-bound host without bootstrap.")]
+    public string? SchemaRead { get; set; }
+
     [Option("limit", Default = 40, HelpText = "Max results for step-runner search.")]
     public int Limit { get; set; }
 

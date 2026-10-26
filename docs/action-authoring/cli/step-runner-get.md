@@ -31,6 +31,16 @@ qkrpc step-runner get --key sys:windowOperations --control-field move_ex --json
 
 - controlField on search hit → pass **`--control-field <value>`** on get.
 
+## Large schemas
+
+If a result omits rules for the model budget, do not infer them from parameter names or repeat an identical full get. After search/get has bound the current host, use the same get with `read: { pointer: "", mode: "children", offset: 0 }` to list its current Agent schema body. CLI accepts this object as `--schema-read <JSON>`; this path only connects to an existing plugin.
+
+Use returned JSON Pointers with `mode: "children"` to explore nested fields, or `mode: "value"` to read JSON text. Value pages preserve numeric tokens and long strings as text; the offset unit is UTF-16. Reassemble consecutive pages from offset zero before treating a selected value as complete. Use the exact returned `nextRead`, including its `expectedObservation`, to continue. A new pointer starts at zero with the same observation.
+
+Every page reads the current definition again. A changed host/session, source, control value or schema rejects the continuation; start a new observation rather than joining different definitions. A new turn must first bind its current host again. Missing owners, unsupported older gateways and invalid pointers are explicit failures.
+
+The body excludes the attached `knowledge` metadata, which is returned separately from the same read. `selectedComplete` describes the whole selected node only when read from zero without omission; `agentSchemaComplete` additionally requires a complete root value. Neither proves a full native definition, freshness beyond that read, or permission to edit. Unknown sources remain unknown, and live edits still require their separate native input contract.
+
 ## FORBIDDEN
 
 - guess keys without get

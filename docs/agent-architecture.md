@@ -188,8 +188,30 @@ StepRunner 结果还受 24,000 字符的全局摘要与最终模型 JSON 8,192 �
 `preserved` 只说明这些 metadata 被保留，不证明原生支持或新鲜度；超长字段整项省略并标记，
 不截断成另一个身份。失败、缺失或畸形来源不能补成当前原生证明。投影自身最多 3 Ki 字符，
 计入原最终预算，包含 JSON 转义与外壳开销。其它 provider 不因此获得同样的完整性保证。
-`displayData` 供 UI/历史查看，不是模型可用的完整 schema。StepRunner 尚无原文 artifact 或
-完整 schema 定向读取入口；省略时不再建议重复同一次 get 取得全文，不自动读取或新增存储。
+`displayData` 供 UI/历史查看，不是模型可用的完整 schema；省略时不再建议重复同一次
+get 取得全文。当前 get 的可选 `read` 沿 Console 原始 `SchemaJson` 提供定向读取，不新增
+artifact、缓存或 Agent loop。CLI `--schema-read`、serve/MCP 和 Agent 工具共用正文选择与
+分页合同：JSON Pointer 选择节点，`children` 返回直接子节点目录，`value` 返回 JSON 文本
+片段。选择发生在传输前，大数、小数、指数及负零的 token 不经过 JavaScript Number；
+大字符串和数组也可按明确的 UTF-16 offset 继续读取。正文不含附加的 `knowledge`，后者
+来自同次读取并单独保留；超预算 metadata 整项省略，不截断身份或补成原生来源。
+
+每页重新查询当前 provider，不把上次正文落盘复用。续读的 opaque observation 约束实际
+transport owner、模块、精确控制值、来源/格式/revision 和正文指纹，不包含每次变化的
+`retrievedAt`；它标识可比对的观测，不是写权限。来源未知仍为 unknown；缺少可核验
+owner 时不签发可拼接页面的观测。任一事实变化使旧续读失败，不能拼接不同定义。
+
+Agent 读页要求本轮先通过 search/get 建立目标绑定；跨 turn 的续读参数不能替代目标选择。
+HTTP 固定原 gateway 和 binding，CLI 使用只读解析的已有绝对可执行路径并强制
+`--no-bootstrap`。读页只尝试一次，不修复、等待或换源，取消和关闭 owner 后丢弃迟到结果。
+Ask、Launcher 和父子工具权限维持原门禁，不因这条只读连接路径而自动开放。
+
+页面 payload 最多 6,144 序列化字符，调用描述最多 2,048 字符，并计入最终模型 8,192
+字符预算；正文及确切 `nextRead` 不能被二次 head/tail 裁切后继续推进。`selectedComplete`
+只表示从零完整取得所选节点，`agentSchemaComplete` 还要求完整 root value；均不证明完整
+native 定义或输入编辑合同。旧 gateway 忽略新参数、未知页格式、超大身份及无法表示的
+路径明确失败。历史压缩省略旧页正文时清除完整标记，保留同页重读输入，不把丢失正文
+当作已经取得。没有原文 artifact 或跨文件、跨调用原子快照承诺。
 
 迁移首片先移除按 thread/key 无限复用的模块结果，以及按固定技能组合阻断重新发现的规则。
 后续接 native provenance/fresh reader、统一查询与失效、codec/文档来源和升级场景验收。

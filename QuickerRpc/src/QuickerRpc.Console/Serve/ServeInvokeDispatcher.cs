@@ -36,6 +36,15 @@ internal static class ServeInvokeDispatcher
             return Fail("MISSING_OP", "Provide op (e.g. ping, wait, action.list).");
         }
         var localGuide = normalized.StartsWith("guide.", StringComparison.Ordinal);
+        var schemaReadRequested = normalized == "step-runner.get" && args.ValueKind == JsonValueKind.Object && args.TryGetProperty("read", out _);
+        if (schemaReadRequested)
+        {
+            if (args.TryGetProperty("controlField", out var literal) && literal.ValueKind is not JsonValueKind.String and not JsonValueKind.Null)
+                return Fail("INVALID_CONTROL_VALUE", "args.controlField must be a string or null.");
+            if (!StepRunnerSchemaReader.TryPrepare(ServeJsonArgs.GetString(args, "key") ?? "",
+                literal.ValueKind == JsonValueKind.String ? literal.GetString() : null, args.GetProperty("read"), out _, out var invalidRead))
+                return Ok(new { ok = false, action = "step-runner-get", payload = invalidRead });
+        }
 
         var requestAbort = cancellationToken;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(requestAbort);
@@ -98,6 +107,11 @@ internal static class ServeInvokeDispatcher
                 if (!string.IsNullOrWhiteSpace(raw))
                     binding = JsonSerializer.Deserialize<QuickerRpcHostBinding>(raw, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 else selectedSession = Environment.GetEnvironmentVariable("QKRPC_HOST_SESSION");
+            }
+            if (schemaReadRequested)
+            {
+                binding ??= pool.Binding;
+                if (binding is null) return Complete(Fail(QuickerRpcBindingErrors.Required, "Schema pages require an explicitly bound existing host; discovery and bootstrap are disabled."));
             }
             if (normalized is "action.apply" or "action.extract"
                 || (normalized == "action.get" && !string.IsNullOrWhiteSpace(ServeJsonArgs.GetString(args, "workspaceRoot", "workspace", "cwd"))))
@@ -2170,15 +2184,23 @@ internal static class ServeInvokeDispatcher
         // Only null means no explicit control value; string literals remain exact.
         var controlField = control.ValueKind == JsonValueKind.String ? control.GetString() : null;
         var action = forAgent ? "step-runner-get" : "step-runner-get-ui";
+        StepRunnerSchemaReader.Request? read = null;
+        if (forAgent && args.TryGetProperty("read", out var readArgs)
+            && !StepRunnerSchemaReader.TryPrepare(trimmedKey, controlField, readArgs, out read, out var invalid))
+            return Ok(new { ok = false, action, payload = invalid });
         var response = forAgent
             ? await rpc.GetStepRunnerDetailAsync(trimmedKey, controlField, token).ConfigureAwait(false)
             : await rpc.GetStepRunnerUiDetailAsync(trimmedKey, controlField, token).ConfigureAwait(false);
 
+        token.ThrowIfCancellationRequested();
+        var payload = read is null ? HeadlessCliResponses.ToStepRunnerDetailPayload(response)
+            : StepRunnerSchemaReader.Read(response, read, QuickerRpcClient.GetBinding(rpc), token);
+        var success = read is null ? response.Success : (bool)((Dictionary<string, object?>)payload)["success"]!;
         return Ok(new
         {
-            ok = response.Success,
+            ok = success,
             action,
-            payload = HeadlessCliResponses.ToStepRunnerDetailPayload(response),
+            payload,
         });
     }
 

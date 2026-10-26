@@ -37,7 +37,9 @@ public sealed class QkrpcMcpCatalogTools
     public Task<string> QkrpcStepRunnerGet(
         string key,
         string? controlField = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [Description("Optional current schema page: {pointer,mode:children|value,offset,expectedObservation}. Requires an existing host binding; never bootstraps. Values are raw JSON text fragments.")]
+        StepRunnerSchemaReadOptions? read = null)
     {
         if (string.IsNullOrWhiteSpace(key))
         {
@@ -50,6 +52,7 @@ public sealed class QkrpcMcpCatalogTools
             {
                 key = key.Trim(),
                 controlField,
+                read,
             }),
             cancellationToken);
     }

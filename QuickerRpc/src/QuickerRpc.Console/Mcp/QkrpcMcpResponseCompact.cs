@@ -141,6 +141,9 @@ internal static class QkrpcMcpResponseCompact
                 flat[prop.Key] = prop.Value?.DeepClone();
             }
 
+            if (payload["schemaRead"] is JsonObject)
+                flat["ok"] = outerOk && data["ok"]?.GetValue<bool>() != false && payload["success"]?.GetValue<bool>() != false;
+
             return TrimPayloadBoilerplate(flat);
         }
 

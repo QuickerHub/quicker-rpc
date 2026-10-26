@@ -3,6 +3,7 @@ import {
   resolveCompactionEstimateThreshold,
 } from "@/lib/context-compression-shared";
 import { buildMicrocompactPayload } from "@/lib/tool-result-agent-view";
+import { projectStepRunnerSchemaRead } from "./tool-knowledge-projection";
 
 const COMPACT_PLACEHOLDER =
   "[compact: large tool output omitted; see recent tool results]";
@@ -35,7 +36,7 @@ export function estimateModelMessagesTokens(messages: ModelMessage[]): number {
 function compactJsonToolValue(value: unknown): unknown {
   const record = readRecord(value);
   if (!record) return value;
-  if (typeof record.summary === "string" || record.truncated === true) {
+  if (typeof record.summary === "string" || record.truncated === true || projectStepRunnerSchemaRead(record)) {
     return buildMicrocompactPayload(record);
   }
   const compact: Record<string, unknown> = {

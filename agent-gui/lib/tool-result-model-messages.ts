@@ -1,6 +1,6 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { isStructuredToolResult } from "@/lib/tool-result";
-import { projectStepRunnerKnowledge } from "./tool-knowledge-projection";
+import { projectStepRunnerKnowledge, projectStepRunnerSchemaRead, projectStepRunnerSchemaReadOutput } from "./tool-knowledge-projection";
 import { projectGatewayGuideKnowledge } from "./gateway-guide-projection";
 
 export const TOOL_OUTPUT_MAX_INLINE_CHARS = 8 * 1024;
@@ -17,20 +17,28 @@ function serializeForBudget(value: unknown): string | null {
 
 function projectLargeOutput(output: unknown, serialized: string): unknown {
   const knowledgeProjection = projectStepRunnerKnowledge(output);
+  // Atomic pages are accepted only by the structured-tool path above the generic budget.
+  const schemaRead = isStructuredToolResult(output) ? projectStepRunnerSchemaRead(output) : undefined;
   const gatewayKnowledgeProjection = projectGatewayGuideKnowledge(output);
   let headChars = TOOL_OUTPUT_HEAD_CHARS;
   let tailChars = TOOL_OUTPUT_TAIL_CHARS;
   let feedbackChars = 512;
+  let omitMetadata = false;
   const build = () => {
     const projection = {
       kind: "tool_output_projection",
       originalChars: serialized.length,
       head: serialized.slice(0, headChars),
       tail: tailChars ? serialized.slice(-tailChars) : "",
-      ...(knowledgeProjection ? { knowledgeProjection } : {}),
-      ...(gatewayKnowledgeProjection ? { gatewayKnowledgeProjection } : {}),
+      ...(knowledgeProjection ? { knowledgeProjection: omitMetadata
+        ? { schemaComplete: false, metadataStatus: "unknown", notice: "Metadata omitted by the final result budget." }
+        : knowledgeProjection } : {}),
+      ...(schemaRead ? { schemaRead } : {}),
+      ...(gatewayKnowledgeProjection ? { gatewayKnowledgeProjection: omitMetadata
+        ? { guideSource: "gateway", metadataStatus: "unknown", notice: "Metadata omitted by the final result budget." }
+        : gatewayKnowledgeProjection } : {}),
       notice: knowledgeProjection
-        ? "StepRunner schema was omitted for the model budget. The metadata projection is incomplete schema, not editing authority; an identical get will not recover it."
+        ? "StepRunner schema was omitted. Use schemaRead.input for a selection when present; start does not prove server support. Metadata is not editing authority."
         : "Output was deterministically projected for model context. Use narrower parameters, paging, or a file read to inspect omitted content.",
     };
 
@@ -54,8 +62,13 @@ function projectLargeOutput(output: unknown, serialized: string): unknown {
     if (headChars || tailChars) {
       headChars = Math.floor(headChars / 2);
       tailChars = Math.floor(tailChars / 2);
-    } else {
+    } else if (feedbackChars) {
       feedbackChars = Math.floor(feedbackChars / 2);
+    } else {
+      // Each metadata projection fits independently, but their combination need not.
+      // Retain only the bounded descriptor and explicit unknown states; never loop on zero.
+      omitMetadata = true;
+      return build();
     }
     result = build();
   }
@@ -64,6 +77,8 @@ function projectLargeOutput(output: unknown, serialized: string): unknown {
 
 /** Tool result payload sent to the LLM: strip UI data, then enforce a stable context budget. */
 export function buildModelFacingToolOutput(output: unknown): unknown {
+  const receipt = projectStepRunnerSchemaRead(output);
+  if (isStructuredToolResult(output) && receipt && receipt.status !== "start") return projectStepRunnerSchemaReadOutput(output)!;
   let modelFacing = output;
   if (isStructuredToolResult(output) && output.displayData !== undefined) {
     const { displayData: _display, ...stripped } = output;
