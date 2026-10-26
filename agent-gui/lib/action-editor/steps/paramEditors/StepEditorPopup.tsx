@@ -34,6 +34,8 @@ import { StepEditorParamSection } from "./StepEditorParamSection";
 import { shouldExpandAdvancedParamSection } from "./stepEditorAdvancedSection";
 import { ModuleHelpPreviewPopup } from "./ModuleHelpPreviewPopup";
 import { moduleHelpLink } from "./moduleHelpLink";
+import { readStepRunnerUiKnowledge, type StepRunnerUiKnowledge } from "../../api/stepRunnerKnowledge";
+import { StepRunnerKnowledgeView } from "./StepRunnerKnowledgeView";
 import { StepEditorLargeParamTabs } from "./StepEditorLargeParamTabs";
 import { buildLargeParamLayout, isStepParamScriptHero, reconcileLargeParamTab, stepLargeParamLanguageBadge,
   SCRIPT_HERO_MAX_MULTILINE_HEIGHT, SCRIPT_HERO_MIN_MULTILINE_HEIGHT } from "./stepLargeParamLayout";
@@ -448,6 +450,7 @@ export function StepEditorPopup({
   const schemaReadOwner = useMemo(() => ({}),
     [active, open, step?.stepId, step?.stepRunnerKey, runnerItemSchemaFp, catalogPort, requireResolvedParameters]);
   const [resolvedSchemaOwner, setResolvedSchemaOwner] = useState<object | null>(null);
+  const [knowledgeRead, setKnowledgeRead] = useState<{ owner: object; observation: StepRunnerUiKnowledge } | null>(null);
 
   useEffect(() => {
     if (!active || !open || !step) {
@@ -484,6 +487,8 @@ export function StepEditorPopup({
           setLoadingRunnerSchema(false);
           return;
         }
+        // Even unchanged editing fields receive a new, independently owned read receipt.
+        setKnowledgeRead({ owner: schemaReadOwner, observation: readStepRunnerUiKnowledge(nextItem) });
         if (requireResolvedParameters && (nextItem.inputParamDefs?.length ?? 0) === 0 && (nextItem.outputParamDefs?.length ?? 0) === 0) {
           setSchemaLoadIssue(
             `步骤「${runnerKey}」在后台未返回可编辑参数（可能 stepRunnerKey 无效或模块未注册）。`,
@@ -850,6 +855,8 @@ export function StepEditorPopup({
               </button>
             </div>
           </header>
+          <StepRunnerKnowledgeView current={schemaCurrent} loading={loadingRunnerSchema} error={schemaLoadIssue}
+            observation={knowledgeRead?.owner === schemaReadOwner ? knowledgeRead.observation : undefined} />
           <div
             className={`step-editor-popup-body${bodyPending ? " step-editor-popup-body--pending" : ""}`}
           >

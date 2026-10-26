@@ -2367,6 +2367,44 @@
   color: var(--ad-fg-on-emphasis);
 }
 
+.step-editor-knowledge {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(42vh, 22rem);
+  overflow: auto;
+  border-bottom: 1px solid var(--ad-border-panel);
+  color: var(--ad-fg-primary);
+  background: var(--ad-bg-panel);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.step-editor-knowledge > details > summary {
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.step-editor-knowledge summary > span { color: var(--ad-fg-hint); margin-right: 10px; }
+.step-editor-knowledge summary strong { font-weight: 500; }
+.step-editor-knowledge summary:focus-visible { outline: 2px solid var(--ad-fg-primary); outline-offset: -2px; }
+.step-editor-knowledge-detail { padding: 0 14px 10px; }
+.step-editor-knowledge-detail p { margin: 0 0 8px; color: var(--ad-fg-param-hint); }
+.step-editor-knowledge-detail dl { margin: 0 0 8px; }
+.step-editor-knowledge-detail dl > div { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 8px; padding: 2px 0; }
+.step-editor-knowledge-detail dt { color: var(--ad-fg-hint); }
+.step-editor-knowledge-detail dd { margin: 0; min-width: 0; }
+.step-editor-knowledge-raw summary { cursor: pointer; }
+.step-editor-knowledge-raw pre {
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 8px 0 0;
+  padding: 8px;
+  background: var(--ad-bg-input);
+  color: var(--ad-fg-input);
+  font-size: 11px;
+}
+
 .step-editor-popup-body {
   padding: 12px 14px;
   overflow: auto;
