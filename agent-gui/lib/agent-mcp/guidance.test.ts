@@ -46,13 +46,13 @@ test("missing and omitted instructions give explicit notices rather than invente
 });
 
 test("whole JSON blocks including escaped text, mapping and source labels fit one aggregate context budget", () => {
-  const sources = Array.from({ length: 20 }, (_, i) => catalog(`server${i}`, "\u0000".repeat(3000)));
+  const sources = Array.from({ length: 20 }, (_, i) => catalog(`server${i}`, "\u0000".repeat(5000)));
   const ids = sources.map((_, i) => `mcp__server${i}__skill_load`);
   const text = formatMcpGuidanceForTools(sources, ids);
   assert.ok(text.length <= MCP_GUIDANCE_CONTEXT_MAX_CHARS);
   assert.match(text, /20 MCP source reference block/);
   assert.doesNotMatch(text, /\\u0000/);
-  const largeLabel = catalog("x".repeat(17000), "WHOLE TEXT");
+  const largeLabel = catalog("x".repeat(25000), "WHOLE TEXT");
   const huge = formatMcpGuidanceForTools([largeLabel], [`mcp__${largeLabel.source.serverName}__skill_load`]);
   assert.ok(huge.length <= MCP_GUIDANCE_CONTEXT_MAX_CHARS);
   assert.doesNotMatch(huge, /WHOLE TEXT/);

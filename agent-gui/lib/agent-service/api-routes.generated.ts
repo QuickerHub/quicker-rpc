@@ -57,6 +57,7 @@ export const agentApiRoutes = [
   { path: "/api/settings/llm-keys/probe", methods: ["GET"], load: () => import("../../app/api/settings/llm-keys/probe/route") },
   { path: "/api/settings/llm-keys/refresh-remote", methods: ["POST"], load: () => import("../../app/api/settings/llm-keys/refresh-remote/route") },
   { path: "/api/settings/llm-keys", methods: ["GET","PUT"], load: () => import("../../app/api/settings/llm-keys/route") },
+  { path: "/api/settings/quicker-native-mcp", methods: ["GET","POST"], load: () => import("../../app/api/settings/quicker-native-mcp/route") },
   { path: "/api/settings/version", methods: ["GET"], load: () => import("../../app/api/settings/version/route") },
   { path: "/api/settings/webview-profile", methods: ["GET"], load: () => import("../../app/api/settings/webview-profile/route") },
   { path: "/api/shell/session", methods: ["GET"], load: () => import("../../app/api/shell/session/route") },

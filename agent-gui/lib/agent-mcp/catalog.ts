@@ -7,7 +7,7 @@ export const MCP_CATALOG_LIMITS = {
   maxTools: 2048,
   maxBytes: 4 * 1024 * 1024,
   timeoutMs: 15_000,
-  maxInstructionChars: 8_192,
+  maxInstructionChars: 16_384,
 } as const;
 
 export type McpToolDescriptor = ListToolsResult["tools"][number];
