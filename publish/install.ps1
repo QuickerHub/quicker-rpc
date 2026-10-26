@@ -1,6 +1,6 @@
 # Install or uninstall qkrpc CLI from GitHub Releases (legacy; prefer setup.exe).
 #
-# Recommended: download and run qkrpc-win-x64-setup.exe from GitHub Releases.
+# Recommended: download and run qkrpc-{version}-win-x64-setup.exe from GitHub Releases.
 # This script remains for zip-based / scripted installs.
 #
 # Options:
@@ -20,7 +20,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $QkrpcInstallScriptVersion = '4'
 $QkrpcGitHubRepo = 'QuickerHub/quicker-rpc'
-$QkrpcLatestZipName = 'qkrpc-win-x64.zip'
 
 . (Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1')
 
@@ -168,7 +167,13 @@ function Get-QkrpcCliDownloadUrl {
     param([string]$RequestedVersion)
 
     if ($RequestedVersion -eq 'latest') {
-        return "https://github.com/$QkrpcGitHubRepo/releases/latest/download/$QkrpcLatestZipName"
+        $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$QkrpcGitHubRepo/releases/latest" `
+            -Headers @{ Accept = 'application/vnd.github+json'; 'User-Agent' = 'qkrpc-install' }
+        $RequestedVersion = [string]$release.tag_name
+        if ([string]::IsNullOrWhiteSpace($RequestedVersion)) {
+            throw 'Latest GitHub Release did not provide a tag.'
+        }
     }
 
     $semver = Get-QuickerRpcSemVerFromVersion -VersionText $RequestedVersion

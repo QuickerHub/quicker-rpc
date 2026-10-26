@@ -105,12 +105,12 @@ pwsh -NoProfile -File ./publish/Sync-QuickerAgentActionDoc.ps1 -Push
 
 ## 阶段六：发布后汇报
 
-1. Release URL、tag、`qkrpc-win-x64-setup.exe` / zip 资产。
+1. Release URL、tag、`qkrpc-{版本}-win-x64-setup.exe` / zip 资产。
 2. Quicker 依赖版本（`version.json` 四段 → quicker.rpc 前三段目录）。
 3. `qkrpc action update` 结果（JSON 中 `ok` / `message`）。
 4. 用户安装命令：
 
-https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe
+https://github.com/QuickerHub/quicker-rpc/releases/latest
 
 ## 禁止
 

@@ -9,7 +9,7 @@
 
 ## 前置条件
 
-1. 安装 [qkrpc CLI](https://github.com/QuickerHub/quicker-rpc/releases/latest)（`qkrpc-win-x64-setup.exe`）。
+1. 安装 [qkrpc CLI](https://github.com/QuickerHub/quicker-rpc/releases/latest)（`qkrpc-<版本>-win-x64-setup.exe`）。
 2. Quicker 已运行，且已加载 **QuickerRpc 插件**（见 [README.md](../README.md) — 加载 Quicker 插件）。
 3. 工作区目录（用于磁盘编辑 `.quicker/`）— 安装时通过 `--workspace` 指定，默认 `cwd`。
 

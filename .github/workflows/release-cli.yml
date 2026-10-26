@@ -113,7 +113,6 @@ jobs:
         run: |
           $zipPath = Join-Path $PWD 'publish/${{ needs.metadata.outputs.zip_name }}'
           Compress-Archive -Path 'publish/cli/*' -DestinationPath $zipPath -CompressionLevel Fastest -Force
-          Copy-Item -LiteralPath $zipPath -Destination (Join-Path $PWD 'publish/qkrpc-win-x64.zip') -Force
 
       - name: Ensure Inno Setup 6
         shell: pwsh
@@ -135,9 +134,7 @@ jobs:
           name: cli-artifacts
           path: |
             publish/${{ needs.metadata.outputs.zip_name }}
-            publish/qkrpc-win-x64.zip
             publish/${{ needs.metadata.outputs.setup_name }}
-            publish/qkrpc-win-x64-setup.exe
           if-no-files-found: error
 
   build-agent:
@@ -228,7 +225,6 @@ jobs:
           name: agent-artifacts
           path: |
             publish/${{ needs.metadata.outputs.agent_setup_name }}
-            publish/quicker-agent-win-x64-setup.exe
             publish/latest.yml
           if-no-files-found: error
 
@@ -337,12 +333,10 @@ jobs:
           body_path: ${{ steps.notes.outputs.path }}
           files: |
             publish/${{ needs.metadata.outputs.zip_name }}
-            publish/qkrpc-win-x64.zip
             publish/${{ needs.metadata.outputs.setup_name }}
-            publish/qkrpc-win-x64-setup.exe
             publish/${{ needs.metadata.outputs.agent_setup_name }}
-            publish/quicker-agent-win-x64-setup.exe
             publish/latest.yml
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
 

@@ -20,7 +20,7 @@
 
 | 我想… | 怎么做 |
 |-------|--------|
-| 用 AI 管理 Quicker 动作 | 安装 [QuickerAgent](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe)，见 [docs/quicker-agent.md](docs/quicker-agent.md) |
+| 用 AI 管理 Quicker 动作 | 安装 [QuickerAgent](https://github.com/QuickerHub/quicker-rpc/releases/latest)，见 [docs/quicker-agent.md](docs/quicker-agent.md) |
 | 在 Cursor / Claude / VS Code 里写动作 | 安装 `qkrpc` 后 `qkrpc agent setup`，或 [Cursor 插件从仓库安装](cursor-plugin/quicker-rpc/README.md)，见 [docs/agent-mcp-integration.md](docs/agent-mcp-integration.md) |
 | 写脚本或 CI 调 Quicker | 安装 `qkrpc`，用 `--json` 子命令或 `qkrpc serve` HTTP |
 | 改本仓库代码 | 下文 §开发；Coding Agent 读 [AGENTS.md](AGENTS.md) |
@@ -31,7 +31,7 @@
 
 专为 [Quicker](https://getquicker.net/) 打造的 AI 助手：内置动作编辑器与步骤知识库，描述用途即可搜索执行，复杂编排进主窗口，轻量操作走可配置的全局启动器（默认 **Ctrl+Shift+Space**）。
 
-- **下载**：[quicker-agent-win-x64-setup.exe](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe)（落地页源码：[quicker-agent-web/](quicker-agent-web/)）
+- **下载**：[最新 Windows x64 安装包](https://github.com/QuickerHub/quicker-rpc/releases/latest)，文件名为 `quicker-agent-<版本>-x64-setup.exe`（落地页源码：[quicker-agent-web/](quicker-agent-web/)）
 - **前置**：本机 Quicker + [QuickerAgent 插件动作](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe)
 - **产品介绍**：[docs/quicker-agent.md](docs/quicker-agent.md)
 - **本地开发**：[agent-gui/README.md](agent-gui/README.md)（`pwsh ./dev.ps1`）
@@ -54,7 +54,7 @@ slot，并遵守服务的冲突与保存要求；不同聊天尚不保证编辑�
 
 ### 安装 CLI
 
-从 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 下载 **`qkrpc-win-x64-setup.exe`**，或便携包 **`qkrpc-win-x64.zip`**。
+从 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 下载 **`qkrpc-<版本>-win-x64-setup.exe`**，或便携包 **`qkrpc-<版本>-win-x64.zip`**。
 
 - **系统要求**：Windows 10 1607（10.0.14393）Enterprise/LTSC 或 Windows Server 2016 及以上（与 [.NET 10 支持的操作系统](https://learn.microsoft.com/dotnet/core/install/windows#supported-versions) 一致）
 - 安装目录：`%LOCALAPPDATA%\Programs\qkrpc`
@@ -63,7 +63,10 @@ slot，并遵守服务的冲突与保存要求；不同聊天尚不保证编辑�
 
 ```powershell
 # 可选：静默安装
-Invoke-WebRequest -Uri 'https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe' -OutFile "$env:TEMP\qkrpc-setup.exe" -UseBasicParsing
+$release = Invoke-RestMethod -Uri 'https://api.github.com/repos/QuickerHub/quicker-rpc/releases/latest'
+$setup = @($release.assets | Where-Object { $_.name -match '^qkrpc-\d+\.\d+\.\d+-win-x64-setup\.exe$' })
+if ($setup.Count -ne 1) { throw '当前 Release 缺少唯一的 qkrpc x64 安装包。' }
+Invoke-WebRequest -Uri $setup[0].browser_download_url -OutFile "$env:TEMP\qkrpc-setup.exe" -UseBasicParsing
 Start-Process -FilePath "$env:TEMP\qkrpc-setup.exe" -ArgumentList '/VERYSILENT' -Wait
 ```
 
