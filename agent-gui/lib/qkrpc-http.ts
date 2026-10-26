@@ -128,7 +128,7 @@ export async function resolveQkrpcHttpBinding(base: string, invoke: QkrpcInvoke,
 
 export async function invokeQkrpcHttp(
   invoke: QkrpcInvoke,
-  options?: { timeoutMs?: number; abortSignal?: AbortSignal; hostBinding?: QkrpcHostBinding },
+  options?: { timeoutMs?: number; abortSignal?: AbortSignal; hostBinding?: QkrpcHostBinding; gatewayBase?: string },
 ): Promise<QkrpcRunResult | null> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
@@ -140,7 +140,9 @@ export async function invokeQkrpcHttp(
     return bindingFailure("HOST_BINDING_MISMATCH", "This turn is bound to CLI; no HTTP gateway was contacted.");
   const configured = !offline && !options?.hostBinding && !existing ? configuredQkrpcBinding() : undefined;
   if (configured && "exitCode" in configured) return configured;
-  const base = (existing?.gateway === "cli" ? undefined : existing?.gateway)
+  if (options?.gatewayBase && existing && existing.gateway !== "cli" && existing.gateway !== options.gatewayBase)
+    return bindingFailure("HOST_BINDING_MISMATCH", "The selected gateway changed before dispatch. No other gateway was contacted.");
+  const base = options?.gatewayBase ?? (existing?.gateway === "cli" ? undefined : existing?.gateway)
     ?? (hostWrite || offline ? resolveQkrpcHttpBase() : await alignQkrpcHttpBaseIfNeeded(abortSignal));
   let binding = offline ? undefined : options?.hostBinding ?? existing?.binding ?? configured;
   const timeoutMs = options?.timeoutMs ?? 120_000;
@@ -174,6 +176,7 @@ export async function invokeQkrpcHttp(
     dispatched = true;
     const res = await fetch(`${base}/v1/invoke`, {
       method: "POST",
+      ...(options?.gatewayBase ? { redirect: "error" as const } : {}),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         op: invokeWithWorkspace.op,

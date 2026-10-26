@@ -1,6 +1,7 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import { projectStepRunnerKnowledge } from "./tool-knowledge-projection";
+import { projectGatewayGuideKnowledge } from "./gateway-guide-projection";
 
 export const TOOL_OUTPUT_MAX_INLINE_CHARS = 8 * 1024;
 const TOOL_OUTPUT_HEAD_CHARS = 6 * 1024;
@@ -16,6 +17,7 @@ function serializeForBudget(value: unknown): string | null {
 
 function projectLargeOutput(output: unknown, serialized: string): unknown {
   const knowledgeProjection = projectStepRunnerKnowledge(output);
+  const gatewayKnowledgeProjection = projectGatewayGuideKnowledge(output);
   let headChars = TOOL_OUTPUT_HEAD_CHARS;
   let tailChars = TOOL_OUTPUT_TAIL_CHARS;
   let feedbackChars = 512;
@@ -26,6 +28,7 @@ function projectLargeOutput(output: unknown, serialized: string): unknown {
       head: serialized.slice(0, headChars),
       tail: tailChars ? serialized.slice(-tailChars) : "",
       ...(knowledgeProjection ? { knowledgeProjection } : {}),
+      ...(gatewayKnowledgeProjection ? { gatewayKnowledgeProjection } : {}),
       notice: knowledgeProjection
         ? "StepRunner schema was omitted for the model budget. The metadata projection is incomplete schema, not editing authority; an identical get will not recover it."
         : "Output was deterministically projected for model context. Use narrower parameters, paging, or a file read to inspect omitted content.",

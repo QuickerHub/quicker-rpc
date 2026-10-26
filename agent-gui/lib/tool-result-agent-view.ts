@@ -42,6 +42,7 @@ import {
 } from "@/lib/qkrpc-subprogram-tool";
 import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
 import { projectStepRunnerKnowledge } from "./tool-knowledge-projection";
+import { projectGatewayGuideKnowledge } from "./gateway-guide-projection";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import { WORKSPACE_PROGRAM_TOOL } from "@/lib/workspace-program-tool";
 import {
@@ -735,7 +736,9 @@ function compressDocsResult(
       ...data,
       markdown: truncateText(markdown, DOCS_MARKDOWN_PREVIEW_CHARS),
       truncated: true,
-      readHint: "Use docs get with section=… for a focused snippet.",
+      readHint: data.guideSource === "gateway"
+        ? "The full gateway guide is retained in the display result; an identical get uses the same model budget."
+        : "Use docs get with section=… for a focused snippet.",
     };
     const topic = readString(data.topic) ?? "?";
     return withCompressedResult(result, {
@@ -748,6 +751,7 @@ function compressDocsResult(
         inputPatch: {
           action: "get",
           topic: data.topic,
+          ...(data.guideSource === "gateway" ? { source: "gateway" } : {}),
           section: inputRecord?.section,
         },
       },
@@ -1208,6 +1212,11 @@ function applyGlobalBudget(
         : "Repeat the tool with narrower parameters."),
   };
   const knowledgeProjection = projectStepRunnerKnowledge(result);
+  const gatewayKnowledgeProjection = projectGatewayGuideKnowledge(result);
+  if (gatewayKnowledgeProjection) {
+    compactData.gatewayKnowledgeProjection = gatewayKnowledgeProjection;
+    compactData.readHint = "Guide details exceeded the budget. Full gateway data remains in the display result; repeating an identical get will not recover omitted data.";
+  }
   if (knowledgeProjection) {
     compactData.knowledgeProjection = knowledgeProjection;
     compactData.readHint = "Schema is incomplete; full schema is not available to the model through this result. Do not repeat an identical get to recover it.";
