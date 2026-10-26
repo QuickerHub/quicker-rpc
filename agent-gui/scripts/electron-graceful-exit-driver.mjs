@@ -97,6 +97,13 @@ try {
     runtime.health = health;
   }
   assert.deepEqual(evidence.errors, []);
+  // A main-process Node inspector can delay native process exit while attached.
+  // Finish observation before triggering the unchanged product shutdown chain.
+  const inspectorClosed = once(socket, "close");
+  socket.close();
+  await inspectorClosed;
+  socket = undefined;
+  evidence.inspectorDetachedBeforeExit = true;
   const disconnected = once(browser, "disconnected");
   evidence.triggerUtc = new Date().toISOString();
   evidence.trigger = "existing preload windowAction(close) -> app-request-exit -> React exit handler -> graceful_exit";
