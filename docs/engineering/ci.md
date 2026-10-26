@@ -1,7 +1,7 @@
 # 持续集成
 
 [CI workflow](../../.github/workflows/ci.yml) 对每个 PR、`main` / `master` push
-和手动运行执行阻断检查，不使用路径过滤；共享代码、配置和测试资产变化都会触发。
+和手动运行执行阻断检查，不使用 workflow 路径过滤；共享代码、配置和测试资产变化都会触发。
 开发分支只通过 PR 触发一次，避免同一次提交重复启动 push 与 PR 两条流水线。
 同一 PR/分支的新运行取消旧运行。工作流只有 `contents: read` 权限，不使用用户密钥。
 
@@ -15,6 +15,45 @@
 | Static SPA | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 完整构建、搬移、原生验证与 React + 独立 Node 服务；原有 generated fixture、fake model、工作台编辑与自然退出 |
 | Host-independent .NET | Windows / `global.json` SDK | Runtime/Transport 全目标框架构建；Console、Transport、fake-host Runtime 单测；保留 TRX |
 | Transport contracts | Ubuntu / `global.json` SDK | Transport 全目标编译、完整 net10 合同测试、实际 netstandard2.0 客户端绑定与 Ping；记录 TRX 与 receipt |
+| CI required | Ubuntu / Node 22 | 汇总生成知识与全部 heavy job 的结果；仅已确认的纯说明文档允许跳过 heavy jobs |
+
+## 纯说明文档的最小门禁
+
+`Generated knowledge` 始终运行，不安装依赖；它先验证分类与结果汇总策略，再检查生成知识和
+下列五份说明文档的本地链接。只有这五个 **exact path** 的既有普通 `100644` 文件内容修改
+（Git `M`，两端 mode 均不变）才允许跳过 Agent、Edge 和 .NET jobs：
+
+- `docs/product/README.md`
+- `docs/design/quicker-rpc-core-architecture.md`
+- `docs/design/quicker-rpc-plugin-v2.md`
+- `agent-gui/DESIGN.md`
+- `docs/engineering/ci.md`
+
+[`链接检查器`](../../scripts/ci/check-documentation-links.mjs) 检查本地文件/目录及 Markdown
+标题或显式锚点，不请求外部 URL、不执行文档内容。它只读取这五份源及 fragment 目标，
+拒绝仓外路径和 symlink，每份读取至多 1 MiB、总计至多 8 MiB。常用 inline/reference 链接
+与 code/comment 上下文有回归；明显不支持的 HTML 链接或 Markdown 扩展会明确报错。
+
+这不是 `docs/**` 或 `*.md` 白名单。`docs/action-authoring-src/**` 是 MSBuild 生成输入，
+生成的 `docs/action-authoring/cli/*.md` 与 `docs/authoring-references/**/*.md` 嵌入 AgentModel；
+`docs/skills`、`docs/authoring-references`、`docs/knowledge` 还会复制进静态运行目录，
+`docs/skills` 与 `docs/agent-rules` 参与 CLI 发布和 Agent setup 分发。这些路径全部要求完整 CI。
+源码、SDK、构建/安装脚本、workflow、测试、锁文件、`QuickerRpc/version.json` 和其它 metadata，
+以及任何未审计的新路径，也都要求完整 CI。新增运行时读取或打包消费者时须重新审计白名单。
+
+[`classify-ci-changes.mjs`](../../scripts/ci/classify-ci-changes.mjs) 读取完整 NUL 分隔的 Git raw diff，
+不依赖 GitHub 文件列表或其分页上限，不做 rename 折叠。新增、删除、改名、符号链接和 mode
+变化均走完整检查。PR 比较事件 base 与实际 checkout 的 merge commit，并确认事件 head/base
+都在祖先链；push 比较完整 before/after 范围。手动运行、强推、新分支、空 diff、历史缺失、
+fork/仓库身份缺失、SHA 不匹配或任何比较错误都保守地走完整检查。分类失败或生成知识/链接失败时 heavy jobs
+仍按完整模式执行，原失败继续阻断，不能靠缺失 output 获得跳过。
+
+[`CI required`](../../scripts/ci/check-ci-result.mjs) 使用 `always()` 收齐结果。完整模式要求
+每个 heavy job 成功；纯说明模式仅额外接受预期的 `skipped`。任何失败、取消、缺失结果、
+未知 scope 或完整模式下的意外 skip 都会阻断。原有 job 名称保留；仓库 required checks
+应包含 `CI required`，不能仅依赖条件 job 的 skipped 状态（GitHub 会将其视为成功）。
+见 [GitHub 的条件 job 规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions)。
+工作流本身不修改分支保护或 ruleset。
 
 安装使用 `pnpm install --frozen-lockfile`，缓存仅包含 pnpm store，不跨平台复用
 `node_modules`。保留原生模块构建，因为 SQLite fixture 需要 `better-sqlite3`；仅跳过
@@ -156,6 +195,7 @@ pwsh -NoProfile -File scripts/ci/Test-OfflineDotNet.ps1
 所有安装、类型、文档、构建和测试失败均阻断 job；矩阵不提前取消其它平台结果。
 只要安装成功，扩展回归也会在显式离线检查失败后运行并报告结果，原失败仍然阻断 job。
 `.NET` job 即使失败也上传已有 `.tmp/ci-results/**/*.trx`，保留 7 天。
-仓库管理员可把 `Generated knowledge`、两个 `Offline Agent (...)` 和
-`Host-independent .NET`、`Transport contracts (Ubuntu)`、`Designer DOM (Windows Edge)`、`Static SPA (Windows Edge)` 配成 required checks。工作流文件本身不修改分支保护；
-原工作流名称的 required checks 需要相应替换。
+仓库管理员应把始终运行的 `CI required` 配为统一 required check。它汇总
+`Generated knowledge`、两个 `Offline Agent (...)`、`Host-independent .NET`、
+`Transport contracts (Ubuntu)`、`Designer DOM (Windows Edge)` 与 `Static SPA (Windows Edge)`，
+不能仅用会因纯说明文档跳过的 job 作为门禁。原有检查名称保留；工作流本身不修改分支保护或 ruleset。

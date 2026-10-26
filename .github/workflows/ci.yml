@@ -18,18 +18,32 @@ jobs:
     name: Generated knowledge
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - name: Check CI scope, required result and documentation link policies
+        run: node --test scripts/ci/classify-ci-changes.test.mjs scripts/ci/check-ci-result.test.mjs scripts/ci/check-documentation-links.test.mjs
+      - name: Classify the complete checked-out change range
+        id: scope
+        run: node scripts/ci/classify-ci-changes.mjs
       - name: Check generated CLI and skill knowledge
+        if: ${{ !cancelled() }}
         run: node scripts/generate-authoring-docs.mjs --check
+      - name: Check local links in audited explanatory documentation
+        if: ${{ !cancelled() }}
+        run: node scripts/ci/check-documentation-links.mjs
 
   agent:
     name: Offline Agent (${{ matrix.os }})
+    needs: docs
+    if: ${{ !cancelled() && (needs.docs.result != 'success' || needs.docs.outputs.scope != 'docs-only') }}
     strategy:
       fail-fast: false
       matrix:
@@ -148,6 +162,8 @@ jobs:
 
   designer-dom:
     name: Designer DOM (Windows Edge)
+    needs: docs
+    if: ${{ !cancelled() && (needs.docs.result != 'success' || needs.docs.outputs.scope != 'docs-only') }}
     runs-on: windows-2025
     timeout-minutes: 20
     env:
@@ -194,6 +210,8 @@ jobs:
 
   static-spa:
     name: Static SPA (Windows Edge)
+    needs: docs
+    if: ${{ !cancelled() && (needs.docs.result != 'success' || needs.docs.outputs.scope != 'docs-only') }}
     runs-on: windows-2025
     timeout-minutes: 15
     env:
@@ -251,6 +269,8 @@ jobs:
 
   transport-linux:
     name: Transport contracts (Ubuntu)
+    needs: docs
+    if: ${{ !cancelled() && (needs.docs.result != 'success' || needs.docs.outputs.scope != 'docs-only') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -280,6 +300,8 @@ jobs:
 
   dotnet:
     name: Host-independent .NET
+    needs: docs
+    if: ${{ !cancelled() && (needs.docs.result != 'success' || needs.docs.outputs.scope != 'docs-only') }}
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -304,3 +326,21 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
+
+  required:
+    name: CI required
+    needs: [docs, agent, designer-dom, static-spa, transport-linux, dotnet]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Reject failed, cancelled or unexpectedly skipped checks
+        env:
+          CI_NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/ci/check-ci-result.mjs
