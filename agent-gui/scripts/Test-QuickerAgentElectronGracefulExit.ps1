@@ -141,15 +141,20 @@ try {
                     while (@($tracked | Where-Object { -not $_.HasExited }).Count -gt 0 -and [DateTime]::UtcNow -lt $cleanupDeadline) { Start-Sleep -Milliseconds 100 }
                     $receipt.afterJobDispose = @{ retainedExited = @($tracked | Where-Object { -not $_.HasExited }).Count -eq 0
                         originalListenersGone = $listeners.Count -eq 0 -or @(Get-OriginalListeners $listeners).Count -eq 0 }
-                } catch { $receipt.cleanupObservationError = $_.Exception.Message }
+                } catch { $receipt.cleanupObservationError = $_.Exception.Message; $receipt.status = 'FAILED' }
             }
-            if ($null -ne $driver) { if (-not $driver.HasExited) { $driver.Kill($true); $driver.WaitForExit(5000) | Out-Null }; $driver.Dispose() }
+            if ($null -ne $driver) {
+                try { if (-not $driver.HasExited) { $driver.Kill($true); $driver.WaitForExit(5000) | Out-Null } }
+                catch { $receipt.driverCleanupError = $_.Exception.Message; $receipt.status = 'FAILED' }
+                finally { $driver.Dispose() }
+            }
             foreach ($handle in $tracked) { $handle.Dispose() }
             $receipts += $receipt
             $receipts | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $run.Root 'graceful-exit-receipts.json')
             Write-Host "Epoch $epoch $($receipt.status); Job fallback=$($receipt.forcedJobCleanup); evidence: $($run.Root)"
         }
         if ($null -ne $failure) { throw $failure }
+        if ($receipt.status -ne 'PASSED') { throw 'Acceptance cleanup observation failed; inspect the retained receipt.' }
     }
 } finally {
     @{ root = $run.Root; receipts = (Join-Path $run.Root 'graceful-exit-receipts.json'); prepared = $PreparedPackage } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $repo '.tmp/desktop-graceful-exit-latest.json')
