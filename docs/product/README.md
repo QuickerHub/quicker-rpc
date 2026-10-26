@@ -223,6 +223,7 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 | Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | Agent 模块结果已带 SchemaJson.knowledge，区分 runtime-definition、bundled-adapter 和 unknown，保留原生 HelpLink；内置引用另标 bundled-fallback 与包版本/索引指纹。原 schema 数值/日期文本保持不变；UI 投影尚未附此 metadata |
 | 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。StepRunner 两层超限投影保留有界实际 knowledge，明确 schema 不完整及 metadata preserved/partial/unknown；缺失来源不补证明，参数名摘要不能代替规则，全文定向读取/原文 artifact 仍未实现。UI 目录/详情不复用已完成结果，弹窗打开/恢复重新取原生 get-ui，失败不确认旧定义，保留人工草稿/历史及旧请求隔离；UI metadata 仍为 unknown。MCP 已按 turn 完整分页并序列化 schema；真实升级验收继续。旧/迟到结果不得覆盖当前来源或掩盖失败 |
 | codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 本地 guide 提供实际 codec 格式/实现 descriptor 与 bundled 文档内容指纹，原生能力保持 unknown；离线查询先于宿主选择派发。Node Docs 每次读取当前本地正文、引用和 schema；缺件明确 Markdown-only/unknown，不隐式连接宿主。动作编写意图或预加载技能不再禁止显式 get/search/index；保留请求内计数、工具权限和原生模块 schema 的权威边界。网站 corpus 核验实际文件字节并保留抓取时间；两者均不替代当前原生模块定义，Node 对当前 gateway codec 的显式消费仍待接入 |
+| 技能内容刷新 | 下一次 prompt 或按需查询反映当前技能内容与可用目录，不以文件时间戳代表 revision | essentials、完整预加载、按需正文和定义发现不再跨调用复用 max-mtime 缓存；删除工作区覆写后可按原优先级重新发现下层定义。默认 essentials 的 bundled 来源、full/按需发现顺序与可选 tier 回退保持原样；主/子 Agent 的两种 prompt 模式、同时间戳改写、目录增删与迟到读取已通过隔离回归和独立审查；不新增原生 capability 或跨文件快照保证 |
 
 固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，
 不能用 knowledge 获取成功或反编译字段映射替代真实保存语义。
@@ -607,8 +608,9 @@ Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作
 “临时目录”当成真实 Quicker 动作、用户数据库或系统进程已经隔离的证明。
 
 首轮切片覆盖权限交集与父子策略、请求取消、隐藏 Composer 输入、会话面板归属和
-`action.open/save` transport 映射。同线程并发 turn 标记已独立归属。仍需持续处理 Skills 缓存
-修订标识、只读浏览器观测端口、更多工具摘要投影、静态面板描述与实例拆分，
+`action.open/save` transport 映射。同线程并发 turn 标记已独立归属。Skills 的目录、预加载
+和按需正文改为每次重读，后续来源标识与统一查询仍按知识获取架构推进；还需处理
+只读浏览器观测端口、更多工具摘要投影、静态面板描述与实例拆分，
 以及 YAML 流程的真实宿主专用测试动作验收。后续审计按所属阶段补入验收条件，保持已实现、修复中与
 待实施分开。
 

@@ -165,7 +165,7 @@ test("standalone bundles read their explicitly located local schema and never co
   const result=await api.getActionAuthoringDoc("form-spec"); assert.ok(result.ok); assert.equal(result.doc.schema?.title,"bundle-local");
   assert.equal(result.doc.knowledge?.schema?.source,"local-file"); assert.equal(api.networkCalls(),0);
 });
-test("on-demand docs bypass the skill body mtime cache without changing the default skill loader", async () => {
+test("on-demand docs and the default skill loader read same-mtime body replacements", async () => {
   const {root}=await fixture(); const folder=join(root,"docs/skills/quicker-run"); await mkdir(folder);
   const path=join(folder,"SKILL.md"); await writeFile(path,"---\nname: quicker-run\ndescription: fixture\n---\nold on-demand body");
   await utimes(path,new Date("2030-01-01"),new Date("2030-01-01"));
@@ -173,10 +173,10 @@ test("on-demand docs bypass the skill body mtime cache without changing the defa
   const first=await api.getActionAuthoringDoc("quicker-run"); assert.ok(first.ok);
   const time=await stat(path); await writeFile(path,"---\nname: quicker-run\ndescription: fixture\n---\nnew on-demand body"); await utimes(path,time.atime,time.mtime);
   const current=await api.getActionAuthoringDoc("quicker-run"); assert.ok(current.ok); assert.match(current.doc.markdown,/new on-demand/);
-  assert.equal((await api.loadSkillInstructions("quicker-run"))?.body,"old on-demand body","fresh docs reads leave the default mtime-cache policy unchanged");
+  assert.equal((await api.loadSkillInstructions("quicker-run"))?.body,"new on-demand body");
 });
 
-test("a held old fresh skill read cannot overwrite a newer default cache at the same mtime", { timeout: 5000 }, async () => {
+test("a held old fresh skill read preserves its snapshot without affecting later reads", { timeout: 5000 }, async () => {
   const { root } = await fixture();
   const folder = join(root, "docs/skills/quicker-run"); await mkdir(folder);
   const path = join(folder, "SKILL.md");
@@ -189,11 +189,11 @@ test("a held old fresh skill read cannot overwrite a newer default cache at the 
   try {
     await held.captured;
     await writeFile(path, skill("new default body")); await utimes(path, time.atime, time.mtime);
-    assert.equal((await stat(path)).mtimeMs, time.mtimeMs, "the cache key's mtime stays identical");
+    assert.equal((await stat(path)).mtimeMs, time.mtimeMs, "the file's mtime stays identical");
     assert.equal((await api.loadSkillInstructions("quicker-run"))?.body, "new default body");
     held.release();
     assert.equal((await older)?.body, "old captured body", "fresh keeps its own completed snapshot");
-    assert.equal((await api.loadSkillInstructions("quicker-run"))?.body, "new default body", "late fresh completion must not publish to the default/preload cache");
+    assert.equal((await api.loadSkillInstructions("quicker-run"))?.body, "new default body", "late fresh completion must not affect the next read");
   } finally { held.release(); await older; }
 });
 test("explicit legacy roots remain readable when no unified catalog exists", async () => {

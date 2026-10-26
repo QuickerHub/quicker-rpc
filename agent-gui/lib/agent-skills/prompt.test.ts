@@ -85,7 +85,7 @@ test("formatPreloadedSkillsEssentialsForPrompt includes hard rules and P4 pick",
   const block = await formatPreloadedSkillsEssentialsForPrompt();
   assert.ok(block.includes("essentials"));
   assert.ok(block.includes("Pattern traps"));
-  assert.ok(block.includes("NO guess inputParams"));
+  assert.ok(block.includes("NO guess **inputs** keys without step_runner_search → get"));
   assert.ok(block.includes("NO re-get"));
   assert.ok(block.includes("sys:assign"));
   assert.ok(!block.includes("Expression eval template"));
