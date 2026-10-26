@@ -61,6 +61,7 @@ const tests = [
   "lib/qkrpc-connectivity-gate.test.ts",
   "lib/step-runner-knowledge-tools.server.test.ts",
   "lib/qkrpc-schema-read.server.test.ts",
+  "lib/step-runner-schema-read-budget.test.ts",
   "lib/tool-knowledge-budget.test.ts",
   "lib/action-authoring-docs-freshness.test.ts",
   "lib/gateway-guide.test.ts",

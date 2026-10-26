@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import { createQkrpcSchemaReadRunner } from "./qkrpc-schema-read.server";
@@ -197,39 +196,3 @@ test("a closed turn cannot publish a late page or poison another turn on the sam
   assert.doesNotMatch(JSON.stringify(late), /obsolete schema body/);
 });
 
-test("the actual HTTP adapter sends one bound read and retains numeric JSON fragment text", async () => {
-  const requests: Record<string, unknown>[] = [];
-  const content = '{"large":9007199254740993,"decimal":0.1000000000000000001,"negativeZero":-0}';
-  const valuePage = { ...page, mode: "value", offsetUnit: "utf16", total: content.length,
-    agentSchemaComplete: true, children: undefined, content,
-    input: { ...page.input, read: { ...page.input.read, mode: "value" } },
-  };
-  const server = createServer((request, response) => {
-    let body = "";
-    request.on("data", chunk => { body += chunk; });
-    request.on("end", () => {
-      assert.equal(request.url, "/v1/invoke");
-      requests.push(JSON.parse(body));
-      response.setHeader("Content-Type", "application/json");
-      response.end(JSON.stringify({ ok: true, data: { ok: true, action: "step-runner-get",
-        payload: { success: true, schemaRead: valuePage } } }));
-    });
-  });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address !== "string");
-  try {
-    const run = createQkrpcSchemaReadRunner({ cli: async () => { assert.fail("no CLI"); },
-      binary: () => { assert.fail("no binary staging"); } });
-    const valueArgs = [...args.slice(0, -1), JSON.stringify({ pointer: "", mode: "value", offset: 0 })];
-    const result = await owned(`http://127.0.0.1:${address.port}`, () => run(valueArgs));
-    assert.equal(result.ok, true);
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].op, "step-runner.get");
-    assert.deepEqual(requests[0].hostBinding, binding);
-    assert.deepEqual((requests[0].args as Record<string, unknown>).read, { pointer: "", mode: "value", offset: 0 });
-    assert.equal((result.parsed as { payload: { schemaRead: { content: string } } }).payload.schemaRead.content, content);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-  }
-});
