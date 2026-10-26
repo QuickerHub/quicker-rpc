@@ -150,6 +150,14 @@ test("missing/ambiguous definitions and wire aliases fail closed; another sessio
   for (const step of [
     { stepRunnerKey: "sys:subprogram", key: "sys:subprogram", inputParams: { subProgram: "Child" } },
     { key: "sys:subprogram", inputParams: { subProgram: "Child" }, inputs: { subProgram: "different" } },
+  ]) {
+    assert.throws(
+      () => create({ steps: [step], subPrograms: [row("child", "Child")] }),
+      /歧义别名/,
+      "competing projected aliases cannot create a Session or its edit history",
+    );
+  }
+  for (const step of [
     { stepRunnerKey: "sys:showText", inputs: { operations: "$sp$Child" }, InputParams: { operations: "different" } },
   ]) {
     const ambiguous = create({ steps: [step], subPrograms: [row("child", "Child")] });

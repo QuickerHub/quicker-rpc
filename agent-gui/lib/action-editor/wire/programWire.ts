@@ -44,10 +44,13 @@ import { normalizeProgramWireForDisk } from "./normalizeProgramWireForDisk";
 type WireStep = {
 
   stepRunnerKey?: string;
+  key?: string;
 
   inputParams?: Record<string, string>;
+  inputs?: Record<string, string>;
 
   outputParams?: Record<string, string>;
+  outputs?: Record<string, string>;
 
   ifSteps?: WireStep[];
 
@@ -131,9 +134,21 @@ function editorParamToWire(param: ActionStepParam): WireInputParam {
 
 
 
+/** Resolve projected aliases for both reads and merges; other native aliases stay opaque to this projection. */
+export function resolveProgramWireStepFields(raw: object) {
+  const select = <C extends string, L extends string>(canonical: C, lean: L): C | L => {
+    if (Object.hasOwn(raw, canonical) && Object.hasOwn(raw, lean)) {
+      throw new Error(`步骤字段 ${canonical}/${lean} 存在歧义别名，请先核对正文`);
+    }
+    return Object.hasOwn(raw, lean) ? lean : canonical;
+  };
+  return { runner: select("stepRunnerKey", "key"), inputs: select("inputParams", "inputs"), outputs: select("outputParams", "outputs") };
+}
+
 function wireStepToEditor(raw: WireStep): ActionStep {
 
-  const expanded = expandWireInputParams(raw.inputParams as Record<string, unknown> | undefined);
+  const fields = resolveProgramWireStepFields(raw);
+  const expanded = expandWireInputParams(raw[fields.inputs] as Record<string, unknown> | undefined);
 
   const inputParams: Record<string, ActionStepParam> = {};
 
@@ -145,11 +160,11 @@ function wireStepToEditor(raw: WireStep): ActionStep {
 
   return ActionStep.fromPartial({
 
-    stepRunnerKey: raw.stepRunnerKey ?? "",
+    stepRunnerKey: raw[fields.runner] ?? "",
 
     inputParams,
 
-    outputParams: { ...(raw.outputParams ?? {}) },
+    outputParams: { ...(raw[fields.outputs] ?? {}) },
 
     ifSteps: (raw.ifSteps ?? []).map(wireStepToEditor),
 
