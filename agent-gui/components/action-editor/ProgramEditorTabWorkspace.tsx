@@ -35,7 +35,7 @@ import "./program-editor-toolbox.css";
 
 export type ProgramEditorWorkspaceHandle = {
   getSnapshot(): ActionProgramSnapshot;
-  flushPendingEdits(): void;
+  flushPendingEdits(): boolean | void;
   isLiveEditingBlocked(): boolean;
 };
 
@@ -140,12 +140,13 @@ function ProgramEditorTabWorkspaceBody({
   const tabsById = useMemo(() => new Map(available.map((tab) => [tab.surface, tab])), [available]);
   const flushPendingEdits = useCallback(() => {
     for (const surface of ["main", ...available.map((tab) => tab.surface)]) {
-      bridge.getEditorForSurface(surface)?.flushPendingEdits?.();
+      if (bridge.getEditorForSurface(surface)?.flushPendingEdits?.() === false) return false;
     }
+    return true;
   }, [available, bridge.getEditorForSurface]);
   const runHistory = useCallback((direction: "undo" | "redo") => {
     if (!active || historyDisabled || modalOpen) return;
-    flushPendingEdits();
+    if (flushPendingEdits() === false) return;
     controller[direction]();
   }, [active, historyDisabled, controller, flushPendingEdits, modalOpen]);
   useLayoutEffect(() => {
@@ -177,7 +178,7 @@ function ProgramEditorTabWorkspaceBody({
   [available]);
   const requestToolboxInsert = useCallback((payload: Parameters<typeof insertionRegistry.current.request>[1]) => {
     if (!active || modalOpen || activeTabId === "metadata") return Promise.resolve();
-    if (payload.resourceCall) flushPendingEdits();
+    if (payload.resourceCall && flushPendingEdits() === false) return Promise.resolve();
     return insertionRegistry.current.request(activeTabId, payload);
   }, [active, activeTabId, modalOpen, flushPendingEdits]);
   const subPrograms = useMemo(
@@ -197,7 +198,7 @@ function ProgramEditorTabWorkspaceBody({
   };
   const openProperties = (surface: string) => {
     if (!active || historyDisabled || deleteOwner.current) return;
-    flushPendingEdits();
+    if (flushPendingEdits() === false) return;
     const tab = collectInternalTabs(controller.getSnapshot().subPrograms).find((candidate) => candidate.surface === surface);
     if (!tab) return;
     onSelectTab(surface);
@@ -229,7 +230,7 @@ function ProgramEditorTabWorkspaceBody({
     if (!live.current.active || live.current.historyDisabled || live.current.controller !== controller || modalOpen) return;
     const identity = controller.getIdentity();
     try {
-      flushPendingEdits();
+      if (flushPendingEdits() === false) return;
       const id = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
       const result = controller.createSubProgram({ id }, identity);
       if (!result.ok) { setLifecycleError(result.error); return; }
@@ -242,7 +243,7 @@ function ProgramEditorTabWorkspaceBody({
     if (!active || historyDisabled || modalOpen || deleteOwner.current) return;
     setContextMenu(null);
     try {
-      flushPendingEdits();
+      if (flushPendingEdits() === false) return;
       const result = controller.prepareSubProgramDelete(surface.replace(/^sub-/, ""));
       if (!result.ok) { setLifecycleError(result.error); return; }
       const ticket = Symbol("subprogram-delete");
@@ -255,7 +256,7 @@ function ProgramEditorTabWorkspaceBody({
   const confirmDelete = () => {
     if (!deleteTarget || deleteOwner.current?.ticket !== deleteTarget.ticket || !live.current.active || live.current.historyDisabled || live.current.controller !== controller) return;
     try {
-      flushPendingEdits();
+      if (flushPendingEdits() === false) return;
       if (deleteOwner.current?.ticket !== deleteTarget.ticket || live.current.controller !== controller || !live.current.active) return;
       const result = controller.deleteSubProgram(deleteTarget.preview);
       if (!result.ok) { setDeleteTarget((current) => current?.ticket === deleteTarget.ticket ? { ...current, error: `${result.error}。请取消后重新核对。` } : current); return; }
@@ -408,7 +409,7 @@ function ProgramEditorTabWorkspaceBody({
         reservedNames={available.filter((tab) => tab.row.id !== propertiesTarget.row.id).map((tab) => tab.row.name)}
         onClose={closeProperties} onApply={(patch) => {
           if (!active || historyDisabled) return { ok: false, error: "当前文档暂不可编辑" };
-          flushPendingEdits();
+          if (flushPendingEdits() === false) return { ok: false, error: "请先修正或放弃未确认的变量修改。" };
           return controller.applySubProgramProperties(propertiesTarget.row.id, patch, { identity: propertiesTarget.identity,
             properties: { name: propertiesTarget.row.name, description: propertiesTarget.row.description, icon: propertiesTarget.row.icon } });
         }} /> : null}
