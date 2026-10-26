@@ -2,8 +2,40 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   parseProgramWireJson,
+  parseWireSubPrograms,
   serializeProgramWireJson,
 } from "@/lib/action-editor/wire/programWire";
+
+test("programWire reads actual lean CLI fields, including branches and subprogram bodies", () => {
+  const step = { key: "sys:if", inputs: { "value.var": "old" }, outputs: { result: "old.member" },
+    ifSteps: [{ key: "sys:notify", inputs: { msg: "literal" } }],
+    elseSteps: [{ stepRunnerKey: "sys:delay", inputParams: { ms: "10" } }] };
+  const parsed = parseProgramWireJson(JSON.stringify({ steps: [step], variables: [{ key: "old" }] }));
+  assert.ok(parsed.ok);
+  assert.equal(parsed.present.steps[0]!.stepRunnerKey, "sys:if");
+  assert.equal(parsed.present.steps[0]!.inputParams.value!.varKey, "old");
+  assert.equal(parsed.present.steps[0]!.outputParams.result, "old.member");
+  assert.equal(parsed.present.steps[0]!.ifSteps[0]!.inputParams.msg!.value, "literal");
+  assert.equal(parsed.present.steps[0]!.elseSteps[0]!.inputParams.ms!.value, "10");
+  const child = parseWireSubPrograms([{ id: "child", steps: [step], variables: [{ key: "old" }] }])[0]!;
+  assert.equal(child.steps[0]!.inputParams.value!.varKey, "old");
+});
+
+test("programWire refuses competing canonical and lean step aliases instead of choosing one", () => {
+  const invalid = [
+    { key: "sys:notify", stepRunnerKey: "sys:notify" },
+    { inputs: { "msg.var": "old" }, inputParams: {} },
+    { outputs: { result: "old" }, outputParams: {} },
+  ];
+  for (const step of invalid) {
+    for (const steps of [[step], [{ key: "sys:if", ifSteps: [step] }]]) {
+      const parsed = parseProgramWireJson(JSON.stringify({ steps, variables: [] }));
+      assert.equal(parsed.ok, false, JSON.stringify(step));
+      assert.match(!parsed.ok ? parsed.error : "", /歧义/);
+    }
+    assert.throws(() => parseWireSubPrograms([{ id: "child", steps: [step] }]), /歧义/);
+  }
+});
 
 test("programWire roundtrip variable default wire", () => {
   const raw = {

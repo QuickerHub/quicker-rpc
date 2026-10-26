@@ -1,6 +1,6 @@
 import type { ActionStep, ActionSubProgram } from "../types/common";
 import type { ActionProgramSnapshot } from "../program/assembleActionProgramSnapshot";
-import { parseProgramWireJson, parseWireSubPrograms, serializeProgramWireJson } from "../wire/programWire";
+import { parseProgramWireJson, parseWireSubPrograms, resolveProgramWireStepFields, serializeProgramWireJson } from "../wire/programWire";
 import { compactWireInputParam, expandWireInputParams, parseWireParamKey } from "../../input-param-wire";
 import { isLosslessJsonNumber, losslessJsonNumberText, parseLosslessJson, stringifyLosslessJson } from "../shared/losslessJson";
 
@@ -93,7 +93,8 @@ function project(snapshot: ActionProgramSnapshot): RecordValue {
   return { ...projectBody(snapshot), subPrograms: snapshot.subPrograms.map(projectSubProgram) };
 }
 
-const STEP_FIELDS = new Set(["stepRunnerKey", "inputParams", "outputParams", "ifSteps", "elseSteps", "note", "disabled", "collapsed", "delayMs", "stepId"]);
+const STEP_BINDING_FIELDS = ["stepRunnerKey", "key", "inputParams", "inputs", "outputParams", "outputs"];
+const STEP_FIELDS = new Set([...STEP_BINDING_FIELDS, "ifSteps", "elseSteps", "note", "disabled", "collapsed", "delayMs", "stepId"]);
 const VARIABLE_FIELDS = new Set(["id", "key", "varType", "desc", "isLocked", "saveState", "isInput", "isOutput", "paramName", "group", "customType", "inputParamInfo", "outputParamInfo", "tableDef", "default", "default.file", "defaultValue", "defaultValue.file", "defaultValueFile", "default_value", "DefaultValue"]);
 
 function without(raw: RecordValue, fields: ReadonlySet<string>): RecordValue {
@@ -138,8 +139,9 @@ export function fingerprintProgramDocumentContent(content: string): string {
   const raw = parseNative(content);
   const known = project(parseProgramDocumentSnapshot(content));
   const canonicalStep = (native: RecordValue, projected: RecordValue): RecordValue => {
+    const fields = resolveProgramWireStepFields(native);
     const out = { ...without(native, STEP_FIELDS), ...projected };
-    out.inputParams = canonicalInputs(native.inputParams, projected.inputParams);
+    out.inputParams = canonicalInputs(native[fields.inputs], projected.inputParams);
     for (const branch of ["ifSteps", "elseSteps"]) {
       const nativeChildren = records(native[branch]);
       out[branch] = records(projected[branch]).map((child, index) => canonicalStep(nativeChildren[index] ?? {}, child));
@@ -281,8 +283,11 @@ function mergeBody(raw: RecordValue, before: RecordValue, after: RecordValue): R
     const previous = stepIndex.get(id);
     const native = previous?.raw ?? {};
     const known = previous?.known ?? {};
-    const out = mergeRecord(native, known, row, new Set(["ifSteps", "elseSteps", "inputParams"]));
-    if (!same(known.inputParams, row.inputParams)) out.inputParams = mergeInputs(native.inputParams, known.inputParams, row.inputParams);
+    const fields = resolveProgramWireStepFields(native);
+    const out = mergeRecord(native, known, row, new Set(["ifSteps", "elseSteps", ...STEP_BINDING_FIELDS]));
+    if (!same(known.stepRunnerKey, row.stepRunnerKey)) out[fields.runner] = structuredClone(row.stepRunnerKey);
+    if (!same(known.inputParams, row.inputParams)) out[fields.inputs] = mergeInputs(native[fields.inputs], known.inputParams, row.inputParams);
+    if (!same(known.outputParams, row.outputParams)) out[fields.outputs] = mergeValue(native[fields.outputs], known.outputParams, row.outputParams);
     for (const branch of ["ifSteps", "elseSteps"]) {
       const children = mergeSteps(records(row[branch]));
       if (!same(known[branch], row[branch])) {

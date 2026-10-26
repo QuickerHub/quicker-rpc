@@ -1,270 +1,155 @@
 /**
- * Action Designer color tokens (CSS custom properties).
- * Switch theme via html[data-theme="dark"|"light"] (see ThemeContext).
+ * Action Designer tokens share the workbench's resolved color-scheme.
+ * Each palette value is defined once; system changes need no React remount.
  */
 :root {
-  color-scheme: dark;
-
   --ad-font-sans: "Segoe UI", "Microsoft YaHei UI", sans-serif;
 
-  --ad-bg-canvas: #1f1f1f;
+  --ad-bg-canvas: light-dark(#e8e8e8, #1f1f1f);
   /* Home / landing scroll surface (matches editor canvas in dark). */
-  --ad-bg-home: var(--ad-bg-canvas);
-  --ad-fg-primary: #e8e8e8;
+  --ad-bg-home: light-dark(var(--ad-bg-topbar), var(--ad-bg-canvas));
+  --ad-fg-primary: light-dark(#1a1a1a, #e8e8e8);
   /* Body / tab labels (sidebar segments, list section titles). */
   --ad-fg-default: var(--ad-fg-primary);
   --ad-border-focus: var(--ad-accent);
-  --ad-scrollbar-thumb: #4a4a4a;
-  --ad-scrollbar-thumb-hover: #5a5a5a;
-  --ad-border-default: #343434;
-  --ad-bg-topbar: #272727;
-  --ad-bg-panel: #2b2b2b;
-  --ad-fg-muted: #9a9a9a;
-  --ad-bg-menu: #2a2a2a;
-  --ad-border-strong: #4a4a4a;
-  --ad-bg-menu-hover: #3a3a3a;
-  --ad-fg-danger-soft: #e8a0a0;
-  --ad-accent: #d6d6d6;
-  --ad-bg-active-filter: #353535;
-  --ad-fg-variable-type: #8aa6bd;
-  --ad-fg-variable-in: #7ec97e;
-  --ad-fg-variable-output: #e57373;
-  --ad-fg-variable-io: #9cb9d1;
-  --ad-fg-variable-state: #d4a84b;
-  --ad-fg-variable-key: #e8e8e8;
-  --ad-fg-label: #cfcfcf;
-  --ad-bg-input: #242424;
-  --ad-border-input: #3c3c3c;
-  --ad-fg-input: #efefef;
-  --ad-border-subtle: #3b3b3b;
-  --ad-bg-step-list: #000000;
-  --ad-accent-line: #b8b8b8;
-  --ad-bg-drop-zone: #303030;
-  --ad-border-panel: #3d3d3d;
-  --ad-border-children: #252525;
-  --ad-fg-branch: #b7a46c;
-  --ad-fg-placeholder: #8e8e8e;
-  --ad-fg-secondary: #d6d6d6;
-  --ad-fg-list-body: #d8d8d8;
-  --ad-bg-hover-soft: #313131;
-  --ad-bg-selected-row: #3b3b3b;
+  --ad-scrollbar-thumb: light-dark(#b8b8b8, #4a4a4a);
+  --ad-scrollbar-thumb-hover: light-dark(#9a9a9a, #5a5a5a);
+  --ad-border-default: light-dark(#c8c8c8, #343434);
+  --ad-bg-topbar: light-dark(#f3f3f3, #272727);
+  --ad-bg-panel: light-dark(#ffffff, #2b2b2b);
+  --ad-fg-muted: light-dark(#6e6e6e, #9a9a9a);
+  --ad-bg-menu: light-dark(#ffffff, #2a2a2a);
+  --ad-border-strong: light-dark(#bdbdbd, #4a4a4a);
+  --ad-bg-menu-hover: light-dark(#e8e8e8, #3a3a3a);
+  --ad-fg-danger-soft: light-dark(#b84c4c, #e8a0a0);
+  --ad-accent: light-dark(#303030, #d6d6d6);
+  --ad-bg-active-filter: light-dark(#e5e5e5, #353535);
+  --ad-fg-variable-type: light-dark(#4a6a8a, #8aa6bd);
+  --ad-fg-variable-in: light-dark(#2d8a3e, #7ec97e);
+  --ad-fg-variable-output: light-dark(#c62828, #e57373);
+  --ad-fg-variable-io: light-dark(#4a6a8a, #9cb9d1);
+  --ad-fg-variable-state: light-dark(#9a7a22, #d4a84b);
+  --ad-fg-variable-key: light-dark(#1a1a1a, #e8e8e8);
+  --ad-fg-label: light-dark(#2d2d2d, #cfcfcf);
+  --ad-bg-input: light-dark(#ffffff, #242424);
+  --ad-border-input: light-dark(#c4c4c4, #3c3c3c);
+  --ad-fg-input: light-dark(#1a1a1a, #efefef);
+  --ad-border-subtle: light-dark(#c4c4c4, #3b3b3b);
+  --ad-bg-step-list: light-dark(var(--ad-bg-variable-list-well), #000000);
+  --ad-accent-line: light-dark(#505050, #b8b8b8);
+  --ad-bg-drop-zone: light-dark(#e5e5e5, #303030);
+  --ad-border-panel: light-dark(#d0d0d0, #3d3d3d);
+  --ad-border-children: light-dark(#e0e0e0, #252525);
+  --ad-fg-branch: light-dark(#8a7220, #b7a46c);
+  --ad-fg-placeholder: light-dark(#757575, #8e8e8e);
+  --ad-fg-secondary: light-dark(#303030, #d6d6d6);
+  --ad-fg-list-body: light-dark(#242424, #d8d8d8);
+  --ad-bg-hover-soft: light-dark(#ebebeb, #313131);
+  --ad-bg-selected-row: light-dark(#e0e0e0, #3b3b3b);
   /* StepListEditor row selection (same as selected-row in dark). */
   --ad-bg-step-row-selected: var(--ad-bg-selected-row);
   --ad-step-row-selected-ring: none;
-  --ad-bg-list-selected: #393939;
-  --ad-accent-bright: #eeeeee;
-  --ad-fg-ban: #ff7979;
-  --ad-fg-step-title: #d7d7d7;
+  --ad-step-row-selected-ring-light: inset 0 0 0 1px rgba(0, 0, 0, 0.42);
+  --ad-bg-list-selected: light-dark(#e0e0e0, #393939);
+  --ad-accent-bright: light-dark(#111111, #eeeeee);
+  --ad-fg-ban: light-dark(#d92d2d, #ff7979);
+  --ad-fg-step-title: light-dark(#454a50, #d7d7d7);
   --ad-step-disabled-filter: saturate(0.65) brightness(0.65);
-  --ad-fg-step-title-disabled: #8e8e8e;
-  --ad-fg-note-disabled: #6e737a;
-  --ad-fg-step-row-disabled: #848484;
-  --ad-fg-branch-disabled: #8a7f5c;
-  --ad-fg-param-label-disabled: #8a9199;
-  --ad-fg-param-hint-disabled: #6e737a;
-  --ad-fg-step-accent-disabled: #6a8aaa;
-  --ad-fg-row-action-disabled: #7a8086;
-  --ad-fg-note: #9ea3a9;
-  --ad-fg-row-action: #bfc3c8;
-  --ad-fg-warn-soft: #d68b8b;
-  --ad-bg-list: #232323;
+  --ad-step-disabled-filter-light: saturate(0.82) brightness(0.9);
+  --ad-fg-step-title-disabled: light-dark(#9aa1a9, #8e8e8e);
+  --ad-fg-note-disabled: light-dark(#a8aeb5, #6e737a);
+  --ad-fg-step-row-disabled: light-dark(#9aa1a9, #848484);
+  --ad-fg-branch-disabled: light-dark(#b5ad92, #8a7f5c);
+  --ad-fg-param-label-disabled: light-dark(#9aa3ad, #8a9199);
+  --ad-fg-param-hint-disabled: light-dark(#a8aeb5, #6e737a);
+  --ad-fg-step-accent-disabled: light-dark(#8aa8c4, #6a8aaa);
+  --ad-fg-row-action-disabled: light-dark(#a8aeb5, #7a8086);
+  --ad-fg-note: light-dark(#5c636a, #9ea3a9);
+  --ad-fg-row-action: light-dark(#4a5056, #bfc3c8);
+  --ad-fg-warn-soft: light-dark(#b84c4c, #d68b8b);
+  --ad-bg-list: light-dark(#ffffff, #232323);
   /* VariableEditor list: darker well + slightly raised rows (vs generic listbox). */
-  --ad-bg-variable-list-well: #171717;
-  --ad-bg-variable-list-item: #242424;
-  --ad-bg-variable-list-item-hover: #303030;
+  --ad-bg-variable-list-well: light-dark(#d3d3d3, #171717);
+  --ad-bg-variable-list-item: light-dark(#ffffff, #242424);
+  --ad-bg-variable-list-item-hover: light-dark(#eeeeee, #303030);
   /* Match VariableEditor list row hover. */
   --ad-bg-step-row-hover: var(--ad-bg-variable-list-item-hover);
-  --ad-bg-list-hover: #2e2e2e;
-  --ad-bg-list-selected-hover: #464646;
-  --ad-border-selected: #8e8e8e;
-  --ad-fg-hint: #8a8a8a;
-  --ad-fg-form-muted: #b8b8b8;
-  --ad-fg-section: #c8c8c8;
-  --ad-fg-error-text: #d59b9b;
-  --ad-border-tab-sep: #323232;
-  --ad-bg-tab: #262626;
-  --ad-bg-tab-active: #393939;
-  --ad-fg-tab-active: #eeeeee;
-  --ad-bg-tree-selected: #393939;
-  --ad-fg-expand-muted: #a8a8a8;
-  --ad-fg-subtitle: #c7c7c7;
-  --ad-fg-success: #6ca66c;
-  --ad-bg-mark: #4a4a4a;
-  --ad-fg-mark: #ffffff;
+  --ad-bg-list-hover: light-dark(#ebebeb, #2e2e2e);
+  --ad-bg-list-selected-hover: light-dark(#d5d5d5, #464646);
+  --ad-border-selected: light-dark(#747474, #8e8e8e);
+  --ad-fg-hint: light-dark(#666666, #8a8a8a);
+  --ad-fg-form-muted: light-dark(#5a5a5a, #b8b8b8);
+  --ad-fg-section: light-dark(#333333, #c8c8c8);
+  --ad-fg-error-text: light-dark(#a84848, #d59b9b);
+  --ad-border-tab-sep: light-dark(#ececec, #323232);
+  --ad-bg-tab: light-dark(#ffffff, #262626);
+  --ad-bg-tab-active: light-dark(#e5e5e5, #393939);
+  --ad-fg-tab-active: light-dark(#1a1a1a, #eeeeee);
+  --ad-bg-tree-selected: light-dark(#e0e0e0, #393939);
+  --ad-fg-expand-muted: light-dark(#5a5a5a, #a8a8a8);
+  --ad-fg-subtitle: light-dark(#404040, #c7c7c7);
+  --ad-fg-success: light-dark(#2d7a3e, #6ca66c);
+  --ad-bg-mark: light-dark(#d0d0d0, #4a4a4a);
+  --ad-fg-mark: light-dark(#1a1a1a, #ffffff);
   /* Expression editor (CodeMirror) — aligned with former Monaco quicker-dark. */
-  --ad-editor-selection-bg: #4a4a4a;
-  --ad-editor-selection-bg-inactive: #393939;
-  --ad-editor-active-line-bg: rgba(255, 255, 255, 0.03);
-  --ad-bg-toast: #2d2d30;
-  --ad-border-toast: #3f3f46;
-  --ad-border-toast-error: #8b4d3c;
-  --ad-bg-toast-error: #3a2520;
-  --ad-border-toast-warn: #7a6a2e;
-  --ad-bg-toast-warn: #3a3520;
-  --ad-border-toast-info: #555555;
-  --ad-bg-toast-info: #2a2a2a;
-  --ad-fg-dismiss: #b0b0b0;
+  --ad-editor-selection-bg: light-dark(#d0d0d0, #4a4a4a);
+  --ad-editor-selection-bg-inactive: light-dark(#e0e0e0, #393939);
+  --ad-editor-active-line-bg: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.03));
+  --ad-bg-toast: light-dark(#ffffff, #2d2d30);
+  --ad-border-toast: light-dark(#c8c8c8, #3f3f46);
+  --ad-border-toast-error: light-dark(#c46a5a, #8b4d3c);
+  --ad-bg-toast-error: light-dark(#fdecea, #3a2520);
+  --ad-border-toast-warn: light-dark(#c4a860, #7a6a2e);
+  --ad-bg-toast-warn: light-dark(#faf6e6, #3a3520);
+  --ad-border-toast-info: light-dark(#9a9a9a, #555555);
+  --ad-bg-toast-info: light-dark(#f3f3f3, #2a2a2a);
+  --ad-fg-dismiss: light-dark(#555555, #b0b0b0);
   --ad-fg-on-emphasis: #ffffff;
-  --ad-bg-button-secondary: #333333;
-  --ad-fg-param-label: #c8d0d8;
-  --ad-fg-param-hint: #8a9199;
-  --ad-fg-button-secondary: #e0e0e0;
-  --ad-bg-button-primary: #4a4a4a;
-  --ad-border-button-primary: #787878;
-  --ad-fg-popup-ghost: #d0d0d0;
-  --ad-bg-icon-btn: #252525;
-  --ad-fg-icon-btn: #d6d6d6;
-  --ad-border-popup-divider: #3a3a3a;
-  --ad-overlay-hover: rgba(255, 255, 255, 0.08);
-  --ad-shadow-popover: 0 6px 18px rgba(0, 0, 0, 0.35);
-  --ad-shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.45);
-  --ad-shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.55);
-  --ad-backdrop-popup: rgba(0, 0, 0, 0.55);
-  --ad-drag-preview-fg: #e8e8e8;
+  --ad-bg-button-secondary: light-dark(#e8e8e8, #333333);
+  --ad-bg-button-secondary-soft: light-dark(#f9f9f9, var(--ad-bg-button-secondary));
+  --ad-fg-param-label: light-dark(#2a3440, #c8d0d8);
+  --ad-fg-param-hint: light-dark(#5a6168, #8a9199);
+  --ad-fg-button-secondary: light-dark(#1a1a1a, #e0e0e0);
+  --ad-bg-button-primary: light-dark(#303030, #4a4a4a);
+  --ad-border-button-primary: light-dark(#1a1a1a, #787878);
+  --ad-fg-popup-ghost: light-dark(#333333, #d0d0d0);
+  --ad-bg-icon-btn: light-dark(#ffffff, #252525);
+  --ad-fg-icon-btn: light-dark(#303030, #d6d6d6);
+  --ad-border-popup-divider: light-dark(#d8d8d8, #3a3a3a);
+  --ad-overlay-hover: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
+  --ad-shadow-popover: 0 6px 18px light-dark(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.35));
+  --ad-shadow-toast: 0 4px 16px light-dark(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.45));
+  --ad-shadow-popup: 0 12px 40px light-dark(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.55));
+  --ad-backdrop-popup: light-dark(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.55));
+  --ad-drag-preview-fg: light-dark(#242424, #e8e8e8);
 
   /* Main editor document tabs (VS Code–like editor group tab bar). */
-  --ad-editor-tab-bar-bg: #252526;
-  --ad-editor-tab-row-border: #1e1e1e;
-  --ad-editor-tab-active-bg: #1e1e1e;
-  --ad-editor-tab-hover-bg: #2a2d2e;
-  --ad-editor-tab-inactive-fg: #969696;
-  --ad-editor-tab-active-fg: #cccccc;
-  --ad-editor-tab-sep: rgba(128, 128, 128, 0.22);
-  --ad-editor-tab-active-top: #d6d6d6;
-  --ad-editor-tab-close-fg: #c5c5c5;
-  --ad-editor-tab-close-hover-bg: rgba(255, 255, 255, 0.1);
+  --ad-editor-tab-bar-bg: light-dark(#f3f3f3, #252526);
+  --ad-editor-tab-row-border: light-dark(#e8e8e8, #1e1e1e);
+  --ad-editor-tab-active-bg: light-dark(#ffffff, #1e1e1e);
+  --ad-editor-tab-hover-bg: light-dark(#e8e8e8, #2a2d2e);
+  --ad-editor-tab-inactive-fg: light-dark(#616161, #969696);
+  --ad-editor-tab-active-fg: light-dark(#333333, #cccccc);
+  --ad-editor-tab-sep: light-dark(rgba(0, 0, 0, 0.08), rgba(128, 128, 128, 0.22));
+  --ad-editor-tab-active-top: light-dark(#303030, #d6d6d6);
+  --ad-editor-tab-close-fg: light-dark(#424242, #c5c5c5);
+  --ad-editor-tab-close-hover-bg: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.1));
 }
 
+/* Explicit preferences also support the standalone designer fixtures. */
 html[data-theme="light"] {
   color-scheme: light;
-
-  --ad-bg-canvas: #e8e8e8;
-  /* Home: align with top bar; white cards sit on this surface. */
-  --ad-bg-home: var(--ad-bg-topbar);
-  --ad-fg-primary: #1a1a1a;
-  --ad-fg-default: var(--ad-fg-primary);
-  --ad-border-focus: var(--ad-accent);
-  --ad-scrollbar-thumb: #b8b8b8;
-  --ad-scrollbar-thumb-hover: #9a9a9a;
-  --ad-border-default: #c8c8c8;
-  --ad-bg-topbar: #f3f3f3;
-  --ad-bg-panel: #ffffff;
-  --ad-fg-muted: #6e6e6e;
-  --ad-bg-menu: #ffffff;
-  --ad-border-strong: #bdbdbd;
-  --ad-bg-menu-hover: #e8e8e8;
-  --ad-fg-danger-soft: #b84c4c;
-  --ad-accent: #303030;
-  --ad-bg-active-filter: #e5e5e5;
-  --ad-fg-variable-type: #4a6a8a;
-  --ad-fg-variable-in: #2d8a3e;
-  --ad-fg-variable-output: #c62828;
-  --ad-fg-variable-io: #4a6a8a;
-  --ad-fg-variable-state: #9a7a22;
-  --ad-fg-variable-key: #1a1a1a;
-  --ad-fg-label: #2d2d2d;
-  --ad-bg-input: #ffffff;
-  --ad-border-input: #c4c4c4;
-  --ad-fg-input: #1a1a1a;
-  --ad-border-subtle: #c4c4c4;
-  --ad-accent-line: #505050;
-  --ad-bg-drop-zone: #e5e5e5;
-  --ad-border-panel: #d0d0d0;
-  --ad-border-children: #e0e0e0;
-  --ad-fg-branch: #8a7220;
-  --ad-fg-placeholder: #757575;
-  --ad-fg-secondary: #303030;
-  --ad-fg-list-body: #242424;
-  --ad-bg-hover-soft: #ebebeb;
-  --ad-bg-selected-row: #e0e0e0;
-  /* Step row: same fill as --ad-bg-selected-row; contrast from --ad-step-row-selected-ring. */
-  --ad-bg-step-row-selected: var(--ad-bg-selected-row);
-  --ad-step-row-selected-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.42);
-  --ad-bg-list-selected: #e0e0e0;
-  --ad-accent-bright: #111111;
-  --ad-fg-ban: #d92d2d;
-  --ad-fg-step-title: #454a50;
-  --ad-step-disabled-filter: saturate(0.82) brightness(0.9);
-  --ad-fg-step-title-disabled: #9aa1a9;
-  --ad-fg-note-disabled: #a8aeb5;
-  --ad-fg-step-row-disabled: #9aa1a9;
-  --ad-fg-branch-disabled: #b5ad92;
-  --ad-fg-param-label-disabled: #9aa3ad;
-  --ad-fg-param-hint-disabled: #a8aeb5;
-  --ad-fg-step-accent-disabled: #8aa8c4;
-  --ad-fg-row-action-disabled: #a8aeb5;
-  --ad-fg-note: #5c636a;
-  --ad-fg-row-action: #4a5056;
-  --ad-fg-warn-soft: #b84c4c;
-  --ad-bg-list: #ffffff;
-  --ad-bg-variable-list-well: #d3d3d3;
-  /* Step list well: match variable list “well” so the two columns read as one surface in light mode. */
-  --ad-bg-step-list: var(--ad-bg-variable-list-well);
-  --ad-bg-variable-list-item: #ffffff;
-  --ad-bg-variable-list-item-hover: #eeeeee;
-  /* Match VariableEditor list row hover. */
-  --ad-bg-step-row-hover: var(--ad-bg-variable-list-item-hover);
-  --ad-bg-list-hover: #ebebeb;
-  --ad-bg-list-selected-hover: #d5d5d5;
-  --ad-border-selected: #747474;
-  --ad-fg-hint: #666666;
-  --ad-fg-form-muted: #5a5a5a;
-  --ad-fg-section: #333333;
-  --ad-fg-error-text: #a84848;
-  /* Toolbox: align tab strip + icon buttons with panel (avoid gray “blocks” on white). */
-  --ad-border-tab-sep: #ececec;
-  --ad-bg-tab: #ffffff;
-  --ad-bg-tab-active: #e5e5e5;
-  --ad-fg-tab-active: #1a1a1a;
-  --ad-bg-tree-selected: #e0e0e0;
-  --ad-fg-expand-muted: #5a5a5a;
-  --ad-fg-subtitle: #404040;
-  --ad-fg-success: #2d7a3e;
-  --ad-bg-mark: #d0d0d0;
-  --ad-fg-mark: #1a1a1a;
-  /* Expression editor (CodeMirror) — aligned with former Monaco quicker-light. */
-  --ad-editor-selection-bg: #d0d0d0;
-  --ad-editor-selection-bg-inactive: #e0e0e0;
-  --ad-editor-active-line-bg: rgba(0, 0, 0, 0.04);
-  --ad-bg-toast: #ffffff;
-  --ad-border-toast: #c8c8c8;
-  --ad-border-toast-error: #c46a5a;
-  --ad-bg-toast-error: #fdecea;
-  --ad-border-toast-warn: #c4a860;
-  --ad-bg-toast-warn: #faf6e6;
-  --ad-border-toast-info: #9a9a9a;
-  --ad-bg-toast-info: #f3f3f3;
-  --ad-fg-dismiss: #555555;
-  --ad-fg-on-emphasis: #ffffff;
-  --ad-bg-button-secondary: #e8e8e8;
-  --ad-fg-param-label: #2a3440;
-  --ad-fg-param-hint: #5a6168;
-  --ad-fg-button-secondary: #1a1a1a;
-  --ad-bg-button-primary: #303030;
-  --ad-border-button-primary: #1a1a1a;
-  --ad-fg-popup-ghost: #333333;
-  --ad-bg-icon-btn: #ffffff;
-  --ad-fg-icon-btn: #303030;
-  --ad-border-popup-divider: #d8d8d8;
-  --ad-overlay-hover: rgba(0, 0, 0, 0.06);
-  --ad-shadow-popover: 0 6px 18px rgba(0, 0, 0, 0.12);
-  --ad-shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.12);
-  --ad-shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.18);
-  --ad-backdrop-popup: rgba(0, 0, 0, 0.35);
-  --ad-drag-preview-fg: #242424;
-
-  --ad-editor-tab-bar-bg: #f3f3f3;
-  --ad-editor-tab-row-border: #e8e8e8;
-  --ad-editor-tab-active-bg: #ffffff;
-  --ad-editor-tab-hover-bg: #e8e8e8;
-  --ad-editor-tab-inactive-fg: #616161;
-  --ad-editor-tab-active-fg: #333333;
-  --ad-editor-tab-sep: rgba(0, 0, 0, 0.08);
-  --ad-editor-tab-active-top: #303030;
-  --ad-editor-tab-close-fg: #424242;
-  --ad-editor-tab-close-hover-bg: rgba(0, 0, 0, 0.06);
+  --ad-step-row-selected-ring: var(--ad-step-row-selected-ring-light);
+  --ad-step-disabled-filter: var(--ad-step-disabled-filter-light);
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ad-step-row-selected-ring: var(--ad-step-row-selected-ring-light);
+    --ad-step-disabled-filter: var(--ad-step-disabled-filter-light);
+  }
 }

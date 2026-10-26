@@ -105,11 +105,12 @@ test("foreign cached steps never become editable and participate in whole-docume
 test("the native runner and input map must match without competing aliases", () => {
   for (const candidate of [
     { ...step(), stepRunnerKey: "fixture:otherRunner" },
-    { ...step(), key: "fixture:exactRunner" },
-    { ...step(), inputs: { text: "ambiguous" } },
     { ...step(), StepId: "selected" },
   ]) {
     const session = create({ steps: [candidate] }); rejected(session, request(session));
+  }
+  for (const candidate of [{ ...step(), key: "fixture:exactRunner" }, { ...step(), inputs: { text: "ambiguous" } }]) {
+    assert.throws(() => create({ steps: [candidate] }), /歧义别名/, "competing projected aliases are rejected before a Session is opened");
   }
   const session = create({ steps: [{ stepId: "selected", Key: "fixture:exactRunner", Inputs: { text: "legacy" } }] });
   const result = applyProgramDocumentStepInputs(session, request(session));

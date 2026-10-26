@@ -13,6 +13,7 @@ import React, { StrictMode, useCallback, useEffect, useLayoutEffect, useRef, use
 import { createRoot } from 'react-dom/client';
 import { ActionProjectDataEditor } from '@/components/action-editor/ActionProjectDataEditor';
 import { StepRunnerItem } from '@/lib/action-editor/types/action_query';
+import { applyTheme } from '@/lib/theme';
 import '@/app/globals.css';
 const pathFor = id => '.quicker/actions/'+(id==='a'?'11111111-1111-4111-8111-111111111111':'22222222-2222-4222-8222-222222222222')+'/data.json';
 const step = (id, note) => ({stepId:id,stepRunnerKey:'sys:fixture_note',note,inputParams:{'script.file':'files/script.cs'},fixtureStep:{keep:true}});
@@ -21,7 +22,7 @@ const makeDocument = id => JSON.stringify({...body(id),subPrograms:[{id:'child',
 const makeInfo = id => '{"kind":"action","id":"'+pathFor(id).split('/').at(-2)+'","title":"Fixture action","description":"original description","icon":"iconify:mdi:code-tags","editVersion":9223372036854775807,"fixtureFuture":9007199254740993}';
 const runner = StepRunnerItem.fromPartial({key:'sys:fixture_note',name:'Fixture module',icon:'iconify:mdi:code-tags',inputParamDefs:[],outputParamDefs:[]});
 const capability = StepRunnerItem.fromPartial({key:'sys:fixture_capability',name:'Fixture capability',category:'Text',secondaryCategories:['System'],inputParamDefs:[{key:'mode',name:'Mode',isControlField:true,varType:9,variableMode:1,allowInput:true,selectionItems:[{value:'copy',name:'Copy fixture'}]},{key:'text',name:'Text',varType:0,variableMode:1,allowInput:true}],outputParamDefs:[]});
-const state = window.fixture = {calls:[],saved:[],pins:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument};
+const state = window.fixture = {calls:[],saved:[],pins:[],requests:[],unexpected:[],pending:[],mode:'success',pathFor,makeDocument,applyTheme};
 state.installClipboardStub=()=>{
  state.clipboardWrites=[];
  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
@@ -269,7 +270,7 @@ afterEach(async () => {
 });
 after(async () => { if (caseOwnsBrowser) { closingBrowsers.add(browser); await browser.close(); } });
 
-async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean; exclusiveDocuments?: boolean; realIcons?: boolean; resources?: boolean }): Promise<{ page: Page; errors: string[] }> {
+async function openFixture(options?: { targetMode?: string; invalidVersion?: boolean; catalogByTarget?: boolean; catalogDeferA?: boolean; dualDocuments?: boolean; exclusiveDocuments?: boolean; realIcons?: boolean; resources?: boolean; theme?: "light" | "dark" | "system"; systemColorScheme?: "light" | "dark" }): Promise<{ page: Page; errors: string[] }> {
   pageSequence += 1;
   diagnose("create-page");
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -279,7 +280,9 @@ async function openFixture(options?: { targetMode?: string; invalidVersion?: boo
   await page.route("**/*", (route) => { errors.push(`network:${route.request().url()}`); return route.abort(); });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-  await page.setContent('<html data-theme="light"><body><div id="root"></div></body></html>');
+  if (options?.systemColorScheme) await page.emulateMedia({ colorScheme: options.systemColorScheme });
+  const themeAttribute = options?.theme === "system" ? "" : ` data-theme="${options?.theme ?? "light"}"`;
+  await page.setContent(`<html${themeAttribute}><body><div id="root"></div></body></html>`);
   await page.addStyleTag({ content: `${stylesheet}\nhtml,body,#root,.fixture-shell{height:100%;margin:0}body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}.fixture-shell{display:flex;flex-direction:column;padding:12px;box-sizing:border-box}` });
   if (options) await page.evaluate((value) => { (window as any).fixtureOptions = value; }, options);
   await page.addScriptTag({ content: javascript });
@@ -1806,6 +1809,94 @@ test("native property text undo stays inside the input while document toolbar fo
     await title.fill("one property transaction");
     await page.getByRole("toolbar", { name: "文档历史", exact: true }).getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
     assert.equal(await title.inputValue(), "Fixture action");
+    await assertIsolated(page, errors);
+  } finally { await page.close(); }
+});
+
+test("Designer theme follows the system and explicit preferences across the editor and its body portal without remounting", { timeout: 45_000 }, async () => {
+  const { page, errors } = await openFixture({ theme: "system", systemColorScheme: "light" });
+  const appearance = () => page.evaluate(() => Object.fromEntries([
+    ["catalog", ".program-editor-catalog"], ["toolbar", ".x-program-editor-toolbar"], ["steps", ".step-listbox.root"],
+    ["row", ".step-row"], ["title", ".step-row .step-titles .primary"], ["popup", ".step-editor-popup"],
+    ["secondary", ".step-editor-popup-btn.secondary"],
+  ].map(([name, selector]) => {
+    const element = document.querySelector(selector);
+    if (!element) throw new Error(`Missing theme surface: ${selector}`);
+    const style = getComputedStyle(element);
+    return [name, { background: style.backgroundColor, foreground: style.color, border: style.borderTopColor, shadow: style.boxShadow }];
+  })));
+  const settle = () => page.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  try {
+    assert.equal(await page.locator("html").getAttribute("data-theme"), null, "system starts without a forced light fixture attribute");
+    if (screenshotDirectory) await page.screenshot({ path: path.join(screenshotDirectory, "designer-system-light-editor.png") });
+    await page.locator(".program-editor-surface:visible .step-row").first().dblclick();
+    const popup = page.locator(".step-editor-popup"); await popup.waitFor();
+    await popup.getByRole("button", { name: "取消", exact: true }).focus();
+    await page.mouse.move(1, 1);
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.themeNote = document.querySelector(".step-form-note-input");
+      f.themePopup = document.querySelector(".step-editor-popup");
+      f.themeFocus = document.activeElement;
+    });
+    const light = await appearance();
+    assert.equal(light.catalog.background, "rgb(232, 232, 232)");
+    assert.equal(light.catalog.foreground, "rgb(26, 26, 26)");
+    assert.equal(light.toolbar.background, "rgb(255, 255, 255)");
+    assert.equal(light.steps.background, "rgb(211, 211, 211)");
+    assert.equal(light.title.foreground, "rgb(69, 74, 80)");
+    assert.notEqual(light.row.shadow, "none");
+    assert.equal(light.popup.background, "rgb(255, 255, 255)");
+    assert.equal(light.popup.foreground, "rgb(26, 26, 26)");
+    assert.equal(light.secondary.background, "rgb(249, 249, 249)");
+    assert.notEqual(light.popup.shadow, "none", "paired shadow colors remain valid CSS");
+    if (screenshotDirectory) await page.screenshot({ path: path.join(screenshotDirectory, "designer-system-light-wide.png") });
+
+    await page.emulateMedia({ colorScheme: "dark" }); await settle();
+    const dark = await appearance();
+    assert.equal(dark.catalog.background, "rgb(31, 31, 31)");
+    assert.equal(dark.catalog.foreground, "rgb(232, 232, 232)");
+    assert.equal(dark.toolbar.background, "rgb(43, 43, 43)");
+    assert.equal(dark.steps.background, "rgb(0, 0, 0)");
+    assert.equal(dark.title.foreground, "rgb(215, 215, 215)");
+    assert.equal(dark.row.shadow, "none", "dark preserves the original selection treatment");
+    assert.equal(dark.popup.background, "rgb(43, 43, 43)");
+    assert.equal(dark.popup.foreground, "rgb(232, 232, 232)");
+    assert.equal(dark.secondary.background, "rgb(51, 51, 51)");
+    assert.notEqual(dark.popup.shadow, "none");
+    if (screenshotDirectory) await page.screenshot({ path: path.join(screenshotDirectory, "designer-system-dark-wide.png") });
+
+    await page.evaluate(() => (window as any).fixture.applyTheme("light")); await settle();
+    assert.deepEqual(await appearance(), light, "explicit light overrides the dark system with exactly the same palette");
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.evaluate(() => (window as any).fixture.applyTheme("dark")); await settle();
+    assert.deepEqual(await appearance(), dark, "explicit dark overrides the light system without changing existing colors");
+    await page.evaluate(() => (window as any).fixture.applyTheme("system")); await settle();
+    assert.deepEqual(await appearance(), light);
+    await page.emulateMedia({ colorScheme: "dark" }); await settle();
+    assert.deepEqual(await appearance(), dark);
+    await page.emulateMedia({ colorScheme: "light" }); await settle();
+    assert.deepEqual(await appearance(), light, "media changes back to light without a remount");
+    assert.equal(await page.locator("html").getAttribute("data-theme"), null);
+    assert.deepEqual(await page.evaluate(() => {
+      const f = (window as any).fixture;
+      return [f.themeNote === document.querySelector(".step-form-note-input"), f.themePopup === document.querySelector(".step-editor-popup"), f.themeFocus === document.activeElement, f.calls.length];
+    }), [true, true, true, 0], "theme changes preserve the editor, portal, keyboard focus and document");
+
+    await page.setViewportSize({ width: 420, height: 720 });
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme }); await settle();
+      assert.deepEqual(await appearance(), scheme === "light" ? light : dark);
+      assert.equal(await popup.getByRole("button", { name: "取消", exact: true }).evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.left >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight
+          && element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      }), true, "the themed portal remains readable and reachable in a narrow viewport");
+      if (screenshotDirectory) await page.screenshot({ path: path.join(screenshotDirectory, `designer-system-${scheme}-420.png`) });
+    }
+    await popup.getByRole("button", { name: "取消", exact: true }).click();
+    await page.setViewportSize({ width: 1280, height: 900 }); await settle();
+    if (screenshotDirectory) await page.screenshot({ path: path.join(screenshotDirectory, "designer-system-dark-editor.png") });
     await assertIsolated(page, errors);
   } finally { await page.close(); }
 });

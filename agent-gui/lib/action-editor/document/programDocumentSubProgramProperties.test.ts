@@ -156,19 +156,17 @@ test("accepted short/native step aliases retain their namespace through rename, 
   assert.equal(session.getState().content, initial);
 });
 
-test("conflicting or duplicate aliases reject the complete rename before any session commit", () => {
+test("conflicting or duplicate projected aliases reject before a session can be opened", () => {
   for (const step of [
     { stepRunnerKey: "sys:subprogram", key: "future:other", inputParams: { subProgram: "Old" } },
     { stepRunnerKey: "sys:subprogram", key: "sys:subprogram", inputParams: { subProgram: "Old" } },
     { key: "sys:subprogram", inputParams: { subProgram: "Old" }, inputs: { subProgram: "Other" } },
     { key: "sys:subprogram", inputParams: { subProgram: "Old" }, inputs: { subProgram: "Old" } },
   ]) {
-    const session = create({ steps: [call(), step], subPrograms: [{ id: "target", name: "Old", steps: [] }] });
-    const initial = session.getState();
-    assert.equal(rename(session, "New").ok, false);
-    assert.equal(session.getState(), initial);
-    assert.equal(session.getHistoryState().undoDepth, 0);
-    assert.equal(raw(session).steps[0].inputParams.subProgram, "Old");
-    assert.equal(raw(session).subPrograms[0].name, "Old");
+    assert.throws(
+      () => create({ steps: [call(), step], subPrograms: [{ id: "target", name: "Old", steps: [] }] }),
+      /歧义别名/,
+      "competing projected aliases cannot create a Session or its edit history",
+    );
   }
 });
