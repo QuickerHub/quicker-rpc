@@ -143,6 +143,9 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
   URL/抓取时间。回退与当前原生定义冲突时保留冲突并查询来源，不静默覆盖或补造支持。
 - **消费**：保持单一 AI SDK loop、现有工具预算与权限。Agent 使用压缩 schema；Designer
   使用 UI 投影；实时输入写入仍重新取得私有原生契约，不能凭 knowledge 缓存扩大可写范围。
+  预加载技能和意图匹配只提供路由建议，不禁止显式 `docs get/search/index`；YAML 与编写
+  语法可重新读取当前本地指南，步骤键和参数规则仍查询当前宿主模块定义。请求内文档计数
+  与原工具权限继续生效，本地指南不因此成为原生能力证明。
 
 首个后端增量沿用 `step-runner get` 的 `SchemaJson.knowledge`，避免新增平行工具/存储：
 `schemaVersion=1`；`source` 描述 provider、来源 kind、host/adapter 及会话；`schema` 描述
