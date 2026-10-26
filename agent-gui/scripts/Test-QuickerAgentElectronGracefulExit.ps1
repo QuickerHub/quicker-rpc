@@ -26,6 +26,8 @@ $plan = [ordered]@{ action = $Action; package = $PreparedPackage; executable = $
 if ($Action -eq 'Plan') { $plan | ConvertTo-Json -Depth 5; exit 0 }
 if (-not $IsWindows) { throw 'This explicit acceptance requires Windows Job Objects.' }
 Assert-ElectronSmokeBundleSupport $exe
+& node (Join-Path $PSScriptRoot 'prepare-electron-graceful-exit.mjs') ("--verify=$PreparedPackage")
+if ($LASTEXITCODE -ne 0) { throw 'Sealed full package verification failed.' }
 foreach ($artifact in $package.artifacts) {
     if ($artifact.name -notmatch '^resources/[a-zA-Z0-9./-]+$' -or $artifact.name.Contains('..')) { throw 'Invalid staged artifact path.' }
     $path = Assert-SmokeLocalPath (Join-Path (Split-Path -Parent $exe) $artifact.name)
@@ -35,12 +37,17 @@ if (-not ('QuickerAgent.Smoke.OwnedJob' -as [type])) { Add-Type -Path (Join-Path
 $run = New-ElectronSmokeRun $repo
 $environment = Get-ElectronSmokeEnvironment $run
 $receipts = @()
+$harnessFacts = @('Test-QuickerAgentElectronGracefulExit.ps1', 'electron-graceful-exit-driver.mjs', 'prepare-electron-graceful-exit.mjs', 'lib/ElectronSmoke.ps1', 'lib/ElectronSmokeProcess.cs') | ForEach-Object {
+    $path = Join-Path $PSScriptRoot $_
+    @{ path = $path; sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
+}
 function Reserve-GracefulPort {
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
     try { $listener.Start(); return $listener.LocalEndpoint.Port } finally { $listener.Stop() }
 }
 function Get-OriginalListeners($Listeners) {
-    return @(Get-NetTCPConnection -LocalPort @($Listeners.port) -State Listen -ErrorAction SilentlyContinue | Where-Object {
+    # Query errors must fail acceptance; a successful table with no owned row is empty.
+    return @(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object {
         $candidate = $_
         @($Listeners | Where-Object { $_.port -eq $candidate.LocalPort -and $_.pid -eq $candidate.OwningProcess }).Count -gt 0
     } | Select-Object LocalAddress, LocalPort, OwningProcess)
@@ -52,7 +59,7 @@ try {
             if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path }
         }
         $owner = $null; $driver = $null; $tracked = @(); $listeners = @(); $failure = $null
-        $receipt = [ordered]@{ epoch = $epoch; status = 'STARTED'; jobDisposed = $false; forcedJobCleanup = $false; plan = $plan }
+        $receipt = [ordered]@{ epoch = $epoch; status = 'STARTED'; jobDisposed = $false; forcedJobCleanup = $false; plan = $plan; harness = $harnessFacts }
         try {
             $inspect = Reserve-GracefulPort; $debug = Reserve-GracefulPort
             if ($inspect -eq $debug) { throw 'Ephemeral debugger port reservation raced; no other endpoint will be used.' }
