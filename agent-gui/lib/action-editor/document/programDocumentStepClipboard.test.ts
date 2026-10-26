@@ -111,6 +111,10 @@ test("native unprefixed interface visibility is analysed rather than silently re
   const allowed=fixture(JSON.stringify(value));const copy=allowed.main.exportSteps!(['call']);assert.ok(copy.ok,copy.ok?'':copy.error);
   const pasted=allowed.main.pasteSteps!(copy.text,'call');assert.ok(pasted.ok,pasted.ok?'':pasted.error);
   assert.equal(allowed.controller.getSnapshot().subPrograms.at(-1)!.variables[0]!.inputParamInfo!.visibleExpression,'true');
+  for(const [key,expression] of [['selectionItems','$=context.GetVarValue("hidden")'],['future','{count+1=}']]){
+    const candidate=structuredClone(value);candidate.subPrograms[0].variables[0].inputParamInfo[key!]=expression;
+    const opaque=fixture(JSON.stringify(candidate)),before=opaque.session.getState();assert.equal(opaque.main.exportSteps!(['call']).ok,false);assert.equal(opaque.session.getState(),before);
+  }
 });
 
 test("absent and null maps and pins survive raw clipboard transactions without generated defaults",()=>{

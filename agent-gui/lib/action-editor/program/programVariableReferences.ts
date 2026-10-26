@@ -20,6 +20,7 @@ const isRecord = (value: unknown): value is RecordValue => value !== null && typ
 const fail = (code: string, error: string): Extract<ProgramVariableChangeResult, { ok: false }> => ({ ok: false, code, error });
 const same = (a: unknown, b: unknown) => programDocumentFingerprint(a) === programDocumentFingerprint(b);
 function possibleReference(value: unknown, scan: Scan): boolean {
+  if (scan.clipboard && typeof value === "string" && /[{}]|\$=|\$\$|GetVarValue|SetVarValue|quickerGetVar|quickerSetVar/u.test(value)) return true;
   if (typeof value === "string") return [...value.matchAll(new RegExp(`\\{(${ACTION_VARIABLE_IDENTIFIER_SOURCE})(?=\\}|\\.|\\[)`, "gu"))]
     .some((match) => scan.rename ? match[1] === scan.rename.from.key : scan.keys?.has(match[1]!));
   if (Array.isArray(value)) return value.some((item) => possibleReference(item, scan));
