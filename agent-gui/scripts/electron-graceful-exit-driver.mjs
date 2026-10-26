@@ -68,6 +68,7 @@ try {
     window.__ELECTRON__.on("app-request-exit", () => { void window.recordGracefulExitEvent({ event: "app-request-exit" }); });
   });
   evidence.runtime = {};
+  const runtimeReplies = {};
   for (const kind of ["browser", "terminal"]) {
     const response = await fetch(config.origin + `/api/${kind}/runtime`, { method: "POST" });
     const result = await response.json();
@@ -76,7 +77,13 @@ try {
     const url = new URL(result.base);
     assert.equal(url.hostname, "127.0.0.1");
     assert.ok(!["3000", "9477", "6017", "6022"].includes(url.port));
-    const state = JSON.parse(readFileSync(join(config.root, "data/runtime", `${kind}-runtime.json`), "utf8"));
+    runtimeReplies[kind] = result;
+  }
+  const runtimeOwner = runtimeReplies.terminal.runtimeOwner;
+  assert.match(runtimeOwner, /^[a-f0-9-]{36}$/i, "runtime state belongs to the service's current owner namespace");
+  for (const kind of ["browser", "terminal"]) {
+    const result = runtimeReplies[kind], url = new URL(result.base);
+    const state = JSON.parse(readFileSync(join(config.root, "data/runtime", runtimeOwner, `${kind}-runtime.json`), "utf8"));
     assert.equal(state.ownerPid, config.info.uiPid);
     assert.equal(state.port, Number(url.port));
     // The PowerShell owner verifies each PID/listener before this origin is fetched.
@@ -88,7 +95,7 @@ try {
   for (const runtime of Object.values(evidence.runtime)) {
     const health = await (await fetch(runtime.base + "/health")).json();
     assert.equal(health.ok, true);
-    assert.ok(health.runtimeOwner);
+    assert.equal(health.runtimeOwner, runtimeOwner);
     runtime.health = health;
   }
   assert.deepEqual(evidence.errors, []);
