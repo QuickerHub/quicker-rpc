@@ -180,7 +180,8 @@ flush 的完整行为。browser runtime 的 Node 服务与 terminal 预热子进
 本入口已用源码 `f6fafbed` 的本地生产 runtime/ASAR 与正式 0.15.1 Electron/portable 工具
 完成两轮：每轮观察 15 个所属进程，四个主要角色退出 0，全部所属句柄、Job 列表和原监听
 在首次 dispose 前清空，无强制 Job 回收；合成 history 跨重启可读。请求 guard 的两次修正
-只改变该观测文件，原清单、旧 guard 和更正链均保留。这个组合不等于公开安装器的字节副本。
+只改变该观测文件，原清单、旧 guard 和更正链均保留。同步日志镜像可能影响时序，本轮耗时
+只描述这一隔离验收组合，不代表未注入观测的正式包性能。这个组合不等于公开安装器的字节副本。
 早期 harness 失败与一次 terminal 启动 503 同样保留；日志发现并发 cold start 会重复启动
 terminal 并报 EADDRINUSE，此并发启动问题尚未修复，不把两轮正常退出写成整体启动稳定性验收。
 
