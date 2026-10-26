@@ -11,7 +11,7 @@
 |---|---|---|
 | Generated knowledge | Ubuntu / Node 22 | CLI 指南和分发 skill 与知识源一致；不安装依赖 |
 | Offline Agent | Ubuntu 和 Windows / Node 22 / pnpm 10.18.3 | 冻结锁文件安装、TypeScript、显式离线检查、工具/eval/编写/trace 回归、Electron 模块静态检查 |
-| Designer DOM | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 真实无头 Edge、现有设计器组件与工作台 DOM 回归；生成 fixture、网络 guard、独立临时 profile |
+| Designer DOM | Windows 2025 / Node 22 / `global.json` SDK / 镜像预装 Microsoft Edge | 真实无头 Edge、设计器组件与工作台 DOM 回归；实际 C# source codec、本地 bundle 保存、生成 fixture、网络 guard、独立临时 profile |
 | Static SPA | Windows 2025 / Node 22 / 镜像预装 Microsoft Edge | 完整构建、搬移、原生验证与 React + 独立 Node 服务；原有 generated fixture、fake model、工作台编辑与自然退出 |
 | Host-independent .NET | Windows / `global.json` SDK | Runtime/Transport 全目标框架构建；Console、Transport、fake-host Runtime 单测；保留 TRX |
 | Transport contracts | Ubuntu / `global.json` SDK | Transport 全目标编译、完整 net10 合同测试、实际 netstandard2.0 客户端绑定与 Ping；记录 TRX 与 receipt |
@@ -105,6 +105,11 @@ Windows job 还用小型合成包运行生产 NSIS 模板的两遍真实 `/WX` �
 文档 Host 的真实组件回归。完整 APDE 文件的正常执行已超过一分钟，文件 worker 给定
 300 秒总预算；各用例内的 45/60 秒限制和服务自然退出的 5 秒门槛继续保留。
 该入口不会使用真实 Quicker、模型或用户资料，也不加入无 Edge 的离线流水线。
+source bundle 回归另经实际 C# CLI 读写合成源目录，沿生产 workspace API 和同一 Session
+核对保存、资源、重开与晚回执；原生提交边界使用受控回执，不能替代真实宿主验收。
+该用例要求显式 `QKRPC_SOURCE_DOCUMENT_BIN`，缺少产物直接失败，不取用户安装版或
+静默跳过。CI 按 `global.json` 构建当前提交的 Console Release 产物并注入该路径；
+本地运行整套 DOM 前也须构建或指定对应隔离 CLI。此过程不安装 CLI、不重载插件。
 独立的 [`Designer DOM (Windows Edge)` job](../../scripts/ci/check-designer-dom.mjs) 先实际启动镜像预装的 `msedge` 无头通道、记录
 版本并关闭，再原样调用该入口；缺少浏览器或启动失败直接阻断，不下载浏览器或静默跳过。
 该 job 不改变 Node/Native 门禁的测试顺序，保留所有 spec 的 individual deadline 和

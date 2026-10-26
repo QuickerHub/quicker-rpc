@@ -7,6 +7,8 @@ import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectInfoEditor } from "@/components/workspace/ActionProjectInfoEditor";
 import { saveProgramDocumentClient } from "@/lib/program-document-save-client";
 import { ActionProjectDataEditor } from "@/components/action-editor/ActionProjectDataEditor";
+import { SourceBundleDocumentEditor } from "@/components/action-editor/SourceBundleDocumentEditor";
+import { isSourceBundleDocumentPath } from "@/lib/source-bundle-document";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { isActionProjectInfoPath } from "@/lib/action-project-info-parse";
 import type { ExplorerFileTab } from "@/lib/workspace-explorer";
@@ -86,7 +88,8 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
     );
   }
 
-  const actionDataEditor = isActionProjectDataPath(activeTab.path);
+  const sourceDocument = isSourceBundleDocumentPath(activeTab.path);
+  const actionDataEditor = isActionProjectDataPath(activeTab.path) || sourceDocument;
 
   return (
     <div
@@ -135,6 +138,10 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
               </p>
             ) : null}
           </>
+        ) : sourceDocument ? (
+          <SourceBundleDocumentEditor active={active} path={activeTab.path} content={activeTab.content} cwd={cwd}
+            onSave={async () => ({ ok: false, error: "源码保存必须使用原文档存储端口。" })}
+            onSaved={onActionProjectSynced} onSynced={onActionProjectSynced} />
         ) : isActionProjectDataPath(activeTab.path) ? (
           <>
             <ActionProjectDataEditor

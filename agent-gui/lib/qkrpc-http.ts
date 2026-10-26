@@ -9,6 +9,7 @@ import type { QkrpcRunResult } from "@/lib/qkrpc-types";
 import { isQkrpcInvokeReplaySafe } from "@/lib/qkrpc-operation-effects";
 
 const WORKSPACE_PROJECT_OPS = new Set([
+  "source.document",
   "action.open",
   "action.save",
   "action.binding",
@@ -128,7 +129,7 @@ export async function resolveQkrpcHttpBinding(base: string, invoke: QkrpcInvoke,
 
 export async function invokeQkrpcHttp(
   invoke: QkrpcInvoke,
-  options?: { timeoutMs?: number; abortSignal?: AbortSignal; hostBinding?: QkrpcHostBinding; gatewayBase?: string },
+  options?: { timeoutMs?: number; abortSignal?: AbortSignal; hostBinding?: QkrpcHostBinding; gatewayBase?: string; onDispatch?: () => void },
 ): Promise<QkrpcRunResult | null> {
   const abortSignal = resolveRequestAbortSignal(options?.abortSignal);
   abortSignal?.throwIfAborted();
@@ -174,6 +175,7 @@ export async function invokeQkrpcHttp(
     }
     if (binding) bindQkrpcTarget({ gateway: base, binding });
     dispatched = true;
+    options?.onDispatch?.();
     const res = await fetch(`${base}/v1/invoke`, {
       method: "POST",
       ...(options?.gatewayBase ? { redirect: "error" as const } : {}),
@@ -209,6 +211,10 @@ export async function invokeQkrpcHttp(
     }
     if (write && (typeof body !== "object" || body === null || typeof body.ok !== "boolean"))
       return bindingFailure("WRITE_RESULT_UNKNOWN", "The operation acknowledgement was invalid; inspect the bound host and local files before retrying.");
+    if (!res.ok && body.ok && (invoke.op === "source.document" || (invoke.op === "action.save" && Object.hasOwn(invoke.args, "expectedSnapshot")))) {
+      const failure = bindingFailure(write ? "WRITE_RESULT_UNKNOWN" : "SOURCE_DOCUMENT_RESPONSE_MISMATCH", "Source protocol HTTP status contradicts its acknowledgement; no operation will be replayed.");
+      return { ...failure, parsed: { ...failure.parsed, receipt: body } };
+    }
     if (!binding && !offline) {
       const returned = readHostBinding(body.hostBinding);
       if (returned) bindQkrpcTarget({ gateway: base, binding: returned });

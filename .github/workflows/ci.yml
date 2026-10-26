@@ -170,6 +170,17 @@ jobs:
           node-version: '22'
           cache: pnpm
           cache-dependency-path: agent-gui/pnpm-lock.yaml
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Build the local source codec CLI for Designer roundtrips
+        timeout-minutes: 3
+        shell: pwsh
+        run: |
+          dotnet build QuickerRpc/src/QuickerRpc.Console/QuickerRpc.Console.csproj -c Release --nologo -v quiet
+          if ($LASTEXITCODE -ne 0) { throw 'Source codec CLI build failed' }
+          $sourceCli = (Resolve-Path -LiteralPath 'QuickerRpc/src/QuickerRpc.Console/bin/Release/net10.0/qkrpc.exe').Path
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "QKRPC_SOURCE_DOCUMENT_BIN=$sourceCli" -Encoding utf8
       - name: Install locked dependencies without browser downloads
         working-directory: agent-gui
         run: pnpm install --frozen-lockfile

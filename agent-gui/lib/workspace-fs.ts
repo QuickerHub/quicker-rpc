@@ -3,7 +3,7 @@ import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promise
 import { createInterface } from "node:readline";
 import { StringDecoder } from "node:string_decoder";
 import { dirname, join, normalize, relative, resolve, sep } from "node:path";
-import { getRequestCwd } from "@/lib/qkrpc-request-context";
+import { getRequestCwd, getRequestAbortSignal } from "@/lib/qkrpc-request-context";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import {
   buildReadContinuationHint,
@@ -389,6 +389,7 @@ export async function writeWorkspaceFile(
   content: string,
   options?: { createDirs?: boolean },
 ): Promise<{ ok: true; path: string; bytesWritten: number } | { ok: false; error: string }> {
+  getRequestAbortSignal()?.throwIfAborted();
   const resolved = resolveWorkspacePath(inputPath);
   if (!resolved.ok) return resolved;
 
@@ -400,6 +401,7 @@ export async function writeWorkspaceFile(
     ? normalizeDataJsonTextForDisk(content)
     : content;
 
+  getRequestAbortSignal()?.throwIfAborted();
   await writeFile(resolved.absolute, normalizedContent, "utf8");
   return {
     ok: true,
@@ -562,6 +564,7 @@ export async function editWorkspaceFile(
     }
   | { ok: false; error: string; matchCount?: number; matchLines?: number[] }
 > {
+  getRequestAbortSignal()?.throwIfAborted();
   if (!oldString) {
     return { ok: false, error: "oldString must not be empty." };
   }
@@ -588,6 +591,7 @@ export async function editWorkspaceFile(
   }
 
   const content = await readFile(resolved.absolute, "utf8");
+  getRequestAbortSignal()?.throwIfAborted();
   const resolvedNeedle = resolveUniqueEditNeedle(content, oldString);
 
   if (resolvedNeedle.kind === "ambiguous") {
@@ -611,6 +615,7 @@ export async function editWorkspaceFile(
       restoreFileEol(newString, content),
       true,
     );
+    getRequestAbortSignal()?.throwIfAborted();
     await writeFile(resolved.absolute, restoreFileEol(nextRaw, content), "utf8");
     return {
       ok: true,
@@ -631,6 +636,7 @@ export async function editWorkspaceFile(
       replaceAll,
     );
     const next = restoreFileEol(nextRaw, content);
+    getRequestAbortSignal()?.throwIfAborted();
     await writeFile(resolved.absolute, next, "utf8");
     const matchLines = replaceAll
       ? undefined
@@ -650,6 +656,7 @@ export async function editWorkspaceFile(
   if (isJsonEditPath(resolved.relative)) {
     const jsonEdit = tryJsonDocumentEdit(content, oldString, newString);
     if (jsonEdit?.ok) {
+      getRequestAbortSignal()?.throwIfAborted();
       await writeFile(
         resolved.absolute,
         restoreFileEol(jsonEdit.next, content),

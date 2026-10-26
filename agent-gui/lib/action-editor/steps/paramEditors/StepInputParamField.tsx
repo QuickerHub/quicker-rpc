@@ -602,6 +602,7 @@ function StepInputParamFieldInner({
     <textarea
       className="step-param-control step-param-control--multiline"
       value={externalFile.editorValue}
+      readOnly={externalFile.readOnly}
       placeholder={externalFile.loading ? "正在读取外部文件…" : def.defaultValue || ""}
       title={desc || undefined}
       rows={multiline ? 4 : 2}
@@ -612,6 +613,7 @@ function StepInputParamFieldInner({
       className="step-param-control"
       type="number"
       value={externalFile.editorValue}
+      readOnly={externalFile.readOnly}
       placeholder={def.defaultValue || ""}
       title={desc || undefined}
       onChange={(event) => externalFile.onEditorChange(event.target.value)}
@@ -621,6 +623,7 @@ function StepInputParamFieldInner({
       className="step-param-control"
       type="text"
       value={externalFile.editorValue}
+      readOnly={externalFile.readOnly}
       placeholder={def.defaultValue || ""}
       title={desc || undefined}
       onChange={(event) => externalFile.onEditorChange(event.target.value)}

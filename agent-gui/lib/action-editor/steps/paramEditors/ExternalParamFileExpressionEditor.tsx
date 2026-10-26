@@ -84,6 +84,7 @@ export function ExternalParamFileExpressionEditor({
       {!omitBadge ? <ExternalParamFileBadge state={externalFile} /> : null}
       {!omitBadge ? <ExternalParamFileStatusHints state={externalFile} /> : null}
       <ExpressionEditor
+        disabled={externalFile.readOnly}
         className={className}
         value={externalFile.editorValue}
         placeholder={externalFile.loading ? "正在读取外部文件…" : placeholder}

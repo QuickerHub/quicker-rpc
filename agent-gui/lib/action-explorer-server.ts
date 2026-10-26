@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 import { guardActionProjectBindingWrite } from "./action-project-host-binding.server";
+import { SourceDocumentOwnerError, withExternalSourceDocumentWrite } from "./source-document-owner.server";
+import { isActionSourceManagedPath } from "./qkrpc-action-source";
 import { join } from "node:path";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { basename } from "node:path";
@@ -273,7 +275,13 @@ export async function readWorkspaceFileForApi(
 export async function writeWorkspaceFileForApi(path: string, content: string) {
   const guard = await guardActionProjectBindingWrite(path);
   if (!guard.ok) return guard;
-  return writeWorkspaceFile(path, content);
+  if (isActionSourceManagedPath(path)) return { ok: false as const, error: "源码身份和 checkpoint 由工具维护，不能通过普通文件写入覆盖。" };
+  const target = resolveWorkspacePath(path); if (!target.ok) return target;
+  try { return await withExternalSourceDocumentWrite(target.absolute, () => writeWorkspaceFile(path, content)); }
+  catch (error) {
+    if (!(error instanceof SourceDocumentOwnerError)) throw error;
+    return { ok: false as const, code: error.code, error: error.message };
+  }
 }
 
 const ACTIONS_ROOT_PREFIX = ".quicker/actions/";
@@ -299,7 +307,7 @@ export async function deleteActionProjectFromWorkspace(
   }
 
   try {
-    await rm(resolved.absolute, { recursive: true, force: true });
+    await withExternalSourceDocumentWrite(resolved.absolute, () => rm(resolved.absolute, { recursive: true, force: true }), true);
     return { ok: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : "删除失败";

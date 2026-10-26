@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { withExternalSourceDocumentWrite } from "./source-document-owner.server";
 import { basename } from "node:path";
 import { rm } from "node:fs/promises";
 import {
@@ -142,7 +143,7 @@ export async function deleteSubProgramProjectFromWorkspace(
   }
 
   try {
-    await rm(resolved.absolute, { recursive: true, force: true });
+    await withExternalSourceDocumentWrite(resolved.absolute, () => rm(resolved.absolute, { recursive: true, force: true }), true);
     return { ok: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : "删除失败";

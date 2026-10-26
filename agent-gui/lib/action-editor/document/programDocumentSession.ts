@@ -193,6 +193,14 @@ export function createProgramDocumentSession(initial: { content: string; identit
     redo: (options: ProgramDocumentHistoryOptions) => restoreHistory("redo", options),
     readSnapshot: (): ActionProgramSnapshot => parseProgramDocumentSnapshot(state.content),
     readMetadata: () => state.metadata ? readProgramDocumentMetadata(state.metadata.content) : null,
+    /** A confirmed storage receipt can advance its CAS revision without rebuilding body or history. */
+    reconcileStorageVersion: (expectedIdentity: ProgramDocumentIdentity, version: string): ProgramDocumentEditResult => {
+      if (closed) return failure("closed", "Program document session is closed");
+      if (!sameIdentity(expectedIdentity, state.identity) || !state.identity.storage) return failure("identity_conflict", "Storage receipt belongs to another document");
+      if (pending || preparingSave) return failure("save_in_progress", "Cannot reconcile storage during a save");
+      state = Object.freeze({ ...state, identity: immutableIdentity({ ...state.identity, storage: { ...state.identity.storage, version } }), revision: state.revision + 1 });
+      return { ok: true, changed: true, state };
+    },
     /** A late local identity read attaches to the existing draft; it never creates another editor history. */
     reconcileProjectBinding: (binding: ActionProjectBinding | null): ProgramDocumentEditResult => {
       if (closed) return failure("closed", "Program document session is closed");

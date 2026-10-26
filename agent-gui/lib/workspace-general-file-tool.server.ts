@@ -3,9 +3,10 @@ import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { buildAgentTurnState } from "@/lib/agent-turn-state";
-import { getRequestLastUserText } from "@/lib/qkrpc-request-context";
+import { getRequestLastUserText, getRequestAbortSignal } from "@/lib/qkrpc-request-context";
 import { isActionSourceManagedPath } from "@/lib/qkrpc-action-source";
 import { validateWorkspaceWritePath } from "@/lib/workspace-write-guard.server";
+import { SourceDocumentOwnerError, withExternalSourceDocumentWrite } from "@/lib/source-document-owner.server";
 import { canReadConfirmedActionSourcePath } from "@/lib/action-source-read-guard.server";
 import {
   wasActionCreatedThisTurn,
@@ -252,10 +253,13 @@ async function executeWorkspaceFileTool(
           guard.error,
         );
       }
+      const nextContent = input.content;
+      return withSourceWriteGuard(path, "file-write", async () => {
       const snapshot = await readWorkspaceFileSnapshot(path);
       const previousContent = snapshot.ok ? snapshot.content : "";
       const previousTruncated = snapshot.ok ? snapshot.truncated === true : false;
-      const result = await writeWorkspaceFile(path, input.content);
+      getRequestAbortSignal()?.throwIfAborted();
+      const result = await writeWorkspaceFile(path, nextContent);
       if (!result.ok) {
         return formatLocalToolResult(
           { action: "file-write", success: false, errorMessage: result.error },
@@ -268,9 +272,10 @@ async function executeWorkspaceFileTool(
         success: true,
         path: result.path,
         bytesWritten: result.bytesWritten,
-        content: input.content,
+        content: nextContent,
         previousContent,
         previousTruncated: previousTruncated || undefined,
+      });
       });
     }
     case "edit": {
@@ -302,13 +307,16 @@ async function executeWorkspaceFileTool(
           guard.error,
         );
       }
+      const { oldString, newString, replaceAll } = input;
+      return withSourceWriteGuard(path, "file-edit", async () => {
       const snapshot = await readWorkspaceFileSnapshot(path);
       const previousContent = snapshot.ok ? snapshot.content : undefined;
+      getRequestAbortSignal()?.throwIfAborted();
       const result = await editWorkspaceFile(
         path,
-        input.oldString,
-        input.newString,
-        input.replaceAll,
+        oldString,
+        newString,
+        replaceAll,
       );
       if (!result.ok) {
         return formatLocalToolResult(
@@ -332,7 +340,8 @@ async function executeWorkspaceFileTool(
         matchLines: result.matchLines,
         editStrategy: result.editStrategy,
         previousContent,
-        content: written.ok ? written.content : input.newString,
+        content: written.ok ? written.content : newString,
+      });
       });
     }
     case "info": {
@@ -459,6 +468,16 @@ async function executeWorkspaceFileTool(
 }
 
 export { executeWorkspaceFileTool };
+
+async function withSourceWriteGuard(path: string, action: string, run: () => Promise<Record<string, unknown>>) {
+  const resolved = resolveWorkspacePath(path);
+  if (!resolved.ok) return formatLocalToolResult({ action, success: false, errorMessage: resolved.error }, false, resolved.error, { retryable: false });
+  try { return await withExternalSourceDocumentWrite(resolved.absolute, run); }
+  catch (error) {
+    if (!(error instanceof SourceDocumentOwnerError)) throw error;
+    return formatLocalToolResult({ action, success: false, errorCode: error.code, errorMessage: error.message }, false, error.message, { retryable: false });
+  }
+}
 
 const readWriteCommonSchema = {
   path: z

@@ -69,6 +69,15 @@ Agent 写入能力，Ask/Launcher 不开放。保存只尝试一次，冲突、D
 search/get → 同步 `.quicker` → 编辑 → diagnostics → patch → run/trace。
 publish 只在用户明确要求时执行。
 
+Explorer 已接有效 `program.source.yaml` bundle 的可视编辑：实际 C# codec 投影进入原 APDE
+与单一文档 Session，保留历史和未知原文，不生成 JSON 镜像。只读标题及来源目标来自实际
+身份文件，当前宿主状态明确未核验。普通 Save 只按完整源码快照写本地，重开从 checkpoint
+计算待同步；显式 Sync 复用原 dry-run 和一次提交，保留部分成功及未知收据。隐藏文件实例
+仍持有 owner，普通文件工具与 source save 不能绕过它。YAML 预览、根 metadata 和外置资源
+只读；源码实时 pin 与 Agent Save/Sync 尚未开放。真实 codec、生产 workspace API 和隔离
+浏览器回归已覆盖本地编辑链，实际宿主安装与原生 Sync 继续由集成验收确认。见
+[源码包文档协议](../authoring/source-bundle-document.md)。
+
 主动作工作台的实时 scope 是上述磁盘流程的专用例外：从真实“+对话”入口重新加入步骤，
 本轮 `workspace_program` 才提供客户端 `read_live/edit_live`，读取原设计器的未保存正文，
 修改已授权步骤的备注并进入同一撤销历史。绑定且支持原生输入契约的文档还可通过
@@ -349,7 +358,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；V1 runtime 目录已实测完整分页。V1 组合动作（已知 XAction）打开额外要求正文读能力，按完整目标复用本地文件或只向空目录导出；原工作台保留已有实例、dirty/undo，异步/未知收据不抢焦点、不重放。fixture、真实 DOM 与隔离开发态前端检查通过；169 已有项目复用/重查/owner拒绝已有真实HTTP验收，fresh export与native GUI点击待验收。全局子程序调用插入/拖放已接同一参数确认和文档事务，schema/IO失败不确认、换owner不误插、新变量与调用一起撤销；动作引用插入/拖放也已接同一参数确认与事务，39 项真实 DOM 和迟到请求对新搜索/取消的隔离通过；两个调用链原生 GUI 验收、V2/子程序打开和资源写操作仍待迁移，不以受限搜索冒充完整目录 |
 | `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。主动作/子程序共用 FA 搜索、风格分页、选色和手填规格；上传图标库及其它属性仍待原生契约 |
-| 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | V1 source 与磁盘保真已有基础；metadata 原始字段、V2 codec 和 UI source 接入继续验收 |
+| 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | 有效 bundle 已通过实际 C# codec 接入原 APDE/Session，支持本地 CAS Save、只读 YAML 预览、重开 pending 与显式原生 Sync 收据核对；身份与 checkpoint 不由普通 Save 改写。隔离 codec/API/DOM 回归覆盖本地链，真实宿主集成继续验收；metadata、资源编辑和源码实时 pin 暂未开放，不新增 Agent 权限 |
 | 运行/诊断 bridge | 已确认范围内的 run/trace、失败定位、取消与结果展示 | 复用现有 RPC/Agent 服务；新版设计器调用侧与宿主能力逐项接线 |
 
 普通保存只写本地工作区。显式 Sync 已在同一文档写入队列内先保存正文，再用返回的精确
