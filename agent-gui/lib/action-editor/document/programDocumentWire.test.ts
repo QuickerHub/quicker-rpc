@@ -1,6 +1,37 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseProgramDocumentSnapshot, serializeProgramDocumentSnapshot } from "./programDocumentWire";
+import { fingerprintProgramDocumentContent, parseProgramDocumentSnapshot, serializeProgramDocumentSnapshot } from "./programDocumentWire";
+
+test("lean document fields remain in their source namespace through ordinary edits and removals", () => {
+  const content = '{"steps":[{"key":"sys:notify","inputs":{"msg":{"Value":"before","future":9223372036854775807},"remove":"old"},"outputs":{"result":"old"},"future":1.0000000000000001,"ifSteps":[{"key":"sys:delay","inputs":{"ms":"1"}}]}],"variables":[]}';
+  const snapshot = parseProgramDocumentSnapshot(content);
+  assert.equal(serializeProgramDocumentSnapshot(content, snapshot), content, "reading must not persist synthetic IDs or rename aliases");
+  snapshot.steps[0]!.stepRunnerKey = "sys:future-notify";
+  snapshot.steps[0]!.inputParams.msg!.value = "after";
+  delete snapshot.steps[0]!.inputParams.remove;
+  snapshot.steps[0]!.outputParams = {};
+  snapshot.steps[0]!.ifSteps[0]!.inputParams.ms!.value = "2";
+  const changed = serializeProgramDocumentSnapshot(content, snapshot), saved = JSON.parse(changed).steps[0];
+  assert.equal(saved.key, "sys:future-notify"); assert.equal(saved.inputs.msg.value, "after");
+  assert.equal(Object.hasOwn(saved.inputs, "remove"), false); assert.deepEqual(saved.outputs, {});
+  assert.equal(saved.ifSteps[0].inputs.ms, "2");
+  for (const key of ["stepRunnerKey", "inputParams", "outputParams"]) assert.equal(Object.hasOwn(saved, key), false, key);
+  assert.match(changed, /9223372036854775807/); assert.match(changed, /1\.0000000000000001/);
+  const again = parseProgramDocumentSnapshot(changed);
+  assert.equal(again.steps[0]!.inputParams.msg!.value, "after");
+  assert.equal(serializeProgramDocumentSnapshot(changed, again), changed);
+});
+
+test("lean and canonical fingerprints agree while native parameter extensions still participate", () => {
+  const lean = '{"steps":[{"key":"sys:notify","inputs":{"msg":{"Value":"same","future":9223372036854775807}},"outputs":{"result":"old"}}],"variables":[]}';
+  const canonical = lean.replace('"key":', '"stepRunnerKey":').replace('"inputs":', '"inputParams":').replace('"outputs":', '"outputParams":');
+  assert.equal(fingerprintProgramDocumentContent(lean), fingerprintProgramDocumentContent(canonical));
+  assert.notEqual(fingerprintProgramDocumentContent(lean), fingerprintProgramDocumentContent(lean.replace("9223372036854775807", "9223372036854775806")));
+  const snapshot = parseProgramDocumentSnapshot(lean);
+  snapshot.steps[0]!.note = "unrelated edit";
+  const saved = JSON.parse(serializeProgramDocumentSnapshot(lean, snapshot)).steps[0];
+  assert.deepEqual(saved.inputs, JSON.parse(lean).steps[0].inputs, "unrelated edits leave binding representation intact");
+});
 
 function nativeFixture() {
   return {

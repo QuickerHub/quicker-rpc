@@ -6,6 +6,7 @@ import { parseWireParamKey } from "../../input-param-wire";
 import { parseLosslessJson, stringifyLosslessJson } from "../shared/losslessJson";
 import type { ActionSubProgram } from "../types/common";
 import type { ActionProgramSnapshot } from "../program/assembleActionProgramSnapshot";
+import { resolveProgramWireStepFields } from "../wire/programWire";
 
 function rawSurface(document: SubProgramRecord, surface: string): SubProgramRecord {
   aliases(document, [["subPrograms", "SubPrograms"]]);
@@ -72,13 +73,15 @@ function guardRawScope(body: SubProgramRecord, references: boolean, request: Pro
     if (!Array.isArray(rows)) throw new Error("步骤集合不可核验");
     for (const step of rows) {
       if (!isSubProgramRecord(step)) throw new Error("步骤正文不可核验");
-      aliases(step, [["stepId", "StepId"], ["stepRunnerKey", "StepRunnerKey", "key", "Key"],
-        ["inputParams", "InputParams", "inputs", "Inputs"], ["outputParams", "OutputParams", "outputs", "Outputs"],
+      aliases(step, [["stepId", "StepId"], ["stepRunnerKey", "StepRunnerKey"], ["key", "Key"],
+        ["inputParams", "InputParams"], ["inputs", "Inputs"], ["outputParams", "OutputParams"], ["outputs", "Outputs"],
         ["ifSteps", "IfSteps"], ["elseSteps", "ElseSteps"]]);
-      for (const [key, value] of Object.entries(step)) if (!["stepId", "stepRunnerKey", "inputParams", "outputParams", "ifSteps", "elseSteps", "note", "disabled", "collapsed", "delayMs"].includes(key)) unknownReference(value);
-      if (step.inputParams !== undefined && !isSubProgramRecord(step.inputParams)) throw new Error("输入参数结构不可核验");
+      const fields = resolveProgramWireStepFields(step);
+      for (const [key, value] of Object.entries(step)) if (!["stepId", fields.runner, fields.inputs, fields.outputs, "ifSteps", "elseSteps", "note", "disabled", "collapsed", "delayMs"].includes(key)) unknownReference(value);
+      const inputs = step[fields.inputs];
+      if (inputs !== undefined && !isSubProgramRecord(inputs)) throw new Error("输入参数结构不可核验");
       const seen = new Set<string>();
-      for (const [key, pin] of Object.entries((step.inputParams ?? {}) as SubProgramRecord)) {
+      for (const [key, pin] of Object.entries((inputs ?? {}) as SubProgramRecord)) {
         const base = parseWireParamKey(key).baseKey;
         if (seen.has(base)) throw new Error("输入参数同时存在多种绑定，不能安全改写引用");
         seen.add(base);

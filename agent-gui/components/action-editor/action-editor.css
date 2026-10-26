@@ -3084,7 +3084,7 @@
   border: none;
   border-left: 1px solid var(--ad-border-input);
   border-radius: 0;
-  background: var(--ad-bg-button-secondary);
+  background: var(--ad-bg-button-secondary-soft);
   color: var(--ad-fg-button-secondary);
   cursor: pointer;
   padding: 0;
@@ -3549,10 +3549,6 @@
   text-decoration: none;
 }
 
-html[data-theme="light"] .step-param-varorvalue-toggle {
-  background: #f9f9f9;
-}
-
 .step-param-inputvar {
   display: flex;
   align-items: stretch;
@@ -3568,7 +3564,7 @@ html[data-theme="light"] .step-param-varorvalue-toggle {
   border: 1px solid var(--ad-border-input);
   border-right: none;
   border-radius: 4px 0 0 4px;
-  background: var(--ad-bg-button-secondary);
+  background: var(--ad-bg-button-secondary-soft);
   color: var(--ad-fg-button-secondary);
   cursor: pointer;
   padding: 0;
@@ -3593,14 +3589,6 @@ html[data-theme="light"] .step-param-varorvalue-toggle {
   border-bottom: 1px solid currentColor;
   transform: translate(-50%, -62%) rotate(45deg);
   pointer-events: none;
-}
-
-html[data-theme="light"] .step-param-inputvar-btn {
-  background: #F9F9F9;
-}
-
-html[data-theme="light"] .step-editor-popup-btn.secondary {
-  background: #F9F9F9;
 }
 
 .step-param-inputvar-display {
@@ -3944,7 +3932,7 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 }
 
 .step-editor-popup-btn.secondary {
-  background: var(--ad-bg-button-secondary);
+  background: var(--ad-bg-button-secondary-soft);
   color: var(--ad-fg-button-secondary);
 }
 
