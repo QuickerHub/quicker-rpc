@@ -195,4 +195,3 @@ test("a closed turn cannot publish a late page or poison another turn on the sam
   assert.equal(late.ok, false);
   assert.doesNotMatch(JSON.stringify(late), /obsolete schema body/);
 });
-
