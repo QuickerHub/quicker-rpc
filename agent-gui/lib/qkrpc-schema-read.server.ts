@@ -82,6 +82,17 @@ export function createQkrpcSchemaReadRunner(ports: Partial<SchemaReadPorts> = {}
       if (root.ok === false || payload?.success === false || page.status === "unavailable") {
         return { ...result, ok: false, exitCode: result.exitCode === 0 ? 1 : result.exitCode };
       }
+      const requested = invoke.args.read as Record<string, unknown>;
+      const input = page.input && typeof page.input === "object" ? page.input as Record<string, unknown> : undefined;
+      const inputRead = input?.read && typeof input.read === "object" ? input.read as Record<string, unknown> : undefined;
+      if (!input || !inputRead || input.key !== invoke.args.key.trim() || input.controlField !== invoke.args.controlField
+        || page.pointer !== (requested.pointer ?? "") || page.mode !== (requested.mode ?? "children")
+        || page.offset !== (requested.offset ?? 0) || inputRead.pointer !== page.pointer
+        || inputRead.mode !== page.mode || inputRead.offset !== page.offset
+        || inputRead.expectedObservation !== page.observation
+        || (requested.expectedObservation !== undefined && requested.expectedObservation !== page.observation)) {
+        return bindingFailure("SCHEMA_READ_MISMATCH", "The schema page does not match this exact request and observation. No page content or continuation is usable.");
+      }
     }
     return result;
   };

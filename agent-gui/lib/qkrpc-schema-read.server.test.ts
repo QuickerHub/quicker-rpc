@@ -16,9 +16,15 @@ const binding = readHostBinding({ hostInstanceId: "schema-reader-owner", hostSes
   hostKind: "v1", quickerVersion: "fixture", capabilities: {} })!;
 const args = ["step-runner", "get", "--key", "sys:fixture", "--control-field", " ",
   "--schema-read", JSON.stringify({ pointer: "", mode: "children", offset: 0 })];
+const observation = `sha256:${"a".repeat(64)}`;
+const page = { format: STEP_RUNNER_SCHEMA_READ_FORMAT, status: "available", observation,
+  pointer: "", mode: "children", offset: 0, offsetUnit: "children", total: 0, nextOffset: null,
+  selectedComplete: true, agentSchemaComplete: false, children: [],
+  input: { key: "sys:fixture", controlField: " ", read: { pointer: "", mode: "children", offset: 0, expectedObservation: observation } },
+};
 const success: QkrpcRunResult = { ok: true, exitCode: 0, stdout: "", stderr: "", truncated: false,
   parsed: { action: "step-runner-get", payload: { success: true, schemaRead: {
-    format: STEP_RUNNER_SCHEMA_READ_FORMAT, status: "available", content: "current page",
+    ...page,
   } } } };
 
 function owned<T>(gateway: string, run: () => Promise<T>, state = createTurnExecutionState()) {
@@ -135,6 +141,24 @@ test("serve selector failures remain failed tool receipts even when the HTTP env
   assert.equal(result.parsed, response.parsed);
 });
 
+test("a page for a different request or observation is rejected without exposing its body", async () => {
+  for (const changed of [
+    { ...page, pointer: "/other", content: "foreign body" },
+    { ...page, input: { ...page.input, controlField: "" }, content: "foreign body" },
+    { ...page, input: { ...page.input, key: "sys:other" }, content: "foreign body" },
+    { ...page, observation: "sha256:different", content: "foreign body" },
+  ]) {
+    const run = createQkrpcSchemaReadRunner({ http: async () => ({ ...success,
+      parsed: { action: "step-runner-get", payload: { success: true, schemaRead: changed } } }) });
+    const result = await owned("http://127.0.0.1:1234", () => run(args));
+    assert.equal((result.parsed as { error: string }).error, "SCHEMA_READ_MISMATCH");
+    assert.doesNotMatch(JSON.stringify(result), /foreign body/);
+  }
+  const run = createQkrpcSchemaReadRunner({ http: async () => success });
+  const continuation = [...args.slice(0, -1), JSON.stringify({ pointer: "", mode: "children", offset: 0, expectedObservation: "sha256:old" })];
+  assert.equal((await owned("http://127.0.0.1:1234", () => run(continuation))).ok, false);
+});
+
 test("the parent and explicit abort signals both discard late schema pages", async () => {
   for (const abortParent of [false, true]) {
     const parent = new AbortController();
@@ -176,6 +200,10 @@ test("a closed turn cannot publish a late page or poison another turn on the sam
 test("the actual HTTP adapter sends one bound read and retains numeric JSON fragment text", async () => {
   const requests: Record<string, unknown>[] = [];
   const content = '{"large":9007199254740993,"decimal":0.1000000000000000001,"negativeZero":-0}';
+  const valuePage = { ...page, mode: "value", offsetUnit: "utf16", total: content.length,
+    agentSchemaComplete: true, children: undefined, content,
+    input: { ...page.input, read: { ...page.input.read, mode: "value" } },
+  };
   const server = createServer((request, response) => {
     let body = "";
     request.on("data", chunk => { body += chunk; });
@@ -184,7 +212,7 @@ test("the actual HTTP adapter sends one bound read and retains numeric JSON frag
       requests.push(JSON.parse(body));
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ ok: true, data: { ok: true, action: "step-runner-get",
-        payload: { success: true, schemaRead: { format: STEP_RUNNER_SCHEMA_READ_FORMAT, status: "available", content } } } }));
+        payload: { success: true, schemaRead: valuePage } } }));
     });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -193,12 +221,13 @@ test("the actual HTTP adapter sends one bound read and retains numeric JSON frag
   try {
     const run = createQkrpcSchemaReadRunner({ cli: async () => { assert.fail("no CLI"); },
       binary: () => { assert.fail("no binary staging"); } });
-    const result = await owned(`http://127.0.0.1:${address.port}`, () => run(args));
+    const valueArgs = [...args.slice(0, -1), JSON.stringify({ pointer: "", mode: "value", offset: 0 })];
+    const result = await owned(`http://127.0.0.1:${address.port}`, () => run(valueArgs));
     assert.equal(result.ok, true);
     assert.equal(requests.length, 1);
     assert.equal(requests[0].op, "step-runner.get");
     assert.deepEqual(requests[0].hostBinding, binding);
-    assert.deepEqual((requests[0].args as Record<string, unknown>).read, { pointer: "", mode: "children", offset: 0 });
+    assert.deepEqual((requests[0].args as Record<string, unknown>).read, { pointer: "", mode: "value", offset: 0 });
     assert.equal((result.parsed as { payload: { schemaRead: { content: string } } }).payload.schemaRead.content, content);
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
