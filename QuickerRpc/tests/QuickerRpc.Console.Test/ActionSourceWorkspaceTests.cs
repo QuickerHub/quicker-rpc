@@ -87,7 +87,7 @@ public sealed class ActionSourceWorkspaceTests
             Assert.AreEqual(ActionId, id);
             versions.Add(version);
             return new QuickerRpcApplyXActionResult
-            { Success = true, ActionId = ActionId, EditVersion = versions.Count + 7 };
+            { Success = true, Persisted = true, ActionId = ActionId, EditVersion = versions.Count + 7 };
         };
         var first = await ActionSourceServeOps.SaveAsync(rpc, Args(false), CancellationToken.None);
         Assert.IsTrue(first.Ok, first.Error + ": " + first.Message);
@@ -216,7 +216,7 @@ public sealed class ActionSourceWorkspaceTests
             Assert.AreEqual(version, storage.Version);
             versions.Add(storage.Version);
             return new QuickerRpcApplyXActionResult
-            { Success = true, Persisted = true, EditVersion = storage.Version + 1,
+            { Success = true, Persisted = true, ActionId = id, EditVersion = storage.Version + 1,
                 StorageIdentity = new() { Kind = "draft", DraftId = "draft-1", Version = storage.Version + 1 } };
         };
         Assert.IsTrue((await ActionSourceServeOps.SaveAsync(session.Rpc, Args(false), default)).Ok);
@@ -242,8 +242,8 @@ public sealed class ActionSourceWorkspaceTests
         var response = await ActionSourceServeOps.SaveAsync(session.Rpc, Args(false), default);
         Assert.IsFalse(response.Ok);
         Assert.AreEqual("SOURCE_POST_COMMIT_FAILED", response.Error);
-        var data = JsonSerializer.SerializeToElement(response.Data);
-        Assert.IsTrue(data.GetProperty("Persisted").GetBoolean());
+        var data = JsonSerializer.SerializeToElement(response.Data, QkrpcJson.CliOutput);
+        Assert.IsTrue(data.GetProperty("persisted").GetBoolean());
         Assert.AreEqual(3L, ActionSourceWorkspace.Prepare(_directory).EditVersion);
     }
 

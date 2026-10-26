@@ -24,6 +24,8 @@ public sealed class HostBindingEntryPointTests
     public async Task Cli_source_open_save_bind_and_do_not_write_to_surviving_host_after_exit()
     {
         var a = new FakeBindingHost();
+        a.Apply = (id, version) => new QuickerRpcApplyXActionResult {
+            Success = true, Persisted = true, ActionId = id, EditVersion = (version ?? 7) + 1 };
         await using var b = new FakeBindingHost("v2");
         try
         {
@@ -49,6 +51,8 @@ public sealed class HostBindingEntryPointTests
     public async Task Serve_and_mcp_share_source_binding_and_reject_other_host()
     {
         await using var a = new FakeBindingHost();
+        a.Apply = (id, version) => new QuickerRpcApplyXActionResult {
+            Success = true, Persisted = true, ActionId = id, EditVersion = (version ?? 7) + 1 };
         await using var b = new FakeBindingHost("v2");
         await using var pool = new QkrpcRpcSessionPool(2, false);
         var opened = await ServeInvokeDispatcher.InvokeAsync(pool, "action.open", Args(new { id = Id, dir = directory }), 2, default, a.Binding);

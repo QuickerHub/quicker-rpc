@@ -63,6 +63,7 @@ internal static class ActionProgramSourceService
     public static QuickerRpcApplyXActionResult Apply(string actionId, string bodyJson, long? expectedEditVersion, bool force)
     {
         var id = ActionReadOnlyMutationGuard.ResolveMutationActionId(actionId.Trim());
+        bool? persisted = false;
         try
         {
             // Force only bypasses catalog version conflicts, never an in-memory designer draft.
@@ -78,6 +79,7 @@ internal static class ActionProgramSourceService
 
             if (ActionReadOnlyMutationGuard.TryBuildReplaceFailure(action, id, out var readOnly))
             {
+                readOnly.Persisted = false;
                 return readOnly;
             }
 
@@ -96,6 +98,7 @@ internal static class ActionProgramSourceService
                     ErrorMessage = "Action changed in Quicker. Re-read the action source before applying.",
                     EditVersion = versionBefore,
                     VersionConflict = expectedEditVersion.HasValue,
+                    Persisted = false,
                 };
             }
 
@@ -132,15 +135,15 @@ internal static class ActionProgramSourceService
             var saved = false;
             try
             {
-                saved = QuickerInternalAccess.TrySaveEditingAction(action, out var saveError);
+                saved = QuickerInternalAccess.TrySaveEditingAction(action, out var saveError, out persisted);
                 if (!saved)
                 {
-                    return WriteFailure(id, "SOURCE_SAVE_FAILED", saveError ?? "Action save failed.");
+                    return WriteFailure(id, "SOURCE_SAVE_FAILED", saveError ?? "Action save failed.", persisted);
                 }
             }
             finally
             {
-                if (!saved)
+                if (persisted == false)
                 {
                     action.Data = previousData;
                     action.Data2 = previousData2;
@@ -155,6 +158,7 @@ internal static class ActionProgramSourceService
             return new QuickerRpcApplyXActionResult
             {
                 Success = true,
+                Persisted = true,
                 ActionId = action.Id,
                 EditVersion = ActionDesignerProgramAccess.GetEditVersionMs(reloaded ?? action),
                 UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
@@ -162,7 +166,7 @@ internal static class ActionProgramSourceService
         }
         catch (Exception ex)
         {
-            return WriteFailure(id, "SOURCE_SAVE_FAILED", ex.Message);
+            return WriteFailure(id, "SOURCE_SAVE_FAILED", ex.Message, persisted);
         }
     }
 
@@ -218,6 +222,6 @@ internal static class ActionProgramSourceService
     private static QuickerRpcGetActionProgramSourceResult ReadFailure(string id, string code, string message) =>
         new() { ActionId = id, ErrorCode = code, ErrorMessage = message };
 
-    private static QuickerRpcApplyXActionResult WriteFailure(string id, string code, string message) =>
-        new() { ActionId = id, ErrorCode = code, ErrorMessage = message };
+    private static QuickerRpcApplyXActionResult WriteFailure(string id, string code, string message, bool? persisted = false) =>
+        new() { ActionId = id, ErrorCode = code, ErrorMessage = message, Persisted = persisted };
 }
