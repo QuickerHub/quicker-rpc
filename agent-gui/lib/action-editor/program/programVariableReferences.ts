@@ -19,8 +19,14 @@ const bindingPattern = new RegExp(`^(${ACTION_VARIABLE_IDENTIFIER_SOURCE})(.*)$`
 const isRecord = (value: unknown): value is RecordValue => value !== null && typeof value === "object" && !Array.isArray(value) && !isLosslessJsonNumber(value);
 const fail = (code: string, error: string): Extract<ProgramVariableChangeResult, { ok: false }> => ({ ok: false, code, error });
 const same = (a: unknown, b: unknown) => programDocumentFingerprint(a) === programDocumentFingerprint(b);
+/** Unknown clipboard carriers have no native interpolation contract; keep every such marker opaque. */
+export function hasOpaqueClipboardReference(value: unknown): boolean {
+  if (typeof value === "string") return /[{}]|\$=|\$\$|\$sp\$|GetVarValue|SetVarValue|quickerGetVar|quickerSetVar/u.test(value);
+  if (Array.isArray(value)) return value.some(hasOpaqueClipboardReference);
+  return isRecord(value) && Object.values(value).some(hasOpaqueClipboardReference);
+}
 function possibleReference(value: unknown, scan: Scan): boolean {
-  if (scan.clipboard && typeof value === "string" && /[{}]|\$=|\$\$|GetVarValue|SetVarValue|quickerGetVar|quickerSetVar/u.test(value)) return true;
+  if (scan.clipboard) return hasOpaqueClipboardReference(value);
   if (typeof value === "string") return [...value.matchAll(new RegExp(`\\{(${ACTION_VARIABLE_IDENTIFIER_SOURCE})(?=\\}|\\.|\\[)`, "gu"))]
     .some((match) => scan.rename ? match[1] === scan.rename.from.key : scan.keys?.has(match[1]!));
   if (Array.isArray(value)) return value.some((item) => possibleReference(item, scan));

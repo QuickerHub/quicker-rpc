@@ -124,3 +124,18 @@ test("absent and null maps and pins survive raw clipboard transactions without g
   const raw=JSON.parse(f.session.getState().content).steps;assert.equal(Object.hasOwn(raw[3],'inputParams'),false);assert.equal(raw[4].inputParams,null);assert.equal(raw[5].inputParams.note,null);assert.equal(raw[5].outputParams.result,null);
   const before=f.session.getState();assert.equal(f.main.pasteSteps!(copy.text.replace('"StepId": "null"','"StepId":"null","IfSteps":null'),'pins').ok,false);assert.equal(f.session.getState(),before);
 });
+
+test("opaque step and pin expression markers refuse the batch without a Session commit",()=>{
+  for(const carrier of ['step','pin'])for(const marker of ['{count+1=}','{count']){
+    const step={stepId:'one',stepRunnerKey:'sys:comment',inputParams:{note:{varKey:'count',...(carrier==='pin'?{future:marker}:{})}},...(carrier==='step'?{future:marker}:{})};
+    const content=JSON.stringify({steps:[step],variables:[{id:'count',key:'count',varType:1,defaultValue:'1'}],subPrograms:[]});
+    const f=fixture(content),before=f.session.getState();
+    assert.equal(f.main.exportSteps!(['one']).ok,false,`${carrier}: ${marker}`);assert.equal(f.session.getState(),before);
+    assert.equal(f.main.pasteSteps!(content,'one').ok,false);assert.equal(f.session.getState(),before);assert.equal(f.session.getState().revision,0);
+    const plain=content.replaceAll(marker,'plain opaque metadata');const allowed=fixture(plain),copy=allowed.main.exportSteps!(['one']);assert.ok(copy.ok,copy.ok?'':copy.error);
+    const payload=parseStepClipboardBody(copy.text),raw=payload.steps[0]!;
+    assert.equal(carrier==='step'?raw.future:(raw.inputParams as Record<string,{future:string}>).note!.future,'plain opaque metadata');
+    const pasted=allowed.main.pasteSteps!(copy.text,'one');assert.ok(pasted.ok,pasted.ok?'':pasted.error);
+    const inserted=JSON.parse(allowed.session.getState().content).steps[1];assert.equal(carrier==='step'?inserted.future:inserted.inputParams.note.future,'plain opaque metadata');
+  }
+});

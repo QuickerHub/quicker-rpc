@@ -171,3 +171,16 @@ test('step clipboard keeps native text shortcuts and stops old copy fallback aft
     assert.equal(await f.page.evaluate(()=>(window as any).fixture.textWrites),0);assert.equal(await nextNote.evaluate(node=>document.activeElement===node),true);assert.equal(await f.read(),initial);
   }finally{await f.close();}
 });
+
+test('opaque step and pin expressions keep the previous clipboard and document unchanged',{timeout:90000},async()=>{
+  for(const carrier of ['step','pin'])for(const marker of ['{count+1=}','{count']){
+    const source=JSON.stringify({steps:[{stepId:'one',stepRunnerKey:'sys:comment',note:'opaque carrier',inputParams:{note:{varKey:'count',...(carrier==='pin'?{future:marker}:{})}},...(carrier==='step'?{future:marker}:{})}],variables:[{id:'count',key:'count',varType:1,defaultValue:'1'}],subPrograms:[]});
+    const f=await open(source);try{
+      const before=await raw(f.page);await f.page.evaluate(()=>(window as any).fixture.text='keep previous clipboard');
+      await key(f.page,'c','one');await f.page.getByText('未知字段 future 可能含依赖，尚不能证明可移交',{exact:true}).waitFor();
+      assert.equal(await f.page.evaluate(()=>(window as any).fixture.text),'keep previous clipboard');
+      assert.equal(await f.page.evaluate(()=>(window as any).fixture.writes.length+(window as any).fixture.textWrites),0);
+      assert.equal(await raw(f.page),before);assert.equal(await f.read(),source);assert.equal(await f.page.evaluate(()=>(window as any).fixture.saved.length),0);
+    }finally{await f.close();}
+  }
+});

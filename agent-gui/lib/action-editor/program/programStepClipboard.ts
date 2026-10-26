@@ -2,8 +2,7 @@ import type { ActionStep, ActionVariable } from "../types/common";
 import type { XProgramPresent } from "./xProgramHistory";
 import { findStepById, normalizeSelectionForMove } from "../steps/stepTreeOps";
 import { variableClipboardRowToEditor } from "./programVariableClipboard";
-import { ACTION_VARIABLE_IDENTIFIER_SOURCE } from "../steps/paramEditors/stepParamCreateVariable";
-import { transformClipboardVariableReferences } from "./programVariableReferences";
+import { hasOpaqueClipboardReference, transformClipboardVariableReferences } from "./programVariableReferences";
 import { isReservedVariableKey } from "../steps/paramEditors/stepParamBuiltinVariables";
 import { quoteSubProgramConstant } from "../document/programDocumentSubProgramModel";
 import { record, clipboardRows, normalizeClipboardStep, normalizeClipboardProgram, parseStepClipboardBody, serializeStepClipboardBody,
@@ -21,13 +20,8 @@ const identifier=(row:ClipboardRecord,key:string):string=>{
   if(names.length!==1||typeof row[names[0]!]!=="string") throw new Error(`剪贴板 ${key} 身份缺失或有歧义`);
   const value=row[names[0]!] as string;if(!value||value!==value.trim()) throw new Error(`剪贴板 ${key} 含非规范空白`);return value;
 };
-function unsafeOpaque(value:unknown):boolean {
-  if(typeof value==="string") return new RegExp(`\\{(${ACTION_VARIABLE_IDENTIFIER_SOURCE})(?=[}.\\[])|\\$=|\\$\\$|\\$sp\\$|GetVarValue|SetVarValue|quickerGetVar|quickerSetVar`,"u").test(value);
-  if(Array.isArray(value)) return value.some(unsafeOpaque);
-  return record(value)&&Object.values(value).some(unsafeOpaque);
-}
 function assertOpaqueFields(row:ClipboardRecord,known:ReadonlySet<string>):void {
-  for(const [key,value] of Object.entries(row)) if(!known.has(key)&&unsafeOpaque(value)) throw new Error(`未知字段 ${key} 可能含依赖，尚不能证明可移交`);
+  for(const [key,value] of Object.entries(row)) if(!known.has(key)&&hasOpaqueClipboardReference(value)) throw new Error(`未知字段 ${key} 可能含依赖，尚不能证明可移交`);
 }
 function scope(body:ClipboardRecord,steps?:ClipboardRecord[]):Scope {
   for(const key of ["steps","variables","subPrograms"]) if(Object.keys(body).some(name=>name!==key&&name.toLowerCase()===key.toLowerCase())) throw new Error("程序集合别名不能安全定位");
