@@ -949,7 +949,7 @@ export function ActionProjectDataEditor({
         {sourceDocument ? <SourceBundleTargetSummary actionId={sourceDocument.actionId} host={sourceDocument.hostBinding} /> : null}
         {sourceClient && sourceDocument ? <div className="action-project-data-editor-actions" data-source-bundle-status>
           <p className="workspace-explorer-hint">{sourceDocument.pending.status === "pending" ? "本地待同步" : "本地与提交基线一致"} · 当前宿主状态未核验</p>
-          <p className="workspace-explorer-hint">动作标题、说明和图标只读；外置资源只读，文件引用保留。源码行号映射尚未提供，暂不能加入实时对话。</p>
+          <p className="workspace-explorer-hint">动作标题、说明和图标只读；外置资源只读，文件引用保留。此源码文档暂不支持加入实时对话。</p>
           {targetError ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">{targetError}</p> : null}
           <button type="button" className="action-project-data-editor-sync" onClick={() => void handleSourceSync()}
             disabled={!active || dirty || saving || hostSyncBusy || targetBlocked || sourceDocument.hostBinding?.capabilities["action.source.write"] !== true}>
@@ -1038,7 +1038,7 @@ export function ActionProjectDataEditor({
         ) : null}
       </div>
 
-      <div className="action-project-data-editor-tabs" role="tablist" aria-label="data.json 视图">
+      <div className="action-project-data-editor-tabs" role="tablist" aria-label={sourceClient ? "程序视图" : "data.json 视图"}>
         <button
           type="button"
           role="tab"
