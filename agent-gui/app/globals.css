@@ -16939,6 +16939,13 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   background: transparent;
 }
 
+.model-picker-panel button:focus-visible,
+.model-picker-detail:focus-visible,
+.model-picker-detail button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
 .model-picker-item-main {
   display: flex;
   align-items: baseline;
@@ -17049,6 +17056,11 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   left: auto;
   top: auto;
   z-index: 261;
+  width: min(13.5rem, calc(100vw - 16px));
+}
+
+.model-picker-detail--viewport.model-picker-detail--wide {
+  width: min(16.5rem, calc(100vw - 16px));
 }
 
 .model-picker-detail--viewport.model-picker-detail--left::before {
@@ -17278,7 +17290,7 @@ button.file-editor-header-open.file-editor-header--compact:hover {
 }
 
 @media (max-width: 640px) {
-  .model-picker-detail {
+  .model-picker-detail:not(.model-picker-detail--viewport) {
     position: static;
     left: auto;
     width: auto;

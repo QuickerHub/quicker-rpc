@@ -8,6 +8,8 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -71,6 +73,8 @@ type ModelSelectorProps = {
   onChange: (selection: string) => void;
   onNeedSettings?: (targetProviderId?: LlmProviderId) => void;
   disabled?: boolean;
+  /** Hidden conversations retain their selector state but must release its portal and focus. */
+  active?: boolean;
   /** When false, only onChange runs (launcher-local model prefs). */
   persistGlobalSelection?: boolean;
 };
@@ -243,6 +247,7 @@ export const ModelSelector = memo(function ModelSelector({
   onChange,
   onNeedSettings,
   disabled,
+  active: ownerActive = true,
   persistGlobalSelection = true,
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
@@ -267,6 +272,8 @@ export const ModelSelector = memo(function ModelSelector({
   const hoverClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const groupProbeSeqRef = useRef(0);
   const probedGroupsRef = useRef<Set<string>>(new Set());
+  const pendingDetailFocusRef = useRef<string | null>(null);
+  const focusedElementRef = useRef<{ element: HTMLElement; layer: "panel" | "detail" } | null>(null);
   const panelId = useMountedAriaControlsId();
   const devExperienceEnabled = useDevExperienceEnabled();
 
@@ -282,20 +289,58 @@ export const ModelSelector = memo(function ModelSelector({
     setHoveredSelection(nextSelection);
   }, [cancelHideDetail]);
 
+  const showPointerDetailFor = useCallback((nextSelection: string) => {
+    if (!detailRef.current?.contains(document.activeElement)) showDetailFor(nextSelection);
+  }, [showDetailFor]);
+
   const scheduleHideDetail = useCallback(() => {
     cancelHideDetail();
     hoverClearTimerRef.current = setTimeout(() => {
       hoverClearTimerRef.current = null;
+      const focused = document.activeElement;
+      if (detailRef.current?.contains(focused)
+        || (focused instanceof Element && focused.matches(".model-picker-item")
+          && panelRef.current?.contains(focused))) return;
       setHoveredSelection(null);
     }, HOVER_DETAIL_HIDE_MS);
   }, [cancelHideDetail]);
 
   const hideDetailNow = useCallback(() => {
     cancelHideDetail();
+    pendingDetailFocusRef.current = null;
     setHoveredSelection(null);
   }, [cancelHideDetail]);
 
+  const hidePointerDetail = useCallback(() => {
+    if (!detailRef.current?.contains(document.activeElement)) hideDetailNow();
+  }, [hideDetailNow]);
+
   useEffect(() => () => cancelHideDetail(), [cancelHideDetail]);
+
+  const closePicker = useCallback((restoreFocus: boolean) => {
+    setOpen(false);
+    hideDetailNow();
+    if (restoreFocus && ownerActive && !disabled) triggerRef.current?.focus();
+  }, [hideDetailNow, ownerActive, disabled]);
+
+  useLayoutEffect(() => {
+    if (!ownerActive || disabled) closePicker(false);
+  }, [ownerActive, disabled, closePicker]);
+
+  const rememberFocus = (layer: "panel" | "detail", event: ReactFocusEvent<HTMLElement>) => {
+    focusedElementRef.current = { element: event.target as HTMLElement, layer };
+  };
+
+  useLayoutEffect(() => {
+    if (!open || !ownerActive || disabled || document.activeElement !== document.body) return;
+    const previous = focusedElementRef.current;
+    if (!previous || (previous.element.isConnected
+      && !(previous.element instanceof HTMLButtonElement && previous.element.disabled))) return;
+    // Refreshes can remove the current option; pending switches disable its group.
+    // Recover only focus lost by our own DOM update, never an external focus move.
+    const fallback = previous.layer === "detail" ? detailRef.current ?? searchRef.current : searchRef.current;
+    fallback?.focus({ preventScroll: true });
+  });
 
   const refreshOptions = useCallback(async () => {
     const data = await fetchLlmOptions();
@@ -349,13 +394,25 @@ export const ModelSelector = memo(function ModelSelector({
       if (rootRef.current?.contains(target)) return;
       if (panelRef.current?.contains(target)) return;
       if (detailRef.current?.contains(target)) return;
-      setOpen(false);
+      closePicker(false);
+    };
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)
+        || detailRef.current?.contains(target)) return;
+      closePicker(false);
     };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+    document.addEventListener("focusin", onFocus);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("focusin", onFocus);
+    };
+  }, [open, closePicker]);
 
   const active = findLlmModelOption(options, selection);
+  const activeOptionSelectionRef = useRef(active?.selection);
+  activeOptionSelectionRef.current = active?.selection;
 
   useEffect(() => {
     if (!open) {
@@ -363,12 +420,12 @@ export const ModelSelector = memo(function ModelSelector({
       hideDetailNow();
       return;
     }
-    if (active?.selection) {
-      showDetailFor(active.selection);
+    if (activeOptionSelectionRef.current) {
+      showDetailFor(activeOptionSelectionRef.current);
     }
     const t = window.setTimeout(() => searchRef.current?.focus(), 0);
     return () => window.clearTimeout(t);
-  }, [open, hideDetailNow, active?.selection, showDetailFor]);
+  }, [open, hideDetailNow, showDetailFor]);
   const anyConfigured = options.some(isPreferredLlmOptionConfigured);
   const canOpenPicker = options.some(isSelectableLlmOption);
   const activeModelId = active
@@ -422,6 +479,15 @@ export const ModelSelector = memo(function ModelSelector({
   const detailOption = hoveredSelection
     ? options.find((o) => o.selection === hoveredSelection)
     : undefined;
+
+  useLayoutEffect(() => {
+    if (!open || !ownerActive || pendingDetailFocusRef.current !== detailOption?.selection
+      || !detailLayout || !detailRef.current) return;
+    pendingDetailFocusRef.current = null;
+    const detail = detailRef.current;
+    const selected = detail.querySelector<HTMLButtonElement>('button[aria-selected="true"]:not(:disabled)');
+    (selected ?? detail.querySelector<HTMLButtonElement>("button:not(:disabled)") ?? detail).focus();
+  }, [open, ownerActive, detailOption?.selection, detailLayout]);
 
   const updateDetailLayout = useCallback(() => {
     if (!open || !detailOption) {
@@ -566,7 +632,7 @@ export const ModelSelector = memo(function ModelSelector({
   ]);
 
   const openSettings = (targetProviderId?: LlmProviderId) => {
-    setOpen(false);
+    closePicker(false);
     onNeedSettings?.(targetProviderId);
   };
 
@@ -582,7 +648,7 @@ export const ModelSelector = memo(function ModelSelector({
       void persistActiveSelection(nextSelection);
     }
     if (!keepOpen) {
-      setOpen(false);
+      closePicker(true);
     }
   };
 
@@ -603,6 +669,56 @@ export const ModelSelector = memo(function ModelSelector({
       return;
     }
     setOpen((v) => !v);
+  };
+
+  const handlePickerKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.nativeEvent.isComposing || event.keyCode === 229
+      || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.target as HTMLElement;
+    const inDetail = detailRef.current?.contains(target);
+    if (event.key === "Escape" || (inDetail && event.key === "ArrowLeft")) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (inDetail) {
+        const row = Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>(".model-picker-item") ?? [])
+          .find((button) => button.dataset.selection === detailOption?.selection);
+        (row ?? searchRef.current)?.focus();
+        hideDetailNow();
+      } else {
+        closePicker(true);
+      }
+      return;
+    }
+    if (event.key === "ArrowRight" && target.matches(".model-picker-item")) {
+      event.preventDefault();
+      event.stopPropagation();
+      const selection = target.dataset.selection!;
+      pendingDetailFocusRef.current = selection;
+      showDetailFor(selection);
+      if (detailOption?.selection === selection && detailRef.current) {
+        const detail = detailRef.current;
+        pendingDetailFocusRef.current = null;
+        (detail.querySelector<HTMLButtonElement>('button[aria-selected="true"]:not(:disabled)')
+          ?? detail.querySelector<HTMLButtonElement>("button:not(:disabled)") ?? detail).focus();
+      }
+      return;
+    }
+    const fromSearch = target === searchRef.current;
+    const fromDetail = target === detailRef.current;
+    if (!fromSearch && !fromDetail && !target.matches('button[role="option"]')) return;
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)
+      || (fromSearch && (event.key === "Home" || event.key === "End"))) return;
+    const list = inDetail ? (fromDetail ? target : target.closest('[role="listbox"]')) : panelRef.current;
+    const buttons = Array.from(list?.querySelectorAll<HTMLButtonElement>(inDetail
+      ? 'button[role="option"]:not(:disabled)' : ".model-picker-item:not(:disabled)") ?? []);
+    if (!buttons.length) return;
+    const current = buttons.indexOf(target as HTMLButtonElement);
+    const index = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+      : event.key === "ArrowDown" ? (current + 1) % buttons.length
+      : (current < 0 ? buttons.length - 1 : (current + buttons.length - 1) % buttons.length);
+    event.preventDefault();
+    event.stopPropagation();
+    buttons[index]!.focus();
   };
 
   const patchBuiltinEndpointSelection = useCallback(
@@ -633,6 +749,10 @@ export const ModelSelector = memo(function ModelSelector({
     alreadySelected: boolean,
   ) => {
     if (alreadySelected) return;
+    if (detailRef.current?.contains(document.activeElement)
+      && document.activeElement?.classList.contains("model-picker-detail-endpoint-item")) {
+      detailRef.current.focus({ preventScroll: true });
+    }
     patchBuiltinEndpointSelection(groupId, endpointId);
     setSwitchingEndpointId(endpointId);
     try {
@@ -677,6 +797,10 @@ export const ModelSelector = memo(function ModelSelector({
     alreadySelected: boolean,
   ) => {
     if (alreadySelected) return;
+    if (detailRef.current?.contains(document.activeElement)
+      && document.activeElement?.classList.contains("model-picker-detail-model-item")) {
+      detailRef.current.focus({ preventScroll: true });
+    }
     patchAutoModelSelection(modelId);
     setSwitchingAutoModelId(modelId);
     try {
@@ -734,6 +858,8 @@ export const ModelSelector = memo(function ModelSelector({
       className="model-picker-panel composer-popup"
       role="dialog"
       aria-label="模型选择"
+      onKeyDown={handlePickerKeyDown}
+      onFocusCapture={(event) => rememberFocus("panel", event)}
       style={
         panelLayout
           ? { maxHeight: panelLayout.maxHeight }
@@ -755,7 +881,7 @@ export const ModelSelector = memo(function ModelSelector({
     >
       <div
         className="model-picker-search-wrap"
-        onMouseEnter={hideDetailNow}
+        onMouseEnter={hidePointerDetail}
       >
         <input
           ref={searchRef}
@@ -763,7 +889,7 @@ export const ModelSelector = memo(function ModelSelector({
           className="model-picker-search"
           placeholder="搜索模型"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); hideDetailNow(); }}
           aria-label="搜索模型"
         />
       </div>
@@ -774,7 +900,7 @@ export const ModelSelector = memo(function ModelSelector({
         </p>
       )}
 
-      <ul className="model-picker-list" role="listbox">
+      <ul className="model-picker-list" role="listbox" aria-label="模型配置">
         {!anyConfigured && !query.trim() ? (
           <li className="model-picker-note model-picker-note--setup">
             {filteredOptions.some((o) => o.kind === "auto")
@@ -793,19 +919,22 @@ export const ModelSelector = memo(function ModelSelector({
             return (
               <li
                 key={p.kind === "profile" ? `profile:${p.profileId}` : p.selection}
-                role="option"
-                aria-selected={selected}
+                role="none"
                 className={`model-picker-row${
                   selected ? " model-picker-row--selected" : ""
                 }${!isSelectableLlmOption(p) ? " model-picker-row--unconfigured" : ""}${
                   p.kind === "auto" ? " model-picker-row--auto" : ""
                 }`}
-                onMouseEnter={() => showDetailFor(p.selection)}
+                onMouseEnter={() => showPointerDetailFor(p.selection)}
                 onMouseLeave={() => scheduleHideDetail()}
               >
                 <button
                   type="button"
                   className="model-picker-item"
+                  role="option"
+                  aria-selected={selected}
+                  data-selection={p.selection}
+                  onFocus={() => showDetailFor(p.selection)}
                   onClick={() => {
                     if (p.kind === "profile" && p.profileId) {
                       selectProfileModel(p.profileId, detailModelId);
@@ -844,7 +973,7 @@ export const ModelSelector = memo(function ModelSelector({
       <button
         type="button"
         className="model-picker-footer"
-        onMouseEnter={hideDetailNow}
+        onMouseEnter={hidePointerDetail}
         onClick={() => openSettings()}
       >
         配置模型…
@@ -852,7 +981,7 @@ export const ModelSelector = memo(function ModelSelector({
     </div>
   );
 
-  const detailFlyout = detailOption && detailLayout ? (() => {
+  const detailFlyout = open && ownerActive && !disabled && detailOption && detailLayout ? (() => {
         const groupProbe = detailOption.builtinGroupId
           ? groupNodeProbe[detailOption.builtinGroupId]
           : undefined;
@@ -872,7 +1001,11 @@ export const ModelSelector = memo(function ModelSelector({
             maxHeight: detailLayout.maxHeight,
           }}
           aria-label={`${optionDisplay(detailOption, selection).displayName} 详情`}
-          onMouseEnter={() => showDetailFor(detailOption.selection)}
+          tabIndex={-1}
+          onKeyDown={handlePickerKeyDown}
+          onFocusCapture={(event) => rememberFocus("detail", event)}
+          onFocus={cancelHideDetail}
+          onMouseEnter={() => showPointerDetailFor(detailOption.selection)}
           onMouseLeave={() => scheduleHideDetail()}
         >
           {(() => {
@@ -913,7 +1046,7 @@ export const ModelSelector = memo(function ModelSelector({
                     <span className="model-picker-detail-model-label">
                       可选节点
                     </span>
-                    <ul className="model-picker-detail-endpoint-list" role="listbox">
+                    <ul className="model-picker-detail-endpoint-list" role="listbox" aria-label="可选节点">
                       {endpoints.map((endpoint) => {
                         const switching = switchingEndpointId === endpoint.id;
                         const probeEntry = groupProbe?.endpoints?.[endpoint.id];
@@ -978,7 +1111,7 @@ export const ModelSelector = memo(function ModelSelector({
                     <span className="model-picker-detail-model-label">
                       可选候选
                     </span>
-                    <ul className="model-picker-detail-model-list" role="listbox">
+                    <ul className="model-picker-detail-model-list" role="listbox" aria-label="自动模型">
                       {autoModels.map((model) => {
                         const switching = switchingAutoModelId === model.id;
                         const probeEntry = groupProbe?.autoModels?.[model.id];
@@ -1038,7 +1171,7 @@ export const ModelSelector = memo(function ModelSelector({
                     <span className="model-picker-detail-model-label">
                       Models
                     </span>
-                    <ul className="model-picker-detail-model-list" role="listbox">
+                    <ul className="model-picker-detail-model-list" role="listbox" aria-label="配置中的模型">
                       {profileModels.map((modelId) => {
                         const activeModel = detailModelId === modelId;
                         return (
@@ -1093,7 +1226,7 @@ export const ModelSelector = memo(function ModelSelector({
         );
   })() : null;
 
-  const pickerFloat = open ? (
+  const pickerFloat = open && ownerActive && !disabled ? (
       <div
         ref={panelRef}
         className="model-picker-float model-picker-float--portal"
@@ -1130,8 +1263,8 @@ export const ModelSelector = memo(function ModelSelector({
             ? " model-picker-trigger--unconfigured"
             : ""
         }${activeIsAuto ? " model-picker-trigger--auto-limited" : ""}`}
-        disabled={disabled || !ready}
-        aria-expanded={open}
+        disabled={disabled || !ready || !ownerActive}
+        aria-expanded={open && ownerActive && !disabled}
         aria-controls={panelId}
         aria-haspopup="dialog"
         onClick={togglePanel}

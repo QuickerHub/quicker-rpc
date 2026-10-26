@@ -14,6 +14,7 @@ const result = spawnSync(process.execPath, [
   "components/action-editor/ActionProjectDataEditor.browser.test.ts",
   "components/workspace/WorkspaceDocumentHost.browser.test.ts",
   "components/workspace/WorkspaceNestedStepPin.browser.test.ts",
+  "components/chat/ModelSelector.browser.test.ts",
 ], { cwd: root, stdio: "inherit" });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
