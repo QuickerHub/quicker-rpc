@@ -16,6 +16,7 @@ const result = spawnSync(process.execPath, [
   "components/workspace/WorkspaceNestedStepPin.browser.test.ts",
   "components/chat/ModelSelector.browser.test.ts",
   "components/chat/DocsViewer.browser.test.ts",
+  "components/chat/QuickerNativeMcpSettings.browser.test.ts",
 ], { cwd: root, stdio: "inherit" });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

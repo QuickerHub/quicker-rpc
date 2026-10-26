@@ -18,7 +18,7 @@ function pages(results: ListToolsResult[]) {
 }
 
 test("catalog bounds are explicit and one whole-listing deadline is used", () => {
-  assert.deepEqual(MCP_CATALOG_LIMITS, { maxPages: 64, maxTools: 2048, maxBytes: 4 * 1024 * 1024, timeoutMs: 15_000 });
+  assert.deepEqual(MCP_CATALOG_LIMITS, { maxPages: 64, maxTools: 2048, maxBytes: 4 * 1024 * 1024, timeoutMs: 15_000, maxInstructionChars: 16384 });
 });
 
 test("all cursor pages retain raw descriptors and actual server provenance as plain data", async () => {
@@ -116,6 +116,37 @@ test("a changing server handshake identity invalidates the listing", async () =>
     return result;
   };
   await assert.rejects(readMcpToolCatalog(f.client, source), /identity changed/);
+});
+
+test("instructions are captured exactly from the same client, refreshed even without a version change", async () => {
+  const get = async (instructions: unknown) => readMcpToolCatalog({ ...pages([{ tools: [tool("read")] }]).client, instructions }, source);
+  const first = await get("  current workflow\n\uD800 ");
+  assert.equal(first.guidance?.text, "  current workflow\n\uD800 ");
+  assert.equal(first.guidance?.state, "available");
+  assert.ok(Number.isFinite(Date.parse(first.guidance!.retrievedAt)));
+  const changed = await get("new workflow");
+  assert.deepEqual(first.serverInfo, changed.serverInfo);
+  assert.notEqual(first.guidance?.revision, changed.guidance?.revision);
+  assert.notEqual((await get("\uD800")).guidance?.revision, (await get("\uFFFD")).guidance?.revision);
+});
+
+test("absent or invalid guidance is explicit and an oversized body is omitted whole", async () => {
+  for (const [instructions, state, reason] of [[undefined, "missing", undefined], [" \n", "missing", undefined],
+    [null, "omitted", "invalid"], [42, "omitted", "invalid"], ["a".repeat(MCP_CATALOG_LIMITS.maxInstructionChars + 1), "omitted", "too_large"]] as const) {
+    const result = await readMcpToolCatalog({ ...pages([{ tools: [] }]).client, instructions }, source);
+    assert.equal(result.guidance?.state, state); assert.equal(result.guidance?.reason, reason);
+    assert.equal(result.guidance?.text, undefined); assert.equal(result.guidance?.revision, null);
+  }
+});
+
+test("a changed instruction body on a later page rejects the whole catalog", async () => {
+  let instructions = "initial"; let calls = 0;
+  const client: McpCatalogClient = { get instructions() { return instructions; }, async listTools() {
+    if (++calls === 1) return { tools: [tool("partial")], nextCursor: "next" };
+    instructions = "changed"; return { tools: [tool("new")] };
+  } };
+  await assert.rejects(readMcpToolCatalog(client, source), /instructions changed/);
+  assert.equal(calls, 2);
 });
 
 test("pre-cancellation makes no client request", async () => {

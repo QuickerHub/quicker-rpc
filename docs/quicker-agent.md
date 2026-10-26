@@ -112,6 +112,8 @@ QuickerAgent **不替代** Quicker，而是把「找—跑—改—发」这条�
 
 0.15.0 的 V2 完整动作源读写尚未开放，继续使用 **Quicker 原生 MCP**。需要先在 V2 启用原生 MCP，再按新电脑实际服务信息手动配置 `%APPDATA%/QuickerAgent/agent-defs/mcp.json` 或工作区 `.quicker/mcp.json`，并设置 `enabled: true`；格式见 [MCP 扩展配置](agent-architecture.md#8-skills-与-mcp-扩展)。0.15 的此入口为实验性手动配置，没有设置页导入或自动发现，不会沿用旧电脑的连接配置。
 
+后续开发版本已在连接设置中加入“本机 Quicker 原生 MCP”选择与连接测试，默认关闭，只保存来源选择，并在服务端读取本机当前配置；不会把 token 复制到工作区或替你开启宿主写入。该改进尚未发布，**不包含在上面的 0.15.0 下载中**；开发状态与验收边界见 [EXT](product/README.md#p-ext)。
+
 **我的动作数据安全吗？**  
 与 Quicker 的交互在本机完成。你发给 AI 的聊天内容，由所选模型服务商处理——和日常用大模型聊天一样，可按需在设置里选用自己的接口。
 

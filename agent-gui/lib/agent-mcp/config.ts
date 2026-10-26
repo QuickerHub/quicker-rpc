@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { createHmac, randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
+export { mcpToolId } from "./tool-id";
 
 import {
   resolveUserAgentDefsRoot,
@@ -8,11 +10,14 @@ import {
 } from "@/lib/agent-defs/paths";
 
 const callLimitSchema = z.number().int().min(1).max(100).optional();
+export const QUICKER_NATIVE_MCP_SERVER_NAME = "quicker-local";
+const revisionKey = randomBytes(32);
 
 const mcpServerSchema = z
   .object({
+    source: z.literal("quicker-native").optional(),
     enabled: z.boolean().default(false),
-    transport: z.enum(["http", "sse", "stdio"]),
+    transport: z.enum(["http", "sse", "stdio"]).optional(),
     url: z.string().url().optional(),
     headers: z.record(z.string()).optional(),
     command: z.string().min(1).optional(),
@@ -25,6 +30,13 @@ const mcpServerSchema = z
     maxIdenticalCallsPerTurn: callLimitSchema,
   })
   .superRefine((server, context) => {
+    if (server.source === "quicker-native") {
+      for (const key of ["transport", "url", "headers", "command", "args", "env", "cwd"] as const) {
+        if (server[key] !== undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: "Native Quicker connection does not accept transport overrides" });
+      }
+      return;
+    }
+    if (!server.transport) context.addIssue({ code: z.ZodIssueCode.custom, path: ["transport"], message: "transport is required" });
     if (server.transport === "stdio" && !server.command) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -32,14 +44,14 @@ const mcpServerSchema = z
         message: "stdio transport requires command",
       });
     }
-    if (server.transport !== "stdio" && !server.url) {
+    if (server.transport && server.transport !== "stdio" && !server.url) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["url"],
         message: `${server.transport} transport requires url`,
       });
     }
-  });
+  }).transform((server) => ({ ...server, transport: server.source === "quicker-native" ? "http" as const : server.transport! }));
 
 const mcpConfigSchema = z.object({
   mcpServers: z.record(z.unknown()).default({}),
@@ -61,6 +73,15 @@ export type ResolvedAgentMcpConfig = {
   diagnostics: AgentMcpConfigDiagnostic[];
 };
 
+export type AgentMcpConfigLayer = {
+  path: string;
+  revision: string | null;
+  status: "missing" | "valid" | "invalid" | "unavailable";
+  /** Invalid explicit entries still shadow a lower-priority server of the same name. */
+  entries: Array<{ name: string; server: AgentMcpServerConfig | null }>;
+  diagnostics: AgentMcpConfigDiagnostic[];
+};
+
 export function resolveAgentMcpConfigPaths(cwd: string): string[] {
   const paths = [join(resolveUserAgentDefsRoot(), "mcp.json")];
   if (cwd.trim()) {
@@ -69,21 +90,18 @@ export function resolveAgentMcpConfigPaths(cwd: string): string[] {
   return paths;
 }
 
-async function readConfigFile(path: string): Promise<{
-  servers: AgentMcpServerConfig[];
-  diagnostics: AgentMcpConfigDiagnostic[];
-}> {
-  let raw: string;
+async function readConfigFile(path: string): Promise<AgentMcpConfigLayer> {
+  let bytes: Buffer;
   try {
-    raw = await readFile(path, "utf8");
+    bytes = await readFile(path);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     return code === "ENOENT"
-      ? { servers: [], diagnostics: [] }
-      : { servers: [], diagnostics: [{ path, message: String(error) }] };
+      ? { path, revision: null, status: "missing", entries: [], diagnostics: [] }
+      : { path, revision: null, status: "unavailable", entries: [], diagnostics: [{ path, message: "MCP configuration could not be read" }] };
   }
-
-  return parseAgentMcpConfigText(raw, path);
+  const parsed = parseAgentMcpConfigText(bytes.toString("utf8"), path);
+  return { path, revision: createHmac("sha256", revisionKey).update(path).update("\0").update(bytes).digest("hex"), status: parsed.status, entries: parsed.entries, diagnostics: parsed.diagnostics };
 }
 
 export function parseAgentMcpConfigText(
@@ -92,14 +110,17 @@ export function parseAgentMcpConfigText(
 ): {
   servers: AgentMcpServerConfig[];
   diagnostics: AgentMcpConfigDiagnostic[];
+  entries: AgentMcpConfigLayer["entries"];
+  status: "valid" | "invalid";
 } {
   let json: unknown;
   try {
-    json = JSON.parse(raw);
+    json = JSON.parse(raw.replace(/^\uFEFF/, ""));
   } catch (error) {
     return {
       servers: [],
-      diagnostics: [{ path, message: `Invalid JSON: ${String(error)}` }],
+      entries: [], status: "invalid",
+      diagnostics: [{ path, message: "Invalid MCP configuration JSON" }],
     };
   }
 
@@ -107,6 +128,7 @@ export function parseAgentMcpConfigText(
   if (!parsed.success) {
     return {
       servers: [],
+      entries: [], status: "invalid",
       diagnostics: parsed.error.issues.map((issue) => ({
         path,
         message: `${issue.path.join(".") || "config"}: ${issue.message}`,
@@ -116,43 +138,54 @@ export function parseAgentMcpConfigText(
 
   const servers: AgentMcpServerConfig[] = [];
   const diagnostics: AgentMcpConfigDiagnostic[] = [];
+  const entries: AgentMcpConfigLayer["entries"] = [];
   for (const [name, rawServer] of Object.entries(parsed.data.mcpServers)) {
     const server = mcpServerSchema.safeParse(rawServer);
-    if (!server.success) {
-      diagnostics.push(...server.error.issues.map((issue) => ({
-        path,
-        message: `mcpServers.${name}.${issue.path.join(".") || "config"}: ${issue.message}`,
-      })));
+    const wrongNativeName = server.success && server.data.source === "quicker-native" && name.toLowerCase() !== QUICKER_NATIVE_MCP_SERVER_NAME;
+    const unknownNativeField = server.success && server.data.source === "quicker-native" && Object.keys(rawServer as object)
+      .some((key) => !["enabled", "source", "tools", "requireApproval", "maxCallsPerTurn", "maxIdenticalCallsPerTurn"].includes(key));
+    if (!server.success || wrongNativeName || unknownNativeField) {
+      entries.push({ name, server: null });
+      diagnostics.push({ path, message: !server.success && server.error.issues.some((issue) => issue.message === "stdio transport requires command")
+        ? "stdio transport requires command" : "MCP server entry is invalid" });
       continue;
     }
-    servers.push({
+    const resolved: AgentMcpServerConfig = {
       ...server.data,
-      name,
+      name: server.data.source === "quicker-native" ? QUICKER_NATIVE_MCP_SERVER_NAME : name,
       configPath: path,
       baseDir: dirname(path),
       cwd: server.data.cwd
         ? resolve(dirname(path), server.data.cwd)
         : undefined,
-    });
+    };
+    servers.push(resolved);
+    entries.push({ name, server: resolved });
   }
-  return { servers, diagnostics };
+  return { servers, diagnostics, entries, status: "valid" };
+}
+
+export async function loadAgentMcpConfigLayers(cwd: string, paths = resolveAgentMcpConfigPaths(cwd)): Promise<AgentMcpConfigLayer[]> {
+  return Promise.all(paths.map(readConfigFile));
+}
+
+export function mergeAgentMcpConfigLayers(layers: AgentMcpConfigLayer[]): ResolvedAgentMcpConfig {
+  const byName = new Map<string, AgentMcpServerConfig>();
+  const diagnostics: AgentMcpConfigDiagnostic[] = [];
+  for (const layer of layers) {
+    diagnostics.push(...layer.diagnostics);
+    if (layer.status === "invalid" || layer.status === "unavailable") byName.clear();
+    for (const entry of layer.entries) {
+      byName.delete(entry.name.toLowerCase());
+      if (entry.server) byName.set(entry.name.toLowerCase(), entry.server);
+    }
+  }
+  return { servers: [...byName.values()].filter((server) => server.enabled), diagnostics };
 }
 
 /** Merge user then workspace config; the workspace definition wins by server name. */
 export async function loadAgentMcpConfig(cwd: string): Promise<ResolvedAgentMcpConfig> {
-  const byName = new Map<string, AgentMcpServerConfig>();
-  const diagnostics: AgentMcpConfigDiagnostic[] = [];
-  for (const path of resolveAgentMcpConfigPaths(cwd)) {
-    const layer = await readConfigFile(path);
-    diagnostics.push(...layer.diagnostics);
-    for (const server of layer.servers) {
-      byName.set(server.name.toLowerCase(), server);
-    }
-  }
-  return {
-    servers: [...byName.values()].filter((server) => server.enabled),
-    diagnostics,
-  };
+  return mergeAgentMcpConfigLayers(await loadAgentMcpConfigLayers(cwd));
 }
 
 const ENV_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
@@ -174,10 +207,4 @@ export function expandMcpStringRecord(
   return Object.fromEntries(
     Object.entries(values).map(([key, value]) => [key, expandMcpEnvironmentValue(value)]),
   );
-}
-
-export function mcpToolId(serverName: string, toolName: string): string {
-  const normalize = (value: string) =>
-    value.trim().replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
-  return `mcp__${normalize(serverName) || "server"}__${normalize(toolName) || "tool"}`;
 }

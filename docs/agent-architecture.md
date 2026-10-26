@@ -754,15 +754,43 @@ Agent 作为 MCP client 时使用同一优先级读取配置：
       "transport": "http",
       "url": "https://example.test/mcp",
       "headers": { "Authorization": "Bearer ${EXAMPLE_MCP_TOKEN}" }
+    },
+    "quicker-local": {
+      "enabled": false,
+      "source": "quicker-native"
     }
   }
 }
 ```
 
 规则：server 必须显式 `enabled: true`；远程工具名暴露为 `mcp__<server>__<tool>`；stdio 不经过
-shell；密钥只允许通过 `${ENV_NAME}` 展开；可写/外部工具建议设置 `requireApproval` 和 `tools`
+shell；通用服务密钥通过 `${ENV_NAME}` 展开；可写/外部工具建议设置 `requireApproval` 和 `tools`
 allowlist。Launcher、title test 与 benchmark 不加载 MCP。实现位于 `lib/agent-mcp/`，客户端依赖锁定
 到与 AI SDK 6 同代的 `@ai-sdk/mcp`，不引入第二套 Agent 框架。
+
+本机 Quicker 原生 MCP 已接入现有连接设置卡，默认关闭。用户显式启用时，仅维护 user
+`mcp.json` 中 `quicker-local` 的 `enabled` 与 `source: "quicker-native"`，保留已有工具策略；
+不复制 token，不替换同名通用 HTTP 配置，也不修改 Quicker 的 MCP 启用、允许写入或审批设置。
+工作区同名配置优先，设置卡此时显示阻断且不修改工作区；非法同名项仍遮住下层配置，
+整个高层文件无效或不可读时停止继承，不能因解析失败意外启用下层来源。配置更新使用
+当前 cwd、各层原始字节修订和发现状态的并发核验，过期界面不能覆盖新配置。
+
+服务端按当前 Agent 进程的绝对 `QUICKER_HOME`，或系统用户目录下 `.quicker`，只读
+`mcp/server.json` 的当前 `Enabled / Port / Token`。相对 home、缺件、非法字段、云端占位、
+重解析路径或无法核验的文件均明确不可用，不猜端口、不创建凭证、不启动 Quicker。
+该环境变量不证明与已运行 Quicker 的启动环境相同。发现 identity 是进程随机密钥生成的
+HMAC，包含文件身份与原始字节，不公开 token 或其裸哈希；它只标识本次配置观察。
+
+每 turn 固定配置快照，仅请求 `http://127.0.0.1:<当前端口>/mcp`，拒绝重定向；无法保证
+绕过已启用环境代理时拒绝该来源。初始化前固定当前端口监听进程的 PID 和创建时间，
+每次请求前及取得结果后重验；配置或进程实例变化、无法观测时使旧 client 失效，不能
+自动换目标或重放。工具请求已派发后的传输、正文解析或目标核验失败保留“结果未知”，不能
+据此声称未写入。凭证仅在私有 transport 内存中使用，成功响应回显已知凭证也拒绝输出。
+
+监听进程观测不认证该进程就是 Quicker，不加入 qkrpc host binding。检查与建立连接之间
+仍有 TOCTOU 窗口，进程内 MCP 服务重启若不改变可观测事实也不能据此识别。原生编写状态
+按客户端进程共享；同一 Node service 中的新聊天或每 turn 重建 client 不等于独立原生会话。
+调用应保留明确动作槽位、原生 VFS 与冲突约束，不能依赖另一个聊天可能改变的当前位置。
 
 每次 turn 在同一连接内读取 `tools/list` 的全部页；cursor 保持原值，重复 cursor、重复工具名
 或规范化 ID 冲突均使该 server 本轮加载失败，不发布已读部分。目录读取受 64 页、2048 个
@@ -773,6 +801,19 @@ allowlist。Launcher、title test 与 benchmark 不加载 MCP。实现位于 `li
 不包含 execute 闭包、headers、env 或命令参数。实际 server name/version 未报告时保留
 `null`；上报 version 只是来源描述，不作为工具 revision、权限证明或跨 turn 缓存键。
 下一 turn 仍重新连接、读取。该内部目录尚未新增 HTTP knowledge 入口或持久缓存。
+
+同一 client 的 `initialize.instructions` 随当轮目录保存状态、内容指纹与读取时间，不按
+版本号补写静态流程。主 Agent 与子代理只接收其最终工具集合中实际剩余来源的说明和
+远端名 → namespaced 工具名映射。说明是外部参考资料，不能扩大 Ask、命令 allowlist、
+父子工具权限或授予写入；不得把原生 VFS 工具名替换成同名本地文件工具。单来源正文上限
+16,384 字符；来源、映射与说明组成的上下文总上限为 24,576 字符，超限整块省略，不截断
+身份或伪装完整知识。未提供说明为 `missing`，无效或超限为 `omitted`；缺失来源事实保持
+unknown，不能编造宿主规则。显式“检测本机服务”只初始化、读取完整工具目录并关闭，不执行
+业务工具，也不加载其他已配置 server。
+
+本节本机设置与初始化说明接线属于尚未发布的开发改进；正式 0.15.0 下载仍使用手工 MCP
+配置，不能按这里的新界面说明判断旧安装包已有该功能。完整 A3 编辑会话和统一知识查询
+仍开放，真实宿主验收结果单独记录在产品状态中。
 
 本地 `list_tools` 的 get/bundle 通过既有 `ai.asSchema` 等待并输出规范 JSON Schema，保留
 嵌套字段和约束；不把 Zod/SDK wrapper 本身交给 JSON 序列化。转换不执行 validator、审批

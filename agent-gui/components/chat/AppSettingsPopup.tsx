@@ -12,6 +12,7 @@ import type { LlmProviderId } from "@/lib/llm-providers";
 import type { PingState, RefreshPingOptions } from "@/lib/use-qkrpc-ping";
 
 type AppSettingsPopupProps = {
+  cwd: string;
   open: boolean;
   onClose: () => void;
   ping: PingState;
@@ -31,6 +32,7 @@ function resolveOpenTab(
 }
 
 export function AppSettingsPopup({
+  cwd,
   open,
   onClose,
   ping,
@@ -113,6 +115,7 @@ export function AppSettingsPopup({
 
         <div className="app-settings-popup-body">
           <AppSettingsPanel
+            cwd={cwd}
             active
             activeTab={activeTab}
             ping={ping}
