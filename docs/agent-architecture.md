@@ -162,6 +162,16 @@ external。它不执行配置或模型，也不是发布打包器。开发服务
 `runtime-definition`、`bundled-adapter` 和 `unknown` 是不同来源，均不等同于写权限；
 缺少来源的旧插件结果保持 unknown，不用客户端时间补成原生读取证明。
 
+设计器 UI 投影复用同一 provider 的本次定义读取，使用独立的
+`qkrpc.ui-step-runner.v1` 格式与正文 revision；不通过额外 Agent get 拼接另一时间点的
+metadata。Runtime 写入实际宿主 owner，Node 核对本次模块键、精确控制值及已绑定目标后
+保留原始来源记录。明确失配返回失败，旧插件缺少信息或未来未知格式保持 unknown。
+格式和指纹标识各自投影，不能把 Agent 与 UI 的不同调用当作同一原生快照。
+
+参数弹窗的来源记录属于本次成功读取；当前读取失败、取消或换 owner 后，旧记录不能
+被展示为当前证明。metadata 更新仍须保留人工参数草稿、外置编辑实例和文档历史；它
+不触发写入或改变原生输入契约的权限。静态开发资料明确为非原生来源。
+
 本地网站 JSONL provider 使用 `local-corpus` 来源和实际读取文件字节的 `sha256:` revision，
 每次核验内容后才复用关键词索引，不信任存储中的 chunk hash 或文件时间、大小。结果保留
 URL 和源页声明的 `fetchedAt`（缺失为 null）；`retrievedAt` 只表示读取本地 snapshot 的时间，

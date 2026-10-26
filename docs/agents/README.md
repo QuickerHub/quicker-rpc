@@ -19,6 +19,7 @@
 | Prompt、TurnPlan、工具选择、SDK 框架边界 | [Agent 架构](../agent-architecture.md) | `agent-core/turn-plan.ts`、`agent-harness/`、`tools.ts` | tools/eval/context tests |
 | 独立 Agent 服务、去 Next、Node HTTP、服务组合与停止 | [架构目标](../agent-architecture.md#框架去耦与目标运行边界) · [静态运行目录](../engineering/static-agent-runtime.md) | `agent-gui/lib/agent-service/`、`service/main.ts` | `check:agent-offline`、`check:agent-backend`、`test:agent-service` |
 | 动作编写指南、schema、step 模块知识 | [动作编写管线](../authoring/README.md) | `action-authoring-src/`、`authoring-references/` | `npm run docs:check` |
+| Knowledge 来源、原生定义刷新、codec provenance | [知识获取架构](../agent-architecture.md#knowledge-acquisition) | `StepRunnerKnowledgeProvider.cs`、`QuickerRpcService.StepRunnerKnowledge.cs`、`agent-gui/lib/action-editor/api/stepRunnerKnowledge.ts`、`gateway-guide.server.ts` | provider/runtime fake tests、真实 route/mapper 与参数弹窗 DOM、知识生成检查 |
 | V1 动作 YAML、program.source.yaml、yaml codec、action open/save | [AUTHOR](../product/README.md#p-author) · [动作编写管线](../authoring/README.md) | `agent-gui/lib/qkrpc-action-source-tool*`、`XAction/Source/`、Console source-bundle、`action-authoring-src/workflows/program-source.md` | fake source-tool/transport tests、codec/source-bundle .NET tests + `npm run docs:check` |
 | Electron 包体积、发布、安装资源 | [agent-gui README](../../agent-gui/README.md) 与 [用户数据与安装资源](../agent-gui-plugin-storage.md) | `agent-gui/scripts/desktop-*`、`electron/`、`publish/` | 只在用户要求时打包 |
 
