@@ -1,6 +1,7 @@
 import type { StepRunnerInputParamDef, StepRunnerOutputParamDef, StepRunnerSubItem } from "@/lib/action-editor/types/action_query";
 import { CsVarType, ParamVariableMode } from "@/lib/action-editor/steps/paramEditors/csStepEnums";
 import { inferStepParamMultiline } from "@/lib/action-editor/steps/paramEditors/stepParamMultiline";
+import { readStepRunnerUiKnowledge, type StepRunnerUiKnowledge } from "./stepRunnerKnowledge";
 
 function readString(obj: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
@@ -419,7 +420,7 @@ export function resolveStepControlFieldLiteral(
   return typeof pin.value === "string" ? pin.value : undefined;
 }
 
-export function mapAgentSchemaToStepRunnerItem(schema: Record<string, unknown>) {
+export function mapAgentSchemaToStepRunnerItem(schema: Record<string, unknown>, knowledge?: StepRunnerUiKnowledge) {
   const controlField = readControlFieldHint(schema);
   const inputRaw =
     schema.inputs ??
@@ -490,6 +491,7 @@ export function mapAgentSchemaToStepRunnerItem(schema: Record<string, unknown>) 
 
   return {
     key: readString(schema, "stepRunnerKey", "StepRunnerKey", "key", "Key"),
+    ...(knowledge ?? { ...readStepRunnerUiKnowledge(schema), knowledgeState: { status: "unknown" as const, reason: "This UI projection has not verified knowledge against a current request." } }),
     helpLink: readString(schema, "helpLink", "HelpLink"),
     name: readString(schema, "name", "Name"),
     description: readString(schema, "description", "Description"),

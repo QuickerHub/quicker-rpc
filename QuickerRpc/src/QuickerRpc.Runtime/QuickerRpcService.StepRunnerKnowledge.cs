@@ -14,7 +14,7 @@ namespace QuickerRpc.Runtime;
 
 public sealed partial class QuickerRpcService
 {
-    private QuickerRpcStepRunnerDetailResult AddStepRunnerKnowledgeOwner(QuickerRpcStepRunnerDetailResult result, string stepRunnerKey, string? controlFieldValue)
+    private QuickerRpcStepRunnerDetailResult AddStepRunnerKnowledgeOwner(QuickerRpcStepRunnerDetailResult result, string stepRunnerKey, string? controlFieldValue, string schemaFormat)
     {
         if (!result.Success || string.IsNullOrWhiteSpace(result.SchemaJson)) return result;
         JObject schema;
@@ -32,10 +32,24 @@ public sealed partial class QuickerRpcService
         var revision = KnowledgeString(format?["revision"]);
         var kind = KnowledgeString(source?["kind"]);
         var requested = knowledge?["requestedControlFieldValue"];
+        if (requested is not null && (requested.Type == JTokenType.Null || requested.Type == JTokenType.String)
+            && (requested.Type == JTokenType.Null ? controlFieldValue is not null : requested.Value<string>() != controlFieldValue))
+            return new QuickerRpcStepRunnerDetailResult
+            { Success = false, ErrorMessage = "KNOWLEDGE_TARGET_MISMATCH: The schema belongs to another control value." };
+        var info = _host.Info;
+        var hostKind = info.Kind == QuickerHostKind.V1 ? "v1" : info.Kind == QuickerHostKind.V2 ? "v2" : "unknown";
+        foreach (var expected in new[] { ("hostInstanceId", _hostSessionScope.InstanceId), ("hostSessionId", _hostSessionScope.Id),
+            ("endpoint", _hostSessionScope.Endpoint), ("hostKind", hostKind) })
+        {
+            var observed = KnowledgeString(source?[expected.Item1]);
+            if (observed is not null && observed != expected.Item2)
+                return new QuickerRpcStepRunnerDetailResult
+                { Success = false, ErrorMessage = "KNOWLEDGE_TARGET_MISMATCH: The schema belongs to another host owner." };
+        }
         var proved = returnedKey is not null
             && knowledge?["schemaVersion"]?.Type == JTokenType.Integer && knowledge["schemaVersion"]!.ToString(Formatting.None) == "1"
             && KnowledgeString(source?["provider"]) == "qkrpc.step-runner"
-            && KnowledgeString(format?["format"]) == "qkrpc.agent-step-runner.v1"
+            && KnowledgeString(format?["format"]) == schemaFormat
             && revision is not null && revision.StartsWith("sha256:", StringComparison.Ordinal)
             && revision.Length == 71 && revision.Substring(7).All(value => value is >= '0' and <= '9' or >= 'a' and <= 'f')
             && (controlFieldValue is null ? requested?.Type == JTokenType.Null
@@ -56,17 +70,16 @@ public sealed partial class QuickerRpcService
             knowledge = new JObject
             {
                 ["schemaVersion"] = 1,
-                ["schema"] = new JObject { ["format"] = "qkrpc.agent-step-runner.v1", ["revision"] = revision },
+                ["schema"] = new JObject { ["format"] = schemaFormat, ["revision"] = revision },
                 ["requestedControlFieldValue"] = controlFieldValue is null ? JValue.CreateNull() : new JValue(controlFieldValue),
             };
         }
 
-        var info = _host.Info;
         var adapter = _host.GetType().Assembly;
         knowledge!["source"] = new JObject
         {
             ["provider"] = "qkrpc.step-runner", ["kind"] = kind,
-            ["hostKind"] = info.Kind == QuickerHostKind.V1 ? "v1" : info.Kind == QuickerHostKind.V2 ? "v2" : "unknown",
+            ["hostKind"] = hostKind,
             ["quickerVersion"] = KnowledgeVersion(info.QuickerVersion),
             ["adapterAssembly"] = KnowledgeVersion(info.AdapterAssembly),
             ["adapterVersion"] = KnowledgeVersion(adapter.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion

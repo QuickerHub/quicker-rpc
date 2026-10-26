@@ -341,6 +341,42 @@ public sealed class StepRunnerKnowledgeFreshnessTests
         Assert.AreEqual(0, host.Writes);
     }
 
+    [TestMethod]
+    public async Task Ui_projection_metadata_survives_serve_and_actual_cli_without_agent_reads()
+    {
+        await using var host = new FakeBindingHost("v2");
+        await using var pool = new QkrpcRpcSessionPool(3, false);
+        using var environment = new BindingEnvironment(host);
+        string schemaJson = "";
+        host.GetCatalog = (_, _, _) => throw new AssertFailedException("UI metadata must not query Agent get.");
+        host.GetUiCatalog = (key, _, _) =>
+        {
+            Assert.AreEqual(Key, key);
+            return Task.FromResult(new QuickerRpcStepRunnerDetailResult { Success = true, SchemaJson = schemaJson });
+        };
+        foreach (var control in new string?[] { null, "", " Mode " })
+        {
+            var knowledge = new
+            {
+                schemaVersion = 1,
+                source = new { provider = "qkrpc.step-runner", kind = "runtime-definition", hostKind = "v2",
+                    hostInstanceId = host.Binding.HostInstanceId, hostSessionId = host.Binding.HostSessionId, endpoint = host.Binding.Endpoint },
+                schema = new { format = "qkrpc.ui-step-runner.v1", revision = "sha256:" + new string('a', 64) },
+                requestedControlFieldValue = control, nativeHelpLink = "https://fixture.invalid/native-help",
+                retrievedAt = "2026-10-26T00:00:00Z", futureMetadata = new { value = false },
+            };
+            schemaJson = JsonSerializer.Serialize(new { stepRunnerKey = Key, icon = "fixture-icon", inputs = Array.Empty<object>(), knowledge }, JsonOptions);
+            var expected = JsonSerializer.SerializeToElement(knowledge, JsonOptions);
+            var delivered = Payload(await ServeInvokeDispatcher.InvokeAsync(pool, "step-runner.getUi", Args(new { key = Key, controlField = control }), 3, default, host.Binding)).GetProperty("schema");
+            Assert.IsTrue(JsonElement.DeepEquals(expected, delivered.GetProperty("knowledge")));
+            Assert.AreEqual("fixture-icon", delivered.GetProperty("icon").GetString());
+            var cli = await Cli(host, "get-ui", control); Assert.AreEqual(0, cli.Code, cli.Output);
+            using var output = JsonDocument.Parse(cli.Output);
+            Assert.IsTrue(JsonElement.DeepEquals(expected, output.RootElement.GetProperty("payload").GetProperty("schema").GetProperty("knowledge")));
+        }
+        Assert.AreEqual(0, host.CatalogGetReads); Assert.AreEqual(6, host.CatalogGetUiReads); Assert.AreEqual(0, host.Writes);
+    }
+
     private static void AssertCliControlTokensParseExactly()
     {
         using var parser = new Parser(settings => settings.HelpWriter = null);

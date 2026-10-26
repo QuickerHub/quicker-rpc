@@ -18,9 +18,13 @@ export function stepEditorDraftFingerprint(step: ActionStep): string {
   });
 }
 
-/** Full UI comparison for rendering, not proof of current provider content. */
+/** Editing semantics exclude per-read provenance; neither fingerprint proves provider freshness. */
 export function runnerSchemaFingerprint(item: StepRunnerItem | undefined): string {
-  return item ? JSON.stringify(item) : "";
+  if (!item) return "";
+  const { knowledge: _knowledge, knowledgeState: _state, ...schema } = item as StepRunnerItem & {
+    knowledge?: unknown; knowledgeState?: unknown;
+  };
+  return JSON.stringify(schema);
 }
 
 /** Params-only fingerprint to skip no-op draft merges. */

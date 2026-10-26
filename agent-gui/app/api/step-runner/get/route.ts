@@ -1,5 +1,7 @@
 import { runQkrpc } from "@/lib/qkrpc";
 import { mapAgentSchemaToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
+import { inspectStepRunnerUiKnowledge } from "@/lib/action-editor/api/stepRunnerKnowledge";
+import { currentQkrpcTarget } from "@/lib/qkrpc-host-binding";
 import {
   getStaticStepRunnerItem,
 } from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
@@ -50,7 +52,8 @@ async function fetchLiveStepRunnerItem(
 
   const result = await runQkrpc(args, { timeoutMs: 60_000, ...request.rpcOptions });
   requireDesignerCatalogResult(result, request);
-  if (!result.ok) {
+  const payload = result.parsed as { ok?: boolean; success?: boolean; payload?: { success?: boolean } } | null;
+  if (!result.ok || payload?.ok === false || payload?.success === false || payload?.payload?.success === false) {
     return null;
   }
 
@@ -59,7 +62,9 @@ async function fetchLiveStepRunnerItem(
     return null;
   }
 
-  return mapAgentSchemaToStepRunnerItem(schema) as unknown as Record<string, unknown>;
+  const knowledge = inspectStepRunnerUiKnowledge(schema, { key, controlField,
+    hostBinding: request.rpcOptions.hostBinding ?? currentQkrpcTarget()?.binding });
+  return mapAgentSchemaToStepRunnerItem(schema, knowledge) as unknown as Record<string, unknown>;
 }
 
 function fetchStaticStepRunnerItem(
@@ -70,7 +75,7 @@ function fetchStaticStepRunnerItem(
   if (!item) {
     return null;
   }
-  return item as unknown as Record<string, unknown>;
+  return { ...item, knowledgeState: { status: "unknown", reason: "Static UI catalog; current native provenance is unavailable." } } as unknown as Record<string, unknown>;
 }
 
 async function get(key: string, controlField: string | undefined, request: DesignerCatalogRequest) {

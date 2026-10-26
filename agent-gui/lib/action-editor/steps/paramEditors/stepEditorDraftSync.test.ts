@@ -19,6 +19,15 @@ const baseStep: ActionStep = {
   outputParams: {},
 };
 
+test("source observations do not change editing fingerprints but parameter changes still do", () => {
+  const item = { key: "sys:fixture", inputParamDefs: [{ key: "value", name: "Value" }] } as StepRunnerItem;
+  const first = { ...item, knowledge: { retrievedAt: "first", schema: { revision: "old" } }, knowledgeState: { status: "available" } };
+  const second = { ...item, knowledge: { retrievedAt: "second", schema: { revision: "new" } }, knowledgeState: { status: "unknown" } };
+  assert.equal(runnerSchemaFingerprint(first), runnerSchemaFingerprint(second));
+  assert.equal(runnerSchemaFingerprint(first), runnerSchemaFingerprint(item));
+  assert.notEqual(runnerSchemaFingerprint(second), runnerSchemaFingerprint({ ...second, inputParamDefs: [{ ...item.inputParamDefs[0], name: "Updated" }] }));
+});
+
 test("mergeRunnerSchemaIntoStepDraft keeps control field edits when schema expands", () => {
   const draft: ActionStep = {
     ...baseStep,

@@ -55,7 +55,7 @@ metadata:
 | 样式 | `agent-gui/components/action-editor/action-editor.css` |
 | 主题 token | `agent-gui/components/action-editor/action-editor-theme.css`（`--ad-*`） |
 | 程序编辑入口 | `agent-gui/lib/action-editor/program/XProgramEditor.tsx` |
-| Step-runner UI schema | 静态 `step-runners-ui-catalog.json`（优先）；live `qkrpc step-runner get-ui`（维护导出 / `STEP_RUNNER_CATALOG_LIVE=1`） |
+| Step-runner UI schema | 绑定文档的 catalog port → 当前宿主 `qkrpc step-runner get-ui`；静态 JSON 仅供显式离线开发，不作为当前宿主定义 |
 | Designer Host gRPC | `agent-gui/lib/action-editor/shared/designerHostGrpcApi.ts` |
 
 ## WPF ↔ Web 对照表（步骤字段）
@@ -102,7 +102,7 @@ metadata:
 1. **定位差距**：在 Quicker 桌面版复现（双击 step → 改某字段），记录预期交互。
 2. **读 WPF**：`rg "SetupEditor|ValidFor|TriggerCreateVariable" ../Quicker/QuickerPc/Quicker/View/X/StepEditor`（或 `quickerorg` 等价路径）。
 3. **读 Web 源**：对比 `../Quicker/Quicker.Designer/src/Quicker.Designer.Web/src/features/steps/` 是否已有移植；再改 `agent-gui/lib/action-editor/`。
-4. **Schema（静态优先）**：action-editor 使用编译期打包的 `agent-gui/lib/action-editor/data/step-runners-ui-catalog.json`（`Export-StepRunnersUiCatalog.ps1` 从 `qkrpc step-runner get-ui` 导出）。`/api/step-runner/list|get` 默认读静态 JSON；`STEP_RUNNER_CATALOG_LIVE=1` 或 catalog 为空时回退 live `qkrpc`。键名与 `controlField` 与 Agent 路径一致，但 **控件形态只看 UI schema + WPF**。
+4. **Schema（当前来源）**：主动作及嵌套编辑面通过文档 catalog port 查询完整绑定目标的当前 UI schema；未绑定、加载中或失败时不使用其它宿主或静态定义补齐。`/api/step-runner/list|get` 默认 live；独立离线开发仅在未绑定请求且显式 `STEP_RUNNER_CATALOG_STATIC=1` 时读取打包 JSON。没有可核验的 provider revision 时，每次重新读取，仅合并同 owner 同时进行的请求。键名与 `controlField` 与 Agent 路径一致，但 **控件形态只看 UI schema + WPF**。详见 [知识获取架构](../../../docs/agent-architecture.md#knowledge-acquisition)。
 5. **改完后**：**自动**跑 `dev_frontend_check` 直到 `ok: true`（或 `/frontend-check`）；见 `quicker-agent-gui-frontend`（**不要** `build.ps1 -t`）。
 6. **涉及插件保存/designer host**：才需要 `quicker-rpc-build-test`（`QuickerRpc/QuickerRpc.Plugin.V1/Services/ActionDesigner*.cs`）。
 

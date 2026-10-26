@@ -36,7 +36,10 @@ public sealed class V2DesignerReadPrimitivesTests
             Assert.AreEqual("fixture:added", (await host.SearchAsync("fixture:added", 10)).Items.Single().Key);
             Assert.AreEqual(3, native.Reads);
             var ui = JObject.Parse((await host.GetUiDetailAsync("fixture:new")).SchemaJson!);
-            Assert.IsNull(ui["knowledge"]);
+            Assert.AreEqual(StepRunnerKnowledgeFormats.Ui, ui["knowledge"]!["schema"]!.Value<string>("format"));
+            Assert.IsTrue(JToken.DeepEquals(changed["knowledge"]!["source"], ui["knowledge"]!["source"]));
+            Assert.AreEqual(native.Rows[0].HelpLink, ui["knowledge"]!.Value<string>("nativeHelpLink"));
+            Assert.AreNotEqual(changed["knowledge"]!["schema"]!.Value<string>("revision"), ui["knowledge"]!["schema"]!.Value<string>("revision"));
             Assert.AreEqual("Current definition", ui.Value<string>("name"));
             Assert.AreEqual(4, native.Reads);
         }
@@ -71,7 +74,11 @@ public sealed class V2DesignerReadPrimitivesTests
         var ui = await host.GetUiDetailAsync("sys:fixture", "copy");
         var agent = await host.GetDetailAsync("sys:fixture", "copy");
         var expected = StepRunnerCatalogMapper.GetDetail(catalog, "sys:fixture", "copy").Schema!;
-        Assert.AreEqual(StepRunnerUiSchemaJson.Serialize(expected), ui.SchemaJson);
+        var uiSchema = JObject.Parse(ui.SchemaJson!);
+        Assert.AreEqual("unknown", uiSchema["knowledge"]!["source"]!.Value<string>("kind"));
+        Assert.AreEqual(StepRunnerKnowledgeFormats.Ui, uiSchema["knowledge"]!["schema"]!.Value<string>("format"));
+        uiSchema.Remove("knowledge");
+        Assert.IsTrue(JToken.DeepEquals(JObject.Parse(StepRunnerUiSchemaJson.Serialize(expected)), uiSchema));
         var agentSchema = JObject.Parse(agent.SchemaJson!);
         Assert.AreEqual("unknown", agentSchema["knowledge"]!["source"]!.Value<string>("kind"));
         agentSchema.Remove("knowledge");
