@@ -37,8 +37,10 @@ API manifest 和 TypeScript 检查后只构建一次。产物物理搬移前后�
 精确 Node 原生导入验证与只上传 receipt/failure.log 的边界保持。
 
 Agent 门禁直接执行已有 `agent-gui/scripts/check-agent-offline.mjs`，包含
-`tsc --noEmit --incremental false` 和显式隔离测试。测试 worker 并发限制为 4，保留
+`tsc --noEmit --incremental false` 和显式隔离测试。测试 worker 并发上限为 Windows 2、其它平台 4，保留
 15 秒文件超时，避免按宿主 CPU 数量启动大量冷 tsx worker。
+实际启动 PowerShell 的发布路由与本地 MCP 文件读取 spec 另用单 worker 顺序运行，
+避免与其它冷 tsx 进程竞争；它们仍完整执行，原有子进程及文件超时、断言和网络 guard 不变。
 [`check-agent-regressions.mjs`](../../scripts/ci/check-agent-regressions.mjs) 复用四个既有
 `test:*` 清单，拒绝 shell 片段、通配符和额外参数，并为每个套件加载相同的网络 guard。
 guard 是进程内防误用检查，允许 tsx IPC，不是系统沙箱；新增测试仍须审计副作用。
@@ -106,14 +108,16 @@ Windows job 还用小型合成包运行生产 NSIS 模板的两遍真实 `/WX` �
 300 秒总预算；各用例内的 45/60 秒限制和服务自然退出的 5 秒门槛继续保留。
 该入口不会使用真实 Quicker、模型或用户资料，也不加入无 Edge 的离线流水线。
 source bundle 回归另经实际 C# CLI 读写合成源目录，沿生产 workspace API 和同一 Session
-核对保存、资源、重开与晚回执；原生提交边界使用受控回执，不能替代真实宿主验收。
-该用例要求显式 `QKRPC_SOURCE_DOCUMENT_BIN`，缺少产物直接失败，不取用户安装版或
+核对保存、资源、重开与晚回执；变量“+对话”回归还覆盖实际工作台、原文档 scope、
+变量事务和同一 codec 的来源映射。这两份 spec 在独立的 react-server 条件进程中运行，
+原客户端组件与 SDK 测试保留正常 React 条件。原生提交边界使用受控回执，不能替代真实宿主验收。
+这些用例要求显式 `QKRPC_SOURCE_DOCUMENT_BIN`，缺少产物直接失败，不取用户安装版或
 静默跳过。CI 按 `global.json` 构建当前提交的 Console Release 产物并注入该路径；
 本地运行整套 DOM 前也须构建或指定对应隔离 CLI。此过程不安装 CLI、不重载插件。
 独立的 [`Designer DOM (Windows Edge)` job](../../scripts/ci/check-designer-dom.mjs) 先实际启动镜像预装的 `msedge` 无头通道、记录
 版本并关闭，再原样调用该入口；缺少浏览器或启动失败直接阻断，不下载浏览器或静默跳过。
 该 job 不改变 Node/Native 门禁的测试顺序，保留所有 spec 的 individual deadline 和
-300 秒文件预算；job 的 20 分钟上限包含安装及三个顺序文件的最坏预算。
+300 秒文件预算；job 的 20 分钟上限同时约束准备步骤及整套顺序回归。
 失败仅上传生成的 PNG 白名单、收据和最后 256 KiB 诊断；不上传 profile、trace、依赖或
 整个 `.tmp`。Node 网络 guard 和页面请求拦截均保留，它们不构成 OS 网络沙箱。
 

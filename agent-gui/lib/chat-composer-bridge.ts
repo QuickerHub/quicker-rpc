@@ -1,11 +1,13 @@
 import type { MutableRefObject } from "react";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { ProgramVariableTag } from "./program-variable-tag";
 
 export type ChatComposerActions = {
   insertPrompt: (text: string) => void;
   insertBrowserElementTag: (element: BrowserElementTag) => void;
   insertProgramStepTag: (tag: ProgramStepTag) => void;
+  insertProgramVariableTag: (tag: ProgramVariableTag) => void;
   focusComposer: () => void;
 };
 
@@ -13,6 +15,7 @@ export const emptyChatComposerActions: ChatComposerActions = {
   insertPrompt: () => {},
   insertBrowserElementTag: () => {},
   insertProgramStepTag: () => {},
+  insertProgramVariableTag: () => {},
   focusComposer: () => {},
 };
 

@@ -583,7 +583,11 @@
   min-width: 0;
 }
 
+.variable-row-container { display: flex; align-items: stretch; min-width: 0; }
+.variable-pin-to-chat { border: 0; background: transparent; font: inherit; flex: none; align-self: center; }
 .listbox-item.variable-row {
+  flex: 1;
+  min-width: 0;
   align-items: flex-start;
   justify-content: flex-start;
   gap: 8px;

@@ -23,7 +23,6 @@ const tests = [
   "scripts/build-agent-production.test.mjs",
   "scripts/electron-prepare.test.mjs",
   "scripts/start-agent-production.test.mjs",
-  "scripts/production-publish-routing.test.mjs",
   "electron/launcher-lifecycle.test.mjs",
   "electron/backend-smoke.test.mjs",
   "electron/backend-startup-lifecycle.test.mjs",
@@ -39,6 +38,7 @@ const tests = [
   "lib/agent-tool-policy.test.ts",
   "lib/live-program-tool-composition.test.ts",
   "lib/live-program-document-registry.test.ts",
+  "lib/live-program-variable-registry.test.ts",
   "lib/live-program-step-input-policy.test.ts",
   "lib/repair-interrupted-tool-calls.test.ts",
   "lib/agent-core/turn-plan.test.ts",
@@ -93,7 +93,6 @@ const tests = [
   "lib/agent-mcp/catalog.test.ts",
   "lib/agent-mcp/guidance.test.ts",
   "lib/agent-mcp/config.test.ts",
-  "lib/agent-mcp/native-quicker-source.server.test.ts",
   "lib/quicker-native-mcp-settings.server.test.ts",
   "lib/agent-mcp/load.server.test.ts",
   "lib/list-tools-tool.test.ts",
@@ -122,6 +121,7 @@ const tests = [
   "lib/source-bundle-transport.test.ts",
   "lib/source-document-owner.server.test.ts",
   "lib/source-bundle-document-client.test.ts",
+  "lib/source-variable-identity.test.ts",
   "lib/source-bundle-document.server.test.ts",
   "lib/qkrpc-action-tool-display.test.ts",
   "lib/tool-output-source-summary.test.ts",
@@ -133,6 +133,7 @@ const tests = [
   "lib/action-editor/document/programDocumentSession.test.ts",
   "lib/action-editor/document/programDocumentStepInputs.test.ts",
   "lib/action-editor/document/programDocumentVariableChanges.test.ts",
+  "lib/action-editor/document/programDocumentVariableLive.test.ts",
   "lib/action-editor/document/programDocumentVariableClipboard.test.ts",
   "lib/action-editor/document/programDocumentStepClipboard.test.ts",
   "lib/action-editor/program/programVariableClipboard.test.ts",
@@ -218,7 +219,11 @@ const tests = [
 
 // Real client SDK/React imports require React's normal export, independently of
 // the server-only tests above. Both groups retain the same offline guard.
-const clientTests = ["lib/live-program-document-turn.test.ts", "lib/live-program-document-sdk.integration.test.ts"];
+const clientTests = ["lib/live-program-document-turn.test.ts", "lib/live-program-document-sdk.integration.test.ts", "lib/live-program-variable-sdk.integration.test.ts"];
+
+// These specs launch real PowerShell children with their existing short deadlines.
+// Run them without competing tsx workers; keep their assertions and timeouts intact.
+const systemProcessTests = ["scripts/production-publish-routing.test.mjs", "lib/agent-mcp/native-quicker-source.server.test.ts"];
 
 function run(args) {
   const result = spawnSync(process.execPath, args, { cwd: root, stdio: "inherit" });
@@ -226,7 +231,7 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-for (const path of [...tests, ...clientTests]) {
+for (const path of [...tests, ...systemProcessTests, ...clientTests]) {
   if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing offline test: ${path}`);
 }
 run(["scripts/generate-service-routes.mjs", "--check"]);
@@ -238,6 +243,11 @@ run([
   `--test-concurrency=${concurrency}`,
   "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
   ...tests,
+]);
+run([
+  "node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "--test",
+  "--test-concurrency=1", "--test-timeout=15000", "--import", "./scripts/agent-offline-network-guard.mjs",
+  ...systemProcessTests,
 ]);
 run([
   "node_modules/tsx/dist/cli.mjs", "--test",

@@ -8,6 +8,7 @@ import {
   isBrowserElementTagElement,
 } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import { formatProgramVariableTagMarkup, isProgramVariableTagElement, programVariableTagFromDom, programVariableTagAttributes, PROGRAM_VARIABLE_TAG_CLASS, type ProgramVariableTag } from "./program-variable-tag";
 import {
   formatProgramStepTagMarkup,
   isProgramStepTagElement,
@@ -45,6 +46,7 @@ export function isComposerChipElement(el: Element): boolean {
     isComposerTagElement(el)
     || isBrowserElementTagElement(el)
     || isProgramStepTagElement(el)
+    || isProgramVariableTagElement(el)
     || isSlashTagElement(el)
   );
 }
@@ -86,6 +88,8 @@ export function tagElementToMarkup(el: HTMLElement): string {
   if (slashTag) return formatSlashTagMarkup(slashTag);
   const programStep = programStepTagFromDom(el);
   if (programStep) return formatProgramStepTagMarkup(programStep);
+  const variable = programVariableTagFromDom(el);
+  if (variable) return formatProgramVariableTagMarkup(variable);
   const browserElement = browserElementTagFromDom(el);
   if (browserElement) return formatBrowserElementTagMarkup(browserElement);
   const action = actionFromTagElement(el);
@@ -204,6 +208,16 @@ export function createProgramStepTagElement(tag: ProgramStepTag): HTMLSpanElemen
 }
 
 /** Trailing spacer after an inline chip (backspace target + visual gap). */
+export function createProgramVariableTagElement(tag: ProgramVariableTag): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = `composer-prompt-tag ${PROGRAM_VARIABLE_TAG_CLASS}`;
+  span.contentEditable = "false";
+  for (const [key, value] of Object.entries(programVariableTagAttributes(tag))) span.setAttribute(key, value);
+  span.title = `${tag.chipTitle} · ${tag.surface}`;
+  span.textContent = tag.chipTitle;
+  return span;
+}
+
 export function createComposerTagSpacer(): Text {
   return document.createTextNode("\u00a0");
 }
@@ -297,6 +311,9 @@ export function renderMarkupIntoRoot(root: HTMLElement, markup: string): void {
     }
     if (segment.type === "program-step") {
       root.append(createProgramStepTagElement(segment.tag));
+      continue;
+    } else if (segment.type === "program-variable") {
+      root.append(createProgramVariableTagElement(segment.tag));
       continue;
     }
     if (segment.type === "slash-tag") {
@@ -661,6 +678,9 @@ export function insertComposerMarkupPasteWithUndo(
     }
     if (segment.type === "program-step") {
       fragment.append(createProgramStepTagElement(segment.tag));
+      continue;
+    } else if (segment.type === "program-variable") {
+      fragment.append(createProgramVariableTagElement(segment.tag));
       continue;
     }
     appendTextWithNewlines(fragment, segment.text);

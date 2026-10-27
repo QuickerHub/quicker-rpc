@@ -1,6 +1,7 @@
 import type { PinnedAction } from "@/lib/action-context";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import { programVariableTagFromDom, type ProgramVariableTag } from "./program-variable-tag";
 import {
   actionFromTagElement,
   isComposerChipElement,
@@ -12,7 +13,8 @@ export type ComposerTagPreviewKind =
   | "action"
   | "subprogram"
   | "browser-element"
-  | "program-step";
+  | "program-step"
+  | "program-variable";
 
 export type ComposerTagPreviewRow = {
   label: string;
@@ -123,12 +125,20 @@ export function buildProgramStepTagPreview(
   };
 }
 
+export function buildProgramVariableTagPreview(tag: ProgramVariableTag): ComposerTagPreviewModel {
+  return { kind: "program-variable", title: tag.chipTitle, badge: "设计器变量",
+    rows: [{ label: "路径", value: tag.documentPath, mono: true }, { label: "编辑面", value: tag.surface, mono: true },
+      { label: "变量", value: tag.variableId, mono: true }], code: tag.content };
+}
+
 export function buildPreviewFromTagElement(
   el: HTMLElement,
 ): ComposerTagPreviewModel | null {
   if (!isComposerChipElement(el)) return null;
   const programStep = programStepTagFromDom(el);
   if (programStep) return buildProgramStepTagPreview(programStep);
+  const variable = programVariableTagFromDom(el);
+  if (variable) return buildProgramVariableTagPreview(variable);
   const browser = browserElementTagFromDom(el);
   if (browser) return buildBrowserElementTagPreview(browser);
   const action = actionFromTagElement(el);
