@@ -19,6 +19,7 @@ const tests = [
   "lib/db/client.process.test.ts",
   "service/runtime-start-abort.integration.test.ts",
   "service/runtime-health-body.integration.test.ts",
+  "service/terminal-cold-start.integration.test.ts",
 ];
 for (const path of tests) {
   if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing service test: ${path}`);
