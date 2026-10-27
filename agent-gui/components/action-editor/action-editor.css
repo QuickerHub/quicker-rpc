@@ -161,6 +161,22 @@
   min-height: 0;
 }
 
+/* Wrapped actions retain their own scroll region instead of consuming the form. */
+.x-program-editor-variables-drawer-body .variable-editor > .variable-toolbar {
+  min-height: 0;
+  max-height: 30%;
+  overflow: auto;
+}
+
+.x-program-editor-variables-drawer-body .variable-toolbar-main--merged-head { align-items: flex-start; }
+.x-program-editor-variables-drawer-body .variable-toolbar-title,
+.x-program-editor-variables-drawer-body .variable-toolbar-btn--close {
+  position: sticky;
+  top: 4px;
+  z-index: 1;
+  background: var(--ad-bg-panel);
+}
+
 .x-program-editor-variables-drawer-body .variable-editor-main {
   padding: 0 8px 8px;
 }
@@ -545,6 +561,14 @@
 
 .variable-sort-menu button:hover {
   background: var(--ad-bg-menu-hover);
+}
+
+.variable-sort-menu--portal {
+  position: fixed;
+  z-index: 3000;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: auto;
 }
 
 .variable-toolbar-btn {

@@ -21,6 +21,7 @@ import {
   SIDE_PANEL_VIEW_TRACE,
 } from "@/lib/workspace-side-panel-view";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
+import { isSourceBundleDocumentPath } from "@/lib/source-bundle-document";
 import {
   useWorkspaceExplorerEditor,
   useWorkspaceExplorerShell,
@@ -92,7 +93,7 @@ export function WorkspaceExplorerPanel({ chatPresentation }: { chatPresentation:
   const actionDataEditorOpen =
     showEditor
     && activeTabPath != null
-    && isActionProjectDataPath(activeTabPath);
+    && (isActionProjectDataPath(activeTabPath) || isSourceBundleDocumentPath(activeTabPath));
   const showWorkspaceTree =
     activeSideView === SIDE_PANEL_VIEW_EXPLORER || showEditor;
   const showTreePanel =

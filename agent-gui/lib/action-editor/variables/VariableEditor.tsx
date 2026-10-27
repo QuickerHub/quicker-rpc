@@ -444,6 +444,9 @@ export default function VariableEditor({
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
   const sortMenuRef = useRef<HTMLDivElement>(null);
+  const sortMenuOwnerRef = useRef(owner);
+  const sortPopupRef = useRef<HTMLDivElement>(null);
+  const [sortMenuPosition, setSortMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const variableListRef = useRef<HTMLDivElement | null>(null);
   const pendingScrollVariableIdRef = useRef<string | null>(null);
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
@@ -550,6 +553,7 @@ export default function VariableEditor({
     formExpectedRef.current = null;
     changeErrorRef.current = null; setChangeError(null);
     setTypePickerOpen(false);
+    setSortMenuOpen(false);
   }, [selectedId, owner]);
 
   const variableFormDisplay = useMemo((): ActionVariable | null => {
@@ -842,6 +846,7 @@ export default function VariableEditor({
   };
 
   const applySort = (mode: "name" | "type" | "group"): void => {
+    if (!active || ownerRef.current !== owner || sortMenuOwnerRef.current !== owner) return;
     if (!flushVariableFormSync()) return;
     setSortMenuOpen(false);
     onCommitVariables((prev) => {
@@ -1087,13 +1092,36 @@ export default function VariableEditor({
   useEffect(() => {
     if (!active || !sortMenuOpen) return;
     const close = (e: MouseEvent): void => {
-      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node) && !sortPopupRef.current?.contains(e.target as Node)) {
         setSortMenuOpen(false);
       }
     };
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
   }, [active, sortMenuOpen]);
+
+  // The toolbar can scroll; keep its existing menu outside that clipping region.
+  const positionSortMenu = useCallback(() => {
+    const anchor = sortMenuRef.current;
+    if (!active || !sortMenuOpen || !anchor || ownerRef.current !== owner || sortMenuOwnerRef.current !== owner) return;
+    const rect = anchor.getBoundingClientRect(), toolbar = anchor.closest(".variable-toolbar")?.getBoundingClientRect();
+    if (!rect.width || !rect.height || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth
+      || (toolbar && (rect.bottom <= toolbar.top || rect.top >= toolbar.bottom || rect.right <= toolbar.left || rect.left >= toolbar.right))) { setSortMenuOpen(false); return; }
+    const width = Math.min(200, window.innerWidth - 16), maxHeight = Math.max(0, window.innerHeight - 16);
+    const height = sortPopupRef.current?.getBoundingClientRect().height ?? 0;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const top = Math.max(8, Math.min(rect.bottom + 4 + height <= window.innerHeight - 8 ? rect.bottom + 4 : rect.top - height - 4, window.innerHeight - height - 8));
+    setSortMenuPosition(previous => previous && previous.top === top && previous.left === left && previous.width === width && previous.maxHeight === maxHeight
+      ? previous : { top, left, width, maxHeight });
+  }, [active, sortMenuOpen, owner]);
+  useLayoutEffect(() => { positionSortMenu(); }, [positionSortMenu, sortMenuPosition]);
+  useEffect(() => {
+    if (!active || !sortMenuOpen) { setSortMenuPosition(null); return; }
+    window.addEventListener("resize", positionSortMenu);
+    window.addEventListener("scroll", positionSortMenu, true);
+    return () => { window.removeEventListener("resize", positionSortMenu); window.removeEventListener("scroll", positionSortMenu, true); };
+  }, [active, sortMenuOpen, positionSortMenu]);
+  useEffect(() => { if (!active) setSortMenuOpen(false); }, [active]);
 
   return (
     <section className="variable-editor" ref={rootRef} tabIndex={-1}>
@@ -1132,12 +1160,15 @@ export default function VariableEditor({
                 type="button"
                 className="variable-toolbar-btn"
                 title="排序"
-                onClick={() => setSortMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={active && sortMenuOpen}
+                onClick={() => { if (active && ownerRef.current === owner) { sortMenuOwnerRef.current = owner; setSortMenuOpen((v) => !v); } }}
               >
                 <IconControl spec={AD_ICONIFY_SPEC.swapVertical} size={12} resourceBaseUrl={backendBaseUrl} />
               </button>
-              {sortMenuOpen ? (
-                <div className="variable-sort-menu" role="menu">
+              {active && sortMenuOpen && sortMenuOwnerRef.current === owner && sortMenuPosition ? createPortal(
+                <div ref={sortPopupRef} className="variable-sort-menu variable-sort-menu--portal" role="menu" style={sortMenuPosition}
+                  data-program-keyboard-owner={rootRef.current?.closest<HTMLElement>("[data-program-keyboard-owner]")?.dataset.programKeyboardOwner}>
                   <button type="button" role="menuitem" onClick={() => applySort("name")}>
                     按变量名称排序
                   </button>
@@ -1147,7 +1178,7 @@ export default function VariableEditor({
                   <button type="button" role="menuitem" onClick={() => applySort("group")}>
                     按标签 + 名称排序
                   </button>
-                </div>
+                </div>, document.body
               ) : null}
             </div>
             <button
