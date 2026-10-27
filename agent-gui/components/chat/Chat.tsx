@@ -266,9 +266,21 @@ function ChatPanel({
   const llmSelectionRef = useRef(llmSelection);
   llmSelectionRef.current = llmSelection;
   const devExperienceEnabled = useDevExperienceEnabled();
-  const { panelOpen } = useWorkspaceExplorerShell();
+  const { panelOpen, setPanelOpen } = useWorkspaceExplorerShell();
   const appMainBodyRef = useRef<HTMLDivElement>(null);
-  const splitStyle = useAppMainSplit(appMainBodyRef, panelOpen);
+  const { style: splitStyle, workspaceOnly } = useAppMainSplit(appMainBodyRef, panelOpen);
+  const chatPresentationActive = visible && !workspaceOnly;
+  const chatPresentationActiveRef = useRef(chatPresentationActive);
+  chatPresentationActiveRef.current = chatPresentationActive;
+  const workspaceOnlyRef = useRef(workspaceOnly);
+  workspaceOnlyRef.current = workspaceOnly;
+  const composerOwnerRef = useRef({ visible });
+  if (composerOwnerRef.current.visible !== visible) composerOwnerRef.current = { visible };
+  useLayoutEffect(() => {
+    const owner = { visible };
+    composerOwnerRef.current = owner;
+    return () => { if (composerOwnerRef.current === owner) composerOwnerRef.current = { visible: false }; };
+  }, [visible]);
 
   useEffect(() => {
     if (!ephemeral) {
@@ -321,6 +333,19 @@ function ChatPanel({
   const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ChatComposerFooterHandle>(null);
+
+  // Explicit composer actions may reveal this Chat; resize and background work never do.
+  const presentComposer = useCallback((action: () => void) => {
+    const owner = composerOwnerRef.current;
+    if (!owner.visible) return;
+    const apply = () => {
+      if (composerOwnerRef.current === owner && owner.visible && chatPresentationActiveRef.current) action();
+    };
+    if (workspaceOnlyRef.current) {
+      setPanelOpen(false);
+      requestAnimationFrame(() => requestAnimationFrame(apply));
+    } else apply();
+  }, [setPanelOpen]);
 
   const {
     messages,
@@ -500,12 +525,13 @@ function ChatPanel({
     flushNextQueuedNow,
   } = useComposerMessageQueue(busy, sendMessageSafe, interruptAgentRun);
   const focusComposerAtEnd = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        composerRef.current?.focusAtEnd();
-      });
+    presentComposer(() => {
+      const owner = composerOwnerRef.current;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (composerOwnerRef.current === owner && chatPresentationActiveRef.current) composerRef.current?.focusAtEnd();
+      }));
     });
-  }, []);
+  }, [presentComposer]);
 
   const {
     editAnchorMessageId,
@@ -518,7 +544,7 @@ function ChatPanel({
     commitBranchMessageEdit,
   } = useChatMessageEditing({
     threadId,
-    visible,
+    visible: chatPresentationActive,
     messages,
     composerRef,
     replaceMessagesIfCurrent,
@@ -539,7 +565,7 @@ function ChatPanel({
     getStickToBottom,
     releaseStickToBottom,
   } = useMessagesStickScroll(messagesRef, {
-    visible,
+    visible: chatPresentationActive,
     threadId,
     revision: scrollRevisionKey,
     turnRef: msgTurnRef,
@@ -575,9 +601,9 @@ function ChatPanel({
     workspaceDeleteHits,
   ]);
 
-  useMessagesScrollportHeight(messagesRef, visible);
+  useMessagesScrollportHeight(messagesRef, chatPresentationActive);
 
-  useForwardWheelToMessages(messagesRef, appMainChatColumnRef, visible);
+  useForwardWheelToMessages(messagesRef, appMainChatColumnRef, chatPresentationActive);
 
   const userTurnStarts = useMemo(
     () => findUserTurnStartIndices(messages),
@@ -586,7 +612,7 @@ function ChatPanel({
 
   useEffect(() => {
     const container = messagesRef.current;
-    if (!container || !visible) return;
+    if (!container || !chatPresentationActive) return;
 
     const onWheel = (event: WheelEvent) => {
       if (event.deltaX === 0) return;
@@ -615,7 +641,7 @@ function ChatPanel({
 
     container.addEventListener("wheel", onWheel, { passive: false });
     return () => container.removeEventListener("wheel", onWheel);
-  }, [visible]);
+  }, [chatPresentationActive]);
 
   const streamingActive = busy;
 
@@ -629,7 +655,7 @@ function ChatPanel({
 
   const messageWindow = useChatMessageWindow({
     containerRef: messagesRef,
-    visible,
+    visible: chatPresentationActive,
     threadId,
     userTurnStarts,
     totalMessages: messages.length,
@@ -665,7 +691,7 @@ function ChatPanel({
         storeLauncherLlmSelectionRaw(pending.llmSelection);
       }
       clearError();
-      if (visible) pinToStream();
+      if (chatPresentationActiveRef.current) pinToStream();
       enqueueOrSend(pending.text);
     };
     drainLauncherSubmit();
@@ -674,7 +700,7 @@ function ChatPanel({
 
   const registerColdTurnNode = useAutoExpandColdTurns({
     containerRef: messagesRef,
-    visible,
+    visible: chatPresentationActive,
     revision: `${messageWindow.startTurnIndex}:${messageWindow.hiddenTurnCount}:${messages.length}`,
     setExpandedColdTurns,
   });
@@ -703,6 +729,7 @@ function ChatPanel({
   }, []);
 
   const submitComposer = useCallback(() => {
+    if (!chatPresentationActiveRef.current) return;
     if (editAnchorMessageId) {
       void commitBranchMessageEdit();
       return;
@@ -712,13 +739,13 @@ function ChatPanel({
       composerRef.current?.clear();
       pinToStream();
       enqueueOrSend(text);
-      requestAnimationFrame(() => composerRef.current?.focus());
+      requestAnimationFrame(() => { if (chatPresentationActiveRef.current) composerRef.current?.focus(); });
       return;
     }
     if (busy && queueLength > 0) {
       pinToStream();
       flushNextQueuedNow();
-      requestAnimationFrame(() => composerRef.current?.focus());
+      requestAnimationFrame(() => { if (chatPresentationActiveRef.current) composerRef.current?.focus(); });
     }
   }, [
     readComposerText,
@@ -733,13 +760,14 @@ function ChatPanel({
 
   const sendTestPrompt = useCallback(
     (text: string) => {
+      if (!chatPresentationActiveRef.current) return;
       if (editAnchorMessageId) return;
       if (!canSendComposedMessage(text)) return;
       composerRef.current?.clear();
       clearError();
       pinToStream();
       enqueueOrSend(text);
-      requestAnimationFrame(() => composerRef.current?.focus());
+      requestAnimationFrame(() => { if (chatPresentationActiveRef.current) composerRef.current?.focus(); });
     },
     [editAnchorMessageId, enqueueOrSend, pinToStream, clearError],
   );
@@ -749,39 +777,35 @@ function ChatPanel({
       if (editAnchorMessageId) return;
       const next = text.trim();
       if (!next) return;
-      clearError();
-      composerRef.current?.setValue(next);
+      presentComposer(() => { clearError(); composerRef.current?.setValue(next); });
     },
-    [editAnchorMessageId, clearError],
+    [editAnchorMessageId, clearError, presentComposer],
   );
 
   const insertComposerBrowserElementTag = useCallback(
     (element: BrowserElementTag) => {
       if (editAnchorMessageId) return;
-      clearError();
-      composerRef.current?.insertBrowserElementTag(element);
-      requestAnimationFrame(() => composerRef.current?.focus());
+      presentComposer(() => { clearError(); composerRef.current?.insertBrowserElementTag(element); });
     },
-    [editAnchorMessageId, clearError],
+    [editAnchorMessageId, clearError, presentComposer],
   );
 
   const insertComposerProgramStepTag = useCallback(
     (tag: ProgramStepTag) => {
       if (editAnchorMessageId) return;
-      rememberLiveProgramDocumentPin(tag.tagId);
-      clearError();
-      composerRef.current?.insertProgramStepTag(tag);
-      requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+      presentComposer(() => {
+        rememberLiveProgramDocumentPin(tag.tagId); clearError(); composerRef.current?.insertProgramStepTag(tag);
+      });
     },
-    [editAnchorMessageId, clearError, rememberLiveProgramDocumentPin],
+    [editAnchorMessageId, clearError, rememberLiveProgramDocumentPin, presentComposer],
   );
 
   const insertComposerProgramVariableTag = useCallback((tag: ProgramVariableTag) => {
     if (editAnchorMessageId) return;
-    rememberLiveProgramDocumentPin(tag.tagId); clearError();
-    composerRef.current?.insertProgramVariableTag(tag);
-    requestAnimationFrame(() => composerRef.current?.focusAtEnd());
-  }, [editAnchorMessageId, clearError, rememberLiveProgramDocumentPin]);
+    presentComposer(() => {
+      rememberLiveProgramDocumentPin(tag.tagId); clearError(); composerRef.current?.insertProgramVariableTag(tag);
+    });
+  }, [editAnchorMessageId, clearError, rememberLiveProgramDocumentPin, presentComposer]);
 
   // A retained file uses the currently presented Chat, never the Chat that first opened it.
   const workspacePresentationKey = JSON.stringify([visible, ephemeral, editAnchorMessageId]);
@@ -794,21 +818,20 @@ function ChatPanel({
     pinVariable: (tag: ProgramVariableTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => {
       const owner = workspacePresentationOwnerRef.current;
       if (!owner.active) return;
-      rememberLiveProgramDocumentPin(tag.tagId, pin); clearError();
-      composerRef.current?.insertProgramVariableTag(tag);
-      requestAnimationFrame(() => { if (workspacePresentationOwnerRef.current === owner && owner.active) composerRef.current?.focusAtEnd(); });
+      presentComposer(() => {
+        if (workspacePresentationOwnerRef.current !== owner || !owner.active) return;
+        rememberLiveProgramDocumentPin(tag.tagId, pin); clearError(); composerRef.current?.insertProgramVariableTag(tag);
+      });
     },
     pinStep: (tag: ProgramStepTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => {
       const owner = workspacePresentationOwnerRef.current;
       if (!owner.active) return;
-      rememberLiveProgramDocumentPin(tag.tagId, pin);
-      clearError();
-      composerRef.current?.insertProgramStepTag(tag);
-      requestAnimationFrame(() => {
-        if (workspacePresentationOwnerRef.current === owner && owner.active) composerRef.current?.focusAtEnd();
+      presentComposer(() => {
+        if (workspacePresentationOwnerRef.current !== owner || !owner.active) return;
+        rememberLiveProgramDocumentPin(tag.tagId, pin); clearError(); composerRef.current?.insertProgramStepTag(tag);
       });
     },
-  }), [threadId, clearError, rememberLiveProgramDocumentPin]);
+  }), [threadId, clearError, rememberLiveProgramDocumentPin, presentComposer]);
 
   useEffect(() => {
     if (ephemeral || !visible) return;
@@ -924,7 +947,7 @@ function ChatPanel({
   const lastTurnFillScrollport = useMsgTurnStickyActive(
     messagesRef,
     msgTurnRef,
-    visible && userTurnStarts.length > 0,
+    chatPresentationActive && userTurnStarts.length > 0,
     lastTurnStickyResetKey,
   );
 
@@ -954,7 +977,7 @@ function ChatPanel({
       return;
     }
     const frame = requestAnimationFrame(() => {
-      composerRef.current?.focus();
+      if (chatPresentationActiveRef.current) composerRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
   }, [
@@ -1143,9 +1166,10 @@ function ChatPanel({
       frameRef={appMainRef}
       mainBodyRef={appMainBodyRef}
       chatColumnRef={appMainChatColumnRef}
-      className={`${isEmptyThread ? "app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${designerEmbed ? " app-main--designer-embed" : ""}`}
+      className={`${isEmptyThread ? "app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${workspaceOnly ? " app-main--workspace-only" : ""}${designerEmbed ? " app-main--designer-embed" : ""}`}
       style={splitStyle}
       visible={visible}
+      chatVisible={chatPresentationActive}
       header={<ChatConversationHeader />}
       dockHeader={panelOpen && visible ? <WorkspaceSidePanelTabBar /> : null}
       messages={
@@ -1253,7 +1277,7 @@ function ChatPanel({
       composer={
       <ChatComposerFooter
         ref={composerRef}
-        active={visible}
+        active={chatPresentationActive}
         ephemeral={ephemeral}
         editAnchorMessageId={editAnchorMessageId}
         isEmptyThread={isEmptyThread}

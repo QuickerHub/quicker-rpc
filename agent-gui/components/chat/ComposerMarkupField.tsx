@@ -5,6 +5,7 @@ import {
   useMemo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -91,6 +92,7 @@ export type ComposerMarkupFieldHandle = {
 };
 
 type ComposerMarkupFieldProps = {
+  active?: boolean;
   value: string;
   placeholder: string;
   disabled?: boolean;
@@ -131,6 +133,7 @@ export const ComposerMarkupField = forwardRef<
   ComposerMarkupFieldProps
 >(function ComposerMarkupField(
   {
+    active = true,
     value,
     placeholder,
     disabled = false,
@@ -142,6 +145,8 @@ export const ComposerMarkupField = forwardRef<
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const compositionActiveRef = useRef(false);
   const tagPreview = useComposerTagPreview(rootRef);
   const bindComposerRoot = useCallback((el: HTMLDivElement | null) => {
@@ -158,11 +163,11 @@ export const ComposerMarkupField = forwardRef<
   const designerEmbed = useActionDesignerEmbed();
   const designerContext = useDesignerContext(designerEmbed.enabled);
   const mentionSearch = useDesignerAwareMentionSearch(
-    mentionQuery,
+    active ? mentionQuery : null,
     designerEmbed,
     designerContext,
   );
-  const mentionOpen = mentionQuery !== null && !disabled;
+  const mentionOpen = active && mentionQuery !== null && !disabled;
   const mentionItems = mentionSearch.items;
 
   const slashRangeRef = useRef<Range | null>(null);
@@ -174,7 +179,7 @@ export const ComposerMarkupField = forwardRef<
     Set<SlashItemKind>
   >(() => new Set());
   const slashCatalog = useAgentDefsCatalog(
-    enableSlashCommands ? workingDirectory : "",
+    active && enableSlashCommands ? workingDirectory : "",
   );
   const slashCatalogItems = useMemo(
     () =>
@@ -200,7 +205,7 @@ export const ComposerMarkupField = forwardRef<
     setSlashExpandedKinds(new Set());
   }, [slashQuery]);
   const slashOpen =
-    enableSlashCommands && slashQuery !== null && !disabled && mentionQuery === null;
+    active && enableSlashCommands && slashQuery !== null && !disabled && mentionQuery === null;
 
   const emitChange = useCallback(() => {
     const root = rootRef.current;
@@ -230,6 +235,13 @@ export const ComposerMarkupField = forwardRef<
     closeMention();
     closeSlash();
   }, [closeMention, closeSlash]);
+
+  useLayoutEffect(() => {
+    if (active) return;
+    closeMenus();
+    tagPreview.hidePreview(true);
+    compositionActiveRef.current = false;
+  }, [active, closeMenus, tagPreview.hidePreview]);
 
   const syncSlashFromCaret = useCallback(() => {
     const root = rootRef.current;
@@ -295,6 +307,7 @@ export const ComposerMarkupField = forwardRef<
   }, [closeMention, closeSlash, disabled]);
 
   const syncMenusFromCaret = useCallback(() => {
+    if (!activeRef.current) { closeMenus(); return; }
     const root = rootRef.current;
     if (!root || disabled) {
       closeMenus();
@@ -327,6 +340,7 @@ export const ComposerMarkupField = forwardRef<
 
   const applyMentionSelection = useCallback(
     (action: PinnedAction) => {
+      if (!activeRef.current) return;
       const root = rootRef.current;
       const range = mentionRangeRef.current;
       if (!root || !range) return;
@@ -339,6 +353,7 @@ export const ComposerMarkupField = forwardRef<
 
   const applySlashSelection = useCallback(
     (item: SlashCatalogItem) => {
+      if (!activeRef.current) return;
       const root = rootRef.current;
       const range = slashRangeRef.current;
       if (!root || !range) return;
@@ -353,20 +368,20 @@ export const ComposerMarkupField = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      focus: () => rootRef.current?.focus(),
+      focus: () => { if (activeRef.current) rootRef.current?.focus(); },
       focusAtEnd: () => {
         const root = rootRef.current;
-        if (!root || disabled) return;
+        if (!root || disabled || !activeRef.current) return;
         if (value !== lastEmitted.current) {
           renderMarkupIntoRoot(root, value);
           lastEmitted.current = value;
         }
-        root.focus({ preventScroll: true });
+        if (activeRef.current) root.focus({ preventScroll: true });
         placeCaretAtEnd(root);
       },
       insertActionTag: (action: PinnedAction) => {
         const root = rootRef.current;
-        if (!root || disabled) return;
+        if (!root || disabled || !activeRef.current) return;
         closeMenus();
         const chip = createComposerTagElement(action);
         const spacer = createComposerTagSpacer();
@@ -378,7 +393,7 @@ export const ComposerMarkupField = forwardRef<
       },
       insertBrowserElementTag: (element: BrowserElementTag) => {
         const root = rootRef.current;
-        if (!root || disabled) return;
+        if (!root || disabled || !activeRef.current) return;
         closeMenus();
         const chip = createBrowserElementTagElement(element);
         const spacer = createComposerTagSpacer();
@@ -389,7 +404,7 @@ export const ComposerMarkupField = forwardRef<
       },
       insertProgramStepTag: (tag: ProgramStepTag) => {
         const root = rootRef.current;
-        if (!root || disabled) return;
+        if (!root || disabled || !activeRef.current) return;
         if (value !== lastEmitted.current) {
           renderMarkupIntoRoot(root, value);
           lastEmitted.current = value;
@@ -405,16 +420,16 @@ export const ComposerMarkupField = forwardRef<
       },
       insertProgramVariableTag: (tag: ProgramVariableTag) => {
         const root = rootRef.current;
-        if (!root || disabled) return;
+        if (!root || disabled || !activeRef.current) return;
         if (value !== lastEmitted.current) { renderMarkupIntoRoot(root, value); lastEmitted.current = value; }
         closeMenus();
         const chip = createProgramVariableTagElement(tag), spacer = createComposerTagSpacer();
         insertNodeAtSelection(root, chip); chip.after(spacer);
-        placeCaretAfterComposerTagSpacer(spacer, root); emitChange(); root.focus({ preventScroll: true });
+        placeCaretAfterComposerTagSpacer(spacer, root); emitChange(); if (activeRef.current) root.focus({ preventScroll: true });
       },
       insertMentionTrigger: () => {
         const root = rootRef.current;
-        if (!root || disabled) return;
+        if (!root || disabled || !activeRef.current) return;
         if (value !== lastEmitted.current) {
           renderMarkupIntoRoot(root, value);
           lastEmitted.current = value;
@@ -426,7 +441,7 @@ export const ComposerMarkupField = forwardRef<
       },
       insertPlainText: (text: string) => {
         const root = rootRef.current;
-        if (!root || disabled || !text) return;
+        if (!root || disabled || !activeRef.current || !text) return;
         if (value !== lastEmitted.current) {
           renderMarkupIntoRoot(root, value);
           lastEmitted.current = value;
@@ -658,7 +673,7 @@ export const ComposerMarkupField = forwardRef<
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (disabled) return;
+    if (disabled || !activeRef.current) return;
     if (isComposerCompositionKey(event.nativeEvent, compositionActiveRef.current)) return;
 
     const root = rootRef.current;
@@ -786,7 +801,7 @@ export const ComposerMarkupField = forwardRef<
         }}
       />
       <ComposerTagPreviewPopover
-        open={tagPreview.preview !== null}
+        open={active && tagPreview.preview !== null}
         anchorRect={tagPreview.preview?.anchorRect ?? null}
         model={tagPreview.preview?.model ?? null}
         onPanelHoverChange={tagPreview.handlePanelHoverChange}

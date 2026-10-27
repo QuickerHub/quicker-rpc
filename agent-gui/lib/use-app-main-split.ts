@@ -3,6 +3,7 @@
 import {
   useLayoutEffect,
   useRef,
+  useState,
   type CSSProperties,
   type RefObject,
 } from "react";
@@ -15,12 +16,15 @@ import {
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
 
+export const WORKSPACE_SINGLE_PANE_WIDTH = 760;
+
 /** Pin chat column width; adapt proportionally on shrink, cap growth on expand. */
 export function useAppMainSplit(
   measureRef: RefObject<HTMLElement | null>,
   panelOpen: boolean,
-): CSSProperties | undefined {
+): { style: CSSProperties | undefined; workspaceOnly: boolean } {
   const { chatColumnWidth, setChatColumnWidth } = useWorkspaceExplorerShell();
+  const [compact, setCompact] = useState(false);
   const chatColumnWidthRef = useRef(chatColumnWidth);
   chatColumnWidthRef.current = chatColumnWidth;
   const containerWidthRef = useRef<number | null>(null);
@@ -32,6 +36,11 @@ export function useAppMainSplit(
     const sync = (persistDefault: boolean) => {
       const containerWidth = el.getBoundingClientRect().width;
       if (containerWidth <= 0) return;
+
+      const singlePane = containerWidth < WORKSPACE_SINGLE_PANE_WIDTH;
+      setCompact(singlePane);
+      // A narrow presentation must not replace the retained wide split preference.
+      if (singlePane) return;
 
       const prevContainer = containerWidthRef.current;
       const prevChat = chatColumnWidthRef.current;
@@ -77,8 +86,11 @@ export function useAppMainSplit(
     };
   }, [measureRef, panelOpen, setChatColumnWidth]);
 
-  if (!panelOpen || chatColumnWidth == null) return undefined;
-  return {
+  const workspaceOnly = panelOpen && compact;
+  useLayoutEffect(() => {
+    if (panelOpen && measureRef.current?.getBoundingClientRect().width) dispatchWorkspaceLayoutResize();
+  }, [measureRef, panelOpen, workspaceOnly]);
+  return { workspaceOnly, style: !panelOpen || workspaceOnly || chatColumnWidth == null ? undefined : {
     "--app-main-chat-width": `${chatColumnWidth}px`,
-  } as CSSProperties;
+  } as CSSProperties };
 }

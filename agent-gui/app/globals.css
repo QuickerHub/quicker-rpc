@@ -1976,6 +1976,21 @@ html.sidebar-collapsed-init .app-shell {
   min-width: var(--explorer-min-width, 128px);
 }
 
+/* One measured presentation flag owns layout and Chat interaction together. */
+.app-main--workspace-only .app-main-chat-column[hidden],
+.app-main--workspace-only .app-main-split-header__chat[hidden],
+.app-main--workspace-only .workspace-explorer-resizer {
+  display: none;
+}
+
+.app-main--workspace-only .workspace-explorer,
+.app-main--workspace-only .app-main-split-header__side {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  border-left: none;
+}
+
 .app-main--empty {
   justify-content: flex-start;
   background: transparent;
