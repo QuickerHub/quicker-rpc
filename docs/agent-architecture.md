@@ -55,6 +55,11 @@ Electron shell → 窗口、preload/IPC、原生集成与所属服务进程的�
 | Desktop shell | 窗口、系统能力、preload、启动/关闭所属服务 | 复制 Agent、会话数据库或工具策略 |
 | qkrpc | V1/V2 宿主适配、CLI/MCP/HTTP、YAML codec/source bundle | 桌面 UI 与模型会话状态 |
 
+Node 服务的 `service/startup-lifecycle.ts` 统一持有启动至停止：异步初始化前监听停止并
+锁存取消，检查已经断开的 IPC，给缓冲消息一次实际事件循环机会；取得迟到 service owner
+后仍执行原 stop。取消后不报告 ready，仅移除自身监听；真实启动与清理错误保留为失败。
+它不复制 Agent、HTTP stop 或桌面父进程的回收策略，生产验收范围见产品计划与运行清单。
+
 先实现服务边界，再替换 UI 构建工具；已有 React、AI SDK、工具、YAML codec 与历史格式继续复用。
 默认 `electron:prepare` 构建不含 Next 的静态资源和独立 Node service；显式
 `electron:prepare:legacy-next` 才暂存 Next standalone。当前 shell metadata 与资源 mode
