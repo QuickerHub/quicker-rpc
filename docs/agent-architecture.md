@@ -295,6 +295,18 @@ source lease、完整宿主/存储身份及本轮私有变量授权，复核当�
 必须在保存中或映射未对齐时停止授权，并使旧读证明失效。重排后的 ACK 先以精确票据
 文本完成全量 Rebase，再从实际保存字节导出映射；不能把新投影的编号直接挂回原 Session。
 
+`source.document.stepIdentity` 是同类可选事实：分别报告实际 source/native 身份、所属
+surface 和原行锚点，绑定本次 codec、snapshot、精确 editor/baseline 字节及 mapping epoch；
+始终 `authorizesLive=false`。缺失或非法时只停用 Source 步骤 live，不停用变量或本地 Save。
+renderer 从采用映射时起跟踪全部可证明原行的私有 lifetime，首次 Pin 前的删除重建、移动、
+runner 更换及其撤销同样使原证明失效；同一 Session 的新 Save/mapping epoch 也不能
+恢复已退役行。须重新打开文档再观察，生成 ID、同名或相同内容不能恢复旧授权。
+本轮步骤 scope 还要实际选择、当前 owner/revision/读取回执与原行 lifetime 均匹配，只允许
+备注及当前绑定 input-contract 支持的既有普通值。Source 输入契约通过既有 bundle catalog
+校验 owner、snapshot、宿主绑定和能力，生产路由消费该已核验绑定，不伪造 legacy 项目。
+客户端控制字段、保存中的 mapping 或晚回执变化继续拒绝，不能由知识描述取得 Save/Sync、
+结构编辑、动态绑定或文件正文权限。
+
 普通 Save 比较预期快照，只写 YAML 和明确提交的资源，不推进原生 checkpoint。
 无语义变化时保留原 YAML 字节；改变正文后可由 codec 规范化输出，不承诺保留注释排版。
 跨文件写入保留已写列表与失败事实，不能宣称普通文件替换提供对任意外部写入者的原子事务。
