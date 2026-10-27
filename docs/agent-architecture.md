@@ -903,6 +903,10 @@ unknown，不能编造宿主规则。显式“检测本机服务”只初始化�
 分组；SDK schema、工具名和分组均不授予权限，操作限制仍来自当前模式、只读端口与
 live scope 约束，写前身份、revision、实际读取证明和审批继续由原执行链核验。
 
+模型 schema 精简只替换参数 schema，不裁剪或改写本轮实际工具定义的描述；版本边界、
+部分持久化与禁止重试等说明完整保留。缺失或空白描述明确为 unknown，并引导查询本轮
+`list_tools`，不从产品注册表补旧语义。完整 schema 的工具定义保持原样，描述本身不授予权限。
+
 子目录的私有上下文沿原 execute 包装传递，保留父级共享调用预算及 abortSignal、
 toolCallId 和 messages，不用模型 JSON 输入切换目录。枚举和 schema 转换不执行工具
 或重新连接 provider；未知 MCP 风险保持 unknown。这里描述的是当前工具调用契约，

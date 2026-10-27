@@ -2,7 +2,6 @@ import type { Tool } from "ai";
 import { z } from "zod";
 
 import { LIST_TOOLS_TOOL } from "@/lib/list-tools-tool";
-import { QKRPC_TOOL_REGISTRY } from "@/lib/tool-registry";
 import { SET_THREAD_TITLE_TOOL } from "@/lib/thread-title-tool-messages";
 
 /** Tools that always keep full JSON Schema when bundle slimming is active. */
@@ -50,13 +49,11 @@ export function isSlimToolSchemasEnabled(): boolean {
   return !isFullToolSchemasForAllEnabled();
 }
 
-function registryDescription(toolId: string): string | undefined {
-  return QKRPC_TOOL_REGISTRY.find((item) => item.id === toolId)?.description;
-}
-
 function buildSlimToolDescription(toolId: string, fullDescription?: string): string {
-  const registryLine = registryDescription(toolId);
-  const base = registryLine ?? fullDescription ?? toolId;
+  // Schema slimming must not replace the current tool's safety or recovery semantics.
+  const base = typeof fullDescription === "string" && fullDescription.trim()
+    ? fullDescription
+    : "The current tool did not provide a description; its operation semantics are unknown.";
   return `${base} Full params: list_tools action=get toolId=${toolId} (or action=bundle bundleId=…).`;
 }
 

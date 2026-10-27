@@ -18,6 +18,11 @@ node ./start.mjs --port 0 --data-dir <absolute-profile-directory>
 仓库 `.tmp/static-runtime/app`，在原 Node 进程内启动服务，不另起 Next 或 qkrpc。
 `--app-dir=<directory>` 可选择完整可移动产物；生产启动固定 `NODE_ENV=production`。
 
+生产启动预算和原生终端验收必须针对完整构建产物的 `service.mjs`，使用同一目标 Node
+校验产物内的 native 依赖及实际运行。`dev:agent-service` 的 `tsx + service/main.ts` 包含
+开发加载过程，其超时不能证明静态生产产物启动失败，也不能据此推断具体耗时来源。
+native 依赖加载成功只证明闭包可载入；真实 PTY 仍须验证创建、输入输出、resize 与正常关闭。
+
 静态 renderer 由已安装的 esbuild 编译，无需 Next 或新的构建工具依赖。
 低层 `build:static` 与 `build:static:dev` 仍供受控构建，后者生成带开发检查入口的静态页面。
 日常 `dev.ps1` / `pnpm dev` / `:3000` 继续使用 Next HMR，
