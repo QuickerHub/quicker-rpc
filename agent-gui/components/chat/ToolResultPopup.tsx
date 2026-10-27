@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useConversationPresentationActive } from "@/lib/conversation-presentation";
 import { toolPopupHasVisualView } from "@/lib/tool-popup-view";
 import {
   resolveToolPopupBodyView,
@@ -147,6 +148,10 @@ export function ToolResultPopup({
   bodyClassName,
 }: ToolResultPopupProps) {
   const panelId = useId();
+  const ownerActive = useConversationPresentationActive();
+  const presentedOpen = open && ownerActive;
+  const presentedOpenRef = useRef(presentedOpen);
+  presentedOpenRef.current = presentedOpen;
   const hasVisual = visualContent !== undefined || toolPopupHasVisualView(toolName, input, output);
   const hasModelView =
     input !== undefined || output !== undefined || Boolean(errorText?.trim());
@@ -165,17 +170,21 @@ export function ToolResultPopup({
   // Initialize tab only when the popup opens — not on every hasVisual twitch while
   // tool output is still streaming (avoids nested setState update loops).
   useEffect(() => {
-    const justOpened = open && !prevOpenRef.current;
-    prevOpenRef.current = open;
+    const justOpened = presentedOpen && !prevOpenRef.current;
+    prevOpenRef.current = presentedOpen;
     if (!justOpened) return;
     const next = resolveToolPopupTab(hasVisual);
     setTab((current) => (current === next ? current : next));
-  }, [open, hasVisual]);
+  }, [presentedOpen, hasVisual]);
 
   useEffect(() => {
-    if (!open) return;
+    if (open && !ownerActive) onClose();
+  }, [open, ownerActive, onClose]);
+
+  useEffect(() => {
+    if (!presentedOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (presentedOpenRef.current && e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -184,9 +193,9 @@ export function ToolResultPopup({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open, onClose]);
+  }, [presentedOpen, onClose]);
 
-  if (!open) return null;
+  if (!presentedOpen) return null;
 
   const dialog = (
     <div className="tool-result-popup-overlay">

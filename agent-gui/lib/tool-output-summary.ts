@@ -130,7 +130,7 @@ export function summarizeToolOutput(
     if (browserSummary) return browserSummary;
   }
 
-  if (input !== undefined) {
+  if (output.ok && input !== undefined) {
     const inputMeta = parseActionMetadata(input);
     if (inputMeta) return formatActionMetadataMetaLine(inputMeta);
   }
