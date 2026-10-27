@@ -602,12 +602,19 @@ snapshot/etag 先复用。先保持当前请求/响应与聊天 SSE，测量 cat
 | `components/chat/Chat.tsx` | 持有现有会话与面板状态，向框架传入内容、回调与 DOM refs |
 | `components/chat/useAgentChatSession.ts` | 持有唯一 AI SDK 会话、消息、transport、live manual turn 与历史保存；接客户端工具及停止后的条件收口 |
 | `components/chat/useChatMessageEditing.ts` | 持有单会话历史消息编辑锚点/草稿、确认与全局监听归属；输入正文继续由 composer 持有 |
+| `lib/conversation-presentation.tsx` | 传递聊天列的当前可见性；工具详情据此释放浮层，不持有执行、消息、草稿或 workspace 状态 |
 | `components/workspace/WorkspaceDocumentHost.tsx`、`lib/workspace-document-instances.ts` | 工作台文件实例与当前 Chat outlet 分开，固定存储/呈现 ports，编辑 Session 仍由 APDE 独占 |
 | `lib/agent-workbench-features.ts` | 声明快捷入口的稳定 id、文案、panel/command/route 目标及可用条件 |
 | `components/chat/ComposerShortcutCards.tsx` | 将功能定义绑定到已有图标、面板 hook、命令和路由 |
 | `app/theme.css`、`app/agent-workbench.css` | 主题根节点统一黑白灰通用 token（包含 body portal）；`.agent-workbench` 限定主工作台布局尺寸 |
 
 框架组件为纯展示组合，不启动 Agent、不持久化会话、不注册模型工具。保留现有分栏 DOM 与 refs，拖动、消息滚动和面板状态继续由原有组件负责。功能定义是界面入口目录；运行时工具目录与策略仍由 `TurnPlan` 和工具层负责。
+
+`AgentConversationFrame` 以 `visible && chatVisible` 约束 messages、approval 和 composer
+所在的聊天列；dock 保留原 owner。`ToolResultPopup` 在不可呈现时立即停止输出 body
+portal，关闭原打开状态并释放监听器与滚动锁；迟到的打开请求同样关闭，旧 Escape 回调
+不能处理已隐藏会话。该约束不取消后台 Agent，不改变 SDK/history，也不授予工具权限。
+独立使用的工具详情保持原行为；它不是完整的面板实例或所有弹层的统一实现。
 
 消息滚动的动画帧由 `use-messages-stick-scroll.ts` 的当前 thread/可见生命周期持有，
 `message-scroll-frame-owner.ts` 统一取消手动 pin、激活对齐、监听器安装和流式 prompt 的
