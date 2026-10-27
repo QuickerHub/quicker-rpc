@@ -31,10 +31,11 @@
   flex-direction: column;
   gap: 0;
   flex-shrink: 0;
+  max-height: 25%;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: color-mix(in srgb, var(--panel, var(--bg)) 92%, transparent);
-  overflow: hidden;
+  overflow: auto;
 }
 
 .action-project-data-editor-header .action-project-meta-summary {

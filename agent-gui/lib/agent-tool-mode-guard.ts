@@ -4,7 +4,7 @@ import { formatLocalToolResult } from "@/lib/tool-result";
 
 const ASK_READ_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   workspace_program: new Set([
-    "projects_list", "read_data", "file_read", "file_info", "file_search", "read_live",
+    "projects_list", "read_data", "file_read", "file_info", "file_search",
   ]),
   // Even observations currently ensure a runtime/session; Ask must not invoke it.
   browser: new Set(),
@@ -68,6 +68,7 @@ export function getToolModeOperationDecision(toolId: string, mode: ChatMode, inp
     reason: `Tool ${toolId} does not support ${typeof action === "string" ? action : "this operation"} in the current execution scope.`,
   };
   if (mode !== "ask") return availability;
+  if (toolId === "workspace_program" && action === "read_live" && constraint?.allowedActions.includes("read_live")) return ALLOWED;
   const allowedActions = askReadActions(toolId);
   if (!allowedActions) return ALLOWED;
   if (typeof action === "string" && allowedActions.has(action)) return ALLOWED;
@@ -76,6 +77,18 @@ export function getToolModeOperationDecision(toolId: string, mode: ChatMode, inp
     reason: toolId === "workspace_program" && action === "diagnostics"
       ? "Diagnostics are unavailable in Ask mode because the current adapter may start Quicker. Local program and file reads remain available."
       : `Ask mode only permits read operations for ${toolId}. Switch to Agent mode to make changes.`,
+  };
+}
+
+/** Observed policy facts, not a replacement for execution-time validation. */
+export function describeToolModeOperations(toolId: string, mode: ChatMode, readOnlyExecutorAvailable = false, constraint?: ToolOperationConstraint) {
+  const availability = getToolModeAvailability(toolId, mode, readOnlyExecutorAvailable);
+  const actions = constraint?.allowedActions ?? (mode === "ask" ? askReadActions(toolId) : undefined);
+  return {
+    ...availability,
+    ...(actions ? { allowedActions: [...actions].filter(action =>
+      getToolModeOperationDecision(toolId, mode, { action }, readOnlyExecutorAvailable, constraint).allowed) } : {}),
+    runtimeChecksRequired: true as const,
   };
 }
 
