@@ -19,8 +19,8 @@ import {AppConfirmHost} from '@/components/AppConfirmHost';
 import '@/app/globals.css';
 const cwd='C:/fixture/narrow-workbench',action='11111111-1111-4111-8111-111111111111';
 const file='.quicker/actions/'+action+'/data.json';
-const body=JSON.stringify({steps:[{stepId:'owned-step',stepRunnerKey:'sys:fixture',note:'original document note',inputParams:{}}],variables:[],subPrograms:[],future:9007199254740991});
-const state=window.fixture={cwd,file,calls:[],chatRequests:[],persisted:[],pendingSaves:[],pendingMentions:[],mentionCalls:0,pins:[],unexpected:[],files:new Map([[file,body]]),deferSave:false,deferMention:false};
+const body=JSON.stringify({steps:[{stepId:'owned-step',stepRunnerKey:'sys:fixture',note:'original document note',inputParams:{}}],variables:[{id:'owned-variable',key:'message',varType:0,desc:'original variable description',defaultValue:'original value'}],subPrograms:[],future:9007199254740991});
+const state=window.fixture={cwd,file,calls:[],chatRequests:[],persisted:[],pendingSaves:[],pendingMentions:[],mentionCalls:0,pins:[],variablePins:[],unexpected:[],files:new Map([[file,body]]),deferSave:false,deferMention:false};
 const emptyTree=rootPath=>({rootPath,children:[]});
 const options=[{kind:'profile',selection:'profile:fixture/model-a',profileId:'fixture',profileTitle:'Fixture',label:'Fixture',description:'Synthetic profile',modelId:'model-a',profileModels:['model-a'],configured:true,contextLimit:128000}];
 window.EventSource=class{close(){}};
@@ -64,16 +64,26 @@ function Controls(){const editor=useWorkspaceExplorerEditor(),shell=useWorkspace
 const messages=[{id:'chat-a-u1',role:'user',parts:[{type:'text',text:'first user message'}]},{id:'chat-a-a1',role:'assistant',parts:[{type:'text',text:'first answer'}]},{id:'chat-a-u2',role:'user',parts:[{type:'text',text:'editable second message'}]},{id:'chat-a-a2',role:'assistant',parts:[{type:'text',text:'existing answer'}]}];
 function observeRegistry(registry){
  state.live=registry;
- if(state.observedRegistry!==registry){state.observedRegistry=registry;const pin=registry.pin;
+ if(state.observedRegistry!==registry){state.observedRegistry=registry;const pin=registry.pin,pinVariable=registry.pinVariable;
   registry.pin=(...args)=>{const result=pin(...args);state.pins.push({tagId:args[1],stepId:args[2],threadId:args[3],result});return result;};
+  registry.pinVariable=(...args)=>{const result=pinVariable(...args);state.variablePins.push({tagId:args[1],variable:args[2],threadId:args[3],result});
+   if(state.holdVariableReveal&&result.pinId){state.holdVariableReveal=false;
+    const frame=window.requestAnimationFrame.bind(window),cancel=window.cancelAnimationFrame.bind(window);state.heldFrames=[];
+    window.requestAnimationFrame=callback=>{window.requestAnimationFrame=frame;state.heldFrames.push(callback);return -1001;};
+    window.cancelAnimationFrame=id=>{if(id===-1001)state.heldFrames=[];else cancel(id);};
+    state.restoreFrames=()=>{window.requestAnimationFrame=frame;window.cancelAnimationFrame=cancel;state.heldFrames=[];};
+    state.releaseFrames=()=>{const held=state.heldFrames.splice(0);state.restoreFrames();for(const callback of held)frame(callback);};
+   }return result;};
  }
  return()=>{if(state.live===registry)state.live=null;};
 }
 function App(){const[sidebarCollapsed,setSidebarCollapsed]=useState(true);state.setSidebarCollapsed=setSidebarCollapsed;
+ const[secondChat,setSecondChat]=useState(false),[activeChat,setActiveChat]=useState('chat-a');
+ state.mountSecondChat=()=>setSecondChat(true);state.switchChat=id=>setActiveChat(id);
  return <WorkspaceExplorerShellProvider><WorkspaceExplorerPanelProvider cwd={cwd}><WorkspaceDocumentHost onLiveProgramDocumentRegistry={observeRegistry}>
  <Controls/><AgentWorkbenchShell sidebarCollapsed={sidebarCollapsed} sidebar={<nav>Synthetic navigation</nav>} className="agent-workbench"><div className="app-content-row"><div className="app-main-shell"><AppMainWorkspaceSplit>
- <ChatPanel threadId="chat-a" initialMessages={messages} workingDirectory={cwd} visible threadTitle="Fixture chat" threadUpdatedAt={1} titleGenerated titleManual ping={{status:'error',ok:false,message:'Synthetic offline host'}} connectTick={0} settingsOpen={false}
- onToggleSettings={()=>{}} onOpenSettings={()=>{}} onPersist={(thread,messages)=>state.persisted.push({thread,messages})} onAutoTitle={()=>{}}/>
+ {['chat-a',...(secondChat?['chat-b']:[])].map(id=><section key={id} data-chat-panel={id}><ChatPanel threadId={id} initialMessages={id==='chat-a'?messages:[]} workingDirectory={cwd} visible={id===activeChat} threadTitle="Fixture chat" threadUpdatedAt={1} titleGenerated titleManual ping={{status:'error',ok:false,message:'Synthetic offline host'}} connectTick={0} settingsOpen={false}
+ onToggleSettings={()=>{}} onOpenSettings={()=>{}} onPersist={(thread,messages)=>state.persisted.push({thread,messages})} onAutoTitle={()=>{}}/></section>)}
  </AppMainWorkspaceSplit></div></div></AgentWorkbenchShell><AppConfirmHost/>
  </WorkspaceDocumentHost></WorkspaceExplorerPanelProvider></WorkspaceExplorerShellProvider>;}
 const root=createRoot(document.getElementById('root'));state.unmount=()=>root.unmount();root.render(<StrictMode><App/></StrictMode>);
@@ -152,7 +162,7 @@ async function settleLayout(page: Page) {
 }
 async function expectWorkspaceOnly(page: Page) {
   await page.locator(".app-main--workspace-only").waitFor();
-  const geometry = await page.locator(".app-main-body").evaluate(body => {
+  const geometry = await page.locator(".app-main:not(.app-main--hidden) > .app-main-body").evaluate(body => {
     const frame = body.getBoundingClientRect(), dock = body.querySelector(".workspace-side-panel")!.getBoundingClientRect();
     const chat = body.querySelector<HTMLElement>(".app-main-chat-column")!;
     return { fills: Math.abs(frame.left - dock.left) <= 1 && Math.abs(frame.right - dock.right) <= 1,
@@ -173,7 +183,7 @@ test("actual dock toggles and width changes preserve Chat, document history, pen
     await openDocument(page);
     await page.evaluate(() => {
       const f = (window as any).fixture;
-      f.originalChat = document.querySelector(".app-main"); f.originalComposer = document.querySelector(".composer-inline-input");
+      f.originalChat = document.querySelector(".app-main"); f.originalComposer = document.querySelector('.composer-inline-input[contenteditable="true"]');
       f.originalDocument = document.querySelector("[data-workspace-document]:not([hidden])");
     });
     await note(page).fill("saved snapshot before narrow mode");
@@ -189,7 +199,7 @@ test("actual dock toggles and width changes preserve Chat, document history, pen
     assert.equal(await composer(page).textContent(), "retained human composer draft");
     assert.equal(await page.evaluate(() => {
       const f = (window as any).fixture;
-      return f.originalChat === document.querySelector(".app-main") && f.originalComposer === document.querySelector(".composer-inline-input")
+      return f.originalChat === document.querySelector(".app-main") && f.originalComposer === document.querySelector('.composer-inline-input[contenteditable="true"]')
         && f.originalDocument.isConnected && f.instances().length === 1;
     }), true);
     await page.getByRole("button", { name: "展开工作区侧栏", exact: true }).click();
@@ -276,4 +286,78 @@ test("hidden Chat releases global editing and portals while a real private pin r
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.calls), []);
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []); assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+test("a real variable pin reads the original Session and queued insertion cannot cross a Chat owner", { timeout: 90_000 }, async () => {
+  const { browser, page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => { (window as any).fixture.originalVariableComposer = document.querySelector('.composer-inline-input[contenteditable="true"]'); });
+    await openDocument(page);
+    await documentRoot(page).getByRole("button", { name: "打开变量面板", exact: true }).click();
+    await documentRoot(page).locator('[data-variable-id="owned-variable"]').click();
+    await documentRoot(page).locator('.variable-form input[title="备注"]').fill("unblurred variable Session draft");
+    await page.setViewportSize({ width: 420, height: 720 }); await settleLayout(page); await expectWorkspaceOnly(page);
+    await documentRoot(page).getByRole("button", { name: "添加变量到对话", exact: true }).click();
+    await composer(page).waitFor({ state: "visible" });
+    await page.waitForFunction(() => document.activeElement?.classList.contains("composer-inline-input"));
+    assert.equal(await composer(page).locator(".composer-prompt-tag--program-variable").count(), 1);
+    assert.equal(await composer(page).locator(".composer-prompt-tag--program-variable").getAttribute("data-variable-id"), "owned-variable");
+    assert.equal(await page.locator(".workspace-side-panel").count(), 0, "The actual variable action folds the narrow dock");
+    const original = await page.evaluate(() => {
+      const f = (window as any).fixture, pin = f.variablePins[0];
+      if (!pin?.result.pinId) throw Error("Actual variable pin failed: " + JSON.stringify(pin));
+      const captured = f.live.captureForManualSend({ threadId: "chat-a", userMessageId: "variable-positive", cwd: f.cwd, pins: [pin.result], mode: "read" });
+      if (captured.state !== "ready") throw Error("Original variable scope unavailable: " + JSON.stringify(captured));
+      const read = f.live.execute(captured.scope, { scopeId: captured.scope.scopeId, operationId: "read-original-variable",
+        input: { action: "read_live", variableFor: pin.variable } });
+      const denied = f.live.execute(captured.scope, { scopeId: captured.scope.scopeId, operationId: "read-ungranted-variable",
+        input: { action: "read_live", variableFor: { surface: "main", variableId: "ungranted-variable" } } });
+      return { pinCount: f.variablePins.length, threadId: pin.result.threadId, selector: pin.variable,
+        owner: captured.scope.target.owner, instanceId: f.instances()[0].instanceId, file: f.file, read, denied, disk: f.files.get(f.file),
+        sameComposer: f.originalVariableComposer === document.querySelector('.composer-inline-input[contenteditable="true"]') };
+    });
+    assert.equal(original.pinCount, 1); assert.equal(original.threadId, "chat-a");
+    assert.deepEqual(original.selector, { surface: "main", variableId: "owned-variable" });
+    assert.equal(original.owner.path, original.file); assert.equal(original.owner.instanceId, original.instanceId);
+    assert.equal(original.sameComposer, true); assert.equal(original.denied.ok, false); assert.equal(original.denied.code, "LIVE_VARIABLE_NOT_GRANTED");
+    assert.equal(original.read.ok, true); assert.match(original.read.variable.variableJson, /unblurred variable Session draft/);
+    assert.match(original.disk, /original variable description/); assert.doesNotMatch(original.disk, /unblurred variable Session draft/);
+
+    await page.evaluate(() => (window as any).fixture.mountSecondChat());
+    await page.locator('[data-chat-panel="chat-b"] .app-main--hidden').waitFor({ state: "attached" });
+    const chatA = page.locator('[data-chat-panel="chat-a"] .composer-inline-input[contenteditable="true"]');
+    const chatB = page.locator('[data-chat-panel="chat-b"] .composer-inline-input[contenteditable="true"]');
+    await page.evaluate(() => (window as any).fixture.switchChat("chat-b"));
+    await chatB.waitFor({ state: "visible" }); await chatB.fill("retained other Chat draft");
+    await page.evaluate(() => (window as any).fixture.switchChat("chat-a")); await chatA.waitFor({ state: "visible" });
+    await openDocument(page); await expectWorkspaceOnly(page);
+    const pinButton = documentRoot(page).getByRole("button", { name: "添加变量到对话", exact: true });
+    // The observer arms a one-frame latch only after the actual registry pin.
+    // Playwright actionability, React rendering and every other frame stay native.
+    await page.evaluate(() => { (window as any).fixture.holdVariableReveal = true; });
+    await pinButton.click();
+    assert.equal(await page.evaluate(() => (window as any).fixture.heldFrames.length), 1, "The real insertion is pending before the Chat switch");
+    await page.evaluate(() => (window as any).fixture.switchChat("chat-b"));
+    await page.waitForFunction(() => !document.querySelector('[data-chat-panel="chat-b"] .app-main')?.classList.contains("app-main--hidden"), undefined, { polling: 25 });
+    await page.evaluate(() => (window as any).fixture.releaseFrames()); await settleLayout(page);
+    await chatB.waitFor({ state: "visible" });
+    assert.equal(await chatA.locator(".composer-prompt-tag--program-variable").count(), 1, "Late insertion cannot add a second chip to the hidden original Chat");
+    assert.equal(await chatB.locator(".composer-prompt-tag--program-variable").count(), 0, "The new Chat receives no late variable reference");
+    assert.equal(await chatB.textContent(), "retained other Chat draft");
+    assert.equal(await chatB.evaluate(element => document.activeElement === element), true, "The late callback cannot steal the foreground Chat's focus");
+    const late = await page.evaluate(() => {
+      const f = (window as any).fixture, pin = f.variablePins.at(-1);
+      return { pinCount: f.variablePins.length, threadId: pin.result.threadId,
+        capture: f.live.captureForManualSend({ threadId: "chat-b", userMessageId: "wrong-chat-variable", cwd: f.cwd, pins: [pin.result], mode: "edit" }) };
+    });
+    assert.equal(late.pinCount, 2); assert.equal(late.threadId, "chat-a", "The synchronous pin still belongs to the original explicit action");
+    assert.equal(late.capture.state, "unavailable"); assert.equal(late.capture.code, "LIVE_PIN_UNAVAILABLE");
+    assert.equal(late.capture.retryable, false); assert.equal("scope" in late.capture, false, "The new Chat receives no variable authority");
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.chatRequests), []);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.calls), []);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []); assert.deepEqual(errors, []);
+  } finally {
+    await page.evaluate(() => (window as any).fixture?.restoreFrames?.()).catch(() => {});
+    await browser.close();
+  }
 });
