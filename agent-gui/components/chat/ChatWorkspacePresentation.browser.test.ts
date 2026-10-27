@@ -176,6 +176,58 @@ test("narrow workbench fixture compiles the real Chat, dock and retained documen
   assert.ok(bundle.css.length > 0); assert.match(bundle.js, /WorkspaceDocumentHost/); assert.match(bundle.js, /useAppMainSplit/);
 });
 
+async function actualSplit(page: Page) {
+  return page.locator(".app-main:not(.app-main--hidden) > .app-main-body").evaluate(body => {
+    const chat = body.querySelector<HTMLElement>(".app-main-chat-column")!, dock = body.querySelector<HTMLElement>(".workspace-side-panel")!;
+    return { body: body.getBoundingClientRect().width, chat: chat.getBoundingClientRect().width,
+      dock: dock.getBoundingClientRect().width, preference: localStorage.getItem("agent-gui-chat-column-width") };
+  });
+}
+async function dragChatTo(page: Page, width: number) {
+  const split = await actualSplit(page), handle = await page.locator(".workspace-explorer-resizer").boundingBox(); assert.ok(handle);
+  const x = handle.x + handle.width / 2, y = handle.y + Math.min(handle.height / 2, 60);
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + width - split.chat, y, { steps: 4 }); await page.mouse.up();
+  await settleLayout(page);
+}
+
+test("a saved wide split reserves editable workspace width and restores its preference across constrained windows", { timeout: 90_000 }, async () => {
+  const { browser, page, errors } = await openFixture();
+  try {
+    await page.setViewportSize({ width: 1440, height: 950 }); await openDocument(page); await settleLayout(page);
+    await dragChatTo(page, 720);
+    const wide = await actualSplit(page);
+    assert.ok(Math.abs(wide.chat - 720) <= 1 && wide.dock >= 719); assert.equal(wide.preference, "720");
+
+    await page.setViewportSize({ width: 1024, height: 720 }); await settleLayout(page);
+    const constrained = await actualSplit(page);
+    assert.ok(constrained.chat >= 400 && constrained.dock >= 559, JSON.stringify(constrained));
+    assert.ok(Math.abs(constrained.chat - 464) <= 1); assert.equal(constrained.preference, "720");
+    await page.locator(".workspace-explorer-resizer").click();
+    assert.equal((await actualSplit(page)).preference, "720", "A pointer click with no drag cannot persist a temporary clamp");
+    await dragChatTo(page, 444);
+    const dragged = await actualSplit(page);
+    assert.ok(Math.abs(dragged.chat - 444) <= 1, JSON.stringify(dragged));
+    assert.equal(dragged.preference, "444", "Dragging begins at the actual 464px column, not its retained 720px preference");
+    await page.setViewportSize({ width: 1440, height: 950 }); await settleLayout(page); await dragChatTo(page, 720);
+
+    await page.setViewportSize({ width: 900, height: 420 }); await settleLayout(page); await expectWorkspaceOnly(page);
+    assert.equal((await actualSplit(page)).preference, "720");
+    const variables = documentRoot(page).getByRole("button", { name: "打开变量面板", exact: true });
+    await variables.click();
+    assert.equal(await documentRoot(page).getByRole("dialog", { name: "变量", exact: true }).count(), 1, "The catalog cannot cover the actual variable toggle");
+    await documentRoot(page).getByRole("button", { name: "收起变量面板", exact: true }).click();
+    await page.setViewportSize({ width: 420, height: 720 }); await settleLayout(page); await expectWorkspaceOnly(page);
+    assert.equal((await actualSplit(page)).preference, "720");
+    await page.setViewportSize({ width: 1440, height: 950 }); await settleLayout(page);
+    const restored = await actualSplit(page);
+    assert.equal(await page.locator(".app-main--workspace-only").count(), 0);
+    assert.ok(Math.abs(restored.chat - 720) <= 1 && restored.dock >= 719, JSON.stringify(restored)); assert.equal(restored.preference, "720");
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.calls), []);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.chatRequests), []);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []); assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 test("actual dock toggles and width changes preserve Chat, document history, pending save and wide split preference", { timeout: 90_000 }, async () => {
   const { browser, page, errors } = await openFixture();
   try {
@@ -222,11 +274,11 @@ test("actual dock toggles and width changes preserve Chat, document history, pen
     });
     assert.ok(wide.chatWidth > 0 && wide.dockWidth > 0); assert.ok(Math.abs(wide.chatWidth - 560) <= 1);
     assert.deepEqual({ ...wide, chatWidth: undefined, dockWidth: undefined }, { chatWidth: undefined, dockWidth: undefined, hidden: false, inert: false, preference: "560", sameDocument: true });
-    await page.setViewportSize({ width: 900, height: 950 }); await settleLayout(page);
+    await page.setViewportSize({ width: 1024, height: 950 }); await settleLayout(page);
     assert.equal(await page.locator(".app-main--workspace-only").count(), 0);
     await page.evaluate(() => (window as any).fixture.setSidebarCollapsed(false)); await settleLayout(page);
     await expectWorkspaceOnly(page);
-    assert.equal(await page.evaluate(() => innerWidth), 900, "The actual body, including the real navigation column, owns the breakpoint");
+    assert.equal(await page.evaluate(() => innerWidth), 1024, "The actual body, including the real navigation column, owns the breakpoint");
     assert.equal(await page.evaluate(() => localStorage.getItem("agent-gui-chat-column-width")), "560");
     assert.equal(await page.evaluate(() => (window as any).fixture.calls.length), 1);
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.chatRequests), []);
