@@ -4,6 +4,7 @@ import { createSourceBundleDocumentClient } from "./source-bundle-document-clien
 import { createProgramDocumentSession } from "./action-editor/document/programDocumentSession";
 import type { SourceBundleDocument } from "./source-bundle-document";
 import { createHash } from "node:crypto";
+import { sourceStepTestTarget } from "./source-step-live-test-fixture";
 
 const body = '{"steps":[{"stepId":"s1","stepRunnerKey":"sys:comment","note":"before"}],"variables":[],"opaque":9223372036854775807}';
 function document(): SourceBundleDocument {
@@ -44,7 +45,8 @@ test("source getter preserves the complete codec and returns detached facts with
     sourceSnapshot: { ...document().sourceSnapshot, revision: hash("snapshot"), codecRevision: hash("codec") },
     variableIdentity: { schemaVersion: 1, authorizesLive: false, view: "observed", renameMappingScope: "source-codec-identity-only",
       sourceSnapshot: hash("snapshot"), codecRevision: hash("codec"), editorDocumentHash: hash(body), baselineEditorHash: hash(body),
-      mappingEpochKind: "content-bound", mappingEpoch: hash("mapping"), variables: [] } };
+      mappingEpochKind: "content-bound", mappingEpoch: hash("mapping"), variables: [] },
+    stepIdentity: sourceStepTestTarget(body, "s1", "sys:comment").stepIdentity };
   const f = await opened(async () => assert.fail("getter cannot dispatch"), initial);
   try {
     const first = f.client.getLiveSourceTarget(body)!;
@@ -52,13 +54,26 @@ test("source getter preserves the complete codec and returns detached facts with
     (first.codec as { producer: { identity: string } }).producer.identity = "poison";
     (first.sourceSnapshot.files[0] as { sha256: string }).sha256 = "poison";
     (first.variableIdentity as { authorizesLive: boolean }).authorizesLive = true;
+    assert.ok(first.stepIdentity);
+    (first.stepIdentity.steps[0] as { runnerKey: string }).runnerKey = "poison";
     const next = f.client.getLiveSourceTarget(body)!;
     assert.deepEqual(next.codec, initial.codec); assert.equal(next.variableIdentity.authorizesLive, false);
     assert.notEqual(next.sourceSnapshot.files[0].sha256, "poison");
+    assert.equal(next.stepIdentity!.steps[0]!.runnerKey, "sys:comment");
     assert.ok(Object.isFrozen(f.client.getState().document!.codec));
     assert.ok(Object.isFrozen(f.client.getState().document!.sourceSnapshot.files));
     assert.equal(f.posts(), 0);
   } finally { await f.close(); }
+});
+
+test("missing or malformed optional step metadata does not remove verified variable/local-save access", async () => {
+  for (const stepIdentity of [undefined, { authorizesLive: true }, { ...sourceStepTestTarget(body, "s1", "sys:comment").stepIdentity, editorDocumentHash: "wrong" }]) {
+    const facts = sourceStepTestTarget(body, "s1", "sys:comment");
+    const initial = { ...document(), codec: facts.codec, sourceSnapshot: facts.sourceSnapshot, variableIdentity: facts.variableIdentity, stepIdentity };
+    const f = await opened(async () => assert.fail("reading a missing optional field cannot dispatch"), initial);
+    try { const target = f.client.getLiveSourceTarget(body); assert.ok(target); assert.equal(target.stepIdentity, undefined); assert.ok(target.variableIdentity); }
+    finally { await f.close(); }
+  }
 });
 
 test("browser-to-Node source save acknowledgement loss blocks every later save/sync without replay", async () => {

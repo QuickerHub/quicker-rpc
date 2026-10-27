@@ -366,7 +366,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；V1 runtime 目录已实测完整分页。V1 组合动作（已知 XAction）打开额外要求正文读能力，按完整目标复用本地文件或只向空目录导出；原工作台保留已有实例、dirty/undo，异步/未知收据不抢焦点、不重放。fixture、真实 DOM 与隔离开发态前端检查通过；169 已有项目复用/重查/owner拒绝已有真实HTTP验收，fresh export与native GUI点击待验收。全局子程序调用插入/拖放已接同一参数确认和文档事务，schema/IO失败不确认、换owner不误插、新变量与调用一起撤销；动作引用插入/拖放也已接同一参数确认与事务，39 项真实 DOM 和迟到请求对新搜索/取消的隔离通过；两个调用链原生 GUI 验收、V2/子程序打开和资源写操作仍待迁移，不以受限搜索冒充完整目录 |
 | `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。主动作/子程序共用 FA 搜索、风格分页、选色和手填规格；上传图标库及其它属性仍待原生契约 |
-| 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | 有效 bundle 已通过实际 C# codec 接入原 APDE/Session，支持本地 CAS Save、只读 YAML 预览、重开 pending 与显式原生 Sync 收据核对；身份与 checkpoint 不由普通 Save 改写。隔离 codec/API/DOM 回归及真实 V1 单次同步、恢复已通过；普通资源树按实际 source 身份显示标题并打开 YAML，变量引用及人工字段本地保存/重开已通过真实 V1 GUI 验收。根 metadata、资源编辑和源码步骤实时 pin 暂未开放；源码变量的实时授权已按本轮选择接入 |
+| 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | 有效 bundle 已通过实际 C# codec 接入原 APDE/Session，支持本地 CAS Save、只读 YAML 预览、重开 pending 与显式原生 Sync 收据核对；身份与 checkpoint 不由普通 Save 改写。隔离 codec/API/DOM 回归及真实 V1 单次同步、恢复已通过；普通资源树按实际 source 身份显示标题并打开 YAML，变量引用及人工字段本地保存/重开已通过真实 V1 GUI 验收。源码变量及 codec 可证明的既有步骤已按本轮“+对话”接入原 Session/history；步骤限备注与当前绑定输入契约支持的既有普通值。根 metadata、资源编辑和 Agent Save/Sync 仍未开放 |
 | 运行/诊断 bridge | 已确认范围内的 run/trace、失败定位、取消与结果展示 | 复用现有 RPC/Agent 服务；新版设计器调用侧与宿主能力逐项接线 |
 
 普通保存只写本地工作区。显式 Sync 已在同一文档写入队列内先保存正文，再用返回的精确
@@ -450,6 +450,17 @@ V2 原生写回、完整布局验收或新安装包；0.15.1 发布产物仍未�
 隔离真实 DOM 另覆盖正常分栏拖动、无位移点击不保存临时夹宽、待保存晚回执、分支
 草稿、浮层和变量跨聊天迟到授权拒绝。388px 低高仅证明极端约束下控件可达，不能作为
 舒适并排宽度；本次呈现验收不表示 R7 整体完成，其余场景继续验收。
+
+Source 既有步骤的分支实现已复用原“+对话”：可选 `stepIdentity` 提供本次 codec 的原行
+事实，renderer 私有 lifetime 从采用映射时即跟踪全部原行，首次 Pin 前删除重建、移动或
+更换 runner 也不能借旧 ID 授权，同一 Session 的 Save ACK 不恢复已退役行。本轮读取和
+编辑共用原 Session/history，Save 仍由用户发起；
+缺可选证明的旧 CLI 继续支持变量与本地 Save。离线 codec、确定性模型的 SDK 续轮及真实
+Edge + 本次离线 CLI 已覆盖 Note→撤销→两次用户本地 Save/重开和旧 scope 拒绝；实际
+input-contract 路由另以受控 owner/snapshot/host 端口验证绑定、迟到和取消。普通输入的
+SDK 契约响应为替身，不能当作真实宿主 schema 或 V2 写回验收。上述隔离验收未安装插件、
+未调用真实模型、未运行或同步原生动作；内部 revision 0.15.1.3 用于后续本机验收，不更新
+公开 0.15.1 安装包。主线合并、宿主验收和新发布产物分别记录，不提前算作 A3 完成。
 
 **Agent 与工作台的剩余任务**不因转入设计器主线而取消：R1 补操作描述与 TurnPlan 约束；
 R2 补浏览器/网络端口及派生进程 owner；R3 拆会话控制器并验证后台会话/审批/草稿；R4

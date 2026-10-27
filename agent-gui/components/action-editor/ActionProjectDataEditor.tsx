@@ -702,10 +702,13 @@ export function ActionProjectDataEditor({
   const liveSessionId = useMemo(() => session ? `${liveInstanceId}:${++liveGeneration.current}` : undefined, [session, liveInstanceId]);
   const liveOwner = liveNavigation?.owner;
   const liveEndpointRef = useRef<LiveProgramDocumentEndpoint | null>(null);
+  const liveCatalogPortRef = useRef(catalogPort);
+  liveCatalogPortRef.current = catalogPort;
   useLayoutEffect(() => {
     if (!liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
       || liveOwner.cwd !== cwd || liveOwner.path.replace(/\\/g, "/") !== path.replace(/\\/g, "/")) return;
-    const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController, catalogPort,
+    const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController,
+      getCatalogPort: () => liveCatalogPortRef.current,
       isCurrent: () => sessionRef.current === session && liveAvailability.current.session === session && liveAvailability.current.available
         && !(liveSyncBusy.current?.key === syncOwnerRef.current.key && liveSyncBusy.current.busy),
       flushPendingEdits: () => workspaceRef.current?.flushPendingEdits(),
@@ -715,7 +718,7 @@ export function ActionProjectDataEditor({
     liveEndpointRef.current = endpoint;
     const release = liveDocuments.register(liveOwner, endpoint);
     return () => { if (liveEndpointRef.current === endpoint) liveEndpointRef.current = null; release(); };
-  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, catalogPort, sourceClient]);
+  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, sourceClient]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
   }, []);
@@ -784,9 +787,8 @@ export function ActionProjectDataEditor({
 
   const handlePinStepToChat = useCallback(
     (stepId: string) => {
-      if (sourceClient) return;
       if (!active || !session || sessionRef.current !== session || session.isClosed()) return;
-      if (workspaceRef.current?.flushPendingEdits() === false) {
+      if (workspaceRef.current?.isLiveEditingBlocked() || workspaceRef.current?.flushPendingEdits() === false) {
         setPinStepFeedback("请先修正或放弃未确认的变量修改，再添加到对话。");
         return;
       }
@@ -795,6 +797,10 @@ export function ActionProjectDataEditor({
       if (!result.ok) {
         setPinStepFeedback(result.error);
         return;
+      }
+      if (sourceClient || liveEndpointRef.current) {
+        const selected = liveEndpointRef.current?.readStep?.(stepId);
+        if (!selected?.ok) { setPinStepFeedback(selected?.error ?? "此步骤尚未取得原文档的实时来源。"); return; }
       }
 
       const tag = createProgramStepTag({
@@ -975,7 +981,7 @@ export function ActionProjectDataEditor({
         {sourceDocument ? <SourceBundleTargetSummary actionId={sourceDocument.actionId} host={sourceDocument.hostBinding} /> : null}
         {sourceClient && sourceDocument ? <div className="action-project-data-editor-actions" data-source-bundle-status>
           <p className="workspace-explorer-hint">{sourceDocument.pending.status === "pending" ? "本地待同步" : "本地与提交基线一致"} · 当前宿主状态未核验</p>
-          <p className="workspace-explorer-hint">动作标题、说明和图标只读；外置资源只读，文件引用保留。仅来源可核验的变量可加入实时对话；步骤暂不支持。</p>
+          <p className="workspace-explorer-hint">动作标题、说明和图标只读；外置资源只读，文件引用保留。来源可核验的步骤和变量可加入实时对话，修改后仍由你保存。</p>
           {targetError ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">{targetError}</p> : null}
           <button type="button" className="action-project-data-editor-sync" onClick={() => void handleSourceSync()}
             disabled={!active || dirty || saving || hostSyncBusy || targetBlocked || sourceDocument.hostBinding?.capabilities["action.source.write"] !== true}>
@@ -1147,7 +1153,7 @@ export function ActionProjectDataEditor({
               globalSubPrograms={globalCatalogState.port === catalogPort ? globalCatalogState.items : []}
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
               onHandleChange={handleWorkspaceChange}
-              onPinStepToChat={sourceClient ? undefined : handlePinStepToChat}
+              onPinStepToChat={handlePinStepToChat}
               onPinVariableToChat={onPinVariableToChat ? handlePinVariableToChat : undefined}
               metadataPanel={metadataEnabled && liveMetadata ? <ProgramAppearanceEditor
                 value={liveMetadata} disabled={!active || hostSyncBusy} onChange={handleMetadataChange} onSave={() => void handleSave()} /> : undefined}

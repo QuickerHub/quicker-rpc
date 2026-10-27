@@ -47,7 +47,7 @@ internal static partial class ActionSourceWorkspace
         var baseline = CapturedJson(capture, BaselineFile);
         var projection = ProgramSourceEditorProjection.Create(raw, (JObject)baseline["caw"]!, (JObject)baseline["body"]!);
         if (mode == "inspect") return Describe(capture, originalPrepared, projection.EditorJson, mode,
-            projection.DescribeVariableIdentities(projection.EditorJson));
+            projection.DescribeVariableIdentities(projection.EditorJson), projection.DescribeStepIdentities(projection.EditorJson));
         if (string.IsNullOrWhiteSpace(editorJson)) throw new ProgramSourceException("INVALID_ARGS", "editorJson must contain the complete lossless Editor JSON text.");
 
         var updated = projection.ToCaw(editorJson, baselineEditorJson);
@@ -81,7 +81,7 @@ internal static partial class ActionSourceWorkspace
         if (mode == "preview")
         {
             var output = Describe(capture, compiled, editorJson, mode,
-                projection.DescribeVariableIdentities(editorJson, baselineEditorJson));
+                projection.DescribeVariableIdentities(editorJson, baselineEditorJson), projection.DescribeStepIdentities(editorJson, baselineEditorJson));
             output["preview"] = new JObject
             {
                 ["sourceYaml"] = Utf8.GetString(source), ["normalization"] = normalization,
@@ -96,6 +96,7 @@ internal static partial class ActionSourceWorkspace
         var acknowledgedProjection = ProgramSourceEditorProjection.Create(ProgramSourceCodec.Decode(CapturedText(proposed, SourceFile)),
             (JObject)baseline["caw"]!, (JObject)baseline["body"]!);
         var acknowledgedIdentities = acknowledgedProjection.DescribeVariableIdentities(editorJson, editorJson);
+        var acknowledgedSteps = acknowledgedProjection.DescribeStepIdentities(editorJson, editorJson);
         RequireSameCapture(capture, Capture(dir, token));
         var written = new List<string>();
         var failed = SourceFile;
@@ -115,7 +116,7 @@ internal static partial class ActionSourceWorkspace
             var after = Capture(dir, token);
             if (after.ManagedRevision != capture.ManagedRevision || !SameFiles(after.Files, proposed.Files))
                 throw Conflict("Bundle changed during local save. Written files are retained; inspect again, do not replay.");
-            var output = Describe(after, PrepareCaptured(after), editorJson, mode, acknowledgedIdentities);
+            var output = Describe(after, PrepareCaptured(after), editorJson, mode, acknowledgedIdentities, acknowledgedSteps);
             output["saveLocal"] = new JObject
             {
                 ["writtenFiles"] = new JArray(written), ["normalization"] = normalization,
@@ -129,7 +130,7 @@ internal static partial class ActionSourceWorkspace
         }
     }
 
-    private static JObject Describe(BundleCapture capture, Prepared prepared, string editorJson, string mode, JObject variableEvidence)
+    private static JObject Describe(BundleCapture capture, Prepared prepared, string editorJson, string mode, JObject variableEvidence, JObject stepEvidence)
     {
         var identity = CapturedJson(capture, IdentityFile);
         var baseline = CapturedJson(capture, BaselineFile);
@@ -146,6 +147,7 @@ internal static partial class ActionSourceWorkspace
             ["sourceYaml"] = Utf8.GetString(capture.Files[SourceFile]), ["editorJson"] = editorJson,
             ["codec"] = capture.Codec.DeepClone(), ["sourceSnapshot"] = capture.Manifest(),
             ["variableIdentity"] = BindVariableIdentities(capture, variableEvidence, mode == "preview"),
+            ["stepIdentity"] = BindStepIdentities(capture, stepEvidence, mode == "preview"),
             ["pending"] = new JObject
             {
                 ["status"] = JToken.DeepEquals(body, oldBody) ? "clean" : "pending",
@@ -188,6 +190,28 @@ internal static partial class ActionSourceWorkspace
             }
         // A content-bound epoch also changes when storage/baseline identity changes
         // without a Session revision. It is evidence, not a row-lifetime or write grant.
+        descriptor["mappingEpochKind"] = "content-bound";
+        descriptor["mappingEpoch"] = ByteHash(Utf8.GetBytes(descriptor.ToString(Formatting.None)));
+        return descriptor;
+    }
+
+    private static JObject BindStepIdentities(BundleCapture capture, JObject evidence, bool candidate)
+    {
+        var descriptor = new JObject
+        {
+            ["schemaVersion"] = 1, ["sourceSnapshot"] = capture.Revision,
+            ["codecRevision"] = capture.Codec.Value<string>("descriptorRevision"),
+            ["editorDocumentHash"] = evidence["editorDocumentHash"]!.DeepClone(),
+            ["baselineEditorHash"] = evidence["baselineEditorHash"]!.DeepClone(),
+            ["authorizesLive"] = false, ["view"] = candidate ? "candidate" : "observed",
+            ["identityMappingScope"] = "source-codec-identity-only", ["steps"] = evidence["steps"]!.DeepClone(),
+        };
+        if (candidate)
+            foreach (var row in ((JArray)descriptor["steps"]!).OfType<JObject>())
+            {
+                row["stableIdentityProven"] = row["documentLocalIdentityProven"] = false;
+                row["identityDenialReason"] = row["documentLocalIdentityDenialReason"] = "candidate-preview";
+            }
         descriptor["mappingEpochKind"] = "content-bound";
         descriptor["mappingEpoch"] = ByteHash(Utf8.GetBytes(descriptor.ToString(Formatting.None)));
         return descriptor;

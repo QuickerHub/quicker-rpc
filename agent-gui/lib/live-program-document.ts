@@ -98,6 +98,8 @@ export type LiveProgramDocumentEndpoint = Readonly<{
   getTarget(): LiveProgramDocumentTarget | undefined;
   flushPendingEdits(): void;
   read(): Readonly<{ ok: true; snapshot: LiveProgramDocumentSnapshot }> | LiveProgramDocumentEndpointFailure;
+  /** Private row lifetime: markup or an editor ID alone cannot recreate a previous grant. */
+  readStep?(stepId: string): Readonly<{ ok: true; step: Readonly<{ stepId: string; surface: string; runnerKey: string; rowIdentity: string }> }> | LiveProgramDocumentEndpointFailure;
   setStepNote(input: Readonly<{
     expectedRevision: number; expectedIdentity: ProgramDocumentIdentity; stepId: string; note: string;
   }>): LiveProgramDocumentMutationResult;

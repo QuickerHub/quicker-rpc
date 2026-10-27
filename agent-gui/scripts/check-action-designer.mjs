@@ -32,6 +32,7 @@ if (result.status === 0) {
     "--test-timeout=300000", "--import", "./scripts/agent-offline-network-guard.mjs",
     "components/action-editor/SourceBundleDocumentEditor.browser.test.ts",
     "components/workspace/WorkspaceVariablePin.browser.test.ts",
+    "components/workspace/WorkspaceSourceStepPin.browser.test.ts",
   ], { cwd: root, stdio: "inherit" });
   if (source.error) throw source.error;
   process.exitCode = source.status ?? 1;

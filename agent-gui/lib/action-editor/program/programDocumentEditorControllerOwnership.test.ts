@@ -17,22 +17,31 @@ function fixture() {
 
 test("an existing private pin cannot edit a step whose parent became a foreign cache", () => {
   const f = fixture(), pin = f.registry.pin(f.owner, "tag", "selected", "chat"); assert.ok("pinId" in pin);
-  const changed = f.session.readSnapshot(); changed.subPrograms[0]!.kind = 2;
-  assert.equal(f.session.applySnapshot(changed, { expectedRevision: f.session.getState().revision, source: "ui" }).ok, true);
   const captured = f.registry.captureForManualSend({ pins: [pin], threadId: "chat", userMessageId: "manual", cwd: f.owner.cwd, mode: "edit" });
   assert.equal(captured.state, "ready"); if (captured.state !== "ready") return;
+  const changed = f.session.readSnapshot(); changed.subPrograms[0]!.kind = 2;
+  assert.equal(f.session.applySnapshot(changed, { expectedRevision: f.session.getState().revision, source: "ui" }).ok, true);
   const scope = captured.scope, read = f.registry.execute(scope, { scopeId: scope.scopeId, operationId: "read", input: { action: "read_live" } });
   assert.equal(read.ok, true);
   assert.ok("revision" in read);
   const before = f.session.getState(), command = { scopeId: scope.scopeId, operationId: "edit", input: {
     action: "edit_live" as const, readOperationId: "read", expectedRevision: read.revision!, stepId: "selected", note: "must not edit foreign" } };
   const result = f.registry.execute(scope, command);
-  assert.equal(result.ok, false); assert.equal(result.code, "identity_conflict"); assert.equal(f.session.getState(), before);
+  assert.equal(result.ok, false); assert.equal(result.code, "LIVE_STEP_UNAVAILABLE"); assert.equal(f.session.getState(), before);
   // A refused operation remains a stable receipt after the user makes the target editable again.
   const restored = f.session.readSnapshot(); restored.subPrograms[0]!.kind = 1;
   f.session.applySnapshot(restored, { expectedRevision: before.revision, source: "ui" });
   assert.deepEqual(f.registry.execute(scope, command), result);
   assert.equal(f.session.readSnapshot().subPrograms[0]!.steps[0]!.note, "before");
+});
+
+test("a pin whose parent became foreign before capture is refused before an executable scope exists", () => {
+  const f = fixture(), pin = f.registry.pin(f.owner, "tag", "selected", "chat"); assert.ok("pinId" in pin);
+  const changed = f.session.readSnapshot(); changed.subPrograms[0]!.kind = 2;
+  assert.equal(f.session.applySnapshot(changed, { expectedRevision: f.session.getState().revision, source: "ui" }).ok, true);
+  const before = f.session.getState();
+  const captured = f.registry.captureForManualSend({ pins: [pin], threadId: "chat", userMessageId: "manual", cwd: f.owner.cwd, mode: "edit" });
+  assert.equal(captured.state, "unavailable"); assert.equal(f.session.getState(), before);
 });
 
 test("raw uniqueness/ownership also rejects foreign descendants and alias ambiguity without history", () => {

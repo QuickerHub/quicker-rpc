@@ -9,6 +9,9 @@ import { POST } from "../../../app/api/step-runner/input-contract/route";
 import { parseActionProjectBinding, type ActionProjectBinding } from "../../action-project-binding";
 import { STEP_RUNNER_INPUT_CONTRACT_CAPABILITY } from "../../step-runner-input-contract";
 import { withDesignerCatalogContext, type DesignerCatalogScope } from "./designerCatalogContext";
+import { openSourceBundleDocumentResponse } from "../../source-bundle-document.server";
+import { runWithAgentRequestContextAsync } from "../../qkrpc-request-context";
+import type { SourceBundleDocument } from "../../source-bundle-document";
 
 const actionId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", base = "http://input-contract-fixture.invalid:19477";
 const binding = (letter: string, supported = true): ActionProjectBinding => parseActionProjectBinding({ schemaVersion: 1, kind: "action", actionId,
@@ -123,4 +126,57 @@ test("late binding changes and cancellation cannot publish metadata or alter act
     const response = await POST(request(scope(a), undefined, abort.signal)); assert.equal(response.status, 499);
     assert.equal((await response.json()).error, "cancel input read");
   }, async () => { abort.abort(new Error("cancel input read")); return reply(); });
+});
+
+test("the production Source input route consumes its verified owner/snapshot binding without a legacy project sidecar", async () => {
+  for (const kind of ["valid", "capability", "owner", "snapshot", "host", "late-snapshot", "cancel", "malformed"]) {
+    let source!: SourceBundleDocument, nativeCalls = 0, inspectCalls = 0;
+    const abort = new AbortController();
+    await fixture(async ({ root }) => {
+      const directory = join(root, "owned-source"); await mkdir(directory);
+      await writeFile(join(directory, "program.source.yaml"), "# original source\n");
+      source = { schemaVersion: 1, kind: "source-bundle-document", mode: "inspect", projectDirectoryAbsolute: directory,
+        actionId, editVersion: "9223372036854775807", hostBinding: kind === "capability" ? b.hostBinding : a.hostBinding,
+        storageIdentity: null, identityJson: "{}", sourceYaml: "# original source\n", editorJson: '{"steps":[],"variables":[]}',
+        codec: { descriptorRevision: "codec" }, sourceSnapshot: { revision: "source-snapshot", codecRevision: "codec", managedRevision: "managed", files: [] },
+        pending: { status: "clean", comparedTo: "managed-native-checkpoint", nativeState: "unobserved", currentBodyHash: "same", baselineBodyHash: "same" },
+        capabilities: { read: true, preview: true, saveLocal: true, metadataWrite: false, nativeSync: "unobserved", snapshotAuthorizesWrite: false },
+        projection: { format: "quicker.editor-json.v1", metadataEditable: false } };
+      const opened = await runWithAgentRequestContextAsync({ cwd: root }, () => openSourceBundleDocumentResponse(
+        new Request("http://fixture.invalid/api/workspace"), "owned-source/program.source.yaml", `source-route-${kind}`));
+      assert.equal(opened.status, 200); const reader = opened.body!.getReader();
+      try {
+        const first = await reader.read(), message = JSON.parse(new TextDecoder().decode(first.value)); assert.equal(message.ok, true);
+        const scope: NonNullable<DesignerCatalogScope> = { cwd: root, projectDirectory: "owned-source", format: "source-bundle", expectedProjectBinding: null,
+          sourceBundle: { ownerToken: kind === "owner" ? "wrong-owner" : message.ownerToken,
+            expectedSnapshot: kind === "snapshot" ? "wrong-snapshot" : "source-snapshot",
+            hostBinding: kind === "host" ? b.hostBinding : source.hostBinding } };
+        const response = await POST(request(scope, undefined, abort.signal)), body = await response.json();
+        if (kind === "valid") {
+          assert.equal(response.status, 200, JSON.stringify(body)); assert.equal(body.contract.inputs[0].key, "text");
+          assert.equal(body.contract.source, "runtime-definition"); assert.equal(nativeCalls, 1); assert.equal(inspectCalls, 3);
+        } else {
+          assert.notEqual(response.status, 200, kind); assert.equal(body.ok, false, kind);
+          const codes: Record<string, string> = { capability: "INPUT_CONTRACT_UNSUPPORTED", owner: "SOURCE_DOCUMENT_STALE", snapshot: "SOURCE_SNAPSHOT_CONFLICT",
+            host: "HOST_BINDING_REQUIRED", "late-snapshot": "SOURCE_SNAPSHOT_CONFLICT", cancel: "REQUEST_ABORTED", malformed: "INVALID_INPUT_CONTRACT_RESPONSE" };
+          assert.equal(body.code, codes[kind], kind);
+          assert.equal(nativeCalls, ["late-snapshot", "cancel", "malformed"].includes(kind) ? 1 : 0, kind);
+        }
+        assert.equal(await readFile(join(directory, "program.source.yaml"), "utf8"), "# original source\n");
+        await assert.rejects(readFile(join(directory, ".qkrpc/project-binding.json")), { code: "ENOENT" });
+      } finally { await reader.cancel(); reader.releaseLock(); }
+    }, async (url, init) => {
+      assert.equal(String(url), `${base}/v1/invoke`); const invoke = JSON.parse(String(init?.body));
+      if (invoke.op === "source.document") {
+        inspectCalls++; assert.equal(invoke.args.mode, "inspect"); assert.equal(invoke.args.dir, source.projectDirectoryAbsolute);
+        assert.equal(Object.hasOwn(invoke, "hostBinding"), false, "offline source inspection does not contact a host");
+        return Response.json({ ok: true, data: { ok: true, data: source } });
+      }
+      assert.equal(invoke.op, "step-runner.input-contract"); nativeCalls++; assert.deepEqual(invoke.hostBinding, a.hostBinding);
+      assert.deepEqual(invoke.args, { key: "sys:fixture" });
+      if (kind === "late-snapshot") source = { ...source, sourceSnapshot: { ...source.sourceSnapshot, revision: "changed-after-native-read" } };
+      if (kind === "cancel") abort.abort(new Error("owned Source read cancelled"));
+      return reply(contract(kind === "malformed" ? { source: "ui" } : {}));
+    });
+  }
 });
