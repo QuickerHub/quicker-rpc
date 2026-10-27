@@ -2,6 +2,8 @@ import { readSourceBundleDocument, type SourceBundleDocument, type SourceBundleD
 import { saveProgramDocumentClient } from "./program-document-save-client";
 import type { ProgramDocumentSaveResult } from "./program-document-save";
 import type { ProgramDocumentSaveTicket } from "./action-editor/document/programDocumentSession";
+import { verifySourceVariableIdentity, type SourceVariableIdentity } from "./source-variable-identity";
+import type { LiveProgramSourceTarget } from "./live-program-source-target";
 
 export type SourceBundleClientState = Readonly<{ document?: SourceBundleDocument; ownerToken?: string; error?: string; blocked: boolean }>;
 function sameTarget(before: SourceBundleDocument, after: SourceBundleDocument): boolean {
@@ -20,13 +22,22 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
   const connection = new AbortController();
   let closed = false, state: SourceBundleClientState = { blocked: true };
   let lastSaveReceipt: ProgramDocumentSaveResult | undefined;
+  let verifiedMapping: { document: SourceBundleDocument; identity: SourceVariableIdentity } | undefined;
+  let mappingEpoch = 0, mappingPending = false;
+  const invalidateMapping = () => { mappingEpoch++; verifiedMapping = undefined; };
+  async function observeMapping(document: SourceBundleDocument) {
+    const epoch = ++mappingEpoch;
+    const identity = await verifySourceVariableIdentity(document).catch(() => undefined);
+    if (closed || mappingEpoch !== epoch) return;
+    verifiedMapping = identity ? { document, identity } : undefined;
+  }
   const update = (next: SourceBundleClientState) => { state = Object.freeze(next); if (!closed) options.onChange(state); };
   const capture = () => {
-    if (closed || state.blocked || !state.ownerToken || !state.document) throw Error(state.error ?? "源码文档尚未取得存储 owner。");
+    if (closed || state.blocked || mappingPending || !state.ownerToken || !state.document) throw Error(state.error ?? "源码文档尚未取得可操作的存储 owner，或上次存储操作尚未确认。");
     return { document: state.document, ownerToken: state.ownerToken };
   };
   const current = (ownerToken: string) => !closed && state.ownerToken === ownerToken;
-  const block = (ownerToken: string, error: string) => { if (current(ownerToken)) update({ ...state, blocked: true, error }); };
+  const block = (ownerToken: string, error: string) => { if (current(ownerToken)) { invalidateMapping(); update({ ...state, blocked: true, error }); } };
   async function post(op: string, body: Record<string, unknown>): Promise<SourceBundleDocumentResult & { receipt?: unknown }> {
     const response = await fetcher("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...body, cwd: options.cwd, path: options.path, op }), cache: "no-store" });
@@ -38,6 +49,12 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
   return {
     getState: () => state,
     getLastSaveReceipt: () => lastSaveReceipt,
+    getLiveSourceTarget(baselineEditorJson: string): LiveProgramSourceTarget | undefined {
+      const mapping = verifiedMapping;
+      if (closed || state.blocked || mappingPending || !state.ownerToken || !mapping || mapping.document !== state.document || mapping.document.editorJson !== baselineEditorJson) return;
+      return { actionId: mapping.document.actionId, hostBinding: mapping.document.hostBinding, storageIdentity: mapping.document.storageIdentity,
+        ownerToken: state.ownerToken, sourceSnapshot: mapping.document.sourceSnapshot, variableIdentity: mapping.identity, mappingEpoch };
+    },
     async connect(): Promise<void> {
       try {
         const params = new URLSearchParams({ op: "open-source-document", cwd: options.cwd, path: options.path, ownerKey: options.ownerKey });
@@ -57,13 +74,14 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
               if (received || message.ownerKey !== options.ownerKey || message.path !== options.path || typeof message.ownerToken !== "string" || !message.ownerToken) throw Error("源码 owner 回执不属于原文档。");
               const document = readSourceBundleDocument(message.document);
               if (document.mode !== "inspect") throw Error("源码打开回执格式错误。");
+              await observeMapping(document);
               received = true; if (!closed) update({ document, ownerToken: message.ownerToken, blocked: false });
             }
           }
         } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
         if (!closed) throw Error("源码文档连接已关闭；当前草稿已保留，请重新打开后核对。");
       } catch (error) {
-        if (!closed) update({ ...state, ownerToken: undefined, blocked: true, error: error instanceof Error ? error.message : String(error) });
+        if (!closed) { invalidateMapping(); update({ ...state, ownerToken: undefined, blocked: true, error: error instanceof Error ? error.message : String(error) }); }
       }
     },
     async preview(content: string, baselineContent: string): Promise<SourceBundleDocumentResult> {
@@ -84,6 +102,7 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
       let captured: ReturnType<typeof capture>;
       try { captured = capture(); } catch (error) { return { ok: false, code: "SOURCE_DOCUMENT_STALE", error: String(error) }; }
       let result: ProgramDocumentSaveResult;
+      mappingPending = true; invalidateMapping();
       try {
         result = await saveProgramDocumentClient(options.cwd, { format: "source-bundle", path: options.path, content: ticket.content, expectedContent: ticket.baselineContent,
           source: { ownerToken: captured.ownerToken, expectedSnapshot: captured.document.sourceSnapshot.revision } });
@@ -96,6 +115,7 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
             || document.sourceSnapshot.managedRevision !== captured.document.sourceSnapshot.managedRevision
             || document.sourceSnapshot.codecRevision !== captured.document.sourceSnapshot.codecRevision) throw Error("源码保存回执不属于原文档、本次 ticket 或提交基线。");
           result = { ok: true, sourceDocument: document };
+          if (current(captured.ownerToken)) await observeMapping(document);
           if (current(captured.ownerToken)) update({ document, ownerToken: captured.ownerToken, blocked: false });
         } else if (["WRITE_RESULT_UNKNOWN", "SOURCE_DOCUMENT_PARTIAL", "SOURCE_SNAPSHOT_CONFLICT", "SOURCE_DOCUMENT_STALE"].includes(result.code ?? "")) block(captured.ownerToken, result.error);
       } catch (error) {
@@ -103,18 +123,21 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
         block(captured.ownerToken, result.error);
       }
       lastSaveReceipt = result;
+      mappingPending = false;
       return result;
     },
     async sync(): Promise<SourceBundleDocumentResult & { receipt?: unknown }> {
       let captured: ReturnType<typeof capture>;
       try { captured = capture(); } catch (error) { return failure("SOURCE_DOCUMENT_STALE", String(error)); }
       try {
+        mappingPending = true; invalidateMapping();
         const result = await post("sync-source-document", { ownerToken: captured.ownerToken, expectedSnapshot: captured.document.sourceSnapshot.revision });
         if (result.ok) {
           if (!sameTarget(captured.document, result.document) || result.document.mode !== "inspect") {
             block(captured.ownerToken, "同步后回执不属于原文档，当前草稿已保留。");
             return failure("SOURCE_SYNC_READBACK_FAILED", "同步后回执不属于原文档，请核对原动作，勿重复提交。", result.receipt);
           }
+          if (current(captured.ownerToken)) await observeMapping(result.document);
           if (current(captured.ownerToken)) update({ document: result.document, ownerToken: captured.ownerToken, blocked: !sameWorkingFiles(captured.document, result.document),
             ...(!sameWorkingFiles(captured.document, result.document) ? { error: "同步期间 YAML 或资源已变更，当前草稿已保留，请重新打开核对。" } : {}) });
         } else if (["WRITE_RESULT_UNKNOWN", "SOURCE_CHECKPOINT_FAILED", "SOURCE_SYNC_READBACK_FAILED", "SOURCE_SNAPSHOT_CONFLICT"].includes(result.code)) block(captured.ownerToken, result.error);
@@ -122,9 +145,9 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
       } catch (error) {
         const result = failure("WRITE_RESULT_UNKNOWN", `同步结果未确认，勿重复提交：${error instanceof Error ? error.message : String(error)}`);
         block(captured.ownerToken, result.error); return result;
-      }
+      } finally { mappingPending = false; }
     },
-    close() { closed = true; connection.abort(); },
+    close() { closed = true; invalidateMapping(); connection.abort(); },
   };
 }
 export type SourceBundleDocumentClient = ReturnType<typeof createSourceBundleDocumentClient>;

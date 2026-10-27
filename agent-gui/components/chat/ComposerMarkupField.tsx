@@ -12,6 +12,8 @@ import {
 import type { PinnedAction } from "@/lib/action-context";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { ProgramVariableTag } from "@/lib/program-variable-tag";
+import { createProgramVariableTagElement } from "@/lib/composer-inline";
 import {
   applyComposerMentionTag,
   getComposerMentionAnchorRect,
@@ -79,6 +81,7 @@ export type ComposerMarkupFieldHandle = {
   insertActionTag: (action: PinnedAction) => void;
   insertBrowserElementTag: (element: BrowserElementTag) => void;
   insertProgramStepTag: (tag: ProgramStepTag) => void;
+  insertProgramVariableTag: (tag: ProgramVariableTag) => void;
   /** Insert @ and open the action mention picker (onboarding / toolbar). */
   insertMentionTrigger: () => void;
   /** Insert plain text at caret (e.g. pasted snippets). */
@@ -399,6 +402,15 @@ export const ComposerMarkupField = forwardRef<
         placeCaretAfterComposerTagSpacer(spacer, root);
         emitChange();
         root.focus({ preventScroll: true });
+      },
+      insertProgramVariableTag: (tag: ProgramVariableTag) => {
+        const root = rootRef.current;
+        if (!root || disabled) return;
+        if (value !== lastEmitted.current) { renderMarkupIntoRoot(root, value); lastEmitted.current = value; }
+        closeMenus();
+        const chip = createProgramVariableTagElement(tag), spacer = createComposerTagSpacer();
+        insertNodeAtSelection(root, chip); chip.after(spacer);
+        placeCaretAfterComposerTagSpacer(spacer, root); emitChange(); root.focus({ preventScroll: true });
       },
       insertMentionTrigger: () => {
         const root = rootRef.current;

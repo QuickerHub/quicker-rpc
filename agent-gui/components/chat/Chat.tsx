@@ -150,6 +150,7 @@ import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window"
 import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { ProgramVariableTag } from "@/lib/program-variable-tag";
 import type { LiveProgramDocumentPin, LiveProgramDocumentRegistryFailure } from "@/lib/live-program-document";
 import { useLiveProgramDocumentRegistry } from "@/lib/live-program-document.client";
 import {
@@ -776,6 +777,13 @@ function ChatPanel({
     [editAnchorMessageId, clearError, rememberLiveProgramDocumentPin],
   );
 
+  const insertComposerProgramVariableTag = useCallback((tag: ProgramVariableTag) => {
+    if (editAnchorMessageId) return;
+    rememberLiveProgramDocumentPin(tag.tagId); clearError();
+    composerRef.current?.insertProgramVariableTag(tag);
+    requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+  }, [editAnchorMessageId, clearError, rememberLiveProgramDocumentPin]);
+
   // A retained file uses the currently presented Chat, never the Chat that first opened it.
   const workspacePresentationKey = JSON.stringify([visible, ephemeral, editAnchorMessageId]);
   const workspacePresentationOwnerRef = useRef({ key: workspacePresentationKey, active: visible && !ephemeral && !editAnchorMessageId });
@@ -784,6 +792,13 @@ function ChatPanel({
   }
   const workspaceChatPresentation = useMemo(() => ({
     threadId,
+    pinVariable: (tag: ProgramVariableTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => {
+      const owner = workspacePresentationOwnerRef.current;
+      if (!owner.active) return;
+      rememberLiveProgramDocumentPin(tag.tagId, pin); clearError();
+      composerRef.current?.insertProgramVariableTag(tag);
+      requestAnimationFrame(() => { if (workspacePresentationOwnerRef.current === owner && owner.active) composerRef.current?.focusAtEnd(); });
+    },
     pinStep: (tag: ProgramStepTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => {
       const owner = workspacePresentationOwnerRef.current;
       if (!owner.active) return;
@@ -802,6 +817,7 @@ function ChatPanel({
       insertPrompt: insertComposerPrompt,
       insertBrowserElementTag: insertComposerBrowserElementTag,
       insertProgramStepTag: insertComposerProgramStepTag,
+      insertProgramVariableTag: insertComposerProgramVariableTag,
       focusComposer: focusComposerAtEnd,
     });
     return () => {
@@ -814,6 +830,7 @@ function ChatPanel({
     focusComposerAtEnd,
     insertComposerBrowserElementTag,
     insertComposerProgramStepTag,
+    insertComposerProgramVariableTag,
     insertComposerPrompt,
   ]);
 

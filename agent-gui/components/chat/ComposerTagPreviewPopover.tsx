@@ -28,6 +28,7 @@ function badgeClass(kind: ComposerTagPreviewModel["kind"]): string {
     case "browser-element":
       return "composer-tag-preview__badge--browser";
     case "program-step":
+    case "program-variable":
       return "composer-tag-preview__badge--program-step";
     case "subprogram":
       return "composer-tag-preview__badge--subprogram";

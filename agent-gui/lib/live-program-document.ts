@@ -3,14 +3,16 @@ import type { ProgramDocumentIdentity } from "./action-editor/document/programDo
 import type { WorkspaceDocumentOwner } from "./workspace-document-instances";
 import type { StepRunnerInputContract } from "./step-runner-input-contract";
 import type { ProgramDocumentStepInputsRequest } from "./action-editor/document/programDocumentStepInputs";
+import type { LiveProgramSourceTarget } from "./live-program-source-target";
+import type { ProgramDocumentVariableSelector, ProgramDocumentVariableRead, ProgramDocumentVariableFieldChange } from "./action-editor/document/programDocumentVariableLive";
 
 /** Descriptor only. The existing APDE Session remains the sole editable document/history. */
 export type LiveProgramDocumentTarget = Readonly<{
   owner: WorkspaceDocumentOwner;
   /** Identifies the actual APDE Session lifetime, including replacement inside one file owner. */
   sessionId: string;
-  identity: Readonly<ProgramDocumentIdentity> & { projectBinding: ActionProjectBinding | null };
-}>;
+}> & (Readonly<{ format?: "legacy-json"; identity: Readonly<ProgramDocumentIdentity> & { projectBinding: ActionProjectBinding | null } }>
+  | Readonly<{ format: "source-bundle"; identity: Readonly<ProgramDocumentIdentity>; source: LiveProgramSourceTarget }>);
 
 /** Minted by a live renderer pin; markup/history is never a grant. */
 export type LiveProgramDocumentPin = Readonly<{ pinId: string; tagId: string; threadId: string }>;
@@ -28,7 +30,7 @@ export type LiveProgramDocumentSelection = Readonly<{ state: "none" } | {
   state: "unavailable"; code: string; error: string; retryable: false;
 } | { state: "ready"; scope: LiveProgramDocumentScope }>;
 
-export type LiveProgramDocumentInput = Readonly<{ action: "read_live"; stepSchemaFor?: string } | {
+export type LiveProgramDocumentInput = Readonly<{ action: "read_live"; stepSchemaFor?: string; variableFor?: ProgramDocumentVariableSelector } | {
   action: "edit_live";
   readOperationId: string;
   expectedRevision: number;
@@ -40,6 +42,10 @@ export type LiveProgramDocumentInput = Readonly<{ action: "read_live"; stepSchem
   expectedRevision: number;
   stepId: string;
   changes: readonly Readonly<{ key: string; value: string }>[];
+} | {
+  action: "edit_variable_live"; readOperationId: string; expectedRevision: number;
+  surface: string; variableId: string; contractRevision: string;
+  changes: readonly ProgramDocumentVariableFieldChange[];
 }>;
 export type LiveProgramDocumentCommand = Readonly<{
   scopeId: string;
@@ -68,9 +74,11 @@ type ReceiptBase = Readonly<{
 export type LiveProgramDocumentReceipt = ReceiptBase & Readonly<{
   ok: true; action: "read_live"; complete: true;
   stepInputSchema?: Readonly<{ stepId: string; contract: StepRunnerInputContract; editableInputKeys: readonly string[] }>;
+  variable?: ProgramDocumentVariableRead & { rowIdentity?: string };
 } & LiveProgramDocumentSnapshot | {
-  ok: true; action: "edit_live" | "edit_step_inputs_live"; applied: true; changed: boolean;
+  ok: true; action: "edit_live" | "edit_step_inputs_live" | "edit_variable_live"; applied: true; changed: boolean;
   revisionBefore: number; revisionAfter: number; dirty: boolean; undoable: boolean;
+  surface?: string; variableId?: string; changedFields?: readonly string[];
 } | {
   ok: false; action: LiveProgramDocumentInput["action"]; code: string; error: string;
   retryable: false; application: "not_applied" | "unknown"; revision?: number;
@@ -95,12 +103,17 @@ export type LiveProgramDocumentEndpoint = Readonly<{
   }>): LiveProgramDocumentMutationResult;
   readInputContract?(input: { stepRunnerKey: string; controlFieldValue?: string }, signal?: AbortSignal): Promise<StepRunnerInputContract>;
   setStepInputs?(input: ProgramDocumentStepInputsRequest): LiveProgramDocumentMutationResult;
+  readVariable?(input: ProgramDocumentVariableSelector): Readonly<{ ok: true; variable: ProgramDocumentVariableRead & { rowIdentity?: string } }> | LiveProgramDocumentEndpointFailure;
+  setVariable?(input: ProgramDocumentVariableSelector & { expectedRevision: number; expectedIdentity: ProgramDocumentIdentity;
+    contractRevision: string; changes: readonly ProgramDocumentVariableFieldChange[] }): LiveProgramDocumentMutationResult & { changedFields?: readonly string[] };
+  dispose?(): void;
 }>;
 
 export type LiveProgramDocumentRegistryFailure = Readonly<{ ok: false; code: string; error: string; retryable: false }>;
 export type LiveProgramDocumentRegistry = Readonly<{
   register(owner: WorkspaceDocumentOwner, endpoint: LiveProgramDocumentEndpoint): () => void;
   pin(owner: WorkspaceDocumentOwner, tagId: string, stepId: string, threadId: string): LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure;
+  pinVariable(owner: WorkspaceDocumentOwner, tagId: string, variable: ProgramDocumentVariableSelector, threadId: string): LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure;
   captureForManualSend(input: Readonly<{
     threadId: string; userMessageId: string; cwd: string; pins: readonly LiveProgramDocumentPin[]; mode: "read" | "edit";
   }>): LiveProgramDocumentSelection;

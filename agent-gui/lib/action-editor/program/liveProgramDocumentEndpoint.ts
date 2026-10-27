@@ -5,6 +5,9 @@ import type { ActionProgramSnapshot } from "./assembleActionProgramSnapshot";
 import type { ProgramDocumentEditorController } from "./programDocumentEditorController";
 import type { ActionStep, ActionSubProgram } from "../types/common";
 import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
+import { readProgramDocumentVariable, type ProgramDocumentVariableSelector } from "../document/programDocumentVariableLive";
+import type { LiveProgramSourceTarget } from "../../live-program-source-target";
+import { sourceVariableOrigin } from "../../source-variable-identity";
 
 function collectSteps(snapshot: ActionProgramSnapshot): LiveProgramDocumentStep[] {
   const result: LiveProgramDocumentStep[] = [];
@@ -27,10 +30,38 @@ export function createProgramDocumentLiveEndpoint(options: {
   isCurrent(): boolean;
   flushPendingEdits(): boolean | void;
   isLiveEditingBlocked?(): boolean;
+  sourceTarget?(): LiveProgramSourceTarget | undefined;
 }): LiveProgramDocumentEndpoint {
+  let sequence = 0;
+  const rows = new Map<string, { selector: ProgramDocumentVariableSelector; token: string; removed: boolean; mappingEpoch?: number }>();
+  const rowKey = (selector: ProgramDocumentVariableSelector) => JSON.stringify([selector.surface, selector.variableId]);
+  const unsubscribe = options.session.subscribe(state => {
+    for (const row of rows.values()) if (!row.removed && !readProgramDocumentVariable(state.content, row.selector).ok) row.removed = true;
+  });
+  const sourceFor = (selector: ProgramDocumentVariableSelector) => {
+    if (!options.sourceTarget) return { ok: true as const, fieldDenials: undefined, mappingEpoch: undefined };
+    const source = options.sourceTarget();
+    const origin = source && sourceVariableOrigin(source.variableIdentity, selector.surface, selector.variableId);
+    if (!source || !origin) return { ok: false as const, code: "LIVE_VARIABLE_ORIGIN_UNAVAILABLE", error: "此源码变量缺少当前 codec 核验的原行来源，请重新打开后核对。" };
+    const previous = rows.get(rowKey(selector));
+    if (previous?.removed && previous.mappingEpoch === source.mappingEpoch) return { ok: false as const, code: "LIVE_VARIABLE_STALE", error: "原源码变量已经删除，不能把旧来源移交给重建行。" };
+    return { ok: true as const, fieldDenials: origin.renameMappingProven === true && origin.renameMappingBasis !== "unproven" ? undefined : { key: "当前 codec 未证明此变量可逆改名映射。" }, mappingEpoch: source.mappingEpoch };
+  };
+  const readVariable = (selector: ProgramDocumentVariableSelector) => {
+    const blocked = unavailable(); if (blocked) return blocked;
+    const source = sourceFor(selector); if (!source.ok) return source;
+    const result = readProgramDocumentVariable(options.session.getState().content, selector, { fieldDenials: source.fieldDenials });
+    if (!result.ok) return result;
+    const key = rowKey(selector);
+    let row = rows.get(key);
+    if (!row || row.removed || row.mappingEpoch !== source.mappingEpoch) {
+      row = { selector: { ...selector }, token: `${options.sessionId}:variable:${++sequence}`, removed: false, mappingEpoch: source.mappingEpoch }; rows.set(key, row);
+    }
+    return { ok: true as const, variable: { ...result.variable, rowIdentity: row.token } };
+  };
   const current = () => options.isCurrent() && !options.session.isClosed();
   const failure = () => ({ ok: false as const, code: "LIVE_DOCUMENT_STALE", error: "The original program document is no longer current." });
-  const unavailable = () => !current() ? failure() : options.isLiveEditingBlocked?.()
+  const unavailable = () => !current() ? failure() : options.session.getState().saving || options.isLiveEditingBlocked?.()
     ? { ok: false as const, code: "LIVE_DOCUMENT_BUSY", error: "The original program document has an unconfirmed editor dialog; confirm or cancel it before live editing." }
     : undefined;
   const assertAvailable = () => {
@@ -41,6 +72,11 @@ export function createProgramDocumentLiveEndpoint(options: {
     getTarget() {
       if (!current()) return;
       const identity = options.session.getState().identity;
+      if (options.sourceTarget) {
+        const source = options.sourceTarget();
+        if (!source || identity.projectBinding !== undefined || identity.storage?.version !== source.sourceSnapshot.revision) return;
+        return { format: "source-bundle" as const, owner: options.owner, sessionId: options.sessionId, identity, source };
+      }
       if (identity.projectBinding === undefined) return;
       return { owner: options.owner, sessionId: options.sessionId, identity: { ...identity, projectBinding: identity.projectBinding } };
     },
@@ -76,5 +112,15 @@ export function createProgramDocumentLiveEndpoint(options: {
       if (!result.ok) return { ok: false, code: result.code, error: result.error, revision: result.state.revision };
       return { ok: true, changed: result.changed, revisionBefore, revisionAfter: result.state.revision, dirty: result.state.dirty };
     },
+    readVariable,
+    setVariable(input) {
+      const selected = readVariable(input); if (!selected.ok) return selected;
+      const source = sourceFor(input); if (!source.ok) return source;
+      const revisionBefore = options.session.getState().revision;
+      const result = options.controller.applyAgentVariableChange({ ...input, fieldDenials: source.fieldDenials });
+      if (!result.ok) return { ok: false, code: result.code, error: result.error, revision: result.state.revision };
+      return { ok: true, changed: result.changed, revisionBefore, revisionAfter: result.state.revision, dirty: result.state.dirty, changedFields: result.changedFields };
+    },
+    dispose: unsubscribe,
   };
 }

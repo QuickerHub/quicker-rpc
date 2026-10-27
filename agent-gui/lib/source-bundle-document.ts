@@ -32,6 +32,8 @@ export type SourceBundleDocument = Readonly<{
   pending: Readonly<{ status: "clean" | "pending"; comparedTo: "managed-native-checkpoint"; nativeState: "unobserved"; currentBodyHash: string; baselineBodyHash: string }>;
   capabilities: Readonly<{ read: true; preview: boolean; saveLocal: boolean; metadataWrite: false; nativeSync: "unobserved"; snapshotAuthorizesWrite: false }>;
   projection: Readonly<{ format: "quicker.editor-json.v1"; metadataEditable: false; [key: string]: unknown }>;
+  /** Optional on older codecs; absence or invalid provenance cannot grant live variable access. */
+  variableIdentity?: unknown;
   preview?: Readonly<{ sourceYaml: string; normalization: "unchanged-original" | "codec-normalized"; consumedSnapshot: string; consumedBodyHash: string }>;
   saveLocal?: Readonly<{ writtenFiles: readonly string[]; normalization: "unchanged-original" | "codec-normalized"; baselineAdvanced: false }>;
 }>;

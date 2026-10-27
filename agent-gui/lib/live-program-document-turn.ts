@@ -1,5 +1,6 @@
 import type { ChatMode } from "./chat-mode";
 import { findProgramStepTagMarkupHits } from "./program-step-tag";
+import { findProgramVariableTagMarkupHits } from "./program-variable-tag";
 import type { LiveProgramDocumentPin, LiveProgramDocumentRegistry, LiveProgramDocumentRegistryFailure, LiveProgramDocumentSelection, LiveProgramDocumentReceipt } from "./live-program-document";
 import { parseLiveProgramDocumentToolInput } from "./live-program-document-tool";
 import { formatLocalToolResult, type StructuredToolResult } from "./tool-result";
@@ -59,7 +60,7 @@ export function createLiveProgramDocumentTurn(options: {
         if (!previous) results.set(operationId, result);
         return result;
       }
-      const subject = receipt.action === "edit_step_inputs_live" ? "步骤参数" : "步骤备注";
+      const subject = receipt.action === "edit_variable_live" ? "变量" : receipt.action === "edit_step_inputs_live" ? "步骤参数" : "步骤备注";
       const summary = !receipt.ok ? receipt.error : receipt.action === "read_live" ? "已读取设计器当前文档，包含未保存修改。"
         : receipt.changed ? `已修改设计器中的${subject}，尚未保存。` : `${subject}无需修改，文档未变。`;
       const result = formatLocalToolResult(receipt, receipt.ok, receipt.ok ? undefined : receipt.error, { retryable: false, summary });
@@ -81,8 +82,8 @@ export function createLiveProgramDocumentTurn(options: {
       revoke("A new manual user message replaced the previous live turn");
       results.clear();
       owner = options.getRegistry();
-      const hits = findProgramStepTagMarkupHits(input.text);
-      const intent = hits.length > 0 || /<qkrpc-program-step\b/i.test(input.text);
+      const hits = [...findProgramStepTagMarkupHits(input.text), ...findProgramVariableTagMarkupHits(input.text)];
+      const intent = hits.length > 0 || /<qkrpc-program-(?:step|variable)\b/i.test(input.text);
       let selection: LiveProgramDocumentSelection = { state: "none" };
       if (intent) {
         const selected = hits.map(({ tag }) => pins.get(tag.tagId));

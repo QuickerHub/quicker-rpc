@@ -16,7 +16,7 @@ export type LiveProgramToolComposition = Readonly<{
 }>;
 
 const readOperations: ToolOperationConstraint = Object.freeze({ allowedActions: Object.freeze(["read_live"]) });
-const editOperations: ToolOperationConstraint = Object.freeze({ allowedActions: Object.freeze(["read_live", "edit_live", "edit_step_inputs_live"]) });
+const editOperations: ToolOperationConstraint = Object.freeze({ allowedActions: Object.freeze(["read_live", "edit_live", "edit_step_inputs_live", "edit_variable_live"]) });
 
 /** The renderer and server composition consume the same operation subset. */
 export function liveProgramOperationConstraint(mode: "read" | "edit"): ToolOperationConstraint {

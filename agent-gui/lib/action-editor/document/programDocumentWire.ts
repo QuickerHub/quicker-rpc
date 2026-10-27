@@ -309,6 +309,16 @@ function mergeBody(raw: RecordValue, before: RecordValue, after: RecordValue): R
     const defaults = ["default", "default.file", "defaultValue", "defaultValue.file", "defaultValueFile", "default_value", "DefaultValue"];
     const out = mergeRecord(native, known, row, new Set(defaults));
     if (!same(known.default, row.default) || !same(known["default.file"], row["default.file"])) {
+      const inlineAliases = ["default", "defaultValue", "DefaultValue", "default_value"].filter(key => Object.hasOwn(native, key));
+      const originalInline = inlineAliases.length === 1 && typeof native[inlineAliases[0]!] === "string"
+        && !["default.file", "defaultValue.file", "defaultValueFile", "DefaultValueFile"].some(key => Object.hasOwn(native, key));
+      // An existing explicit string keeps its original wire name, including an
+      // explicitly empty value when the typed inline editor omits that default.
+      if (originalInline && !Object.hasOwn(row, "default.file") && (typeof row.default === "string" || !Object.hasOwn(row, "default"))) {
+        out[inlineAliases[0]!] = typeof row.default === "string" ? row.default : "";
+        out.id = id;
+        return out;
+      }
       for (const key of defaults) delete out[key];
       const opaque = opaqueVariableDefaults(native);
       Object.assign(out, opaque);

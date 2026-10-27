@@ -420,6 +420,7 @@ export type VariableEditorProps = {
   onStepHighlightFilter?: (filterText: string) => void;
   /** When set (drawer mode), merged toolbar shows a vector close control. */
   onCloseDrawer?: () => void;
+  onPinVariableToChat?: (variableId: string) => void;
 };
 
 export default function VariableEditor({
@@ -436,6 +437,7 @@ export default function VariableEditor({
   onCommitVariables,
   onStepHighlightFilter,
   onCloseDrawer,
+  onPinVariableToChat,
 }: VariableEditorProps): JSX.Element {
   const [filterPaneVisible, setFilterPaneVisible] = useState(false);
   const [filterText, setFilterText] = useState("");
@@ -1222,8 +1224,8 @@ export default function VariableEditor({
                 ? "insert-after"
                 : "";
           return (
+            <div key={item.id} className="variable-row-container">
             <button
-              key={item.id}
               type="button"
               data-variable-id={item.id}
               className={`listbox-item variable-row ${isSelected ? "selected" : ""} ${lineClass}`}
@@ -1330,6 +1332,15 @@ export default function VariableEditor({
               </span>
               <span className="variable-row-meta">{actionVarTypeLabel(item.varType ?? 0)}</span>
             </button>
+            {isSelected && selectedIds.length === 1 && onPinVariableToChat ? <button type="button"
+              className="step-pin-to-chat variable-pin-to-chat" aria-label="添加变量到对话" title="添加到对话"
+              onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onClick={event => {
+                event.preventDefault(); event.stopPropagation();
+                if (!active || ownerRef.current !== owner || !flushVariableFormSync() || ownerRef.current !== owner) return;
+                onPinVariableToChat(item.id);
+              }}>＋对话</button> : null}
+            </div>
           );
         })}
       </div>

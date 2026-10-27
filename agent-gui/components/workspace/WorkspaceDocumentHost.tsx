@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { ProgramVariableTag } from "@/lib/program-variable-tag";
 import { createWorkspaceDocumentPresentation, type WorkspaceDocumentOwner } from "@/lib/workspace-document-instances";
 import { useWorkspaceExplorerEditor, type ExplorerFileTab } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerEditorPane } from "./WorkspaceExplorerEditorPane";
@@ -15,6 +16,7 @@ import type { LiveProgramDocumentPin, LiveProgramDocumentRegistry, LiveProgramDo
 export type WorkspaceDocumentChatPresentation = {
   threadId: string;
   pinStep: (tag: ProgramStepTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => void;
+  pinVariable?: (tag: ProgramVariableTag, pin?: LiveProgramDocumentPin | LiveProgramDocumentRegistryFailure) => void;
 };
 type Outlet = { element: HTMLElement; owner: WorkspaceDocumentOwner; chat: WorkspaceDocumentChatPresentation };
 type Host = { attach: (token: object, cwd: string, tab: ExplorerFileTab, element: HTMLElement, chat: WorkspaceDocumentChatPresentation) => () => void };
@@ -73,6 +75,14 @@ export function WorkspaceDocumentHost({ children, onLiveProgramDocumentRegistry 
     current.value.chat.pinStep(tag, pin);
   }, [documentInstances, presentation, liveDocuments]);
 
+  const pinVariable = useCallback((owner: WorkspaceDocumentOwner, tag: ProgramVariableTag) => {
+    const current = presentation.getCurrent();
+    if (!current || current.value.owner !== owner || !documentInstances.isCurrent(owner) || !current.value.chat.pinVariable) return false;
+    const pin = liveDocuments.pinVariable(owner, tag.tagId, { surface: tag.surface, variableId: tag.variableId }, current.value.chat.threadId);
+    current.value.chat.pinVariable(tag, pin);
+    return !("ok" in pin);
+  }, [documentInstances, presentation, liveDocuments]);
+
   return <WorkspaceDocumentHostContext.Provider value={host}><LiveProgramDocumentRegistryProvider value={liveDocuments}>
     {children}
     <div hidden inert ref={parkingRef} data-workspace-document-parking />
@@ -96,7 +106,7 @@ export function WorkspaceDocumentHost({ children, onLiveProgramDocumentRegistry 
           onSaveWorkspaceFile={(path, content) => path === owner.path ? saveDocumentFile(owner, content) : Promise.resolve({ ok: false, error: "文件实例路径不匹配" })}
           onSaveDocument={(request) => saveDocumentProgram(owner, request)}
           onRefreshTree={() => { void refreshDocumentFile(owner); }} onActionProjectSynced={() => refreshDocumentFile(owner)}
-          onPinStepToChat={(tag) => pinStep(owner, tag)} />
+          onPinStepToChat={(tag) => pinStep(owner, tag)} onPinVariableToChat={tag => pinVariable(owner, tag)} />
         </ManualTracePresentationProvider>
         </WorkspaceDocumentNavigationContext.Provider>
       </div>;

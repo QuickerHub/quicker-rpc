@@ -8,7 +8,7 @@ import { restrictComposedTools } from "./chat-tool-selection";
 import { applyToolModeGuards } from "./agent-tool-mode-guard";
 import { selectSubagentTools } from "./task-tool-capabilities";
 
-const client = tool({ inputSchema: z.object({ action: z.enum(["read_live", "edit_live", "edit_step_inputs_live"]) }) });
+const client = tool({ inputSchema: z.object({ action: z.enum(["read_live", "edit_live", "edit_step_inputs_live", "edit_variable_live"]) }) });
 const server = tool({ inputSchema: z.object({}), execute: async () => "server" });
 const unavailable: LiveProgramDocumentSelection = { state: "unavailable", code: "OWNER_CLOSED", error: "Owner closed", retryable: false };
 const ready = (mode: "read" | "edit"): LiveProgramDocumentSelection => ({ state: "ready", scope: {
@@ -27,7 +27,7 @@ test("ready and unavailable live intent both exclude disk/native aliases, Shell 
     assert.equal(result.tools.workspace_program, client);
     assert.equal(result.tools.workspace_program.execute, undefined);
     assert.deepEqual(result.clientReadonlyTools, ["workspace_program"]);
-    assert.deepEqual(result.operationConstraints.workspace_program?.allowedActions, selection.state === "ready" ? ["read_live", "edit_live", "edit_step_inputs_live"] : ["read_live"]);
+    assert.deepEqual(result.operationConstraints.workspace_program?.allowedActions, selection.state === "ready" ? ["read_live", "edit_live", "edit_step_inputs_live", "edit_variable_live"] : ["read_live"]);
   }
   assert.equal(selected.workspace_program, server, "composition cannot mutate the legacy registry");
 });
