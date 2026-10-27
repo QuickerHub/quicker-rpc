@@ -36,6 +36,19 @@ renderer 图拒绝 server/DB/Next 模块，backend 图拒绝 Next、`server-only
 单 writer lease；未指定时使用现有系统默认目录。显式 profile 不导入其它用户目录。
 一个服务进程持有一个 runtime，API 和 chat 共享同一 DB owner。
 
+服务入口在异步初始化前注册停止信号与 IPC 监听，并检查进入时已经断开的 IPC。
+Node 缓冲的 shutdown 消息先获得一次事件循环处理机会，再继续初始化；配置和 runtime
+加载后的取消检查阻止后续启动。如果 HTTP 启动已经进行，入口等待并保有返回的唯一
+service owner，再调用其原有 stop；取消后不报告 ready。重复停止共用这一条串行清理路径，
+启动和清理的真实错误继续导致非零退出。停止或失败后仅移除入口自己的监听并正常断开 IPC。
+纯生命周期回归随已有 `service/cli.test.ts` 进入离线检查。
+
+启动取消的生产验收须区分 Node 的消息缓冲与真实 disconnect：使用完整产物、目标 Node、
+明确的入口前或 listen 回调 gate，记录实际事件发出时的 listener 数、连接状态及产品监听
+注册顺序；单凭没有 ready 日志不能证明取消已处理。保持 ready10s、stop5s，输出排空使用
+实际进程退出与 stdout/stderr EOF；父侧主动断开 IPC 后，不能要求 ChildProcess.close
+一定再次出现。失败样本的额外正常信号清理单独记录，不计为原取消成功。
+
 默认 `electron:prepare` 也调用上述生产 builder，再暂存 portable Node、qkrpc、ripgrep
 及原发布配置并验证；不需要先重复运行 `pnpm build`。`electron:prepare:static` 是同一路径
 的显式别名。标准 Electron build、发布与 build preflight 均选择 static；prepare 只暂存

@@ -3,6 +3,7 @@ import { startAgentService } from "../lib/agent-service/start-service";
 import { configureAgentDataProfile } from "../lib/agent-data-profile.mjs";
 import { createStaticRendererHandler } from "../lib/agent-service/static-renderer";
 import { configureOwnedRuntimeEnvironment } from "./runtime-environment";
+import { runOwnedServiceStartup } from "./startup-lifecycle";
 
 async function main() {
   const options = parseAgentServiceOptions(process.argv.slice(2));
@@ -11,32 +12,33 @@ async function main() {
     return;
   }
   if (!process.env.NODE_ENV) Reflect.set(process.env, "NODE_ENV", "production");
-  const profile = configureAgentDataProfile(options.dataDir);
-  await configureOwnedRuntimeEnvironment(options.host, profile.directory);
-  const { loadProductionAgentRuntime } = await import("../lib/agent-service/production-runtime.server");
-  const service = await startAgentService({
-    ...options,
-    loadRuntime: loadProductionAgentRuntime,
-    serveRenderer: options.rendererDir ? createStaticRendererHandler(options.rendererDir) : undefined,
-    onError: (error) => console.error("[agent service]", error),
+  await runOwnedServiceStartup({
+    process,
+    async start(signal) {
+      signal.throwIfAborted();
+      const profile = configureAgentDataProfile(options.dataDir);
+      await configureOwnedRuntimeEnvironment(options.host, profile.directory);
+      signal.throwIfAborted();
+      const { loadProductionAgentRuntime } = await import("../lib/agent-service/production-runtime.server");
+      signal.throwIfAborted();
+      // The lifecycle must retain a late owner before checking cancellation again.
+      return startAgentService({
+        ...options,
+        loadRuntime: loadProductionAgentRuntime,
+        serveRenderer: options.rendererDir ? createStaticRendererHandler(options.rendererDir) : undefined,
+        onError: (error) => console.error("[agent service]", error),
+      });
+    },
+    onReady(service) {
+      process.env.PORT = String(service.address.port);
+      process.env.HOSTNAME = options.host;
+      console.log(JSON.stringify({ event: "agent-service-ready", origin: service.origin, protocolVersion: 1, capabilities: ["chat", "http-api", ...(options.rendererDir ? ["renderer"] : [])] }));
+    },
   });
-  process.env.PORT = String(service.address.port);
-  process.env.HOSTNAME = options.host;
-  console.log(JSON.stringify({ event: "agent-service-ready", origin: service.origin, protocolVersion: 1, capabilities: ["chat", "http-api", ...(options.rendererDir ? ["renderer"] : [])] }));
-  const shutdown = () => {
-    void service.stop().then(() => { if (process.connected) process.disconnect(); }).catch((error: unknown) => {
-      console.error("[agent service shutdown]", error);
-      if (error instanceof AggregateError) for (const cause of error.errors) console.error("[cleanup cause]", cause);
-      process.exitCode = 1;
-    });
-  };
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
-  if (process.send) process.on("message", (message) => { if (message === "shutdown") shutdown(); });
-  if (process.send) process.once("disconnect", shutdown);
 }
 
 void main().catch((error: unknown) => {
-  console.error("[agent service startup]", error);
+  console.error("[agent service lifecycle]", error);
+  if (error instanceof AggregateError) for (const cause of error.errors) console.error("[cleanup cause]", cause);
   process.exitCode = 1;
 });
