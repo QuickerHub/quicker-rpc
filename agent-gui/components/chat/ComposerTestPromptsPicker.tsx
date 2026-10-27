@@ -13,6 +13,7 @@ const MENU_WIDTH_PX = 380;
 const MENU_MAX_HEIGHT_PX = 420;
 
 type ComposerTestPromptsPickerProps = {
+  active?: boolean;
   disabled?: boolean;
   onSendPrompt: (text: string) => void;
 };
@@ -45,6 +46,7 @@ function IconTestPrompts() {
 }
 
 export function ComposerTestPromptsPicker({
+  active = true,
   disabled,
   onSendPrompt,
 }: ComposerTestPromptsPickerProps) {
@@ -56,6 +58,8 @@ export function ComposerTestPromptsPicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useMountedAriaControlsId();
+
+  useLayoutEffect(() => { if (!active) setOpen(false); }, [active]);
 
   const updatePanelLayout = useCallback(() => {
     const button = triggerRef.current;
@@ -71,7 +75,7 @@ export function ComposerTestPromptsPicker({
   }, []);
 
   useLayoutEffect(() => {
-    if (!open) {
+    if (!open || !active) {
       setPanelLayout(null);
       return;
     }
@@ -82,10 +86,10 @@ export function ComposerTestPromptsPicker({
       window.removeEventListener("resize", updatePanelLayout);
       window.removeEventListener("scroll", updatePanelLayout, true);
     };
-  }, [open, updatePanelLayout]);
+  }, [open, active, updatePanelLayout]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !active) return;
     const onDoc = (e: MouseEvent) => {
       const target = e.target as Node;
       if (rootRef.current?.contains(target)) return;
@@ -94,9 +98,10 @@ export function ComposerTestPromptsPicker({
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  }, [open, active]);
 
   const pick = (example: TitleTestExample) => {
+    if (!active) return;
     const text = resolveSendText(example).trim();
     if (!text) return;
     setOpen(false);
@@ -104,7 +109,7 @@ export function ComposerTestPromptsPicker({
   };
 
   const panel =
-    open && panelLayout ? (
+    active && open && panelLayout ? (
       <div
         ref={panelRef}
         id={panelId}

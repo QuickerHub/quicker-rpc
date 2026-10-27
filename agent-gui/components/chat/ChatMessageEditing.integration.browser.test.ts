@@ -40,7 +40,7 @@ test("production ChatPanel, composer, SDK session and confirmation branch throug
     "./ContextUsage": "export function ContextUsage(){return null}",
   };
   const compiled = await build({ stdin: { contents: fixture, loader: "tsx", resolveDir: process.cwd() },
-    bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
+    bundle: true, write: false, outfile: "chat-message-editing-fixture.js", format: "iife", platform: "browser", jsx: "automatic",
     tsconfig: path.join(process.cwd(), "tsconfig.json"), define: { "process.env.NODE_ENV": '"development"', "process.env": "{}" },
     plugins: [{ name: "generated-chat-fixture", setup(builder) {
       builder.onLoad({ filter: /[\\/]components[\\/]chat[\\/]Chat\.tsx$/ }, async (args) => ({
@@ -76,8 +76,10 @@ test("production ChatPanel, composer, SDK session and confirmation branch throug
         await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, commands: [], agents: [], skills: [], items: [], designers: [] }) });
       }
     });
-    await page.goto("http://chat.fixture/");
-    await page.addScriptTag({ content: compiled.outputFiles[0]!.text });
+    await page.goto("http://localhost/");
+    assert.equal(await page.evaluate(() => isSecureContext && typeof crypto.randomUUID === "function"), true,
+      "The production SDK creates message IDs on the application's secure loopback origin");
+    await page.addScriptTag({ content: compiled.outputFiles.find(file => file.path.endsWith(".js"))!.text });
     const panel = (id: string) => page.locator(`[data-panel="${id}"]`);
     const input = (id: string) => panel(id).locator('footer [contenteditable="true"]');
     await panel("a").locator('[data-message-id="a-u2"]').click();

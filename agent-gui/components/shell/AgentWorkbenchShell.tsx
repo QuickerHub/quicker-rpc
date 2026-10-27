@@ -42,6 +42,7 @@ export interface AgentConversationFrameProps {
   className?: string;
   style?: CSSProperties;
   visible: boolean;
+  chatVisible?: boolean;
   frameRef: Ref<HTMLDivElement>;
   mainBodyRef: Ref<HTMLDivElement>;
   chatColumnRef: Ref<HTMLDivElement>;
@@ -58,6 +59,7 @@ export function AgentConversationFrame({
   className,
   style,
   visible,
+  chatVisible = visible,
   frameRef,
   mainBodyRef,
   chatColumnRef,
@@ -80,13 +82,13 @@ export function AgentConversationFrame({
       aria-hidden={visible ? undefined : true}
     >
       <div className="app-main-split-header">
-        <div className="app-main-split-header__chat">{header}</div>
+        <div className="app-main-split-header__chat" hidden={!chatVisible} inert={!chatVisible}>{header}</div>
         {dockHeader != null ? (
           <div className="app-main-split-header__side">{dockHeader}</div>
         ) : null}
       </div>
       <div ref={mainBodyRef} className="app-main-body">
-        <div ref={chatColumnRef} className="app-main-chat-column">
+        <div ref={chatColumnRef} className="app-main-chat-column" hidden={!chatVisible} inert={!chatVisible}>
           {messages}
           {approval}
           {composer}

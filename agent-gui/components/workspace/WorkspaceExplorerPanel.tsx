@@ -42,13 +42,17 @@ export function WorkspaceExplorerPanel({ chatPresentation }: { chatPresentation:
       if (!splitHost) return;
 
       const startX = e.clientX;
-      const startChatWidth = chatColumnWidth;
+      const startChatWidth = splitHost.querySelector<HTMLElement>(".app-main-chat-column")?.getBoundingClientRect().width;
+      if (!startChatWidth) return;
       let latestChatWidth = startChatWidth;
+      let moved = false;
       document.body.classList.add("workspace-explorer-resizing");
 
       const onMove = (ev: PointerEvent) => {
         const containerWidth = splitHost.getBoundingClientRect().width;
         if (containerWidth <= 0) return;
+        if (!moved && ev.clientX === startX) return;
+        moved = true;
         latestChatWidth = startChatWidth + (ev.clientX - startX);
         setChatColumnWidth(latestChatWidth, containerWidth, false);
         dispatchWorkspaceLayoutResize();
@@ -60,8 +64,10 @@ export function WorkspaceExplorerPanel({ chatPresentation }: { chatPresentation:
         document.removeEventListener("pointermove", onMove);
         document.removeEventListener("pointerup", onUp);
         const containerWidth = splitHost.getBoundingClientRect().width;
-        if (containerWidth > 0) {
+        if (containerWidth > 0 && moved && latestChatWidth !== startChatWidth) {
           storeChatColumnWidth(latestChatWidth, containerWidth);
+        } else if (containerWidth > 0 && moved) {
+          setChatColumnWidth(chatColumnWidth, containerWidth, false);
         }
       };
 

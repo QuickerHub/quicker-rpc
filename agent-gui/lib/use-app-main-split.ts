@@ -2,12 +2,12 @@
 
 import {
   useLayoutEffect,
-  useRef,
+  useState,
   type CSSProperties,
   type RefObject,
 } from "react";
 import {
-  adaptChatColumnWidthForContainer,
+  CHAT_MAIN_MIN_WIDTH,
   clampChatColumnWidth,
   defaultChatColumnWidth,
   loadChatColumnWidth,
@@ -15,70 +15,53 @@ import {
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
 
-/** Pin chat column width; adapt proportionally on shrink, cap growth on expand. */
+export const WORKSPACE_SINGLE_PANE_WIDTH = 760;
+// Catalog (240), variable drawer (280), its inset (24), and panel padding/borders.
+export const WORKSPACE_MIN_SPLIT_WIDTH = 560;
+
+/** Keep the user's wide preference; constrain only the current presentation. */
 export function useAppMainSplit(
   measureRef: RefObject<HTMLElement | null>,
   panelOpen: boolean,
-): CSSProperties | undefined {
+): { style: CSSProperties | undefined; workspaceOnly: boolean } {
   const { chatColumnWidth, setChatColumnWidth } = useWorkspaceExplorerShell();
-  const chatColumnWidthRef = useRef(chatColumnWidth);
-  chatColumnWidthRef.current = chatColumnWidth;
-  const containerWidthRef = useRef<number | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   useLayoutEffect(() => {
     const el = measureRef.current;
     if (!el || !panelOpen) return;
 
-    const sync = (persistDefault: boolean) => {
-      const containerWidth = el.getBoundingClientRect().width;
-      if (containerWidth <= 0) return;
-
-      const prevContainer = containerWidthRef.current;
-      const prevChat = chatColumnWidthRef.current;
-
-      if (prevChat == null) {
-        const stored = loadChatColumnWidth();
-        const next =
-          stored != null
-            ? clampChatColumnWidth(stored, containerWidth)
-            : defaultChatColumnWidth(containerWidth);
-        containerWidthRef.current = containerWidth;
-        setChatColumnWidth(next, containerWidth, persistDefault && stored == null);
-        dispatchWorkspaceLayoutResize();
-        return;
-      }
-
-      let nextChat = prevChat;
-      if (prevContainer != null && prevContainer > 0 && prevContainer !== containerWidth) {
-        nextChat = adaptChatColumnWidthForContainer(
-          prevChat,
-          prevContainer,
-          containerWidth,
-        );
-      } else {
-        nextChat = clampChatColumnWidth(prevChat, containerWidth);
-      }
-
-      containerWidthRef.current = containerWidth;
-      if (nextChat !== prevChat) {
-        setChatColumnWidth(nextChat, containerWidth, false);
-      }
-      if (nextChat !== prevChat || prevContainer !== containerWidth) {
-        dispatchWorkspaceLayoutResize();
-      }
+    const sync = () => {
+      const width = el.getBoundingClientRect().width;
+      if (width > 0) setContainerWidth(width);
     };
 
-    sync(true);
-    const observer = new ResizeObserver(() => sync(false));
+    sync();
+    const observer = new ResizeObserver(sync);
     observer.observe(el);
     return () => {
       observer.disconnect();
-      containerWidthRef.current = null;
     };
-  }, [measureRef, panelOpen, setChatColumnWidth]);
+  }, [measureRef, panelOpen]);
 
-  if (!panelOpen || chatColumnWidth == null) return undefined;
-  return {
-    "--app-main-chat-width": `${chatColumnWidth}px`,
-  } as CSSProperties;
+  const workspaceOnly = panelOpen && containerWidth > 0 && (
+    containerWidth < WORKSPACE_SINGLE_PANE_WIDTH
+    || containerWidth < CHAT_MAIN_MIN_WIDTH + WORKSPACE_MIN_SPLIT_WIDTH
+  );
+  useLayoutEffect(() => {
+    if (!panelOpen || !containerWidth || workspaceOnly || chatColumnWidth != null) return;
+    const stored = loadChatColumnWidth();
+    setChatColumnWidth(stored ?? defaultChatColumnWidth(containerWidth), containerWidth, stored == null);
+  }, [panelOpen, containerWidth, workspaceOnly, chatColumnWidth, setChatColumnWidth]);
+
+  const presentedChatWidth = Math.min(
+    clampChatColumnWidth(chatColumnWidth ?? defaultChatColumnWidth(containerWidth), containerWidth),
+    Math.max(CHAT_MAIN_MIN_WIDTH, containerWidth - WORKSPACE_MIN_SPLIT_WIDTH),
+  );
+  useLayoutEffect(() => {
+    if (panelOpen && measureRef.current?.getBoundingClientRect().width) dispatchWorkspaceLayoutResize();
+  }, [measureRef, panelOpen, workspaceOnly, containerWidth, presentedChatWidth]);
+  return { workspaceOnly, style: !panelOpen || workspaceOnly || !containerWidth ? undefined : {
+    "--app-main-chat-width": `${presentedChatWidth}px`,
+  } as CSSProperties };
 }

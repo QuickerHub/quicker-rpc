@@ -42,6 +42,7 @@ import { ContextUsage } from "./ContextUsage";
 const EMPTY_DRAFT_TAG_IDS = new Set<string>();
 
 export type ChatComposerFooterHandle = {
+  beginMessageEdit: (text: string) => void;
   focus: () => void;
   focusAtEnd: () => void;
   getValue: () => string;
@@ -126,6 +127,8 @@ const ChatComposerFooterInner = forwardRef<
   ref,
 ) {
   const composerRef = useRef<ComposerMarkupFieldHandle>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const [draftMessage, setDraftMessage] = useState("");
 
   const handleDraftChange = useCallback(
@@ -165,21 +168,26 @@ const ChatComposerFooterInner = forwardRef<
 
   const insertDraftActionTag = useCallback((action: PinnedAction) => {
     composerRef.current?.insertActionTag(action);
-    requestAnimationFrame(() => composerRef.current?.focus());
+    requestAnimationFrame(() => { if (activeRef.current) composerRef.current?.focus(); });
   }, []);
 
   useImperativeHandle(
     ref,
     () => ({
-      focus: () => composerRef.current?.focus(),
-      focusAtEnd: () => composerRef.current?.focusAtEnd(),
+      beginMessageEdit: (text: string) => {
+        setDraftMessage(text);
+        if (editAnchorMessageId) onEditAnchorDraftChange?.(text);
+        composerRef.current?.beginMessageEdit(text);
+      },
+      focus: () => { if (activeRef.current) composerRef.current?.focus(); },
+      focusAtEnd: () => { if (activeRef.current) composerRef.current?.focusAtEnd(); },
       getValue: () => composerRef.current?.getValue() ?? draftMessage,
       setValue: (text: string) => {
         setDraftMessage(text);
         if (editAnchorMessageId) {
           onEditAnchorDraftChange?.(text);
         }
-        requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+        requestAnimationFrame(() => { if (activeRef.current) composerRef.current?.focusAtEnd(); });
       },
       clear: () => {
         setDraftMessage("");
@@ -195,11 +203,11 @@ const ChatComposerFooterInner = forwardRef<
       },
       insertProgramStepTag: (tag: ProgramStepTag) => {
         composerRef.current?.insertProgramStepTag(tag);
-        requestAnimationFrame(() => composerRef.current?.focus());
+        requestAnimationFrame(() => { if (activeRef.current) composerRef.current?.focus(); });
       },
       insertProgramVariableTag: (tag: ProgramVariableTag) => {
         composerRef.current?.insertProgramVariableTag(tag);
-        requestAnimationFrame(() => composerRef.current?.focus());
+        requestAnimationFrame(() => { if (activeRef.current) composerRef.current?.focus(); });
       },
       insertMentionTrigger: () => {
         composerRef.current?.insertMentionTrigger();
@@ -259,12 +267,13 @@ const ChatComposerFooterInner = forwardRef<
         className="composer-form"
         onSubmit={(e) => {
           e.preventDefault();
-          onSubmit();
+          if (activeRef.current) onSubmit();
         }}
       >
         <div className="composer-box">
           <div className="composer-surface">
             <ComposerMarkupField
+              active={active}
               ref={composerRef}
               value={draftMessage}
               workingDirectory={workingDirectory}
@@ -315,6 +324,7 @@ const ChatComposerFooterInner = forwardRef<
                 ) : null}
                 {devExperienceEnabled && !designerEmbed ? (
                   <ComposerTestPromptsPicker
+                    active={active}
                     onSendPrompt={onSendTestPrompt}
                   />
                 ) : null}
