@@ -1,6 +1,7 @@
 import type { ToolSet } from "ai";
 import { TASK_TOOL } from "@/lib/task-tool-constants";
 import { pickEnabledTools } from "@/lib/tool-registry";
+import { bindCurrentToolCatalog } from "./current-tool-catalog";
 
 export type TaskParentCapabilities = {
   toolCallId?: string;
@@ -19,5 +20,5 @@ export function selectSubagentTools(
   // client definition with a similarly named server/disk tool from a registry.
   const inherited = Object.fromEntries(Object.entries(parentTools)
     .filter(([id, definition]) => id !== TASK_TOOL && typeof definition.execute === "function"));
-  return pickEnabledTools(inherited, allowedToolIds);
+  return bindCurrentToolCatalog(pickEnabledTools(inherited, allowedToolIds));
 }

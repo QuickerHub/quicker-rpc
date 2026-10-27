@@ -3,6 +3,7 @@ import "server-only";
 import { tool } from "ai";
 import { z } from "zod";
 import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
+import { currentToolCatalogForExecution } from "./current-tool-catalog";
 import {
   executeListToolsTool,
   LIST_TOOLS_TOOL,
@@ -20,8 +21,8 @@ export const LIST_TOOLS_TOOL_DEF = tool({
   description:
     "Tool catalog (like skill index). action=bundles lists categorized packs; "
     + "action=bundle bundleId loads full schemas for a pack; action=get toolId for one tool; "
-    + "action=routing for full intent table; action=index for flat catalog. "
-    + "Core + auto-loaded packs already have full schemas — use this for layout/browser/delete/dev packs.",
+    + "action=routing for current operation constraints; action=index for the current execution catalog. "
+    + "Only this turn or subagent's selected tools are discoverable. Schema fields are not permission: obey the reported mode/operation constraints and runtime checks.",
   inputSchema: z.object({
     action: listToolsActionSchema.describe(
       "bundles | bundle | get | routing | index",
@@ -34,6 +35,7 @@ export const LIST_TOOLS_TOOL_DEF = tool({
       .enum([
         "core",
         "action_authoring",
+        "action_authoring_extended",
         "action_layout",
         "browser",
         "settings",
@@ -44,11 +46,11 @@ export const LIST_TOOLS_TOOL_DEF = tool({
       .optional()
       .describe("Required for bundle — pack id from action=bundles"),
   }),
-  execute: async (input) =>
+  execute: async (input, options) =>
     formatToolResultForAgent(
       LIST_TOOLS_TOOL,
       input,
-      await executeListToolsTool(input),
+      await executeListToolsTool(input, currentToolCatalogForExecution(options)),
     ),
 });
 

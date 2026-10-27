@@ -1,4 +1,5 @@
 import "server-only";
+import { bindCurrentToolCatalog } from "../current-tool-catalog";
 import { formatMcpGuidanceForTools } from "@/lib/agent-mcp/guidance";
 
 import type { LanguageModel, ToolSet } from "ai";
@@ -162,10 +163,13 @@ export async function prepareAgentTurnRuntime(params: {
         toolIds => formatMcpGuidanceForTools("catalogs" in mcp ? mcp.catalogs : [], toolIds),
       );
     }
-    fullTools = applyToolCallPolicies(
+    fullTools = bindCurrentToolCatalog(applyToolCallPolicies(
       guardedTools,
       mcp.callPolicyOverrides,
-    );
+    ), { mode: request.chatMode,
+      readOnlyExecutorToolIds: [...Object.keys(readOnlyExecutors).filter(id => typeof readOnlyExecutors[id] === "function"), ...liveComposition.clientReadonlyTools],
+      operationConstraints: liveComposition.operationConstraints,
+    });
     const enabledRuntimeToolIds = Object.keys(fullTools);
     const turnPlan = resolveTurnPlan({
       actionScope: scope.actionScope,
