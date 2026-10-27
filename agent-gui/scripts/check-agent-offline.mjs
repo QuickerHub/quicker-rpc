@@ -177,6 +177,7 @@ const tests = [
   "lib/designer-resource-action-open.server.test.ts",
   "lib/action-editor/shared/faIconPickerSearch.test.ts",
   "lib/action-editor/shared/iconColorUtils.test.ts",
+  "lib/action-editor/shared/resIconCatalog.test.ts",
   "lib/fa-icon-cache.test.ts",
   "lib/icon-color.test.ts",
   "lib/fa-icon-color-render.test.ts",

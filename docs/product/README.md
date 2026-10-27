@@ -74,7 +74,8 @@ Explorer 已接有效 `program.source.yaml` bundle 的可视编辑：实际 C# c
 身份文件，当前宿主状态明确未核验。普通 Save 只按完整源码快照写本地，重开从 checkpoint
 计算待同步；显式 Sync 复用原 dry-run 和一次提交，保留部分成功及未知收据。隐藏文件实例
 仍持有 owner，普通文件工具与 source save 不能绕过它。YAML 预览、根 metadata 和外置资源
-只读；源码变量已支持本轮私有授权，源码步骤 pin 与 Agent Save/Sync 尚未开放。真实
+只读；源码变量及 codec 证明的既有步骤已支持本轮私有授权，步骤限备注和当前原生契约
+支持的既有普通输入，Agent Save/Sync 尚未开放。真实
 codec、生产 workspace API 和隔离浏览器回归已覆盖本地编辑链；本机专用 V1 动作的 GUI
 单次 Sync、独立读回与恢复已验收，V2 写回及更广宿主场景仍待验证。见
 [源码包文档协议](../authoring/source-bundle-document.md)。
@@ -224,9 +225,15 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 此本地组合使用源码 `f6fafbed` 的生产 runtime/ASAR 与正式 0.15.1 Electron 工具；不是公开
 安装器完整副本，也未执行 NSIS 或用户升级。此前并发 cold terminal 重复 spawn/503 的失败记录保留。
 当前源码的启动修复（`f4705887`）已实现同目标/owner 共享一次启动、独立等待者取消；stop 先取消并等待启动任务，再仅回收 retained child。
-生产 Node 服务与真实 Node 子进程中的 health/IPC 协议替身已验证并发、归属和 IPC 退出；替身不是生产
-terminal server/node-pty。真实 PTY/终端 UI 和包含本修复的新安装包仍待验收，不将正常退出或启动机制回归
-写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
+生产 Node 服务与真实 Node 子进程中的 health/IPC 协议替身先验证了并发、归属和 IPC 退出；
+候选 `5cb886a9` 另以完整编译产物 `service.mjs`、同一 Node 22.23.4 与产物内 node-pty 1.1.0
+完成真实 PTY 验收：六个并发请求只启动同 owner 的一个 runtime，WS 输出确认 shell PID/cwd，
+resize 到 120×36；shell 自然退出与 onExit 均为 0，dispose 不再派生该 PID 的 kill/helper，
+stderr 排空后仍为空。IPC stop 与所属进程清理在原预算内完成，全部 34 个观察进程退出，
+Job 在观察器关闭其句柄前清空，无强制回收；部分 pool shell/辅助进程的非零退出保留，不记为全部退出 0。
+构建 wrapper 在产出完整 app 后因 PATH 缺少 git 的元数据步骤退出 1，未记录的 builder
+退出码不补为 0；运行收据不代替构建成功。终端 UI、包含修复的新安装包、Electron 组合和
+R2 提前断连仍待验收，不写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
 标准 `build` / `start` / `electron:prepare` 和发布入口默认 static，运行目录不含 Next；Next
 移至开发依赖，继续服务 HMR 与显式 `legacy-next` 构建/暂存/启动。删除该兼容分支仍受上述
 完整验收门槛约束，不把默认入口切换记作 A4 完成。见 [运行清单](../engineering/static-agent-runtime.md)。
@@ -242,16 +249,16 @@ terminal server/node-pty。真实 PTY/终端 UI 和包含本修复的新安装�
 |---|---|---|
 | 当前定义读取 | Agent 查询实际连接的模块定义；移除无来源的长期结果缓存和阻断重新发现的固定模块策略，保留通用工具预算 | Node、Console/serve/MCP 与 V1/V2 后端读取路径已合入，移除永久目录与结果复用；跨 turn/同 turn 更新、先空后有、移除模块、定义变化、精确控制值及失败回归通过。174 V1 的 9 次真实 Node 只读调用均保留来源与绑定；174 已在官方 V2 2.3.20 验证 Agent/UI 模块定义、重复读取与三个原生输入契约，缺失模块仍明确不可用 |
 | Provider 与来源 | 复用 native schema、MCP 自描述和实际 codec，返回来源/host-session/格式/内容指纹；未知来源不标 live | Agent 与 UI detail 均由同次 provider 读取附加 knowledge，各用自己的格式与投影指纹；Runtime 写入实际 owner，Node 核对模块、精确控制值和绑定身份后交给参数弹窗。区分 runtime-definition、bundled-adapter 和 unknown，保留原生 HelpLink；内置引用另标 bundled-fallback 与包版本/索引指纹。原 schema 数值/日期文本保持不变，来源不授予编辑或宿主写权限 |
-| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。StepRunner 超限投影保留有界来源和定向读取输入；同一 get 的 read 在 Console 原文上按 JSON Pointer 返回子节点目录或 JSON 文本页，原始数值 token 不经 JS Number，每页重新读取并核验 owner/控制值/来源/格式/revision/正文观测。模型与历史完整标记只覆盖实际取得的内容，unknown 不补证明；连接只读、不新增 artifact/cache 或权限。UI 目录/详情不复用已完成结果，弹窗打开/恢复重新取原生 get-ui；metadata-only 刷新保留人工草稿、撤销与外置文件待写实例，失败/加载/迟到结果不展示旧来源。MCP 已按 turn 完整分页并序列化 schema；完整统一查询与真实升级验收继续 |
+| 统一查询与失效 | Agent/Designer 按用途消费同一来源；目标、schema、MCP tools 变化时失效，无可核验 revision 时重新读 | 后端每读当前 owner 与模块定义；指纹不单独证明 freshness。StepRunner 超限投影保留有界来源和定向读取输入；同一 get 的 read 在 Console 原文上按 JSON Pointer 返回子节点目录或 JSON 文本页，原始数值 token 不经 JS Number，每页重新读取并核验 owner/控制值/来源/格式/revision/正文观测。模型与历史完整标记只覆盖实际取得的内容，unknown 不补证明；连接只读、不新增 artifact/cache 或权限。UI 目录/详情不复用已完成结果，弹窗打开/恢复重新取原生 get-ui；metadata-only 刷新保留人工草稿、撤销与外置文件待写实例，失败/加载/迟到结果不展示旧来源。MCP 已按 turn 完整分页并序列化 schema；父/子工具目录使用各自最终定义，模型 schema 精简保留实际工具的完整描述，缺失描述保持 unknown，不从全局注册表补语义。完整统一查询与真实升级验收继续 |
 | codec 与文档 | YAML 知识对应实际 codec profile；原生 HelpLink、官方正文和内置指南记录来源/适用范围，冲突可见 | 本地 guide 提供实际 codec 格式/实现 descriptor 与 bundled 文档内容指纹，原生能力保持 unknown；离线查询先于宿主选择派发。Node Docs 默认每次读当前本地资料；显式 `get(program-source, source=gateway)` 固定本次 gateway/CLI 查询实际 codec 与指南，不启动宿主或失败换源。模型超限保留有界 metadata，原始结果可在工具详情与既有 Docs 面板查看；同名主题按来源隔离，旧/缺失 metadata 为 unknown，失败为 unavailable。网站 corpus 核验实际文件字节并保留抓取时间；这些知识均不替代当前原生模块定义，完整统一查询与真实升级验收仍待完成 |
 | 技能内容刷新 | 下一次 prompt 或按需查询反映当前技能内容与可用目录，不以文件时间戳代表 revision | essentials、完整预加载、按需正文和定义发现不再跨调用复用 max-mtime 缓存；删除工作区覆写后可按原优先级重新发现下层定义。默认 essentials 的 bundled 来源、full/按需发现顺序与可选 tier 回退保持原样；主/子 Agent 的两种 prompt 模式、同时间戳改写、目录增删与迟到读取已通过隔离回归和独立审查；不新增原生 capability 或跨文件快照保证 |
 
 固定宿主 build 的 PE/IL 审计只作兼容问题证据。未实现或来源不明的 source 写入继续关闭，
 不能用 knowledge 获取成功或反编译字段映射替代真实保存语义。
 
-本轮按用户要求收敛为一个可用候选：合入已冻结的 UI 参数页签、知识刷新、codec/文档来源
+0.15.0 发布批次曾按用户要求收敛为一个可用候选：合入已冻结的 UI 参数页签、知识刷新、codec/文档来源
 及其必要修复后，执行组合 CI、真实界面、本机 V1 动作读写与局域网 V2 只读验证。
-V2 完整 source 保存、超大 schema 定向读取和后续通信协议不在本轮扩展范围；验证并交付后
+V2 完整 source 保存、超大 schema 定向读取和后续通信协议当时不在该批扩展范围；验证并交付后
 停止自动追加开发。174 已完成本机安装、V1 YAML 保存/读回/原生正文恢复及局域网 V2 只读验收，主线七项 CI 全部通过。随后已正式发布 0.15.0（插件 0.15.0.0），双宿主依赖包、Agent 安装包及下载入口已同步，官方 V2 2.3.20 已验证加载正式 DLL 与三个原生输入契约。发布结果见 [v0.15.0 Release](https://github.com/QuickerHub/quicker-rpc/releases/tag/v0.15.0)。恢复长期目标后的首批修复针对文档读取的固定意图拦截和模型浮层的键盘操作；不修改已发布制品，V2 source 与其余未完成项继续保留原验收门槛。
 
 #### 统一 RPC 与动作设计器：当前主线
@@ -275,7 +282,7 @@ Agent 变量授权、Save/Sync、V2 source 写回和通信优化继续保留各�
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。ResourcePane 已接两类绑定目录的筛选、分页、只读选择和刷新；V1 组合动作（已知 XAction）打开复用完整绑定的本地项目或导出到空目录，通过原文件实例入口打开，已有草稿/undo、迟到及未知收据已有 fixture/DOM 回归。169 已验收已有项目复用/重复 UUID/错误 owner 拒绝（HTTP，文件 hash 未变、未执行动作），首次导出及 native GUI 点击仍待验收。全局子程序调用插入/拖放已复用模块参数表单，调用及新变量单事务/undo、未blur草稿和跨文档晚确认已有真实 DOM 回归；动作引用插入/拖放也已接原生 sys:runAction/StartAction 映射、绑定 schema 与同一事务，39 项真实 DOM 及迟到请求不抢快速插入草稿的 13 场景通过；两个调用链原生 GUI 验收、V2/子程序打开、必要资源操作、完整属性与 host session 接线仍待迁移，A1 未完成 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 source adapter、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已有离线回归；候选 CLI 的真实 V2 发现/绑定已验证，但 2.3.20 source 仍关闭，待稳定原文 owner/Designer 保护/提交收据后再接真实读写；重启和完整打包仍待验收 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。主动作“+对话”私有 pin 已授权本轮备注与契约支持的既有普通输入编辑，复用原 APDE revision/history；真实 SDK、隔离完整 SPA、单次撤销和停止隔离已验证。Ask 只读，停止后保留已应用回执且迟到调用不重放；无文件/宿主写入。内部子程序页签已接同一根文档的私有 pin，完整原文定位、外部缓存拒绝及跨编辑面重复 ID 拒绝已有 12 项真实 DOM 与 1 项编译检查的组合回归；主/嵌套及 source 既有变量已通过 read_live(variableFor) → edit_variable_live 接入同一 Session/history，受本轮私有授权、实际读取回执、revision 和来源证明约束。其余变量能力、完整参数模式、属性、外置文件、Agent Save/Sync、多宿主与完整人工/Agent 交错仍未完成 |
-| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 默认生产 build/start/prepare/发布已切静态 React/Node，Next 为开发依赖与显式 legacy；会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后才删除兼容分支。现有 API、资源/native/真实子进程与隔离 Electron 打包启动已验证；现有关闭入口两轮正常退出已验证，四角色0、所属进程/监听先于Job dispose清空，无强制回收。当前 cold terminal 源码已实现同目标/owner 共享启动、独立等待者取消、stop 取消并等待启动后仅回收 retained child；生产 Node 服务与真实 Node 协议替身的并发/归属/IPC 退出已验证，历史重复 spawn/503 失败记录保留；真实 PTY/终端 UI 和包含本修复的新安装包仍待验收。NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
+| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 默认生产 build/start/prepare/发布已切静态 React/Node，Next 为开发依赖与显式 legacy；会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后才删除兼容分支。现有 API、资源/native/真实子进程与隔离 Electron 打包启动已验证；现有关闭入口两轮正常退出已验证，四角色0、所属进程/监听先于Job dispose清空，无强制回收。当前 cold terminal 源码已实现同目标/owner 共享启动、独立等待者取消、stop 取消并等待启动后仅回收 retained child；生产 Node 服务与真实 Node 协议替身的并发/归属/IPC 退出已验证，历史重复 spawn/503 失败记录保留。候选 5cb886a9 的完整编译产物另已验证单 owner 并发启动、真实 PTY 输入输出/resize、shell 自然退出、dispose 不再派生退出后 helper 及所属进程清理；构建 wrapper 元数据步骤退出 1 与部分辅助进程非零状态保留，未写成构建或全部进程退出 0。终端 UI、包含本修复的新安装包和新的 Electron 组合仍待验收。NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
 
 首个实现切片是 A0 的最小身份/能力契约与 A1 的可运行设计器迁移并行推进；真实宿主写入
@@ -313,8 +320,9 @@ prepare 与发布已使用静态 React、独立 Node 和薄 Electron；Next 仅�
 legacy 入口。V2 source adapter 和宿主多实例绑定已有离线集成及编译证据；真实 V2 source
 写回仍关闭。V1 专用动作已验收 source 连续写回、重读、冲突和部分 checkpoint 恢复；
 source Designer 已接同一 Session、本地 Save、pending 重开及单次原生 Sync/恢复。
-Agent 已支持主/嵌套步骤和既有变量的本轮私有授权，源码步骤 pin 与 Agent Save/Sync
-仍未开放。确定性模型 SDK 与隔离完整 SPA 验证了受支持编辑和撤销；真实双宿主、
+Agent 已支持主/嵌套步骤和既有变量的本轮私有授权，源码步骤也已按实际 codec 原行证明
+接入备注与原生契约支持的既有普通输入，Agent Save/Sync 仍未开放。确定性模型 SDK 与
+隔离完整 SPA 验证了受支持编辑和撤销；真实双宿主、
 更广人工/Agent 交错、完整设计器与安装升级仍未验收。
 本节状态必须随实现更新，不把“分支已编译”写成“主产品已可用”。
 
@@ -392,7 +400,7 @@ JSON 再增加一套同步信任文件。后端 123 项针对性检查、实际 
 5 项浏览器回归、PR 的 7 项 CI 与独立审查通过。本机 0.15.1.1 热更新后，真实 V1 GUI
 完成两次本地保存、明确关闭重开并保留 pending、一次 Sync；独立宿主读回确认只改变
 预期步骤备注，随后以新快照单次恢复，原生全文、导出 YAML 和外置文件均与原文一致。
-未运行动作。该切片不包含根 metadata 写入、source Pin/live、外置资源编辑、Agent
+未运行动作。PR #117/#118 当时的切片不包含根 metadata 写入、source Pin/live、外置资源编辑、Agent
 变量权限、V2 实际写回或新安装包；0.15.1 发布产物尚未包含这些 GUI 改动。
 本地快照、提交基线与当前宿主观察的边界见[文档存储契约](../agent-architecture.md#source-bundle-文档存储契约)。
 
@@ -465,8 +473,23 @@ SDK 契约响应为替身，不能当作真实宿主 schema 或 V2 写回验收�
 真实 420px 工作台通过步骤“+对话”、保留原聊天焦点与文档、人工 Note 本地保存、一次
 撤销后重存及关闭重开验收。首次保存仅改变 YAML；撤销重存恢复四份源码文件的原字节，
 独立原生重读确认 editVersion、导出 YAML 与外置文件未变。未运行或 Sync 验收动作，未调用
-真实模型；普通输入的真实原生契约与 SDK 联合编辑仍待单独验收。公开安装包仍为 0.15.1，
+真实模型；普通输入的后续联合验收另述如下。公开安装包仍为 0.15.1，
 主线合并、本机安装与新发布产物分别记录，不提前算作 A3 完成。
+
+后续候选 `8b59042` 的私有组合 `07c7936` 已完成有限的真实 V1 普通输入验收：CLI/插件
+0.15.1.3 的当前绑定原生契约与实际 codec 经生产 client registry/turn 和 AI SDK
+`MockLanguageModelV3`，将专用禁用动作的 `maxLines` 从 0 改为 1；相同 operation 去重后
+只有一次事务，变量绑定 `msg.var` 与控制字段 `style` 均以 `LIVE_STEP_INPUT_UNSUPPORTED`
+拒绝且未应用。真实 CodeMirror 字段显示 1，工具栏一次 Undo 恢复 0、完整 raw 原文及原 DOM，
+revision 为 2 且 dirty=false；Undo 后重放旧回执不重新应用。第四次相同输入的读取仍按原
+`tool_call_limit` 拒绝，验收只通过原 public endpoint 观察 Session，未改预算或绕过门禁。
+候选同时修复 Windows 图标回退的 SVG 正文与缓存标识；实际图片 API 返回 200 并解码为
+24×24，最终错误列表为空，driver 正常退出并释放读取流。前三次验收的可选 JSON 字段、
+CodeMirror 选择器、门禁断言及图标 404 失败记录保留，第四次完整通过；前端检查与清理后
+复查通过。四份 Source 文件字节未变，独立原生重读确认同一宿主会话、editVersion
+1793083043026、YAML 和外置资源哈希均未变；没有 Save、Sync、Run 或付费模型请求。
+此证据覆盖生产客户端与 SDK，不能代替完整生产服务端 Agent 聊天循环、真实模型、
+V2 写回或完整 A3 验收，也不代表新安装包已发布。
 
 **Agent 与工作台的剩余任务**不因转入设计器主线而取消：R1 补操作描述与 TurnPlan 约束；
 R2 补浏览器/网络端口及派生进程 owner；R3 拆会话控制器并验证后台会话/审批/草稿；R4
@@ -722,7 +745,7 @@ Agent 循环或修改贯穿整个应用的条件分支。体验原则见 [工作
 | 阶段 / 优先级 | 用户问题与交付边界 | 负责功能域 / 代码锚点 | 依赖 | 验收门槛 | 状态 |
 |---|---|---|---|---|---|
 | R0 / P0：可信基线 | 重构前先知道什么真的能跑；隔离用户数据、宿主动作和付费模型请求，记录已存在失败 | CHAT / AUTHOR / WORKBENCH；`package.json`、离线 fixtures、`agent-harness/*.test.ts`、`qkrpc-argv.test.ts` | 无 | 有可重复的离线检查入口；不自动启用真实 Electron/动作删除测试；已知失败明确归因，不写成全部通过 | 离线入口、DB fixture 隔离与临时目录本地清理已实现；静态 Electron 打包与 Windows Job 隔离启动、所属进程回收已验收，smoke 内 RPC 禁用。安装/升级、旧资料和真实动作仍单独验收 |
-| R1 / P0：能力与父子权限 | Ask、命令 allowlist、MCP 和子代理不能互相绕过；空交集不能恢复全部工具 | EXT / CHAT；`select-chat-tools.server.ts`、`turn-runtime.server.ts`、`agent-mcp/`、`task-tool.server.ts` | R0 | 未指定与显式空集合分开；最终工具集取所有限制的交集；未知风险 MCP 不进入 Ask；子代理复用父工具策略闭包，无递归 task；Ask 浏览器当前关闭，后续须以仅连接已有会话、无导航/启动副作用的观测端口逐项验收再开放 | 首轮权限边界已实现；list_tools 已绑定父/子本轮最终工具集，live/MCP schema 与实际端口一致，被裁工具不从全局表补回。目录沿用现有模式/操作限制、父级共享预算及执行包装，Ask 提示不再列出已禁用的自启动入口。其余操作描述与 TurnPlan 执行约束继续统一 |
+| R1 / P0：能力与父子权限 | Ask、命令 allowlist、MCP 和子代理不能互相绕过；空交集不能恢复全部工具 | EXT / CHAT；`select-chat-tools.server.ts`、`turn-runtime.server.ts`、`agent-mcp/`、`task-tool.server.ts` | R0 | 未指定与显式空集合分开；最终工具集取所有限制的交集；未知风险 MCP 不进入 Ask；子代理复用父工具策略闭包，无递归 task；Ask 浏览器当前关闭，后续须以仅连接已有会话、无导航/启动副作用的观测端口逐项验收再开放 | 首轮权限边界已实现；list_tools 已绑定父/子本轮最终工具集，live/MCP schema 与实际端口一致，被裁工具不从全局表补回。模型 schema 精简保留当前工具完整描述，缺失描述保持 unknown，不回填静态语义。目录沿用现有模式/操作限制、父级共享预算及执行包装，Ask 提示不再列出已禁用的自启动入口。其余操作描述与 TurnPlan 执行约束继续统一 |
 | R2 / P0：取消与资源生命周期 | 点击停止、关闭连接或运行失败后，不继续悄悄请求模型、重试或占用工具连接 | CHAT / WORK / EXT；`api/chat/route.ts`、`run-turn.server.ts`、`stream-loop.server.ts`、工具上下文及 transport | R1 | 请求信号贯穿模型、压缩、工具和子代理；取消不转换成重试；MCP/reader/计时器至少有明确 owner 且只释放一次；两个并行 turn 互不取消 | 模型、压缩、qkrpc、Shell、MCP 首轮取消链已验收；web_search 三 provider 已贯通父 turn 与 SDK/显式信号、请求及正文、晚结果检查和独立 timeout，fake 回归通过。headless/embedded 已补独立 HTTP request owner、按 session 串行的 native tail、协作等待和实际共享状态提交前检查；取消不关闭共享页面。相关 fake 回归覆盖断连、排队、迟到原生结果和微任务竞态并通过独立审查；真实 Playwright/Edge 已用自有 profile、loopback 和可控 native gate 验证运行/排队 HTTP 取消、native tail、并行 session、原 context/ref 复用及浏览器关闭；snapshot/pick 的函数字符串未调用缺陷已修，真实采集与坐标点击通过。Electron 原生、用户浏览器及其它资源 owner 继续单独验收 |
 | R3 / P1：会话控制与可见性 | 常驻隐藏会话仍可能响应全局输入；页面组件混合消息、审批、滚动、设置与 Launcher 生命周期 | CHAT / WORKBENCH；`Chat.tsx`、`useAgentChatSession.ts`、`ChatComposerFooter.tsx`、Launcher bridge | R1–R2 | 后台运行可以继续，但全局快捷键只归前台 owner；切会话保留草稿与审批；控制器持有业务状态，展示组件只消费明确契约 | 隐藏输入、IME 与面板串会话已验收；执行事实按 turn 隔离并移除 thread 全局 Map；历史消息编辑已移入单会话 controller，隐藏会话保留草稿且不响应前台 Esc/pointer，迟到确认通过实时 SDK store CAS 后才截断和发送。614 项离线检查、真实 controller/SDK/modal 与 ChatPanel/composer/假 SSE 回归通过独立审查；消息滚动已补会话可见 owner 与二段动画帧清理，隐藏/切会话/卸载和较新布局拒绝旧监听器及对齐回调，真实 StrictMode DOM 回归通过；布局、审批和其它会话职责继续拆分 |
 | R4 / P1：消息投影与工具展示 | 工具越来越多时，摘要、工作折叠、详情、失败与流式参数容易各写一套判断 | CHAT / EXT；`ChatMessageArticle.tsx`、`ToolPart.tsx`、`ToolPopupBody.tsx`、消息与结果 helpers | R1–R3 | 同一工具调用以 id/阶段/结果投影；流式未完成参数不当成完整对象；未知工具有通用回退；正文、展示全文、模型摘要与持久历史不混存 | 跟随、显式展开、稳定 call owner 与流式节流已通过离线 SSE/真实 DOM；单条转批量及输入转预览保留详情与焦点，更多工具的摘要投影统一仍待整改 |

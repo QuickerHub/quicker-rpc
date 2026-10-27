@@ -64,7 +64,7 @@ export function resolveActionDesignerResIconRelativePath(logicalPath: string): s
  */
 const RES_ICON_CLIENT_CACHE_KEY = "icc";
 
-const RES_ICON_CLIENT_CACHE_VERSION = "4";
+const RES_ICON_CLIENT_CACHE_VERSION = "5";
 
 /**
  * URL for a bundled `res:` icon. Uses /api/icons/res (static PNG when present, else bundled SVG).

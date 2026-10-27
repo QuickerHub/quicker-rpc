@@ -11,6 +11,7 @@ import imageOutline from "@iconify/icons-mdi/image-outline";
 import keyboard from "@iconify/icons-mdi/keyboard";
 import layersOutline from "@iconify/icons-mdi/layers-outline";
 import messageAlertOutline from "@iconify/icons-mdi/message-alert-outline";
+import microsoftWindows from "@iconify/icons-mdi/microsoft-windows";
 import mouse from "@iconify/icons-mdi/mouse";
 import numeric from "@iconify/icons-mdi/numeric";
 import playCircleOutline from "@iconify/icons-mdi/play-circle-outline";
@@ -32,6 +33,7 @@ export const RES_ICON_BUNDLED: Record<string, IconifyIcon> = {
   "mdi:keyboard": keyboard,
   "mdi:layers-outline": layersOutline,
   "mdi:message-alert-outline": messageAlertOutline,
+  "mdi:microsoft-windows": microsoftWindows,
   "mdi:mouse": mouse,
   "mdi:numeric": numeric,
   "mdi:play-circle-outline": playCircleOutline,
@@ -44,6 +46,7 @@ export const RES_ICON_BUNDLED: Record<string, IconifyIcon> = {
  * Keys are lower-case, forward slashes.
  */
 const RES_PATH_TO_ICONIFY = new Map<string, string>([
+  ["windows.png", "mdi:microsoft-windows"],
   ["var/text.png", "mdi:format-font"],
   ["var/number.png", "mdi:decimal"],
   ["var/boolean.png", "mdi:toggle-switch"],
@@ -85,8 +88,8 @@ export function iconifyIconToSvg(icon: IconifyIcon, size = 24): string {
   const width = icon.width ?? 24;
   const height = icon.height ?? 24;
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${size}" height="${size}">`,
-    `<path d="${body}" fill="currentColor"/>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${size}" height="${size}" fill="currentColor">`,
+    body,
     `</svg>`,
   ].join("");
 }
