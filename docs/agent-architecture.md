@@ -281,6 +281,20 @@ C# codec 的未物化投影交给现有文档 Session，复用其 controller、�
 既有 V1 变量若 native 与源都无真实 ID，当前 codec 无法在改名后证明原始变量元数据的
 归属，须拒绝该改名，不把纯投影中无 native baseline 的改名测试当作宿主保真验收。
 
+`source.document.variableIdentity` 将源码/native ID 与 document-local 原行身份分开报告。
+逐行描述来自本次实际 codec 投影，绑定 source snapshot、codec revision、精确 Editor JSON
+及 baseline 文本摘要；原行锚点包含所属 surface、原 key 和解码原行摘要。无 native ID
+的既有行也可有 document-local 证明，原生身份仍为 unknown；新草稿、歧义来源或未证明
+的祖先不能借生成 ID 取得证明。改名是否可逆另由本次 codec 映射报告，不从 ID 前缀、
+显示名称或宿主版本推断。preview 的描述仅供候选检查，不能取代已观察的映射。
+
+该描述始终 `authorizesLive=false`。消费它的 live 端口还须绑定原 owner/Session、实际
+source lease、完整宿主/存储身份及本轮私有变量授权，复核当前行与读取 revision；它不
+授予文件、Save 或 Sync 权限。C# 的 content-bound mapping epoch 只描述内容，不证明
+行的生命周期。Save ACK 可能改变 baseline/存储身份而不增加 Session revision，消费者
+必须在保存中或映射未对齐时停止授权，并使旧读证明失效。重排后的 ACK 先以精确票据
+文本完成全量 Rebase，再从实际保存字节导出映射；不能把新投影的编号直接挂回原 Session。
+
 普通 Save 比较预期快照，只写 YAML 和明确提交的资源，不推进原生 checkpoint。
 无语义变化时保留原 YAML 字节；改变正文后可由 codec 规范化输出，不承诺保留注释排版。
 跨文件写入保留已写列表与失败事实，不能宣称普通文件替换提供对任意外部写入者的原子事务。

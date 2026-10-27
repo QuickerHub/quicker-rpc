@@ -104,6 +104,11 @@ qkrpc action run --id <guid> [--param <text>] --trace --json
 私有原生契约与 revision，再 `edit_step_inputs_live`；不另写磁盘或宿主。未确认编辑弹窗
 期间返回 busy，不自动提交或清空人工草稿。边界以 [AUTHOR](docs/product/README.md#p-author) 为准。
 
+变量行的“+对话”另授本轮选中变量的私有 scope：`read_live(variableFor)` 取得当前字段
+契约与实际读取回执，再 `edit_variable_live`，修改进入原 Session 的同一次撤销。
+源码/native 身份与 codec 证明的 document-local 原行身份须区分；不凭生成 ID、UI 枚举
+或宿主版本补权限，也不由此取得创建变量、文件、Save 或 Sync 权限。
+
 **禁止**：未 `step-runner get` 就猜 `inputs`（wire：`key`/`inputs`/`outputs`；`paramKey` / `paramKey.file` / `paramKey.var`；禁止 `stepKey`）；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标；patch 写与目录 Default 相同的普通参数。**禁止** `action publish`/`action update` 发布全局子程序（用 `subprogram publish`/`update`）。表达式优先 **quicker-eval-expression** skill / `sys:evalexpression`；兜底见 `guide get --topic implementation-fallback`。领域专题（form-spec、图标、右键）仍在 docs，勿凭记忆编 formDef。
 
 **运行**：agent-gui `qkrpc_action` 要步骤输出用 `debug`（等价 `--trace`），不要用 `run`。CLI 退出码 0=成功、1=失败；脚本加 `--json`。
