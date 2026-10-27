@@ -190,8 +190,27 @@ flush 的完整行为。browser runtime 的 Node 服务与 terminal 预热子进
 早期 harness 失败与一次 terminal 启动 503 的记录同样保留；当时日志发现并发 cold start 重复启动
 terminal 并报 EADDRINUSE。当前源码的启动修复（`f4705887`）已实现同目标/owner 共享一次启动、独立等待者取消；stop 先取消并
 等待启动任务，再仅回收 retained child。生产 Node 服务与真实 Node 子进程中的 health/IPC 协议替身
-已验证并发启动、child 归属和 IPC 退出；该替身不是生产 terminal server/node-pty。真实 PTY/终端 UI
-和包含本修复的新安装包仍待验收，不把两轮正常退出或启动机制回归写成整体 A4 完成。
+已验证并发启动、child 归属和 IPC 退出；该阶段的替身不是生产 terminal server/node-pty。
+
+后续以精确源码 `5cb886a9` 的完整默认静态构建产物 `service.mjs` 完成真实 PTY 验收，
+使用同一 Node 22.23.4（ABI 127）、node-pty 1.1.0 和产物内原生模块；6714 个产物文件
+与运行前后清单一致。六个并发 GET/POST cold-start 请求均成功且只有一个所属 terminal child，
+真实 NoProfile shell 验证了不能靠输入回显满足的 marker、PID/cwd、80×24 到 120×36 的
+Console 尺寸回读、自然 exit0、dispose、空 session 列表和 WebSocket 正常关闭。
+原 ready10s/runtime30s/WS10s/stop5s 预算未放宽；本轮 service ready 约 1.584s，
+IPC stop 约 251ms，最后所属子进程约 312ms 退出。34 个保留句柄全部退出，验收 driver、
+service、terminal 与 managed shell 退出 0，Job 及原监听在首次 dispose 前清空，无强制回收；
+不把 idle pool 的非零退出写成全树 exit0。
+
+`e1e9e883` 的前一轮真实验收仍保留已退出会话被再次 kill、console-list helper exit1 和
+`AttachConsole failed` 原据。`5cb886a9` 仅依据已交付的 `onExit` 状态跳过冗余 kill，
+live session 沿用原 kill；复验中该 managed PID 退出后的 kill/helper 均为零，服务 stderr
+排空后为零。OS 已退出但 `onExit` 尚未交付的竞态不在此保证内。
+
+本轮默认生产 builder 已输出完整产物报告，随后隔离 wrapper 写构建元数据时因 PATH 缺 Git
+退出 1；builder 的原生退出码未持久记录，不补造为 0。该 wrapper 失败记录与独立的
+精确源码、manifest/全文件 hash、同 Node native 闭包验证及真实运行收据分别保留。
+终端 UI 和包含本修复的新安装包仍待验收，不将本轮结果写成整体 A4 完成。
 
 NSIS 两条正式打包入口共用固定版本模板适配与 .NET Framework 4.7.2 ownership helper。
 构建必须经过上述入口；原始 builder 调用缺少适配标记时拒绝生成安装器。最终安装目录、

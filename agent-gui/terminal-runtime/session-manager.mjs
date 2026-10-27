@@ -234,7 +234,7 @@ export class TerminalSessionManager {
     // Detach only — WebSocket may be shared across multiple terminal sessions.
     session.subscribers.clear();
     try {
-      session.proc.kill();
+      if (session.status !== "exited") session.proc.kill();
     } catch {
       // ignore
     }

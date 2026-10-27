@@ -64,6 +64,7 @@ const tests = [
   "lib/runtime-start-handlers.test.ts",
   "lib/runtime-owned-children.test.mjs",
   "lib/terminal-runtime-startup.test.mjs",
+  "terminal-runtime/session-manager.test.mjs",
   "lib/runtime-profile-ownership.test.ts",
   "lib/terminal-runtime-endpoint.test.ts",
   "lib/program-turn-context.test.ts",
