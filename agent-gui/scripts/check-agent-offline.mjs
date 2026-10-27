@@ -63,6 +63,7 @@ const tests = [
   "lib/agent-data-profile-isolation.test.ts",
   "lib/runtime-start-handlers.test.ts",
   "lib/runtime-owned-children.test.mjs",
+  "lib/terminal-runtime-startup.test.mjs",
   "lib/runtime-profile-ownership.test.ts",
   "lib/terminal-runtime-endpoint.test.ts",
   "lib/program-turn-context.test.ts",

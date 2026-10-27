@@ -9,8 +9,12 @@ import { isProcessAlive } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "terminal-runtime.json";
 const DEFAULT_TERMINAL_PORT = 6022;
-/** @type {Map<import('node:child_process').ChildProcess, { root: string; pid: number; ownerPid: number; onExit: () => void; stopping?: Promise<void> }>} */
+/** @type {Map<import('node:child_process').ChildProcess, { root: string; statePath: string; base?: string; pid: number; ownerPid: number; onExit: () => void; stopping?: Promise<void> }>} */
 const ownedTerminalChildren = new Map();
+/** @type {Map<string, { scope: string; controller: AbortController; promise: Promise<import('node:child_process').ChildProcess | null> }>} */
+const terminalRuntimeStarts = new Map();
+/** @type {Promise<void> | undefined} */
+let terminalRuntimeStop;
 
 /** @typedef {{ pid: number; port?: number; ownerPid: number; startedAt: number }} TerminalRuntimeState */
 
@@ -20,7 +24,10 @@ export function terminalRuntimeStatePath(agentGuiRoot) {
 
 /** @returns {TerminalRuntimeState | null} */
 export function readTerminalRuntimeState(agentGuiRoot) {
-  const path = terminalRuntimeStatePath(agentGuiRoot);
+  return readTerminalRuntimeStateAtPath(terminalRuntimeStatePath(agentGuiRoot));
+}
+
+function readTerminalRuntimeStateAtPath(path) {
   if (!existsSync(path)) return null;
   try {
     const raw = JSON.parse(readFileSync(path, "utf8"));
@@ -41,13 +48,19 @@ export function readTerminalRuntimeState(agentGuiRoot) {
 
 /** @param {TerminalRuntimeState} state */
 export function writeTerminalRuntimeState(agentGuiRoot, state) {
-  const path = terminalRuntimeStatePath(agentGuiRoot);
+  writeTerminalRuntimeStateAtPath(terminalRuntimeStatePath(agentGuiRoot), state);
+}
+
+function writeTerminalRuntimeStateAtPath(path, state) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(state)}\n`, "utf8");
 }
 
 export function clearTerminalRuntimeState(agentGuiRoot) {
-  const path = terminalRuntimeStatePath(agentGuiRoot);
+  clearTerminalRuntimeStateAtPath(terminalRuntimeStatePath(agentGuiRoot));
+}
+
+function clearTerminalRuntimeStateAtPath(path) {
   if (!existsSync(path)) return;
   try {
     rmSync(path, { force: true });
@@ -80,7 +93,7 @@ function normalizeBase(url) {
   return url.replace(/\/$/, "");
 }
 
-/** @typedef {{ ok: boolean; runtimeVersion?: string; protocolVersion?: string }} TerminalRuntimeHealth */
+/** @typedef {{ ok: boolean; runtimeOwner?: string; runtimeVersion?: string; protocolVersion?: string }} TerminalRuntimeHealth */
 
 /** @param {string} base */
 export async function fetchTerminalRuntimeHealth(base, timeoutMs = 3000, abortSignal) {
@@ -126,16 +139,22 @@ export async function checkTerminalRuntimeHealth(base, timeoutMs = 3000, abortSi
 
 /** @param {TerminalRuntimeHealth} health */
 export function isTerminalRuntimeVersionCurrent(health) {
-  return health.ok === true && health.runtimeVersion === RUNTIME_VERSION
-    && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER);
+  return isTerminalRuntimeCurrentForOwner(health, process.env.QUICKER_AGENT_RUNTIME_OWNER);
 }
 
-async function waitForTerminalRuntimeHealth(base, maxMs = 30_000, abortSignal) {
+function isTerminalRuntimeCurrentForOwner(health, owner) {
+  return health.ok === true && health.runtimeVersion === RUNTIME_VERSION
+    && (!owner || health.runtimeOwner === owner);
+}
+
+async function waitForTerminalRuntimeHealth(base, maxMs = 30_000, abortSignal, owner) {
   const deadline = Date.now() + maxMs;
   let attempt = 0;
   while (Date.now() < deadline) {
     abortSignal?.throwIfAborted();
-    if (await checkTerminalRuntimeHealth(base, 1200, abortSignal)) return;
+    const health = await fetchTerminalRuntimeHealth(base, 1200, abortSignal);
+    abortSignal?.throwIfAborted();
+    if (isTerminalRuntimeCurrentForOwner(health, owner)) return;
     attempt += 1;
     const delayMs = attempt <= 8 ? 60 : attempt <= 20 ? 120 : 250;
     await delay(delayMs, undefined, { signal: abortSignal });
@@ -148,7 +167,11 @@ async function waitForTerminalRuntimeHealth(base, maxMs = 30_000, abortSignal) {
  * @param {string} agentGuiRoot
  */
 export function reconcileStaleTerminalRuntime(agentGuiRoot) {
-  const state = readTerminalRuntimeState(agentGuiRoot);
+  return reconcileTerminalRuntimeState(terminalRuntimeStatePath(agentGuiRoot));
+}
+
+function reconcileTerminalRuntimeState(statePath) {
+  const state = readTerminalRuntimeStateAtPath(statePath);
   if (!state) return false;
 
   const serveAlive = isProcessAlive(state.pid);
@@ -158,7 +181,7 @@ export function reconcileStaleTerminalRuntime(agentGuiRoot) {
   if (serveAlive && !ownerAlive) return false;
 
   if (!serveAlive) {
-    clearTerminalRuntimeState(agentGuiRoot);
+    clearTerminalRuntimeStateAtPath(statePath);
   }
 
   return false;
@@ -167,20 +190,20 @@ export function reconcileStaleTerminalRuntime(agentGuiRoot) {
 /**
  * @param {string} agentGuiRoot
  * @param {import('node:child_process').ChildProcess} child
- * @param {{ port?: number }} meta
+ * @param {{ port?: number; base?: string; statePath?: string }} meta
  */
 export function trackTerminalRuntimeChild(agentGuiRoot, child, meta = {}) {
   const pid = child.pid;
   if (!pid || child.exitCode != null || child.signalCode != null || ownedTerminalChildren.has(child)) return;
   const root = resolve(agentGuiRoot);
   const ownerPid = process.pid;
-  const owned = { root, pid, ownerPid, onExit: () => {
+  const owned = { root, statePath: meta.statePath ?? terminalRuntimeStatePath(root), base: meta.base, pid, ownerPid, onExit: () => {
     finishOwnedTerminalChild(child, owned);
   } };
   ownedTerminalChildren.set(child, owned);
   child.once("exit", owned.onExit);
 
-  writeTerminalRuntimeState(root, {
+  writeTerminalRuntimeStateAtPath(owned.statePath, {
     pid,
     ownerPid,
     startedAt: Date.now(),
@@ -190,9 +213,9 @@ export function trackTerminalRuntimeChild(agentGuiRoot, child, meta = {}) {
 }
 
 function clearOwnedTerminalState(owned) {
-  const current = readTerminalRuntimeState(owned.root);
+  const current = readTerminalRuntimeStateAtPath(owned.statePath);
   if (current?.pid === owned.pid && current.ownerPid === owned.ownerPid) {
-    clearTerminalRuntimeState(owned.root);
+    clearTerminalRuntimeStateAtPath(owned.statePath);
   }
 }
 
@@ -250,9 +273,36 @@ export function stopTrackedTerminalRuntime(agentGuiRoot, child) {
 
 /** Stop only children spawned and retained by this process; reused runtimes are not owned. */
 export async function stopOwnedTerminalRuntimes() {
-  const results = await Promise.allSettled([...ownedTerminalChildren].map(([child, owned]) => stopOwnedTerminalChild(owned.root, child)));
-  const errors = results.filter((result) => result.status === "rejected").map((result) => result.reason);
-  if (errors.length) throw new AggregateError(errors, "Owned terminal runtime shutdown failed");
+  if (terminalRuntimeStop) return terminalRuntimeStop;
+  let resolveStop, rejectStop;
+  const pending = new Promise((done, fail) => { resolveStop = done; rejectStop = fail; });
+  terminalRuntimeStop = pending;
+  const reset = () => { if (terminalRuntimeStop === pending) terminalRuntimeStop = undefined; };
+  void pending.then(reset, reset);
+  const starts = [...terminalRuntimeStarts.values()];
+  for (const start of starts) start.controller.abort(new Error("Terminal runtime service is stopping"));
+  void (async () => {
+    await Promise.allSettled(starts.map((start) => start.promise));
+    const results = await Promise.allSettled([...ownedTerminalChildren].map(([child, owned]) => stopOwnedTerminalChild(owned.root, child)));
+    const errors = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+    if (errors.length) throw new AggregateError(errors, "Owned terminal runtime shutdown failed");
+  })().then(resolveStop, rejectStop);
+  return pending;
+}
+
+/** A request owns its wait, while the service retains the shared startup. */
+function observeTerminalStartup(pending, signal) {
+  signal?.throwIfAborted();
+  if (!signal) return pending;
+  return new Promise((done, fail) => {
+    const cleanup = () => signal.removeEventListener("abort", aborted);
+    const aborted = () => { cleanup(); fail(signal.reason); };
+    signal.addEventListener("abort", aborted, { once: true });
+    void pending.then((value) => {
+      cleanup();
+      if (signal.aborted) fail(signal.reason); else done(value);
+    }, (error) => { cleanup(); fail(signal.aborted ? signal.reason : error); });
+  });
 }
 
 /**
@@ -265,25 +315,43 @@ export async function ensureTerminalRuntime(agentGuiRoot, host, abortSignal) {
   if (process.env.AGENT_GUI_SKIP_TERMINAL_RUNTIME === "1") {
     return null;
   }
+  if (terminalRuntimeStop) throw new Error("Terminal runtime service is stopping");
 
-  const runtimeRoot = resolveTerminalRuntimeRoot(agentGuiRoot ?? process.cwd());
+  const runtimeRoot = resolve(resolveTerminalRuntimeRoot(agentGuiRoot ?? process.cwd()));
   const port = resolveTerminalPort();
   const base = runtimeHttpOrigin(host, port);
+  const owner = process.env.QUICKER_AGENT_RUNTIME_OWNER;
+  const statePath = resolve(terminalRuntimeStatePath(runtimeRoot));
+  const scope = JSON.stringify([runtimeRoot, owner ?? "", statePath]);
+  let start = terminalRuntimeStarts.get(base);
+  if (start && start.scope !== scope) throw new Error("Terminal runtime startup belongs to another owner or runtime root");
+  if (!start) {
+    const controller = new AbortController();
+    start = { scope, controller, promise: Promise.resolve().then(() => startTerminalRuntime(runtimeRoot, host, port, base, owner, statePath, controller.signal)) };
+    terminalRuntimeStarts.set(base, start);
+    const retained = start;
+    const release = () => { if (terminalRuntimeStarts.get(base) === retained) terminalRuntimeStarts.delete(base); };
+    void start.promise.then(release, release);
+  }
+  return observeTerminalStartup(start.promise, abortSignal);
+}
 
+async function startTerminalRuntime(runtimeRoot, host, port, base, owner, statePath, abortSignal) {
+  abortSignal.throwIfAborted();
   const health = await fetchTerminalRuntimeHealth(base, undefined, abortSignal);
-  abortSignal?.throwIfAborted();
-  if (health.ok && isTerminalRuntimeVersionCurrent(health)
-    && (!process.env.QUICKER_AGENT_RUNTIME_OWNER || health.runtimeOwner === process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
+  abortSignal.throwIfAborted();
+  if (isTerminalRuntimeCurrentForOwner(health, owner)) {
     console.log(`terminal: reusing runtime ${health.runtimeVersion} at ${base}/health`);
     return null;
   }
 
-  if (health.ok && (!isTerminalRuntimeVersionCurrent(health)
-    || process.env.QUICKER_AGENT_RUNTIME_OWNER && health.runtimeOwner !== process.env.QUICKER_AGENT_RUNTIME_OWNER)) {
+  if (health.ok) {
     throw new Error("terminal runtime port is owned by another service or an incompatible runtime");
   }
 
-  reconcileStaleTerminalRuntime(runtimeRoot);
+  // Failed cleanup retains ownership; an alive child must not be replaced.
+  if ([...ownedTerminalChildren].some(([child, owned]) => owned.base === base && child.exitCode == null && child.signalCode == null)) return null;
+  reconcileTerminalRuntimeState(statePath);
 
   const entry = join(runtimeRoot, "terminal-runtime", "server.mjs");
   if (!existsSync(entry)) {
@@ -305,6 +373,7 @@ export async function ensureTerminalRuntime(agentGuiRoot, host, abortSignal) {
         ...process.env,
         QUICKER_TERMINAL_HOST: host,
         QUICKER_TERMINAL_PORT: String(port),
+        QUICKER_AGENT_RUNTIME_OWNER: owner,
       },
     },
   );
@@ -333,19 +402,31 @@ export async function ensureTerminalRuntime(agentGuiRoot, host, abortSignal) {
     return null;
   }
 
-  trackTerminalRuntimeChild(runtimeRoot, child, { port });
-
+  const childStopped = new AbortController();
+  const exited = () => childStopped.abort(new Error("Terminal runtime exited before becoming ready"));
+  const failed = (error) => childStopped.abort(error);
+  child.once("exit", exited);
+  child.once("error", failed);
   try {
-    await waitForTerminalRuntimeHealth(base, undefined, abortSignal);
+    trackTerminalRuntimeChild(runtimeRoot, child, { port, base, statePath });
+    abortSignal.throwIfAborted();
+    if (child.exitCode != null || child.signalCode != null) exited();
+    await waitForTerminalRuntimeHealth(base, undefined, AbortSignal.any([abortSignal, childStopped.signal]), owner);
+    abortSignal.throwIfAborted();
+    childStopped.signal.throwIfAborted();
+    if (child.exitCode != null || child.signalCode != null) throw new Error("Terminal runtime exited before readiness was published");
     console.log(`terminal: ready at ${base}/health`);
     return child;
   } catch (err) {
-    // A request owns its wait, not the shared runtime child retained by this service.
+    // Only service shutdown cancels shared startup; its owner drains the child.
     abortSignal?.throwIfAborted();
     console.warn(
       `terminal: ${err instanceof Error ? err.message : String(err)} — embedded terminal may be unavailable`,
     );
     await stopOwnedTerminalChild(runtimeRoot, child);
     return null;
+  } finally {
+    child.removeListener("exit", exited);
+    child.removeListener("error", failed);
   }
 }
