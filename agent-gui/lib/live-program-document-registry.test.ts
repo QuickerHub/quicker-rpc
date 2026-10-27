@@ -83,6 +83,30 @@ test("legacy and Source step grants do not survive delete/recreate, branch moves
   assert.equal(f.registry.captureForManualSend({ pins: [pin], mode: "edit", userMessageId: "after-save", threadId: "chat-a", cwd: f.owner.cwd }).state, "unavailable");
 });
 
+test("Source mapping observes every row before its first pin; delete/recreate, move and Undo cannot revive old origin", () => {
+  for (const change of ["replace", "move", "runner"]) {
+    const f = fixture(true), original = structuredClone(f.session.readSnapshot().steps[0]!);
+    const present = f.controller.getSurface("main").getPresent();
+    if (change === "replace") present.steps = [];
+    if (change === "move") present.steps = [{ ...original, stepId: "new-parent", ifSteps: [original] }];
+    if (change === "runner") present.steps[0]!.stepRunnerKey = "different:module";
+    f.controller.getSurface("main").commit(present);
+    assert.equal(f.session.getState().revision, 1);
+    if (change === "replace") {
+      const rebuilt = f.controller.getSurface("main").getPresent(); rebuilt.steps = [original];
+      f.controller.getSurface("main").commit(rebuilt);
+      assert.equal(f.session.getState().revision, 2);
+    }
+    const before = f.session.getState(), denied = f.registry.pin(f.owner, "first-pin-after-change", "one", "chat-a");
+    assert.ok("ok" in denied && denied.ok === false, change); assert.equal(f.session.getState(), before);
+    if (change === "move" || change === "runner") {
+      f.controller.undo();
+      const restored = f.registry.pin(f.owner, "first-pin-after-undo", "one", "chat-a");
+      assert.ok("ok" in restored && restored.ok === false, `${change}:undo`);
+    }
+  }
+});
+
 test("actual Session endpoint flushes the human draft, returns complete unsaved content and applies one Agent undo transaction", () => {
   const f = fixture(); f.draft("human draft"); const scope = f.capture(), before = f.read(scope);
   assert.equal(before.dirty, true); assert.match(before.content, /human draft/); assert.match(before.content, /9223372036854775807/);

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** A document-bound native policy read, separate from UI schemas and static catalogs. */
 export async function POST(req: Request) {
   return postDesignerCatalogRequest(req, async (body, request) => {
-    const binding = request.scope?.expectedProjectBinding?.hostBinding;
+    const binding = request.rpcOptions.hostBinding;
     if (!request.bound || !binding) throw new DesignerCatalogError("HOST_BINDING_REQUIRED", "A resolved document target is required for input contracts.");
     if (binding.capabilities[STEP_RUNNER_INPUT_CONTRACT_CAPABILITY] !== true)
       throw new DesignerCatalogError("INPUT_CONTRACT_UNSUPPORTED", "The bound host does not provide runtime input contracts.", 503);

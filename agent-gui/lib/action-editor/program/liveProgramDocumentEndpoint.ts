@@ -37,8 +37,33 @@ export function createProgramDocumentLiveEndpoint(options: {
   let sequence = 0;
   const rows = new Map<string, { selector: ProgramDocumentVariableSelector; token: string; removed: boolean; mappingEpoch?: number }>();
   const stepRows = new Map<string, { surface: string; path: string; documentPath: string; runnerKey: string; token: string; removed: boolean; mappingEpoch?: number }>();
+  let stepMappingEpoch: number | undefined;
+  const adoptSourceStepRows = () => {
+    const source = options.sourceTarget?.();
+    if (!source || source.mappingEpoch === stepMappingEpoch) return;
+    stepMappingEpoch = source.mappingEpoch;
+    stepRows.clear();
+    const state = options.session.getState();
+    for (const candidate of source.stepIdentity?.steps ?? []) {
+      const origin = sourceStepOrigin(source.stepIdentity, candidate.surface, candidate.editorId);
+      if (!origin) continue;
+      try {
+        const original = readProgramDocumentLiveStep(state.baselineContent, origin.editorId);
+        if (original.surface !== origin.surface || original.path !== origin.sourceRowAnchor!.path || original.runnerKey !== origin.runnerKey) continue;
+        const row = { ...original, token: `${options.sessionId}:step:${++sequence}`, removed: false, mappingEpoch: source.mappingEpoch };
+        try {
+          const current = readProgramDocumentLiveStep(state.content, origin.editorId);
+          row.removed = current.documentPath !== original.documentPath || current.surface !== original.surface || current.runnerKey !== original.runnerKey;
+        } catch { row.removed = true; }
+        stepRows.set(origin.editorId, row);
+      } catch { /* Unmapped raw rows cannot acquire a live lifetime. */ }
+    }
+  };
+  // Observe every proven source row from mapping adoption, not only after its first pin.
+  adoptSourceStepRows();
   const rowKey = (selector: ProgramDocumentVariableSelector) => JSON.stringify([selector.surface, selector.variableId]);
   const unsubscribe = options.session.subscribe(state => {
+    adoptSourceStepRows();
     for (const row of rows.values()) if (!row.removed && !readProgramDocumentVariable(state.content, row.selector).ok) row.removed = true;
     for (const [stepId, row] of stepRows) if (!row.removed) {
       try {
@@ -79,6 +104,7 @@ export function createProgramDocumentLiveEndpoint(options: {
   };
   const readStep = (stepId: string) => {
     const blocked = unavailable(); if (blocked) return blocked;
+    adoptSourceStepRows();
     let selected;
     try { selected = readProgramDocumentLiveStep(options.session.getState().content, stepId); }
     catch (error) { return { ok: false as const, code: "LIVE_STEP_UNAVAILABLE", error: error instanceof Error ? error.message : String(error) }; }
@@ -87,7 +113,8 @@ export function createProgramDocumentLiveEndpoint(options: {
       const origin = sourceStepOrigin(source?.stepIdentity, selected.surface, stepId);
       if (!source || !origin || origin.runnerKey !== selected.runnerKey)
         return { ok: false as const, code: "LIVE_STEP_ORIGIN_UNAVAILABLE", error: "此源码步骤缺少当前 codec 核验的原行来源，请重新打开后核对。" };
-      if (previous?.removed && previous.mappingEpoch === source.mappingEpoch)
+      if (!previous || previous.mappingEpoch !== source.mappingEpoch || previous.removed
+        || previous.documentPath !== selected.documentPath || previous.surface !== selected.surface || previous.runnerKey !== selected.runnerKey)
         return { ok: false as const, code: "LIVE_STEP_STALE", error: "原源码步骤已经删除、移动或改变模块，旧来源不能转交给当前行。" };
     }
     let row = previous;
