@@ -177,11 +177,12 @@ export async function measureStaticShellBaseline(
       authoringSampleUserText,
     );
 
+    const fullTools = selectChatTools({ chatMode, enabledToolIds, titleTest: false });
     const buildSystem = await createChatSystemBuilder({
       actionScope: { pinnedLatest: undefined, pinnedLatestAll: [] },
       chatMode,
       cwd,
-      enabledToolIds,
+      toolCatalog: { mode: chatMode, tools: fullTools },
       launcherUserText: authoringSampleUserText,
       modelId,
       repairedMessages: [],
@@ -190,11 +191,6 @@ export async function measureStaticShellBaseline(
     });
 
     const systemPrompt = buildSystem({ systemSuffix: undefined });
-    const fullTools = selectChatTools({
-      chatMode,
-      enabledToolIds,
-      titleTest: false,
-    });
     const fullSchemaToolIds = resolveFullSchemaToolIdsForTurn({
       chatMode,
       enabledToolIds,

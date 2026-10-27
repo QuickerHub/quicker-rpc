@@ -1,5 +1,6 @@
 import "server-only";
 import { bindCurrentToolCatalog } from "../current-tool-catalog";
+import { formatCurrentToolCatalogSystem } from "../tool-catalog-system-prompt";
 import { formatMcpGuidanceForTools } from "@/lib/agent-mcp/guidance";
 import { isNamespacedMcpToolId } from "@/lib/agent-mcp/tool-id";
 
@@ -157,21 +158,25 @@ export async function prepareAgentTurnRuntime(params: {
       qkrpc_subprogram_get: (input, options) => executeQkrpcSubprogramGetReadOnly(input as Parameters<typeof executeQkrpcSubprogramGetReadOnly>[0], { abortSignal: options.abortSignal }),
     };
     const guardedTools = applyToolModeGuards(composedTools, request.chatMode, readOnlyExecutors, liveComposition);
+    const catalogPolicy = { mode: request.chatMode,
+      readOnlyExecutorToolIds: [...Object.keys(readOnlyExecutors).filter(id => typeof readOnlyExecutors[id] === "function"), ...liveComposition.clientReadonlyTools],
+      operationConstraints: liveComposition.operationConstraints,
+    };
     let fullTools: ToolSet;
     if (guardedTools[TASK_TOOL]) {
       guardedTools[TASK_TOOL] = createTaskToolForParent(
         () => fullTools,
         guardedTools[TASK_TOOL],
-        toolIds => formatMcpGuidanceForTools("catalogs" in mcp ? mcp.catalogs : [], toolIds),
+        toolIds => [formatCurrentToolCatalogSystem(
+          Object.fromEntries(toolIds.filter(id => Object.hasOwn(fullTools, id)).map(id => [id, fullTools[id]])),
+          catalogPolicy, "catalogs" in mcp ? mcp.catalogs : []),
+          formatMcpGuidanceForTools("catalogs" in mcp ? mcp.catalogs : [], toolIds)].filter(Boolean).join("\n\n"),
       );
     }
     fullTools = bindCurrentToolCatalog(applyToolCallPolicies(
       guardedTools,
       mcp.callPolicyOverrides,
-    ), { mode: request.chatMode,
-      readOnlyExecutorToolIds: [...Object.keys(readOnlyExecutors).filter(id => typeof readOnlyExecutors[id] === "function"), ...liveComposition.clientReadonlyTools],
-      operationConstraints: liveComposition.operationConstraints,
-    });
+    ), catalogPolicy);
     const enabledRuntimeToolIds = Object.keys(fullTools);
     const turnPlan = resolveTurnPlan({
       actionScope: scope.actionScope,
@@ -222,7 +227,8 @@ export async function prepareAgentTurnRuntime(params: {
       chatMode: request.chatMode,
       cwd: request.cwd,
       designerEmbedBlock: scope.designerEmbedBlock,
-      enabledToolIds: enabledRuntimeToolIds,
+      toolCatalog: { ...catalogPolicy, tools: fullTools },
+      mcpCatalogs: "catalogs" in mcp ? mcp.catalogs : [],
       launcherUserText: request.lastUserText,
       modelId,
       repairedMessages: request.repairedMessages,
