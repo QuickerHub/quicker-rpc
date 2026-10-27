@@ -220,8 +220,11 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 生产 Electron 的现有关闭入口另已完成两轮独立正常退出验收：root、UI Node、browser/terminal
 退出 0，全部所属进程与原监听在 Job dispose 前消失，无强制回收，合成 history 跨重启可读。
 此本地组合使用源码 `f6fafbed` 的生产 runtime/ASAR 与正式 0.15.1 Electron 工具；不是公开
-安装器完整副本，也未执行 NSIS 或用户升级。并发 cold terminal 启动的重复 spawn/503 已观察，
-保留为未修复限制；不将正常退出通过写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
+安装器完整副本，也未执行 NSIS 或用户升级。此前并发 cold terminal 重复 spawn/503 的失败记录保留。
+当前源码的启动修复（`f4705887`）已实现同目标/owner 共享一次启动、独立等待者取消；stop 先取消并等待启动任务，再仅回收 retained child。
+生产 Node 服务与真实 Node 子进程中的 health/IPC 协议替身已验证并发、归属和 IPC 退出；替身不是生产
+terminal server/node-pty。真实 PTY/终端 UI 和包含本修复的新安装包仍待验收，不将正常退出或启动机制回归
+写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
 标准 `build` / `start` / `electron:prepare` 和发布入口默认 static，运行目录不含 Next；Next
 移至开发依赖，继续服务 HMR 与显式 `legacy-next` 构建/暂存/启动。删除该兼容分支仍受上述
 完整验收门槛约束，不把默认入口切换记作 A4 完成。见 [运行清单](../engineering/static-agent-runtime.md)。
@@ -270,7 +273,7 @@ Agent 变量授权、Save/Sync、V2 source 写回和通信优化继续保留各�
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。ResourcePane 已接两类绑定目录的筛选、分页、只读选择和刷新；V1 组合动作（已知 XAction）打开复用完整绑定的本地项目或导出到空目录，通过原文件实例入口打开，已有草稿/undo、迟到及未知收据已有 fixture/DOM 回归。169 已验收已有项目复用/重复 UUID/错误 owner 拒绝（HTTP，文件 hash 未变、未执行动作），首次导出及 native GUI 点击仍待验收。全局子程序调用插入/拖放已复用模块参数表单，调用及新变量单事务/undo、未blur草稿和跨文档晚确认已有真实 DOM 回归；动作引用插入/拖放也已接原生 sys:runAction/StartAction 映射、绑定 schema 与同一事务，39 项真实 DOM 及迟到请求不抢快速插入草稿的 13 场景通过；两个调用链原生 GUI 验收、V2/子程序打开、必要资源操作、完整属性与 host session 接线仍待迁移，A1 未完成 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 source adapter、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已有离线回归；候选 CLI 的真实 V2 发现/绑定已验证，但 2.3.20 source 仍关闭，待稳定原文 owner/Designer 保护/提交收据后再接真实读写；重启和完整打包仍待验收 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。主动作“+对话”私有 pin 已授权本轮备注与契约支持的既有普通输入编辑，复用原 APDE revision/history；真实 SDK、隔离完整 SPA、单次撤销和停止隔离已验证。Ask 只读，停止后保留已应用回执且迟到调用不重放；无文件/宿主写入。内部子程序页签已接同一根文档的私有 pin，完整原文定位、外部缓存拒绝及跨编辑面重复 ID 拒绝已有 12 项真实 DOM 与 1 项编译检查的组合回归；完整参数模式/变量/属性/外置文件、Agent Save/Sync、多宿主与完整人工/Agent 交错仍未完成 |
-| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 默认生产 build/start/prepare/发布已切静态 React/Node，Next 为开发依赖与显式 legacy；会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后才删除兼容分支。现有 API、资源/native/真实子进程与隔离 Electron 打包启动已验证；现有关闭入口两轮正常退出已验证，四角色0、所属进程/监听先于Job dispose清空，无强制回收；并发cold terminal重复启动/503仍待修复。NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
+| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 默认生产 build/start/prepare/发布已切静态 React/Node，Next 为开发依赖与显式 legacy；会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后才删除兼容分支。现有 API、资源/native/真实子进程与隔离 Electron 打包启动已验证；现有关闭入口两轮正常退出已验证，四角色0、所属进程/监听先于Job dispose清空，无强制回收。当前 cold terminal 源码已实现同目标/owner 共享启动、独立等待者取消、stop 取消并等待启动后仅回收 retained child；生产 Node 服务与真实 Node 协议替身的并发/归属/IPC 退出已验证，历史重复 spawn/503 失败记录保留；真实 PTY/终端 UI 和包含本修复的新安装包仍待验收。NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
 
 首个实现切片是 A0 的最小身份/能力契约与 A1 的可运行设计器迁移并行推进；真实宿主写入

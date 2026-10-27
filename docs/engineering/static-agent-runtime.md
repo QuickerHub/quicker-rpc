@@ -182,8 +182,11 @@ flush 的完整行为。browser runtime 的 Node 服务与 terminal 预热子进
 在首次 dispose 前清空，无强制 Job 回收；合成 history 跨重启可读。请求 guard 的两次修正
 只改变该观测文件，原清单、旧 guard 和更正链均保留。同步日志镜像可能影响时序，本轮耗时
 只描述这一隔离验收组合，不代表未注入观测的正式包性能。这个组合不等于公开安装器的字节副本。
-早期 harness 失败与一次 terminal 启动 503 同样保留；日志发现并发 cold start 会重复启动
-terminal 并报 EADDRINUSE，此并发启动问题尚未修复，不把两轮正常退出写成整体启动稳定性验收。
+早期 harness 失败与一次 terminal 启动 503 的记录同样保留；当时日志发现并发 cold start 重复启动
+terminal 并报 EADDRINUSE。当前源码的启动修复（`f4705887`）已实现同目标/owner 共享一次启动、独立等待者取消；stop 先取消并
+等待启动任务，再仅回收 retained child。生产 Node 服务与真实 Node 子进程中的 health/IPC 协议替身
+已验证并发启动、child 归属和 IPC 退出；该替身不是生产 terminal server/node-pty。真实 PTY/终端 UI
+和包含本修复的新安装包仍待验收，不把两轮正常退出或启动机制回归写成整体 A4 完成。
 
 NSIS 两条正式打包入口共用固定版本模板适配与 .NET Framework 4.7.2 ownership helper。
 构建必须经过上述入口；原始 builder 调用缺少适配标记时拒绝生成安装器。最终安装目录、
