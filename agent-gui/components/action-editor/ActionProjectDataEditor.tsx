@@ -793,14 +793,14 @@ export function ActionProjectDataEditor({
         return;
       }
       if (sessionRef.current !== session || session.isClosed()) return;
-      if (sourceClient || liveEndpointRef.current) {
-        const selected = liveEndpointRef.current?.readStep?.(stepId);
-        if (!selected?.ok) { setPinStepFeedback(selected?.error ?? "此步骤尚未取得原文档的实时来源。"); return; }
-      }
       const result = resolveProgramDocumentStepPin(session.getState().content, stepId);
       if (!result.ok) {
         setPinStepFeedback(result.error);
         return;
+      }
+      if (sourceClient || liveEndpointRef.current) {
+        const selected = liveEndpointRef.current?.readStep?.(stepId);
+        if (!selected?.ok) { setPinStepFeedback(selected?.error ?? "此步骤尚未取得原文档的实时来源。"); return; }
       }
 
       const tag = createProgramStepTag({
