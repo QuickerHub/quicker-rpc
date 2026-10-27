@@ -12,6 +12,7 @@ import {
 import type { PinnedAction } from "@/lib/action-context";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { ProgramVariableTag } from "@/lib/program-variable-tag";
 import {
   parseUserMessageSegments,
 } from "@/lib/compose-user-message";
@@ -49,6 +50,7 @@ export type ChatComposerFooterHandle = {
   insertActionTag: (action: PinnedAction) => void;
   insertBrowserElementTag: (element: BrowserElementTag) => void;
   insertProgramStepTag: (tag: ProgramStepTag) => void;
+  insertProgramVariableTag: (tag: ProgramVariableTag) => void;
   insertMentionTrigger: () => void;
   insertPlainText: (text: string) => void;
 };
@@ -145,7 +147,7 @@ const ChatComposerFooterInner = forwardRef<
         canSend = true;
       } else if (segment.type === "browser-element") {
         canSend = true;
-      } else if (segment.type === "program-step") {
+      } else if (segment.type === "program-step" || segment.type === "program-variable") {
         canSend = true;
       } else if (segment.type === "slash-tag") {
         canSend = true;
@@ -193,6 +195,10 @@ const ChatComposerFooterInner = forwardRef<
       },
       insertProgramStepTag: (tag: ProgramStepTag) => {
         composerRef.current?.insertProgramStepTag(tag);
+        requestAnimationFrame(() => composerRef.current?.focus());
+      },
+      insertProgramVariableTag: (tag: ProgramVariableTag) => {
+        composerRef.current?.insertProgramVariableTag(tag);
         requestAnimationFrame(() => composerRef.current?.focus());
       },
       insertMentionTrigger: () => {

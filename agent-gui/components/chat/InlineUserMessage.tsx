@@ -4,6 +4,7 @@ import { useCallback, type ClipboardEvent } from "react";
 import { ActionPromptTag } from "@/components/chat/ActionPromptTag";
 import { BrowserElementPromptTag } from "@/components/chat/BrowserElementPromptTag";
 import { ProgramStepPromptTag } from "@/components/chat/ProgramStepPromptTag";
+import { ProgramVariablePromptTag } from "./ProgramVariablePromptTag";
 import { SlashPromptTag } from "@/components/chat/SlashPromptTag";
 import {
   hasPasteableUserMessageFormat,
@@ -60,6 +61,7 @@ export function InlineUserMessage({ content }: InlineUserMessageProps) {
             />
           );
         }
+        if (segment.type === "program-variable") return <ProgramVariablePromptTag key={`${segment.tag.tagId}-${index}`} tag={segment.tag} variant="sent" />;
         if (segment.type === "program-step") {
           return (
             <ProgramStepPromptTag

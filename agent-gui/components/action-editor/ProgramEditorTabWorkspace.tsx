@@ -50,6 +50,7 @@ export type ProgramEditorTabWorkspaceProps = {
   embeddedSubProgramsWireJson?: string;
   onHandleChange?: (handle: ProgramEditorWorkspaceHandle | null) => void;
   onPinStepToChat?: (stepId: string) => void;
+  onPinVariableToChat?: (variable: { surface: string; variableId: string }) => void;
   metadataPanel?: ReactNode;
   catalogPort?: DesignerCatalogPort;
 };
@@ -100,7 +101,7 @@ export function ProgramEditorTabWorkspace(props: ProgramEditorTabWorkspaceProps)
 function ProgramEditorTabWorkspaceBody({
   documentKey, controller, active = true, historyDisabled = false, mainSurface = "main", workspaceContext,
   globalSubPrograms = [], embeddedSubProgramsWireJson, onHandleChange,
-  onPinStepToChat, metadataPanel, activeTabId, onSelectTab,
+  onPinStepToChat, onPinVariableToChat, metadataPanel, activeTabId, onSelectTab,
 }: ProgramEditorTabWorkspaceProps & { activeTabId: string; onSelectTab: (id: string) => void }): JSX.Element {
   const bridge = useActiveXProgramBridge();
   const catalogPort = useDesignerCatalogPort();
@@ -380,7 +381,8 @@ function ProgramEditorTabWorkspaceBody({
           control={controller.getSurface("main")} keyboardOwnerId={keyboardOwnerId}
           editorTabId="main" active={mainVisible && !modalOpen} programDocumentKey={documentKey} programSurface={mainSurface}
           workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-          onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get("main")} resourceCallOrigin={resourceCallOrigin} />
+          onPinStepToChat={onPinStepToChat} onPinVariableToChat={onPinVariableToChat ? variableId => onPinVariableToChat({ surface: "main", variableId }) : undefined}
+          registerToolboxInsert={insertionHandlers.get("main")} resourceCallOrigin={resourceCallOrigin} />
       </div>
       {visitedTabs.map((surface) => {
         const tab = tabsById.get(surface);
@@ -392,7 +394,8 @@ function ProgramEditorTabWorkspaceBody({
             control={controller.getSurface(surface)} keyboardOwnerId={keyboardOwnerId}
             editorTabId={surface} active={visible && !modalOpen} programDocumentKey={`${documentKey}#${surface}`} programSurface="subProgram"
             workspaceContext={workspaceContext} subPrograms={subPrograms} embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
-            onPinStepToChat={onPinStepToChat} registerToolboxInsert={insertionHandlers.get(surface)} resourceCallOrigin={resourceCallOrigin} />
+            onPinStepToChat={onPinStepToChat} onPinVariableToChat={onPinVariableToChat ? variableId => onPinVariableToChat({ surface, variableId }) : undefined}
+            registerToolboxInsert={insertionHandlers.get(surface)} resourceCallOrigin={resourceCallOrigin} />
         </div>;
       })}
       </div>

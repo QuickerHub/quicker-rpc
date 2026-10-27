@@ -76,6 +76,8 @@ import { useWorkspaceDocumentNavigation } from "@/lib/workspace-document-navigat
 import { createProgramDocumentLiveEndpoint } from "@/lib/action-editor/program/liveProgramDocumentEndpoint";
 import type { SourceBundleEditorStorage } from "./SourceBundleDocumentEditor";
 import { sourceBundleDirectory } from "@/lib/source-bundle-document";
+import { createProgramVariableTag, type ProgramVariableTag } from "@/lib/program-variable-tag";
+import type { LiveProgramDocumentEndpoint } from "@/lib/live-program-document";
 import "@/components/action-editor/action-editor-theme.css";
 import "@/components/action-editor/action-editor.css";
 import "@/components/action-editor/action-project-data-editor.css";
@@ -145,6 +147,7 @@ export type ActionProjectDataEditorProps = {
   /** Presentation only; hiding the editor retains its session and pending saves. */
   active?: boolean;
   onPinStepToChat?: (tag: ProgramStepTag) => void;
+  onPinVariableToChat?: (tag: ProgramVariableTag) => boolean | void;
   path: string;
   content: string;
   /** When true, content may be an agent slice — editor refetches full file from workspace API. */
@@ -172,6 +175,7 @@ export function ActionProjectDataEditor({
   sourceStorage,
   active = true,
   onPinStepToChat,
+  onPinVariableToChat,
   path,
   content,
   truncated = false,
@@ -697,16 +701,20 @@ export function ActionProjectDataEditor({
   }) : null, [session]);
   const liveSessionId = useMemo(() => session ? `${liveInstanceId}:${++liveGeneration.current}` : undefined, [session, liveInstanceId]);
   const liveOwner = liveNavigation?.owner;
+  const liveEndpointRef = useRef<LiveProgramDocumentEndpoint | null>(null);
   useLayoutEffect(() => {
-    if (sourceClient || !liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
+    if (!liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
       || liveOwner.cwd !== cwd || liveOwner.path.replace(/\\/g, "/") !== path.replace(/\\/g, "/")) return;
     const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController, catalogPort,
       isCurrent: () => sessionRef.current === session && liveAvailability.current.session === session && liveAvailability.current.available
         && !(liveSyncBusy.current?.key === syncOwnerRef.current.key && liveSyncBusy.current.busy),
       flushPendingEdits: () => workspaceRef.current?.flushPendingEdits(),
       isLiveEditingBlocked: () => workspaceRef.current?.isLiveEditingBlocked() ?? true,
+      ...(sourceClient ? { sourceTarget: () => session.getState().saving ? undefined : sourceClient.getLiveSourceTarget(session.getState().baselineContent) } : {}),
     });
-    return liveDocuments.register(liveOwner, endpoint);
+    liveEndpointRef.current = endpoint;
+    const release = liveDocuments.register(liveOwner, endpoint);
+    return () => { if (liveEndpointRef.current === endpoint) liveEndpointRef.current = null; release(); };
   }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, catalogPort, sourceClient]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
@@ -813,6 +821,24 @@ export function ActionProjectDataEditor({
     },
     [active, onPinStepToChat, programPinMeta, session, sourceClient],
   );
+
+  const handlePinVariableToChat = useCallback((selector: { surface: string; variableId: string }) => {
+    if (!active || !session || sessionRef.current !== session || session.isClosed()) return;
+    if (workspaceRef.current?.isLiveEditingBlocked() || workspaceRef.current?.flushPendingEdits() === false) {
+      setPinStepFeedback("请先修正或放弃未确认的编辑，再添加变量到对话。"); return;
+    }
+    if (sessionRef.current !== session || session.isClosed()) return;
+    const selected = liveEndpointRef.current?.readVariable?.(selector);
+    if (!selected?.ok) { setPinStepFeedback(selected?.error ?? "此变量尚未取得原文档的实时来源。"); return; }
+    const raw = JSON.parse(selected.variable.variableJson) as { key?: unknown };
+    const tag = createProgramVariableTag({ programTarget: programPinMeta.programTarget, programId: programPinMeta.programId,
+      documentPath: programPinMeta.dataJsonPath, surface: selector.surface, variableId: selector.variableId,
+      content: selected.variable.variableJson, chipTitle: `变量 · ${typeof raw.key === "string" ? raw.key : selector.variableId}` });
+    if (!onPinVariableToChat || onPinVariableToChat(tag) === false) {
+      setPinStepFeedback("当前可见对话不能接收此变量，请重新从原文档添加。"); return;
+    }
+    setPinStepFeedback("已添加到左侧当前对话输入框");
+  }, [active, session, onPinVariableToChat, programPinMeta]);
 
   const handleSave = useCallback(async () => {
     if (!active || !session || externalConflict || metadataConflict || hostSyncBusy || targetBlocked) return;
@@ -949,7 +975,7 @@ export function ActionProjectDataEditor({
         {sourceDocument ? <SourceBundleTargetSummary actionId={sourceDocument.actionId} host={sourceDocument.hostBinding} /> : null}
         {sourceClient && sourceDocument ? <div className="action-project-data-editor-actions" data-source-bundle-status>
           <p className="workspace-explorer-hint">{sourceDocument.pending.status === "pending" ? "本地待同步" : "本地与提交基线一致"} · 当前宿主状态未核验</p>
-          <p className="workspace-explorer-hint">动作标题、说明和图标只读；外置资源只读，文件引用保留。此源码文档暂不支持加入实时对话。</p>
+          <p className="workspace-explorer-hint">动作标题、说明和图标只读；外置资源只读，文件引用保留。仅来源可核验的变量可加入实时对话；步骤暂不支持。</p>
           {targetError ? <p className="workspace-explorer-hint workspace-explorer-hint--err" role="alert">{targetError}</p> : null}
           <button type="button" className="action-project-data-editor-sync" onClick={() => void handleSourceSync()}
             disabled={!active || dirty || saving || hostSyncBusy || targetBlocked || sourceDocument.hostBinding?.capabilities["action.source.write"] !== true}>
@@ -1122,6 +1148,7 @@ export function ActionProjectDataEditor({
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
               onHandleChange={handleWorkspaceChange}
               onPinStepToChat={sourceClient ? undefined : handlePinStepToChat}
+              onPinVariableToChat={onPinVariableToChat ? handlePinVariableToChat : undefined}
               metadataPanel={metadataEnabled && liveMetadata ? <ProgramAppearanceEditor
                 value={liveMetadata} disabled={!active || hostSyncBusy} onChange={handleMetadataChange} onSave={() => void handleSave()} /> : undefined}
             />

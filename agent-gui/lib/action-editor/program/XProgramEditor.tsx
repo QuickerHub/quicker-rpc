@@ -56,6 +56,7 @@ export type XProgramEditorProps = {
   /** data.json path (or equivalent) — remounts StepListEditor on workspace tab switch. */
   programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
+  onPinVariableToChat?: (variableId: string) => void;
   registerToolboxInsert?: RegisterToolboxInsert;
   resourceCallOrigin?: ResourceCallOrigin;
   control?: XProgramEditorControl;
@@ -75,6 +76,7 @@ function XProgramEditorInner({
   embeddedSubProgramsWireJson,
   programDocumentKey,
   onPinStepToChat,
+  onPinVariableToChat,
   registerToolboxInsert,
   resourceCallOrigin,
   control,
@@ -303,6 +305,7 @@ function XProgramEditorInner({
               <div className="x-program-editor-variables-drawer-body">
                 <VariableEditor
                   active={active}
+                  onPinVariableToChat={onPinVariableToChat}
                   programSurface={programSurface}
                   variables={present.variables}
                   registerDraftFlusher={registerDraftFlusher}

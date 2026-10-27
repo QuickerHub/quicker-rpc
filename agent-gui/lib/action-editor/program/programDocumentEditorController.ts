@@ -14,6 +14,8 @@ import { exportProgramDocumentVariables, pasteProgramDocumentVariables } from ".
 import type { ProgramVariableClipboardExportResult, ProgramVariableClipboardPasteResult } from "./programVariableClipboard";
 import { exportProgramDocumentSteps, pasteProgramDocumentSteps } from "../document/programDocumentStepClipboard";
 import type { StepClipboardExportResult, StepClipboardPasteResult } from "./programStepClipboardCodec";
+import { prepareProgramDocumentVariableLiveChange, type ProgramDocumentVariableLiveChange, type ProgramDocumentVariableLiveOptions } from "../document/programDocumentVariableLive";
+import { programDocumentFingerprint } from "../document/programDocumentWire";
 
 export type XProgramEditorControl = {
   getPresent(): XProgramPresent;
@@ -51,6 +53,24 @@ export function createProgramDocumentEditorController(
     getSnapshot: () => session.readSnapshot(),
     getIdentity: () => session.getState().identity,
     getHistoryState: () => session.getHistoryState(),
+    applyAgentVariableChange(input: ProgramDocumentVariableLiveChange & ProgramDocumentVariableLiveOptions & {
+      expectedRevision: number; expectedIdentity: ProgramDocumentIdentity;
+    }): ProgramDocumentEditResult & { changedFields?: readonly string[] } {
+      const reject = (code: "identity_conflict" | "revision_conflict" | "invalid_document" | "closed", error: string): ProgramDocumentEditResult => ({ ok: false, code, error, state: session.getState() });
+      if (!options.isCurrent()) return reject("identity_conflict", "The original program document is no longer current.");
+      if (session.isClosed()) return reject("closed", "The original program document is closed.");
+      const state = session.getState();
+      if (programDocumentFingerprint(state.identity) !== programDocumentFingerprint(input.expectedIdentity)) return reject("identity_conflict", "The variable read belongs to another document identity.");
+      if (state.revision !== input.expectedRevision) return reject("revision_conflict", "The variable changed after its actual read.");
+      const prepared = prepareProgramDocumentVariableLiveChange(state.content, { surface: input.surface, variableId: input.variableId,
+        contractRevision: input.contractRevision, changes: input.changes }, { fieldDenials: input.fieldDenials });
+      if (!prepared.ok) return reject("invalid_document", `${prepared.code}: ${prepared.error}`);
+      const result = applyProgramDocumentVariableChange(session, input.surface, prepared.request, {
+        expectedRevision: input.expectedRevision, expectedIdentity: input.expectedIdentity, source: "agent",
+      });
+      options.onChange(result);
+      return result.ok ? { ...result, changedFields: result.changed ? prepared.changedFields : [] } : result;
+    },
     applyAgentStepInputs(input: ProgramDocumentStepInputsRequest): ProgramDocumentEditResult {
       if (!options.isCurrent()) return { ok: false, code: "identity_conflict", error: "The original program document is no longer current.", state: session.getState() };
       const result = applyProgramDocumentStepInputs(session, input);

@@ -15,6 +15,7 @@ import type { ExplorerFileTab } from "@/lib/workspace-explorer";
 import { fetchWorkspaceFile, formatWorkspaceFetchError } from "@/lib/workspace-explorer-api";
 import { invalidateWorkspaceFileReadCache } from "@/lib/workspace-file-read-cache";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
+import type { ProgramVariableTag } from "@/lib/program-variable-tag";
 import type { ProgramDocumentSaveRequest, ProgramDocumentSaveResult } from "@/lib/program-document-save";
 type WorkspaceExplorerEditorPaneProps = {
   active?: boolean;
@@ -30,6 +31,7 @@ type WorkspaceExplorerEditorPaneProps = {
   onRefreshTree: () => void;
   onActionProjectSynced: () => void | Promise<void>;
   onPinStepToChat?: (tag: ProgramStepTag) => void;
+  onPinVariableToChat?: (tag: ProgramVariableTag) => boolean | void;
   onSaveDocument?: (request: ProgramDocumentSaveRequest) => Promise<ProgramDocumentSaveResult>;
 };
 
@@ -44,6 +46,7 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
   onRefreshTree,
   onActionProjectSynced,
   onPinStepToChat,
+  onPinVariableToChat,
   onSaveDocument,
 }: WorkspaceExplorerEditorPaneProps) {
   if (showDoc) {
@@ -140,6 +143,7 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
           </>
         ) : sourceDocument ? (
           <SourceBundleDocumentEditor active={active} path={activeTab.path} content={activeTab.content} cwd={cwd}
+            onPinVariableToChat={onPinVariableToChat}
             onSave={async () => ({ ok: false, error: "源码保存必须使用原文档存储端口。" })}
             onSaved={onActionProjectSynced} onSynced={onActionProjectSynced} />
         ) : isActionProjectDataPath(activeTab.path) ? (
@@ -147,6 +151,7 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
             <ActionProjectDataEditor
               active={active}
               onPinStepToChat={onPinStepToChat}
+              onPinVariableToChat={onPinVariableToChat}
               path={activeTab.path}
               content={activeTab.content}
               truncated={activeTab.truncated}

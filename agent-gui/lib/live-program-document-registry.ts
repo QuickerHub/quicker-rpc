@@ -6,18 +6,23 @@ import { inspectProgramDocumentStepInputs } from "./action-editor/document/progr
 import { parseActionProjectBinding } from "./action-project-binding";
 import { inspectLiveProgramStepInputPolicy, isSupportedLiveStepLiteral } from "./live-program-step-input-policy";
 import { readStepRunnerInputContract, STEP_RUNNER_INPUT_CONTRACT_CAPABILITY, type StepRunnerInputContract } from "./step-runner-input-contract";
+import { isLiveProgramSourceTarget } from "./live-program-source-target";
+import { parseLiveProgramDocumentToolInput } from "./live-program-document-tool";
+import type { ProgramDocumentVariableSelector } from "./action-editor/document/programDocumentVariableLive";
 import type { WorkspaceDocumentOwner } from "./workspace-document-instances";
 import type { LiveProgramDocumentCommand, LiveProgramDocumentEndpoint, LiveProgramDocumentInput,
   LiveProgramDocumentPin, LiveProgramDocumentReceipt, LiveProgramDocumentRegistry, LiveProgramDocumentScope,
   LiveProgramDocumentSnapshot, LiveProgramDocumentTarget, LiveProgramDocumentExecutionOptions } from "./live-program-document";
 
 type Entry = { owner: WorkspaceDocumentOwner; endpoint: LiveProgramDocumentEndpoint };
-type Pin = { ref: LiveProgramDocumentPin; entry: Entry; target: LiveProgramDocumentTarget; stepId: string };
+type Pin = { ref: LiveProgramDocumentPin; entry: Entry; target: LiveProgramDocumentTarget } &
+  ({ kind: "step"; stepId: string } | { kind: "variable"; variable: ProgramDocumentVariableSelector; rowIdentity?: string });
 type SchemaProof = { stepId: string; runnerKey: string; revision: number; contract: StepRunnerInputContract; editableInputKeys: readonly string[] };
 type Waiter = { execution?: LiveProgramDocumentExecutionOptions; finish(receipt: LiveProgramDocumentReceipt): void };
 type PendingRead = { command: LiveProgramDocumentCommand; fingerprint: string; controller: AbortController; waiters: Set<Waiter> };
 type Scope = { descriptor: LiveProgramDocumentScope; entry: Entry; closed?: string;
   allowedStepIds: ReadonlySet<string>;
+  allowedVariables: ReadonlyMap<string, { rowIdentity?: string }>;
   gate: ReturnType<typeof createToolCallPolicyGate>;
   operations: Map<string, { fingerprint: string; receipt: LiveProgramDocumentReceipt }>;
   pending: Map<string, PendingRead>; schemas: Map<string, SchemaProof>;
@@ -27,7 +32,10 @@ const ownerKey = (owner: WorkspaceDocumentOwner) => JSON.stringify([owner.key, o
 const sameOwner = (a: WorkspaceDocumentOwner, b: WorkspaceDocumentOwner) => a.key === b.key && a.instanceId === b.instanceId
   && a.cwd === b.cwd && a.tabId === b.tabId && a.path === b.path;
 const sameTarget = (a: LiveProgramDocumentTarget, b: LiveProgramDocumentTarget) => sameOwner(a.owner, b.owner)
-  && a.sessionId === b.sessionId && programDocumentFingerprint(a.identity) === programDocumentFingerprint(b.identity);
+  && a.sessionId === b.sessionId && programDocumentFingerprint(a.identity) === programDocumentFingerprint(b.identity)
+  && programDocumentFingerprint({ format: a.format ?? "legacy-json", ...(a.format === "source-bundle" ? { source: a.source } : {}) })
+    === programDocumentFingerprint({ format: b.format ?? "legacy-json", ...(b.format === "source-bundle" ? { source: b.source } : {}) });
+const variableKey = (value: ProgramDocumentVariableSelector) => JSON.stringify([value.surface, value.variableId]);
 const denied = (code: string, error: string) => ({ ok: false as const, code, error, retryable: false as const });
 function freeze<T>(value: T): T {
   if (value && typeof value === "object") { for (const nested of Object.values(value)) freeze(nested); Object.freeze(value); }
@@ -39,10 +47,12 @@ function createId(): string {
   return [...crypto.getRandomValues(new Uint8Array(24))].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 function validInput(value: LiveProgramDocumentInput): boolean {
+  if (value?.action === "read_live" || value?.action === "edit_variable_live") {
+    const parsed = parseLiveProgramDocumentToolInput({ ...value, scopeId: "registry-validation" });
+    return Boolean(parsed && (value.action !== "edit_variable_live" || new TextEncoder().encode(JSON.stringify(value.changes)).length <= 1_048_576));
+  }
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const keys = Object.keys(value).sort();
-  if (value.action === "read_live") return keys.join() === "action"
-    || (keys.join() === "action,stepSchemaFor" && typeof value.stepSchemaFor === "string" && Boolean(value.stepSchemaFor.trim()));
   if (value.action === "edit_step_inputs_live") return keys.join() === "action,changes,expectedRevision,readOperationId,stepId"
     && typeof value.readOperationId === "string" && Boolean(value.readOperationId.trim())
     && Number.isSafeInteger(value.expectedRevision) && value.expectedRevision >= 0 && typeof value.stepId === "string" && Boolean(value.stepId.trim())
@@ -70,12 +80,15 @@ export function createLiveProgramDocumentRegistry(options: {
   const target = (entry: Entry) => {
     if (!active(entry)) return;
     const current = entry.endpoint.getTarget();
-    if (!current || !current.sessionId || current.identity.projectBinding === undefined || !sameOwner(current.owner, entry.owner)) return;
+    if (!current || !current.sessionId || !sameOwner(current.owner, entry.owner)) return;
+    if (current.format === "source-bundle" ? !isLiveProgramSourceTarget(current.source) || current.identity.projectBinding !== undefined
+      : current.identity.projectBinding === undefined) return;
     return current;
   };
   const closeEntry = (entry: Entry) => {
     for (const scope of scopes.values()) if (scope.entry === entry) closeScope(scope, "The original document endpoint was replaced or closed.");
     for (const [key, pin] of pins) if (pin.entry === entry) pins.delete(key);
+    entry.endpoint.dispose?.();
   };
   const receiptBase = (scope: LiveProgramDocumentScope, command: LiveProgramDocumentCommand) => ({
     version: 1 as const, source: "live_document" as const, scopeId: scope.scopeId, operationId: command.operationId,
@@ -84,7 +97,7 @@ export function createLiveProgramDocumentRegistry(options: {
   });
   const fail = (scope: LiveProgramDocumentScope, command: LiveProgramDocumentCommand, code: string, error: string,
     application: "not_applied" | "unknown" = "not_applied"): LiveProgramDocumentReceipt => ({
-    ...receiptBase(scope, command), ok: false, action: command.input?.action === "edit_step_inputs_live" ? "edit_step_inputs_live" : command.input?.action === "edit_live" ? "edit_live" : "read_live", code, error, retryable: false, application,
+    ...receiptBase(scope, command), ok: false, action: command.input?.action === "edit_variable_live" ? "edit_variable_live" : command.input?.action === "edit_step_inputs_live" ? "edit_step_inputs_live" : command.input?.action === "edit_live" ? "edit_live" : "read_live", code, error, retryable: false, application,
   });
   const read = (entry: Entry, expected: LiveProgramDocumentTarget): LiveProgramDocumentSnapshot => {
     const current = target(entry);
@@ -245,9 +258,12 @@ export function createLiveProgramDocumentRegistry(options: {
       const permission = getToolModeOperationDecision("workspace_program", descriptor.mode === "read" ? "ask" : "agent",
         command.input, true, liveProgramOperationConstraint(descriptor.mode));
       if (!permission.allowed) return store(fail(descriptor, command, "tool_mode_denied", permission.reason));
-      const grantedStep = command.input.action === "read_live" ? command.input.stepSchemaFor : command.input.stepId;
+      const grantedStep = command.input.action === "read_live" ? command.input.stepSchemaFor : command.input.action === "edit_variable_live" ? undefined : command.input.stepId;
       if (grantedStep !== undefined && !scope.allowedStepIds.has(grantedStep))
         return store(fail(descriptor, command, "LIVE_STEP_NOT_GRANTED", "This step was not pinned for the original manual user send; the complete read is context only."));
+      const grantedVariable = command.input.action === "read_live" ? command.input.variableFor : command.input.action === "edit_variable_live" ? command.input : undefined;
+      if (grantedVariable && !scope.allowedVariables.has(variableKey(grantedVariable)))
+        return store(fail(descriptor, command, "LIVE_VARIABLE_NOT_GRANTED", "This exact variable surface and identity were not pinned for this manual send."));
       if (cancelled(execution)) return store(fail(descriptor, command, "REQUEST_ABORTED", "The manual turn was cancelled before the operation."));
       const policy = scope.gate.consume("workspace_program", command.input);
       if (policy) return store(fail(descriptor, command, "tool_call_limit", policy.stderr ?? "The tool call policy rejected this operation."));
@@ -258,7 +274,17 @@ export function createLiveProgramDocumentRegistry(options: {
         if (command.input.action === "read_live") {
           if (new TextEncoder().encode(snapshot.content).length > (options.maxContentBytes ?? 1_048_576))
             return store(fail(descriptor, command, "LIVE_DOCUMENT_TOO_LARGE", "The complete document exceeds the live tool payload limit; no partial read or disk fallback was used."));
-          return store({ ...receiptBase(descriptor, command), ok: true, action: "read_live", complete: true, ...snapshot });
+          let variable;
+          if (command.input.variableFor) {
+            const selected = scope.entry.endpoint.readVariable?.(command.input.variableFor);
+            if (!selected?.ok) return store(fail(descriptor, command, selected?.code ?? "LIVE_VARIABLE_UNAVAILABLE", selected?.error ?? "Variable field contracts are unavailable."));
+            if (selected.variable.rowIdentity !== scope.allowedVariables.get(variableKey(command.input.variableFor))?.rowIdentity)
+              return store(fail(descriptor, command, "LIVE_VARIABLE_STALE", "The original variable row was removed or replaced."));
+            variable = selected.variable;
+            if (new TextEncoder().encode(JSON.stringify({ ...snapshot, variable })).length > (options.maxContentBytes ?? 1_048_576))
+              return store(fail(descriptor, command, "LIVE_DOCUMENT_TOO_LARGE", "The complete variable read exceeds the live payload limit."));
+          }
+          return store({ ...receiptBase(descriptor, command), ok: true, action: "read_live", complete: true, ...snapshot, ...(variable ? { variable } : {}) });
         }
         const edit = command.input;
         const proof = scope.operations.get(edit.readOperationId)?.receipt;
@@ -266,6 +292,24 @@ export function createLiveProgramDocumentRegistry(options: {
           return store(fail(descriptor, command, "LIVE_READ_REQUIRED", "Read this live scope and use that exact read operation and revision before editing."));
         if (snapshot.revision !== edit.expectedRevision)
           return store(fail(descriptor, command, "revision_conflict", "The document changed after the read; read its current revision again."));
+        if (edit.action === "edit_variable_live") {
+          if (!proof.variable || variableKey(proof.variable) !== variableKey(edit) || proof.variable.contract.revision !== edit.contractRevision)
+            return store(fail(descriptor, command, "LIVE_VARIABLE_READ_REQUIRED", "Use the actual targeted variable read and its contract revision."));
+          const currentVariable = scope.entry.endpoint.readVariable?.(edit);
+          if (!currentVariable?.ok) return store(fail(descriptor, command, currentVariable?.code ?? "LIVE_VARIABLE_UNAVAILABLE", currentVariable?.error ?? "The variable is unavailable."));
+          if (currentVariable.variable.rowIdentity !== proof.variable.rowIdentity || currentVariable.variable.variableJson !== proof.variable.variableJson
+            || programDocumentFingerprint(currentVariable.variable.contract) !== programDocumentFingerprint(proof.variable.contract))
+            return store(fail(descriptor, command, "LIVE_VARIABLE_STALE", "The original variable row or field contract changed."));
+          if (!scope.entry.endpoint.setVariable) return store(fail(descriptor, command, "LIVE_VARIABLE_UNAVAILABLE", "This endpoint cannot edit variables."));
+          if (cancelled(execution)) return store(fail(descriptor, command, "REQUEST_ABORTED", "The variable edit was cancelled before commit."));
+          editDispatched = true;
+          const result = scope.entry.endpoint.setVariable({ expectedRevision: edit.expectedRevision, expectedIdentity: descriptor.target.identity,
+            surface: edit.surface, variableId: edit.variableId, contractRevision: edit.contractRevision, changes: structuredClone(edit.changes) });
+          if (!result.ok) return store(fail(descriptor, command, result.code, result.error));
+          return store({ ...receiptBase(descriptor, command), ok: true, action: "edit_variable_live", applied: true, changed: result.changed,
+            revisionBefore: result.revisionBefore, revisionAfter: result.revisionAfter, dirty: result.dirty, undoable: result.changed,
+            surface: edit.surface, variableId: edit.variableId, changedFields: result.changedFields ?? edit.changes.map(change => change.field) });
+        }
         if (snapshot.steps.filter((step) => step.stepId === edit.stepId).length !== 1)
           return store(fail(descriptor, command, "LIVE_STEP_AMBIGUOUS", "The target step is missing or not unique in this document."));
         if (edit.action === "edit_step_inputs_live") {
@@ -315,7 +359,23 @@ export function createLiveProgramDocumentRegistry(options: {
           return denied("LIVE_STEP_AMBIGUOUS", "The selected step is missing or not unique in this document.");
         if (pins.size >= 512) return denied("LIVE_PIN_LIMIT", "Too many live pins are retained; finish the current operation or reopen the document.");
         const ref = Object.freeze({ pinId: id(), tagId, threadId });
-        pins.set(ref.pinId, { ref, entry, target: structuredClone(current), stepId });
+        if (current.format === "source-bundle") return denied("LIVE_STEP_UNAVAILABLE", "Source step pins are not implemented.");
+        pins.set(ref.pinId, { kind: "step", ref, entry, target: structuredClone(current), stepId });
+        return ref;
+      } catch (error) { return denied("LIVE_DOCUMENT_UNAVAILABLE", error instanceof Error ? error.message : String(error)); }
+    },
+    pinVariable(owner, tagId, variable, threadId) {
+      const entry = entries.get(ownerKey(owner));
+      if (!entry || !tagId.trim() || !threadId.trim() || !variable.surface?.trim() || !variable.variableId?.trim()) return denied("LIVE_DOCUMENT_UNAVAILABLE", "The variable has no original live endpoint.");
+      const current = target(entry);
+      if (!current) return denied("LIVE_DOCUMENT_UNAVAILABLE", "The variable document identity is unresolved or closed.");
+      try {
+        read(entry, current);
+        const selected = entry.endpoint.readVariable?.(variable);
+        if (!selected?.ok) return denied(selected?.code ?? "LIVE_VARIABLE_UNAVAILABLE", selected?.error ?? "The original variable is unavailable.");
+        if (pins.size >= 512) return denied("LIVE_PIN_LIMIT", "Too many live pins are retained.");
+        const ref = Object.freeze({ pinId: id(), tagId, threadId });
+        pins.set(ref.pinId, { kind: "variable", ref, entry, target: structuredClone(current), variable: structuredClone(variable), rowIdentity: selected.variable.rowIdentity });
         return ref;
       } catch (error) { return denied("LIVE_DOCUMENT_UNAVAILABLE", error instanceof Error ? error.message : String(error)); }
     },
@@ -342,7 +402,10 @@ export function createLiveProgramDocumentRegistry(options: {
       if (first.target.owner.cwd !== input.cwd.trim()) return unavailable("LIVE_CWD_CONFLICT", "The pinned document belongs to another working directory.");
       try {
         const snapshot = read(first.entry, first.target);
-        if (selected.some((pin) => snapshot.steps.filter((step) => step.stepId === pin.stepId).length !== 1))
+        if (selected.some((pin) => pin.kind === "step" ? snapshot.steps.filter((step) => step.stepId === pin.stepId).length !== 1 : (() => {
+          const row = first.entry.endpoint.readVariable?.(pin.variable);
+          return !row?.ok || row.variable.rowIdentity !== pin.rowIdentity;
+        })()))
           return unavailable("LIVE_PIN_STALE", "The original pinned step is missing or ambiguous in this document.");
       } catch (error) { return unavailable("LIVE_DOCUMENT_UNAVAILABLE", error instanceof Error ? error.message : String(error)); }
       for (const scope of scopes.values()) if (scope.descriptor.threadId === input.threadId) closeScope(scope, "A newer manual send owns this Chat.");
@@ -353,7 +416,8 @@ export function createLiveProgramDocumentRegistry(options: {
       }
       const descriptor = freeze({ version: 1 as const, scopeId: id(), threadId: input.threadId, userMessageId: input.userMessageId,
         cwd: input.cwd.trim(), mode: input.mode, target: structuredClone(first.target) });
-      const scope: Scope = { descriptor, entry: first.entry, allowedStepIds: new Set(selected.map((pin) => pin.stepId)),
+      const scope: Scope = { descriptor, entry: first.entry, allowedStepIds: new Set(selected.flatMap(pin => pin.kind === "step" ? [pin.stepId] : [])),
+        allowedVariables: new Map(selected.flatMap(pin => pin.kind === "variable" ? [[variableKey(pin.variable), { rowIdentity: pin.rowIdentity }] as const] : [])),
         gate: createToolCallPolicyGate(), operations: new Map(), pending: new Map(), schemas: new Map(), captureFingerprint: fingerprint };
       scopes.set(descriptor.scopeId, scope);
       for (const pin of selected) pins.delete(pin.ref.pinId);

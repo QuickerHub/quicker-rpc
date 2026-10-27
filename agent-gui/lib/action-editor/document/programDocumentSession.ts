@@ -124,6 +124,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
   let preparingSave = false;
   let nextSaveId = 1;
   let closed = false;
+  const observers = new Set<(state: ProgramDocumentState) => void>();
 
   const failure = (code: ProgramDocumentFailureCode, error: string, persisted?: boolean, persistedParts?: ProgramDocumentPersistedParts): ProgramDocumentFailure => ({
     ok: false, code, error, state, ...(persisted === undefined ? {} : { persisted }), ...(persistedParts === undefined ? {} : { persistedParts: { ...persistedParts } }),
@@ -155,6 +156,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
     if (recordHistory) history.record(captureHistory());
     contentFingerprint = nextFingerprint;
     state = withDirty({ ...state, content, ...(metadata ? { metadata } : {}), revision: state.revision + 1, lastChangeSource: source });
+    for (const observer of observers) { try { observer(state); } catch { /* Observers cannot roll back a committed document. */ } }
     return { ok: true, changed: true, state };
   };
 
@@ -187,6 +189,11 @@ export function createProgramDocumentSession(initial: { content: string; identit
   return {
     /** Cached immutable state is safe for React external-store/state comparisons. */
     getState: (): ProgramDocumentState => state,
+    /** Read-only invalidation observers, not another document or history. */
+    subscribe: (observer: (state: ProgramDocumentState) => void): (() => void) => {
+      if (closed) return () => {};
+      observers.add(observer); return () => { observers.delete(observer); };
+    },
     isClosed: (): boolean => closed,
     getHistoryState: (): ProgramDocumentHistoryState => history.getState(),
     undo: (options: ProgramDocumentHistoryOptions) => restoreHistory("undo", options),
@@ -350,6 +357,7 @@ export function createProgramDocumentSession(initial: { content: string; identit
     },
     close: (): void => {
       closed = true;
+      observers.clear();
       pending = undefined;
       history.clear();
       state = Object.freeze({ ...state, saving: false, history: history.getState() });
