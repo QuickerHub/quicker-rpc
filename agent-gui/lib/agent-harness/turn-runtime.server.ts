@@ -1,6 +1,7 @@
 import "server-only";
 import { bindCurrentToolCatalog } from "../current-tool-catalog";
 import { formatMcpGuidanceForTools } from "@/lib/agent-mcp/guidance";
+import { isNamespacedMcpToolId } from "@/lib/agent-mcp/tool-id";
 
 import type { LanguageModel, ToolSet } from "ai";
 
@@ -125,12 +126,13 @@ export async function prepareAgentTurnRuntime(params: {
     titleTest: request.titleTest,
     benchMode: request.benchMode,
   });
-  // An explicit empty command selection must not initialize external transports.
+  // A command with no possible MCP id cannot use any external transport.
+  const commandToolAllowlist = request.slashCommand.overrides.toolAllowlist;
   const shouldLoadMcp = !request.titleTest
     && !liveIntent
     && !request.benchMode
     && request.chatMode !== CHAT_MODE_LAUNCHER
-    && request.slashCommand.overrides.toolAllowlist?.length !== 0;
+    && (commandToolAllowlist === undefined || commandToolAllowlist.some(isNamespacedMcpToolId));
   const mcp = shouldLoadMcp
     ? await loadConfiguredMcpTools(request.cwd, { chatMode: request.chatMode, abortSignal })
     : {

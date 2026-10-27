@@ -10,6 +10,7 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import { asSchema, type ToolExecutionOptions } from "ai";
 import { formatLocalToolResult, isStructuredToolResult } from "@/lib/tool-result";
 import type { LiveProgramDocumentSelection } from "@/lib/live-program-document";
+import { mcpToolId } from "@/lib/agent-mcp/tool-id";
 
 type Probe = { loads: number; connections: number; disposals: number;
   plans: Array<{ enabledToolIds: readonly string[]; readOnlyExecutorToolIds?: readonly string[] }>;
@@ -231,6 +232,45 @@ test("an explicit empty command selection acquires no MCP client in Agent or Ask
     assert.doesNotMatch(runtime.buildSystemForPreparedContext({}), /CURRENT SERVER KNOWLEDGE|MCP provider reference material/);
     await runtime.dispose();
     assert.equal(run.probe.disposals, 0);
+  }
+});
+
+test("a nonempty built-in-only command restriction acquires no MCP client even when its final intersection is empty", async () => {
+  for (const mode of ["agent", "ask"] as const) {
+    for (const allowlist of [["Read"], ["qkrpc_action_save"]]) {
+      const run = fixture();
+      const runtime = await run.prepare({ mode, enabledToolIds: ["Read"], allowlist });
+      try {
+        assert.deepEqual(Object.keys(runtime.tools), allowlist.includes("Read") ? ["Read"] : []);
+        assert.deepEqual(Object.keys(run.selectChildTools(runtime.tools, ["Read", "mcp__fixture__read"])), Object.keys(runtime.tools));
+        assert.equal(run.probe.loads, 0, `${mode}: ${allowlist} must not acquire a disallowed MCP source`);
+        assert.equal(run.probe.connections, 0);
+        assert.deepEqual(run.probe.baseCalls, []);
+        assert.doesNotMatch(runtime.buildSystemForPreparedContext({}), /CURRENT SERVER KNOWLEDGE|MCP provider reference material/);
+      } finally { await runtime.dispose(); }
+      assert.equal(run.probe.disposals, 0);
+    }
+  }
+});
+
+test("malformed MCP names cannot initialize transports and valid unknown names still require discovery", async () => {
+  for (const mode of ["agent", "ask"] as const) {
+    for (const toolId of ["mcp__", "mcp__server", "mcp__a___b", "mcp__server__", "MCP__server__read", "mcp__server__read/extra"]) {
+      const run = fixture();
+      const runtime = await run.prepare({ mode, allowlist: [toolId] });
+      assert.deepEqual(Object.keys(runtime.tools), []);
+      assert.equal(run.probe.loads, 0, toolId); assert.equal(run.probe.connections, 0);
+      await runtime.dispose(); assert.equal(run.probe.disposals, 0);
+    }
+    for (const toolId of [mcpToolId("Future provider", "unknown/read"), mcpToolId("a___b", "c__d"), mcpToolId("_", " ")]) {
+      const run = fixture();
+      const runtime = await run.prepare({ mode, allowlist: [toolId] });
+      assert.equal(run.probe.loads, 1, toolId); assert.equal(run.probe.connections, 1);
+      assert.deepEqual(Object.keys(runtime.tools), [], "A possible id is not an existing or permitted tool");
+      assert.deepEqual(run.probe.baseCalls, []);
+      assert.doesNotMatch(runtime.buildSystemForPreparedContext({}), /CURRENT SERVER KNOWLEDGE|MCP provider reference material/);
+      await runtime.dispose(); assert.equal(run.probe.disposals, 1);
+    }
   }
 });
 
