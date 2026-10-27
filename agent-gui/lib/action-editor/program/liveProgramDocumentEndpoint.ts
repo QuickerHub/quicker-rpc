@@ -29,6 +29,7 @@ export function createProgramDocumentLiveEndpoint(options: {
   session: ProgramDocumentSession;
   controller: ProgramDocumentEditorController;
   catalogPort?: DesignerCatalogPort;
+  getCatalogPort?(): DesignerCatalogPort | undefined;
   isCurrent(): boolean;
   flushPendingEdits(): boolean | void;
   isLiveEditingBlocked?(): boolean;
@@ -42,14 +43,16 @@ export function createProgramDocumentLiveEndpoint(options: {
     const source = options.sourceTarget?.();
     if (!source || source.mappingEpoch === stepMappingEpoch) return;
     stepMappingEpoch = source.mappingEpoch;
-    stepRows.clear();
+    // A later Save observes bytes, not continuity of a row removed in this Session.
+    for (const [id, row] of stepRows) if (!row.removed) stepRows.delete(id);
     const state = options.session.getState();
     for (const candidate of source.stepIdentity?.steps ?? []) {
       const origin = sourceStepOrigin(source.stepIdentity, candidate.surface, candidate.editorId);
-      if (!origin) continue;
+      if (!origin || stepRows.get(candidate.editorId)?.removed) continue;
       try {
         const original = readProgramDocumentLiveStep(state.baselineContent, origin.editorId);
         if (original.surface !== origin.surface || original.path !== origin.sourceRowAnchor!.path || original.runnerKey !== origin.runnerKey) continue;
+        if ([...stepRows.values()].some(row => row.removed && row.documentPath === original.documentPath)) continue;
         const row = { ...original, token: `${options.sessionId}:step:${++sequence}`, removed: false, mappingEpoch: source.mappingEpoch };
         try {
           const current = readProgramDocumentLiveStep(state.content, origin.editorId);
@@ -148,11 +151,15 @@ export function createProgramDocumentLiveEndpoint(options: {
       return { ok: true, snapshot: { revision: state.revision, dirty: state.dirty, content: state.content, steps } };
     },
     readStep,
-    ...(options.catalogPort ? { async readInputContract(input: { stepRunnerKey: string; controlFieldValue?: string }, signal?: AbortSignal) {
+    ...(options.catalogPort || options.getCatalogPort ? { async readInputContract(input: { stepRunnerKey: string; controlFieldValue?: string }, signal?: AbortSignal) {
       assertAvailable();
-      const contract = await options.catalogPort!.readInputContract(input, signal);
+      const port = options.getCatalogPort ? options.getCatalogPort() : options.catalogPort;
+      if (!port) throw Object.assign(Error("The current document catalog is unavailable."), { code: "LIVE_INPUT_CONTRACT_UNAVAILABLE" });
+      const contract = await port.readInputContract(input, signal);
       signal?.throwIfAborted();
       assertAvailable();
+      if (options.getCatalogPort && options.getCatalogPort() !== port)
+        throw Object.assign(Error("The document catalog changed while its native input contract was loading."), { code: "LIVE_INPUT_CONTRACT_UNAVAILABLE" });
       return contract;
     } } : {}),
     setStepInputs(input) {

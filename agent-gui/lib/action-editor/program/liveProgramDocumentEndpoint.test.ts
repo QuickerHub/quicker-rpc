@@ -79,3 +79,24 @@ test("a rejected form flush stops live capture without mutating or clearing the 
   f.rejectFlush(false); f.endpoint.flushPendingEdits();
   assert.match(f.session.getState().content, /retained human draft/);
 });
+
+test("a stable endpoint resolves the current catalog and rejects a late result from its replaced port", async () => {
+  const session = createProgramDocumentSession({ content: '{"steps":[{"stepId":"one","stepRunnerKey":"sys:fixture","note":"before"}],"variables":[]}', identity: { documentKey: "catalog-lifetime", projectBinding: null } });
+  const controller = createProgramDocumentEditorController(session, { isCurrent: () => true, onChange() {} });
+  let release!: (value: StepRunnerInputContract) => void, firstCalls = 0, secondCalls = 0;
+  const first = { readInputContract: () => { firstCalls++; return new Promise<StepRunnerInputContract>(done => { release = done; }); } } as unknown as DesignerCatalogPort;
+  const nextContract = { fixture: "current" } as unknown as StepRunnerInputContract;
+  const second = { readInputContract: async () => { secondCalls++; return nextContract; } } as unknown as DesignerCatalogPort;
+  let port: DesignerCatalogPort | undefined = first;
+  const endpoint = createProgramDocumentLiveEndpoint({ owner: { cwd: "C:/fixture", path: "data.json", tabId: "file", instanceId: 1, key: "catalog-lifetime" },
+    sessionId: "same-session", session, controller, isCurrent: () => true, flushPendingEdits() {}, getCatalogPort: () => port });
+  const lifetime = endpoint.readStep!("one"); assert.ok(lifetime.ok);
+  const pending = endpoint.readInputContract!({ stepRunnerKey: "sys:fixture" }); port = second;
+  release({ fixture: "retired" } as unknown as StepRunnerInputContract);
+  await assert.rejects(pending, { code: "LIVE_INPUT_CONTRACT_UNAVAILABLE" });
+  assert.equal(firstCalls, 1); assert.equal(secondCalls, 0, "the old operation is not replayed through the new port");
+  assert.equal(await endpoint.readInputContract!({ stepRunnerKey: "sys:fixture" }), nextContract); assert.equal(secondCalls, 1);
+  assert.deepEqual(endpoint.readStep!("one"), lifetime, "catalog refresh preserves the existing row lifetime observer");
+  port = undefined; await assert.rejects(endpoint.readInputContract!({ stepRunnerKey: "sys:fixture" }), { code: "LIVE_INPUT_CONTRACT_UNAVAILABLE" });
+  assert.equal(session.getState().revision, 0); assert.equal(secondCalls, 1);
+});

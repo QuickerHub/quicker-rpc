@@ -82,7 +82,7 @@ import {WorkspaceExplorerPanelProvider,WorkspaceExplorerShellProvider,useWorkspa
 import {WorkspaceDocumentHost} from '@/components/workspace/WorkspaceDocumentHost';
 import {WorkspaceExplorerPanel} from '@/components/workspace/WorkspaceExplorerPanel';
 import '@/app/globals.css';
-const config=window.fixtureConfig,state=window.fixture={cwd:config.cwd,pins:[],stepPins:[],requests:[],unexpected:[],sourceClients:[]};
+const config=window.fixtureConfig,state=window.fixture={cwd:config.cwd,pins:[],stepPins:[],requests:[],unexpected:[],sourceClients:[],endpoints:[]},observedRegistries=new WeakSet();
 window.EventSource=class{close(){}};
 let sequence=0;
 window.fetch=async(input,init={})=>{
@@ -97,7 +97,7 @@ window.fetch=async(input,init={})=>{
 function Controls(){const editor=useWorkspaceExplorerEditor();useEffect(()=>{state.open=p=>editor.openFile(p);state.active=()=>editor.activeTab;state.close=p=>{const tab=editor.tabs.find(t=>t.path===p);if(tab)editor.closeTab(tab.id)}});return null}
 function App(){const[thread,setThread]=useState('chat-a'),[visible,setVisible]=useState(true);state.setThread=setThread;state.hide=()=>setVisible(false);state.show=()=>setVisible(true);
  const presentation=useMemo(()=>({threadId:thread,pinStep:(tag,pin)=>state.stepPins.push({tag,pin,thread}),pinVariable:(tag,pin)=>state.pins.push({tag,pin,thread})}),[thread]);
- const publish=registry=>{state.live=registry;return()=>{if(state.live===registry)state.live=null}};
+ const publish=registry=>{state.live=registry;if(!observedRegistries.has(registry)){observedRegistries.add(registry);const register=registry.register;registry.register=(owner,endpoint)=>{state.endpoints.push(endpoint);return register(owner,endpoint)}}return()=>{if(state.live===registry)state.live=null}};
  return <WorkspaceExplorerShellProvider><WorkspaceExplorerPanelProvider cwd={config.cwd}><WorkspaceDocumentHost onLiveProgramDocumentRegistry={publish}><Controls/>{visible&&<WorkspaceExplorerPanel chatPresentation={presentation}/>}</WorkspaceDocumentHost></WorkspaceExplorerPanelProvider></WorkspaceExplorerShellProvider>}
 createRoot(document.getElementById('root')).render(<StrictMode><App/></StrictMode>);
 `;
@@ -267,6 +267,7 @@ test("Source step +chat uses codec identity, preserves a human draft through one
     await selectStep(page, native.editorId); await note(page).fill("human unblurred Note");
     assert.equal(await note(page).evaluate(element => element === document.activeElement), true);
     await pinStep(page);
+    await page.evaluate(() => { const f = (window as any).fixture; f.originalEndpoint = f.endpoints.at(-1); if (!f.originalEndpoint) throw Error("Actual registered endpoint was not observed"); });
     const read = await captureRead(page);
     assert.equal(read.receipt.ok, true, JSON.stringify(read.receipt)); assert.equal(read.scope.target.format, "source-bundle");
     assert.equal(read.scope.target.owner.path, sourceFile); assert.equal(read.scope.target.identity.projectBinding, undefined);
@@ -283,6 +284,7 @@ test("Source step +chat uses codec identity, preserves a human draft through one
     assert.equal(fixture.calls.filter(call => call.op === "save-program-document").length, 0);
 
     await userSave(page);
+    assert.equal(await page.evaluate(() => { const f = (window as any).fixture; return f.endpoints.at(-1) === f.originalEndpoint; }), true, "a source catalog refresh must not reset the Session's row-lifetime observer");
     const saved = await sourceInspect(fixture.directory);
     assert.match(saved.editorJson, /Agent Note in original Session/); assert.equal(saved.pending.status, "pending");
     assert.equal(saved.stepIdentity.steps.find((row: any) => row.editorId === nativeStepId)?.nativeCheckpointId, nativeStepId);
@@ -308,6 +310,7 @@ test("Source step +chat uses codec identity, preserves a human draft through one
     await page.evaluate(file => { (window as any).fixture.close(file); }, sourceFile); await doc(page).waitFor({ state: "hidden" });
     await page.evaluate(file => { (window as any).fixture.open(file); }, sourceFile);
     await selectStep(page, nativeStepId); assert.equal(await note(page).inputValue(), "Agent Note in original Session");
+    assert.equal(await page.evaluate(() => { const f = (window as any).fixture; return f.endpoints.at(-1) === f.originalEndpoint; }), false, "an explicit reopen creates a new Session observer");
     await selectStep(page, finalLocal.editorId); assert.equal(await note(page).inputValue(), "idless local Agent Note");
     const reopenedStale = await edit(page, "closed owner must fail", "post-reopen-old-proof"); assert.equal(reopenedStale.ok, false); assert.equal(reopenedStale.application, "not_applied");
     assert.equal(fixture.calls.filter(call => call.op === "save-program-document").length, 2);

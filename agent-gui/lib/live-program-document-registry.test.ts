@@ -107,6 +107,40 @@ test("Source mapping observes every row before its first pin; delete/recreate, m
   }
 });
 
+test("a Source Save ACK cannot revive rows retired after its captured ticket", () => {
+  for (const change of ["replace", "move"]) {
+    const f = fixture(true), original = structuredClone(f.session.readSnapshot().steps[0]!);
+    const save = f.session.beginSave(() => f.session.readSnapshot()); assert.ok(save.ok);
+    if (!save.ok) return;
+    const previousTarget = f.sourceTarget()!; f.setSourceTarget(undefined);
+    const present = f.controller.getSurface("main").getPresent();
+    present.steps = change === "replace" ? [] : [{ ...original, stepId: "new-parent", ifSteps: [original] }];
+    f.controller.getSurface("main").commit(present);
+    if (change === "replace") {
+      const replacement = f.controller.getSurface("main").getPresent(); replacement.steps = [original];
+      f.controller.getSurface("main").commit(replacement);
+    } else f.controller.undo();
+    assert.equal(f.session.completeSave(save.ticket, { ok: true }).ok, true);
+    f.setSourceTarget({ ...previousTarget, mappingEpoch: previousTarget.mappingEpoch + 1 });
+    const denied = f.registry.pin(f.owner, "fresh-pin-after-save-ack", "one", "chat-a");
+    assert.ok("ok" in denied && denied.ok === false, change);
+    assert.equal(f.session.readSnapshot().steps[0]!.stepId, "one");
+    assert.equal(f.session.readSnapshot().steps[0]!.note, original.note, "restored identity, path and Note are not row-lifetime evidence");
+  }
+});
+
+test("a new codec editor id cannot bypass a retired Source row at the same original anchor", () => {
+  const f = fixture(true), original = structuredClone(f.session.readSnapshot().steps[0]!);
+  const empty = f.controller.getSurface("main").getPresent(); empty.steps = []; f.controller.getSurface("main").commit(empty);
+  const replaced = f.controller.getSurface("main").getPresent(); replaced.steps = [{ ...original, stepId: "replacement-editor-id" }];
+  f.controller.getSurface("main").commit(replaced);
+  const save = f.session.beginSave(() => f.session.readSnapshot()); assert.ok(save.ok); if (!save.ok) return;
+  f.setSourceTarget(undefined); assert.equal(f.session.completeSave(save.ticket, { ok: true }).ok, true);
+  f.setSourceTarget({ ...sourceStepTestTarget(save.ticket.content, "replacement-editor-id", "future:one"), mappingEpoch: 2 });
+  const pin = f.registry.pin(f.owner, "changed-id-after-save", "replacement-editor-id", "chat-a");
+  assert.ok("ok" in pin && pin.ok === false, "a descriptor is not evidence of continuity through the original Session");
+});
+
 test("actual Session endpoint flushes the human draft, returns complete unsaved content and applies one Agent undo transaction", () => {
   const f = fixture(); f.draft("human draft"); const scope = f.capture(), before = f.read(scope);
   assert.equal(before.dirty, true); assert.match(before.content, /human draft/); assert.match(before.content, /9223372036854775807/);

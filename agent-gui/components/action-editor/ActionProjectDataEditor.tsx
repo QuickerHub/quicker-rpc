@@ -702,10 +702,13 @@ export function ActionProjectDataEditor({
   const liveSessionId = useMemo(() => session ? `${liveInstanceId}:${++liveGeneration.current}` : undefined, [session, liveInstanceId]);
   const liveOwner = liveNavigation?.owner;
   const liveEndpointRef = useRef<LiveProgramDocumentEndpoint | null>(null);
+  const liveCatalogPortRef = useRef(catalogPort);
+  liveCatalogPortRef.current = catalogPort;
   useLayoutEffect(() => {
     if (!liveDocuments || !liveOwner || !session || !documentController || !liveSessionId
       || liveOwner.cwd !== cwd || liveOwner.path.replace(/\\/g, "/") !== path.replace(/\\/g, "/")) return;
-    const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController, catalogPort,
+    const endpoint = createProgramDocumentLiveEndpoint({ owner: liveOwner, sessionId: liveSessionId, session, controller: documentController,
+      getCatalogPort: () => liveCatalogPortRef.current,
       isCurrent: () => sessionRef.current === session && liveAvailability.current.session === session && liveAvailability.current.available
         && !(liveSyncBusy.current?.key === syncOwnerRef.current.key && liveSyncBusy.current.busy),
       flushPendingEdits: () => workspaceRef.current?.flushPendingEdits(),
@@ -715,7 +718,7 @@ export function ActionProjectDataEditor({
     liveEndpointRef.current = endpoint;
     const release = liveDocuments.register(liveOwner, endpoint);
     return () => { if (liveEndpointRef.current === endpoint) liveEndpointRef.current = null; release(); };
-  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, catalogPort, sourceClient]);
+  }, [liveDocuments, liveOwner, session, documentController, liveSessionId, cwd, path, sourceClient]);
   const handleWorkspaceChange = useCallback((handle: ProgramEditorWorkspaceHandle | null) => {
     workspaceRef.current = handle;
   }, []);
