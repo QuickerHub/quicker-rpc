@@ -493,8 +493,9 @@ Ask 只有 read_live，嵌套 task 不获得该客户端端口。live scope 不�
 真实 toolCallId 作为 operationId 保存已应用事实，同一请求不重复提交，改变参数则拒绝。
 停止既阻止修改与模型续轮，也在流排空后收口迟到 pending；已应用事实优先恢复为成功回执。
 SDK setter 即使接收原数组也会通知，idle repair 只在消息确实改变时发布，避免反馈循环。
-历史恢复仅展示回执，不执行工具。当前 UI pin 只开放主程序 surface，更广文档编辑与保存/
-Sync 协同仍未完成；纯层递归步骤支持不等于嵌套页签 UI 已开放。
+历史恢复仅展示回执，不执行工具。步骤 UI pin 已接主程序和同一根文档的内部子程序页签；
+外部缓存、跨文档目标及重复步骤 ID 不能由此取得权限。更广文档编辑与保存/Sync 协同
+仍未完成。
 
 参数契约通过可选 `IQuickerRpcStepRunnerInputContractHost` 读取实际模块定义；能力标记为
 `stepRunner.inputContract.read`。Contracts 独立保存原生类型、变量模式、自由输入、控制字段、
