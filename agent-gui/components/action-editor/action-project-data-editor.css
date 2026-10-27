@@ -37,6 +37,11 @@
   overflow: hidden;
 }
 
+.action-project-data-editor-header:has([data-source-bundle-status]) {
+  max-height: 25%;
+  overflow: auto;
+}
+
 .action-project-data-editor-header .action-project-meta-summary {
   margin: 0;
   padding: 0.55rem 0.65rem 0.5rem;
