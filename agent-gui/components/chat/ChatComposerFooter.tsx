@@ -42,6 +42,7 @@ import { ContextUsage } from "./ContextUsage";
 const EMPTY_DRAFT_TAG_IDS = new Set<string>();
 
 export type ChatComposerFooterHandle = {
+  beginMessageEdit: (text: string) => void;
   focus: () => void;
   focusAtEnd: () => void;
   getValue: () => string;
@@ -173,6 +174,11 @@ const ChatComposerFooterInner = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
+      beginMessageEdit: (text: string) => {
+        setDraftMessage(text);
+        if (editAnchorMessageId) onEditAnchorDraftChange?.(text);
+        composerRef.current?.beginMessageEdit(text);
+      },
       focus: () => { if (activeRef.current) composerRef.current?.focus(); },
       focusAtEnd: () => { if (activeRef.current) composerRef.current?.focusAtEnd(); },
       getValue: () => composerRef.current?.getValue() ?? draftMessage,

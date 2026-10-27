@@ -76,6 +76,8 @@ import { ComposerSlashMenu } from "./ComposerSlashMenu";
 import { ComposerTagPreviewPopover } from "./ComposerTagPreviewPopover";
 
 export type ComposerMarkupFieldHandle = {
+  /** Seed a history-edit draft and its initial caret in the same user action. */
+  beginMessageEdit: (text: string) => void;
   focus: () => void;
   /** Focus composer and place caret at end of content (e.g. branch-edit). */
   focusAtEnd: () => void;
@@ -368,6 +370,15 @@ export const ComposerMarkupField = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
+      beginMessageEdit: (text: string) => {
+        const root = rootRef.current;
+        if (!root || disabled || !activeRef.current) return;
+        closeMenus();
+        renderMarkupIntoRoot(root, text);
+        lastEmitted.current = text;
+        root.focus({ preventScroll: true });
+        placeCaretAtEnd(root);
+      },
       focus: () => { if (activeRef.current) rootRef.current?.focus(); },
       focusAtEnd: () => {
         const root = rootRef.current;

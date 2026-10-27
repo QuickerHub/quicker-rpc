@@ -10,7 +10,7 @@ import {
 } from "@/lib/user-message-edit";
 
 type EditingState = { anchorMessageId: string | null; liveDraft: string; drafts: Record<string, string> };
-type ComposerPort = { getValue: () => string; setValue: (text: string) => void; clear: () => void };
+type ComposerPort = { getValue: () => string; setValue: (text: string) => void; clear: () => void; beginMessageEdit?: (text: string) => void };
 
 export type UseChatMessageEditingOptions = {
   threadId: string;
@@ -88,9 +88,15 @@ export function useChatMessageEditing(options: UseChatMessageEditingOptions) {
     const drafts = anchor ? upsertUserMessageDraft(anchor, live.composerRef.current?.getValue() ?? "", previous.drafts) : previous.drafts;
     const liveDraft = resolveUserMessageDisplayText(message, drafts);
     setEditing({ anchorMessageId: message.id, liveDraft, drafts });
-    live.composerRef.current?.setValue(liveDraft);
-    live.clearError();
-    live.focusComposerAtEnd();
+    const composer = live.composerRef.current;
+    if (composer?.beginMessageEdit) {
+      live.clearError();
+      composer.beginMessageEdit(liveDraft);
+    } else {
+      composer?.setValue(liveDraft);
+      live.clearError();
+      live.focusComposerAtEnd();
+    }
   }, [invalidateConfirmation]);
 
   const readBranchContext = useCallback(() => {
