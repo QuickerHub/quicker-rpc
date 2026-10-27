@@ -154,7 +154,9 @@ Explorer 打开有效的 `program.source.yaml` bundle 时，使用实际 C# code
 实际收据核对版本、正文指纹和 storage identity，保留部分成功、结果未知及较晚的本地修改。
 源码视图展示同一草稿经 C# 预览的只读 YAML；标题、说明、图标和外置资源暂为只读。
 source 文档的 owner 跟随原文件实例，隐藏聊天仍保留；普通 Agent 文件写入和 source save
-不能绕过它。缺少源码行号映射时关闭该入口的实时 pin，不增加 Agent 变量、Save/Sync 权限。
+不能绕过它。既有变量及 codec 可证明原行的步骤可经本轮“+对话”取得私有授权；步骤证明
+来自本次实际 codec 并绑定行 lifetime，不凭源码行号、ID 前缀或宿主版本猜测权限。
+缺少可选步骤证明的旧 CLI 仍支持变量和本地 Save；该授权不增加 Agent 文件、Save/Sync 权限。
 协议与支持边界见[源码包文档协议](../docs/authoring/source-bundle-document.md)。
 
 主动作与嵌套编辑面共用该文档的 catalog port。模块列表、参数 schema、摘要、快速插入、
