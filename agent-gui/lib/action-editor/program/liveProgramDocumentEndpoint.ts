@@ -7,7 +7,7 @@ import type { ActionStep, ActionSubProgram } from "../types/common";
 import type { DesignerCatalogPort } from "../catalog/designerCatalogPort";
 import { readProgramDocumentVariable, type ProgramDocumentVariableSelector } from "../document/programDocumentVariableLive";
 import type { LiveProgramSourceTarget } from "../../live-program-source-target";
-import { sourceVariableOrigin } from "../../source-variable-identity";
+import { sourceVariableOrigin, sourceVariableRenameProven } from "../../source-variable-identity";
 
 function collectSteps(snapshot: ActionProgramSnapshot): LiveProgramDocumentStep[] {
   const result: LiveProgramDocumentStep[] = [];
@@ -45,7 +45,7 @@ export function createProgramDocumentLiveEndpoint(options: {
     if (!source || !origin) return { ok: false as const, code: "LIVE_VARIABLE_ORIGIN_UNAVAILABLE", error: "此源码变量缺少当前 codec 核验的原行来源，请重新打开后核对。" };
     const previous = rows.get(rowKey(selector));
     if (previous?.removed && previous.mappingEpoch === source.mappingEpoch) return { ok: false as const, code: "LIVE_VARIABLE_STALE", error: "原源码变量已经删除，不能把旧来源移交给重建行。" };
-    return { ok: true as const, fieldDenials: origin.renameMappingProven === true && origin.renameMappingBasis !== "unproven" ? undefined : { key: "当前 codec 未证明此变量可逆改名映射。" }, mappingEpoch: source.mappingEpoch };
+    return { ok: true as const, fieldDenials: sourceVariableRenameProven(origin) ? undefined : { key: "当前源码格式尚未证明此变量可以安全改名。" }, mappingEpoch: source.mappingEpoch };
   };
   const readVariable = (selector: ProgramDocumentVariableSelector) => {
     const blocked = unavailable(); if (blocked) return blocked;

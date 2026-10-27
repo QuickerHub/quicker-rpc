@@ -10,6 +10,10 @@ function sameTarget(before: SourceBundleDocument, after: SourceBundleDocument): 
   return before.projectDirectoryAbsolute === after.projectDirectoryAbsolute && before.actionId.toLowerCase() === after.actionId.toLowerCase();
 }
 function failure(code: string, error: string, receipt?: unknown): SourceBundleFailure { return { ok: false, code, error, retryable: false, ...(receipt === undefined ? {} : { receipt }) }; }
+function freezeFacts(value: unknown, seen = new WeakSet<object>()): void {
+  if (!value || typeof value !== "object" || seen.has(value) || Object.isFrozen(value)) return;
+  seen.add(value); for (const nested of Object.values(value)) freezeFacts(nested, seen); Object.freeze(value);
+}
 function sameWorkingFiles(before: SourceBundleDocument, after: SourceBundleDocument): boolean {
   const files = (document: SourceBundleDocument) => document.sourceSnapshot.files.filter(file => file.path.startsWith("files/"))
     .map(file => [file.path, file.sha256]).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
@@ -29,6 +33,7 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
     const epoch = ++mappingEpoch;
     const identity = await verifySourceVariableIdentity(document).catch(() => undefined);
     if (closed || mappingEpoch !== epoch) return;
+    freezeFacts(identity); freezeFacts(document);
     verifiedMapping = identity ? { document, identity } : undefined;
   }
   const update = (next: SourceBundleClientState) => { state = Object.freeze(next); if (!closed) options.onChange(state); };
@@ -52,8 +57,8 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
     getLiveSourceTarget(baselineEditorJson: string): LiveProgramSourceTarget | undefined {
       const mapping = verifiedMapping;
       if (closed || state.blocked || mappingPending || !state.ownerToken || !mapping || mapping.document !== state.document || mapping.document.editorJson !== baselineEditorJson) return;
-      return { actionId: mapping.document.actionId, hostBinding: mapping.document.hostBinding, storageIdentity: mapping.document.storageIdentity,
-        ownerToken: state.ownerToken, sourceSnapshot: mapping.document.sourceSnapshot, variableIdentity: mapping.identity, mappingEpoch };
+      return structuredClone({ actionId: mapping.document.actionId, hostBinding: mapping.document.hostBinding, storageIdentity: mapping.document.storageIdentity,
+        ownerToken: state.ownerToken, sourceSnapshot: mapping.document.sourceSnapshot, codec: mapping.document.codec, variableIdentity: mapping.identity, mappingEpoch });
     },
     async connect(): Promise<void> {
       try {

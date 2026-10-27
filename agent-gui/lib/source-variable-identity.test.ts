@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
 import type { SourceBundleDocument } from "./source-bundle-document";
-import { readSourceVariableIdentity, sourceVariableOrigin, verifySourceVariableIdentity, type SourceVariableIdentity } from "./source-variable-identity";
+import { readSourceVariableIdentity, sourceVariableOrigin, sourceVariableRenameProven, verifySourceVariableIdentity, type SourceVariableIdentity, type SourceVariableOrigin } from "./source-variable-identity";
 import { isLiveProgramSourceTarget } from "./live-program-source-target";
 
 const hash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
@@ -19,6 +19,7 @@ function identity(): Mutable<SourceVariableIdentity> {
 }
 function document(mapping: unknown, content = body): SourceBundleDocument {
   return { mode: "inspect", editorJson: content, variableIdentity: mapping,
+    codec: { descriptorRevision: hash("codec"), producer: { name: "actual-codec-facts" } },
     sourceSnapshot: { revision: hash("snapshot"), codecRevision: hash("codec"), managedRevision: hash("managed"), files: [] } } as unknown as SourceBundleDocument;
 }
 
@@ -37,6 +38,8 @@ test("source provenance requires the exact observed editor and baseline bytes pl
   const wrongRow = identity();
   wrongRow.variables[0].sourceRowAnchor = { surface: "main", key: "B", rowHash: hash("other-row") };
   assert.equal(await verifySourceVariableIdentity(document(wrongRow)), undefined, "an exact editor hash cannot reassign an anchor to another row");
+  assert.equal(await verifySourceVariableIdentity({ ...document(identity()), codec: { descriptorRevision: hash("other-codec") } }), undefined,
+    "the actual codec object, snapshot and identity must agree");
 });
 
 test("codec-proven document-local idless rows remain distinct from native identity; absent/ambiguous/foreign anchors do not qualify", () => {
@@ -55,7 +58,29 @@ test("codec-proven document-local idless rows remain distinct from native identi
   assert.equal(readSourceVariableIdentity({ ...mapping, authorizesLive: true }), undefined);
   assert.equal(readSourceVariableIdentity({ ...mapping, variables: [...mapping.variables, mapping.variables[0]] }), undefined);
   const target = { actionId: "source-action", hostBinding: null, storageIdentity: null, ownerToken: "lease", mappingEpoch: 1,
-    sourceSnapshot: document(mapping).sourceSnapshot, variableIdentity: mapping };
+    sourceSnapshot: document(mapping).sourceSnapshot, codec: document(mapping).codec, variableIdentity: mapping };
   assert.equal(isLiveProgramSourceTarget(target), true);
   assert.equal(isLiveProgramSourceTarget({ ...target, variableIdentity: { ...mapping, view: "candidate" } }), false);
+  assert.equal(isLiveProgramSourceTarget({ ...target, codec: { descriptorRevision: hash("foreign-codec") } }), false);
+});
+
+test("Source rename claims must be internally consistent while legitimate checkpoint-key pairing needs no native ID", () => {
+  const local = identity().variables[0];
+  const native: SourceVariableOrigin = { ...local, provenance: "native-checkpoint", nativeIdentity: "checkpoint-proven", nativeCheckpointId: "v-1",
+    nativeCheckpointIdProven: true, stableIdentityProven: true, identityDenialReason: null,
+    renameMappingProven: true, renameMappingDenialReason: null, renameMappingBasis: "native-id" };
+  const paired: SourceVariableOrigin = { ...local, provenance: "source", sourceId: local.editorId, sourceIdProven: true,
+    stableIdentityProven: true, identityDenialReason: null, renameMappingProven: true, renameMappingDenialReason: null,
+    renameMappingBasis: "checkpoint-source-id-and-native-key" };
+  assert.equal(sourceVariableRenameProven(native), true);
+  assert.equal(sourceVariableRenameProven(paired), true);
+  assert.equal(paired.nativeIdentity, "unknown"); assert.equal(paired.nativeCheckpointId, null);
+  for (const row of [{ ...native, nativeIdentity: "unknown" as const }, { ...native, nativeCheckpointIdProven: false },
+    { ...native, nativeCheckpointId: null }, { ...native, renameMappingDenialReason: "unproven" },
+    { ...native, sourceIdProven: true, sourceId: "foreign-source-id" }, { ...native, editorId: "foreign-editor-id" },
+    { ...paired, renameMappingBasis: "native-id" as const }, { ...paired, nativeCheckpointId: "unproven-native-id" }, { ...paired, editorId: "foreign-editor-id" },
+    { ...paired, sourceIdProven: false }, { ...paired, sourceId: null }, { ...paired, identityDenialReason: "generated-editor-id" },
+    { ...paired, stableIdentityProven: false }, { ...paired, renameMappingBasis: "unproven" as const }]) {
+    assert.equal(sourceVariableRenameProven(row), false);
+  }
 });

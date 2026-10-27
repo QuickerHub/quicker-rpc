@@ -7,6 +7,7 @@ import { readSourceVariableIdentity, type SourceVariableIdentity } from "./sourc
 export type LiveProgramSourceTarget = Readonly<{
   actionId: string; hostBinding: QkrpcHostBinding | null; storageIdentity: unknown;
   ownerToken: string; sourceSnapshot: SourceBundleDocument["sourceSnapshot"];
+  codec: SourceBundleDocument["codec"];
   variableIdentity: SourceVariableIdentity;
   /** Private client adoption epoch; even a no-op local Save retires old mapping proofs. */
   mappingEpoch: number;
@@ -14,11 +15,12 @@ export type LiveProgramSourceTarget = Readonly<{
 export function isLiveProgramSourceTarget(value: unknown): value is LiveProgramSourceTarget {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>, snapshot = row.sourceSnapshot as Record<string, unknown> | undefined;
+  const codec = row.codec && typeof row.codec === "object" && !Array.isArray(row.codec) ? row.codec as Record<string, unknown> : undefined;
   const identity = readSourceVariableIdentity(row.variableIdentity);
   return typeof row.actionId === "string" && Boolean(row.actionId.trim()) && typeof row.ownerToken === "string" && Boolean(row.ownerToken)
     && Number.isSafeInteger(row.mappingEpoch) && Number(row.mappingEpoch) > 0
     && Object.hasOwn(row, "storageIdentity") && (row.hostBinding === null || readHostBinding(row.hostBinding) !== undefined)
     && Boolean(snapshot && typeof snapshot.revision === "string" && typeof snapshot.managedRevision === "string" && typeof snapshot.codecRevision === "string"
       && Array.isArray(snapshot.files) && identity?.view === "observed" && identity.baselineEditorHash === identity.editorDocumentHash
-      && identity.sourceSnapshot === snapshot.revision && identity.codecRevision === snapshot.codecRevision);
+      && identity.sourceSnapshot === snapshot.revision && identity.codecRevision === snapshot.codecRevision && codec?.descriptorRevision === snapshot.codecRevision);
 }

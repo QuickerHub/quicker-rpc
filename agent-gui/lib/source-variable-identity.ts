@@ -56,7 +56,8 @@ export function readSourceVariableIdentity(value: unknown): SourceVariableIdenti
 
 export async function verifySourceVariableIdentity(document: SourceBundleDocument): Promise<SourceVariableIdentity | undefined> {
   const identity = readSourceVariableIdentity(document.variableIdentity);
-  if (!identity || document.mode === "preview" || identity.view !== "observed" || identity.sourceSnapshot !== document.sourceSnapshot.revision || identity.codecRevision !== document.sourceSnapshot.codecRevision) return;
+  if (!identity || document.mode === "preview" || identity.view !== "observed" || identity.sourceSnapshot !== document.sourceSnapshot.revision
+    || identity.codecRevision !== document.sourceSnapshot.codecRevision || !object(document.codec) || document.codec.descriptorRevision !== identity.codecRevision) return;
   if (!globalThis.crypto?.subtle) return;
   const bytes = new TextEncoder().encode(document.editorJson);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -80,4 +81,16 @@ export function sourceVariableOrigin(identity: SourceVariableIdentity, surface: 
   if (identity.view !== "observed" || !row.ownedSurface || row.hasSyntheticAncestor || !row.documentLocalIdentityProven || !row.sourceRowAnchor
     || row.ancestors.some(ancestor => !object(ancestor) || ancestor.synthetic !== false || ancestor.owned !== true || ancestor.sourceIdProven !== true)) return;
   return row;
+}
+
+/** Distinct actual codec proofs; checkpoint key pairing does not claim a native ID. */
+export function sourceVariableRenameProven(row: SourceVariableOrigin): boolean {
+  if (!row.renameMappingProven || row.renameMappingDenialReason !== null || !row.stableIdentityProven || row.identityDenialReason !== null
+    || !row.documentLocalIdentityProven || row.documentLocalIdentityDenialReason !== null || !row.sourceRowAnchor || !row.ownedSurface || row.hasSyntheticAncestor) return false;
+  if (row.renameMappingBasis === "native-id") return row.nativeIdentity === "checkpoint-proven" && row.nativeCheckpointIdProven
+    && Boolean(row.nativeCheckpointId) && (row.provenance === "source" || row.provenance === "native-checkpoint")
+    && row.editorId === row.nativeCheckpointId && (row.sourceIdProven ? row.sourceId === row.editorId : row.sourceId === null);
+  if (row.renameMappingBasis === "checkpoint-source-id-and-native-key") return row.provenance === "source" && row.sourceIdProven && Boolean(row.sourceId)
+    && row.editorId === row.sourceId && row.nativeIdentity === "unknown" && !row.nativeCheckpointIdProven && row.nativeCheckpointId === null;
+  return false;
 }

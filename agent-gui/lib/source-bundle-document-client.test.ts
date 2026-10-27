@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createSourceBundleDocumentClient } from "./source-bundle-document-client";
 import { createProgramDocumentSession } from "./action-editor/document/programDocumentSession";
 import type { SourceBundleDocument } from "./source-bundle-document";
+import { createHash } from "node:crypto";
 
 const body = '{"steps":[{"stepId":"s1","stepRunnerKey":"sys:comment","note":"before"}],"variables":[],"opaque":9223372036854775807}';
 function document(): SourceBundleDocument {
@@ -19,7 +20,7 @@ function ticket() {
   const started = session.beginSave(() => session.readSnapshot()); assert.ok(started.ok);
   return { session, ticket: started.ticket };
 }
-async function opened(onPost: (input: Record<string, unknown>) => Promise<Response>) {
+async function opened(onPost: (input: Record<string, unknown>) => Promise<Response>, initialDocument = document()) {
   const originalFetch = globalThis.fetch;
   let ready!: () => void; const connected = new Promise<void>(done => { ready = done; });
   let posts = 0, changes = 0;
@@ -28,7 +29,7 @@ async function opened(onPost: (input: Record<string, unknown>) => Promise<Respon
     if (init?.method === "POST") { posts++; return onPost(JSON.parse(String(init.body))); }
     assert.ok(String(url).startsWith("/api/workspace?"));
     return new Response(new ReadableStream({ start(controller) {
-      controller.enqueue(new TextEncoder().encode(JSON.stringify({ ownerKey, path, ownerToken: "lease", document: document() }) + "\n"));
+      controller.enqueue(new TextEncoder().encode(JSON.stringify({ ownerKey, path, ownerToken: "lease", document: initialDocument }) + "\n"));
       init?.signal?.addEventListener("abort", () => { try { controller.close(); } catch {} }, { once: true });
     } }));
   };
@@ -36,6 +37,29 @@ async function opened(onPost: (input: Record<string, unknown>) => Promise<Respon
   const connection = client.connect(); await connected;
   return { client, posts: () => posts, changes: () => changes, async close() { client.close(); await connection; globalThis.fetch = originalFetch; } };
 }
+
+test("source getter preserves the complete codec and returns detached facts without exposing its verified map", async () => {
+  const hash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
+  const initial = { ...document(), codec: { descriptorRevision: hash("codec"), producer: { identity: "actual-codec" } },
+    sourceSnapshot: { ...document().sourceSnapshot, revision: hash("snapshot"), codecRevision: hash("codec") },
+    variableIdentity: { schemaVersion: 1, authorizesLive: false, view: "observed", renameMappingScope: "source-codec-identity-only",
+      sourceSnapshot: hash("snapshot"), codecRevision: hash("codec"), editorDocumentHash: hash(body), baselineEditorHash: hash(body),
+      mappingEpochKind: "content-bound", mappingEpoch: hash("mapping"), variables: [] } };
+  const f = await opened(async () => assert.fail("getter cannot dispatch"), initial);
+  try {
+    const first = f.client.getLiveSourceTarget(body)!;
+    assert.ok(first); assert.deepEqual(first.codec, initial.codec);
+    (first.codec as { producer: { identity: string } }).producer.identity = "poison";
+    (first.sourceSnapshot.files[0] as { sha256: string }).sha256 = "poison";
+    (first.variableIdentity as { authorizesLive: boolean }).authorizesLive = true;
+    const next = f.client.getLiveSourceTarget(body)!;
+    assert.deepEqual(next.codec, initial.codec); assert.equal(next.variableIdentity.authorizesLive, false);
+    assert.notEqual(next.sourceSnapshot.files[0].sha256, "poison");
+    assert.ok(Object.isFrozen(f.client.getState().document!.codec));
+    assert.ok(Object.isFrozen(f.client.getState().document!.sourceSnapshot.files));
+    assert.equal(f.posts(), 0);
+  } finally { await f.close(); }
+});
 
 test("browser-to-Node source save acknowledgement loss blocks every later save/sync without replay", async () => {
   for (const kind of ["fetch-throw", "bad-json", "invalid-envelope", "missing-code", "wrong-mode", "wrong-body", "http-conflict"]) {
