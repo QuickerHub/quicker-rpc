@@ -46,7 +46,8 @@ internal static partial class ActionSourceWorkspace
         var raw = ProgramSourceCodec.Decode(CapturedText(capture, SourceFile));
         var baseline = CapturedJson(capture, BaselineFile);
         var projection = ProgramSourceEditorProjection.Create(raw, (JObject)baseline["caw"]!, (JObject)baseline["body"]!);
-        if (mode == "inspect") return Describe(capture, originalPrepared, projection.EditorJson, mode);
+        if (mode == "inspect") return Describe(capture, originalPrepared, projection.EditorJson, mode,
+            projection.DescribeVariableIdentities(projection.EditorJson));
         if (string.IsNullOrWhiteSpace(editorJson)) throw new ProgramSourceException("INVALID_ARGS", "editorJson must contain the complete lossless Editor JSON text.");
 
         var updated = projection.ToCaw(editorJson, baselineEditorJson);
@@ -79,7 +80,8 @@ internal static partial class ActionSourceWorkspace
         var normalization = sourceUnchanged ? "unchanged-original" : "codec-normalized";
         if (mode == "preview")
         {
-            var output = Describe(capture, compiled, editorJson, mode);
+            var output = Describe(capture, compiled, editorJson, mode,
+                projection.DescribeVariableIdentities(editorJson, baselineEditorJson));
             output["preview"] = new JObject
             {
                 ["sourceYaml"] = Utf8.GetString(source), ["normalization"] = normalization,
@@ -88,6 +90,12 @@ internal static partial class ActionSourceWorkspace
             return output;
         }
 
+        // Validate the exact ACK against the bytes that will exist after the write.
+        // A fresh projection can allocate different GUI IDs after a reorder. Rebase
+        // before writing, so an unrepresentable ACK cannot create a new partial save.
+        var acknowledgedProjection = ProgramSourceEditorProjection.Create(ProgramSourceCodec.Decode(CapturedText(proposed, SourceFile)),
+            (JObject)baseline["caw"]!, (JObject)baseline["body"]!);
+        var acknowledgedIdentities = acknowledgedProjection.DescribeVariableIdentities(editorJson, editorJson);
         RequireSameCapture(capture, Capture(dir, token));
         var written = new List<string>();
         var failed = SourceFile;
@@ -107,7 +115,7 @@ internal static partial class ActionSourceWorkspace
             var after = Capture(dir, token);
             if (after.ManagedRevision != capture.ManagedRevision || !SameFiles(after.Files, proposed.Files))
                 throw Conflict("Bundle changed during local save. Written files are retained; inspect again, do not replay.");
-            var output = Describe(after, PrepareCaptured(after), editorJson, mode);
+            var output = Describe(after, PrepareCaptured(after), editorJson, mode, acknowledgedIdentities);
             output["saveLocal"] = new JObject
             {
                 ["writtenFiles"] = new JArray(written), ["normalization"] = normalization,
@@ -121,7 +129,7 @@ internal static partial class ActionSourceWorkspace
         }
     }
 
-    private static JObject Describe(BundleCapture capture, Prepared prepared, string editorJson, string mode)
+    private static JObject Describe(BundleCapture capture, Prepared prepared, string editorJson, string mode, JObject variableEvidence)
     {
         var identity = CapturedJson(capture, IdentityFile);
         var baseline = CapturedJson(capture, BaselineFile);
@@ -137,6 +145,7 @@ internal static partial class ActionSourceWorkspace
             ["identityJson"] = Utf8.GetString(capture.Files[IdentityFile]),
             ["sourceYaml"] = Utf8.GetString(capture.Files[SourceFile]), ["editorJson"] = editorJson,
             ["codec"] = capture.Codec.DeepClone(), ["sourceSnapshot"] = capture.Manifest(),
+            ["variableIdentity"] = BindVariableIdentities(capture, variableEvidence, mode == "preview"),
             ["pending"] = new JObject
             {
                 ["status"] = JToken.DeepEquals(body, oldBody) ? "clean" : "pending",
@@ -156,6 +165,32 @@ internal static partial class ActionSourceWorkspace
                 ["metadataEditable"] = false, ["unsupportedCode"] = "SOURCE_DOCUMENT_UNSUPPORTED",
             },
         };
+    }
+
+    private static JObject BindVariableIdentities(BundleCapture capture, JObject evidence, bool candidate)
+    {
+        var descriptor = new JObject
+        {
+            ["schemaVersion"] = 1, ["sourceSnapshot"] = capture.Revision,
+            ["codecRevision"] = capture.Codec.Value<string>("descriptorRevision"),
+            ["editorDocumentHash"] = evidence["editorDocumentHash"]!.DeepClone(),
+            ["baselineEditorHash"] = evidence["baselineEditorHash"]!.DeepClone(),
+            ["authorizesLive"] = false, ["view"] = candidate ? "candidate" : "observed",
+            ["renameMappingScope"] = "source-codec-identity-only",
+            ["variables"] = evidence["variables"]!.DeepClone(),
+        };
+        if (candidate)
+            foreach (var row in ((JArray)descriptor["variables"]!).OfType<JObject>())
+            {
+                row["stableIdentityProven"] = row["documentLocalIdentityProven"] = row["renameMappingProven"] = false;
+                row["identityDenialReason"] = row["documentLocalIdentityDenialReason"] = row["renameMappingDenialReason"] = "candidate-preview";
+                row["renameMappingBasis"] = "unproven";
+            }
+        // A content-bound epoch also changes when storage/baseline identity changes
+        // without a Session revision. It is evidence, not a row-lifetime or write grant.
+        descriptor["mappingEpochKind"] = "content-bound";
+        descriptor["mappingEpoch"] = ByteHash(Utf8.GetBytes(descriptor.ToString(Formatting.None)));
+        return descriptor;
     }
 
     internal static void AssertManagedUnchanged(Prepared prepared)

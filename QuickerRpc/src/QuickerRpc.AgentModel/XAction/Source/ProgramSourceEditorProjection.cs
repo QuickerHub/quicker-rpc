@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -69,6 +71,178 @@ public sealed class ProgramSourceEditorProjection
         }
         catch (ProgramSourceException ex) when (ex.Code != UnsupportedCode && ex.Code != ReadOnlyCode) { throw Unsupported(ex.Message); }
         catch (JsonException ex) { throw Unsupported(ex.Message); }
+    }
+
+    /// <summary>Describe private projection evidence for this exact document, without granting an edit.</summary>
+    public JObject DescribeVariableIdentities(string editorJson, string? baselineDocumentJson = null)
+    {
+        // Rebase a fresh map: callers cannot consume identities or mutate future save behavior.
+        var view = new ProgramSourceEditorProjection(source, baselineCaw, baselineNative);
+        if (baselineDocumentJson is not null) view.Rebase(LosslessProgramJson.ParseObject(baselineDocumentJson));
+        _ = view.ToCaw(editorJson);
+        var rows = new JArray();
+        Walk(LosslessProgramJson.ParseObject(editorJson), view.root, "main", new JArray(), true, true);
+        return new JObject { ["variables"] = rows, ["editorDocumentHash"] = IdentityHash(editorJson),
+            ["baselineEditorHash"] = IdentityHash(baselineDocumentJson ?? view.EditorJson) };
+
+        void Walk(JObject program, ProgramIdentity? identity, string surface, JArray ancestors, bool owned, bool nativeScope)
+        {
+            var evidence = identity?.Variables.Values.ToDictionary(row => row, row => VariableEvidence(identity, row));
+            var claims = evidence?.Values.Where(value => value.NativeId.Length > 0).GroupBy(value => value.NativeId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            var syntheticAncestor = ancestors.OfType<JObject>().Any(row => row.Value<bool>("synthetic"));
+            var unknownAncestor = ancestors.OfType<JObject>().Any(row => !row.Value<bool>("owned") || !row.Value<bool>("sourceIdProven"));
+            foreach (var variable in Items(program, "variables"))
+            {
+                var editorId = RequiredString(variable, "id");
+                VariableIdentity? original = null;
+                identity?.Variables.TryGetValue(editorId, out original);
+                var sourceId = ProvenId(original?.Original);
+                var fact = original is not null ? evidence![original] : new IdentityEvidence();
+                var nativeProven = nativeScope && fact.NativeId.Length > 0 && fact.NativeUnique
+                    && claims![fact.NativeId] == 1;
+                var provenance = sourceId.Length > 0 ? "source" : nativeProven ? "native-checkpoint"
+                    : original is null || (original.Generated && IdentityShapeKnown(original.Original)) ? "generated" : "unknown";
+                string? denied = !owned ? "unowned-surface" : syntheticAncestor ? "synthetic-surface-ancestor"
+                    : unknownAncestor ? "unproven-surface-ancestor" : original is not null && !IdentityShapeKnown(original.Original) ? "unproven-variable-identity"
+                    : provenance == "generated" ? "generated-editor-id"
+                    : provenance == "unknown" ? "unproven-variable-identity" : null;
+                var renameDenied = denied;
+                string? localDenied = !owned ? "unowned-surface" : syntheticAncestor ? "synthetic-surface-ancestor"
+                    : unknownAncestor ? "unproven-surface-ancestor" : original is null || !IdentityShapeKnown(original.Original) || !SourceKeyKnown(original.Original)
+                    ? "unproven-source-row" : null;
+                var basis = "unproven";
+                if (renameDenied is null)
+                {
+                    if (localDenied is not null) renameDenied = localDenied;
+                    else if (!nativeScope) renameDenied = "native-surface-unproven";
+                    else if (nativeProven)
+                    {
+                        // A promoted native ID must still be expressible by the exact save ACK.
+                        if (sourceId.Length == 0 && editorId != fact.NativeId) renameDenied = "editor-id-promotion-continuity-unproven";
+                        else basis = "native-id";
+                    }
+                    else if (fact.CheckpointPaired && sourceId.Length > 0) basis = "checkpoint-source-id-and-native-key";
+                    else renameDenied = "native-mapping-unproven";
+                }
+                rows.Add(new JObject
+                {
+                    ["surface"] = surface, ["editorId"] = editorId, ["provenance"] = provenance,
+                    ["sourceId"] = sourceId.Length == 0 ? JValue.CreateNull() : new JValue(sourceId), ["sourceIdProven"] = sourceId.Length > 0,
+                    ["nativeCheckpointId"] = fact.NativeId.Length == 0 ? JValue.CreateNull() : new JValue(fact.NativeId),
+                    ["nativeCheckpointIdProven"] = nativeProven, ["nativeIdentity"] = nativeProven ? "checkpoint-proven" : "unknown", ["ownedSurface"] = owned,
+                    ["hasSyntheticAncestor"] = syntheticAncestor, ["stableIdentityProven"] = denied is null,
+                    ["identityDenialReason"] = denied is null ? JValue.CreateNull() : new JValue(denied),
+                    ["ancestors"] = ancestors.DeepClone(), ["renameMappingProven"] = renameDenied is null,
+                    ["renameMappingDenialReason"] = renameDenied is null ? JValue.CreateNull() : new JValue(renameDenied),
+                    ["renameMappingBasis"] = basis,
+                    ["documentLocalIdentityProven"] = localDenied is null,
+                    ["documentLocalIdentityDenialReason"] = localDenied is null ? JValue.CreateNull() : new JValue(localDenied),
+                    ["sourceRowAnchor"] = original is null ? JValue.CreateNull() : new JObject
+                    { ["surface"] = surface, ["key"] = original.Key, ["rowHash"] = IdentityHash(original.Original.ToString(Formatting.None)) },
+                });
+            }
+            foreach (var sub in Items(program, "subPrograms"))
+            {
+                var id = RequiredString(sub, "id");
+                view.programs.TryGetValue(id, out var child);
+                var sourceId = ProvenId(child?.Original);
+                var childOwned = owned && child is not null && OwnedKind(child.Original)
+                    && !child.Original.Properties().Any(p => string.Equals(p.Name, "kind", StringComparison.OrdinalIgnoreCase) && p.Name != "kind");
+                var childSurface = "sub-" + id;
+                var chain = (JArray)ancestors.DeepClone();
+                chain.Add(new JObject { ["surface"] = childSurface, ["editorId"] = id,
+                    ["sourceId"] = sourceId.Length == 0 ? JValue.CreateNull() : new JValue(sourceId),
+                    ["sourceIdProven"] = sourceId.Length > 0, ["synthetic"] = child is null || child.SyntheticId, ["owned"] = childOwned });
+                var nativeChild = child?.BaselineNative;
+                Walk(sub, child, childSurface, chain, childOwned, nativeScope && childOwned && sourceId.Length > 0
+                    && sourceId == ProvenId(nativeChild) && OwnedKind(nativeChild));
+            }
+        }
+    }
+
+    private static IdentityEvidence VariableEvidence(ProgramIdentity identity, VariableIdentity variable)
+    {
+        var native = EvidenceRows(identity.BaselineNative, "Variables", "variables");
+        var checkpoint = EvidenceRows(identity.BaselineCaw, "variables", "Variables");
+        var sourceId = ProvenId(variable.Original);
+        var wantedId = sourceId.Length > 0 ? sourceId : variable.BoundId;
+        var checkpointRow = wantedId.Length == 0 ? null : Unique(checkpoint.Where(row => ProvenId(row) == wantedId));
+        var nativeRow = wantedId.Length == 0 ? null : Unique(native.Where(row => ProvenId(row) == wantedId));
+        nativeRow ??= Unique(native.Where(row => EvidenceKey(row) == variable.Key));
+        if (nativeRow is null && sourceId.Length > 0 && checkpointRow is not null)
+            nativeRow = Unique(native.Where(row => EvidenceKey(row) == EvidenceKey(checkpointRow)));
+        var id = ProvenId(nativeRow);
+        var consistent = (sourceId.Length == 0 || id.Length == 0 || sourceId == id)
+            && (checkpointRow is null || nativeRow is null || EvidenceKey(checkpointRow) == EvidenceKey(nativeRow));
+        return new IdentityEvidence
+        {
+            NativeId = id,
+            NativeUnique = consistent && id.Length > 0 && native.Count(row => ProvenId(row) == id) == 1 && nativeRow is not null
+                && EvidenceKey(nativeRow).Length > 0 && native.Count(row => EvidenceKey(row) == EvidenceKey(nativeRow)) == 1,
+            // A failed real native-ID proof must never downgrade into the idless key bridge.
+            CheckpointPaired = consistent && id.Length == 0 && sourceId.Length > 0 && checkpointRow is not null && nativeRow is not null
+                && IdentityShapeKnown(nativeRow)
+                && ProvenId(checkpointRow) == sourceId && EvidenceKey(checkpointRow).Length > 0
+                && EvidenceKey(checkpointRow) == EvidenceKey(nativeRow)
+                && checkpoint.Count(row => ProvenId(row) == sourceId) == 1
+                && checkpoint.Count(row => EvidenceKey(row) == EvidenceKey(checkpointRow)) == 1
+                && native.Count(row => EvidenceKey(row) == EvidenceKey(nativeRow)) == 1,
+        };
+    }
+
+    private static JObject[] EvidenceRows(JObject? program, string first, string second)
+    {
+        if (program is null || program.Properties().Count(p => string.Equals(p.Name, first, StringComparison.OrdinalIgnoreCase)) != 1)
+            return Array.Empty<JObject>();
+        var array = program[first] as JArray ?? program[second] as JArray;
+        return array is null || array.Any(row => row is not JObject) ? Array.Empty<JObject>() : array.Cast<JObject>().ToArray();
+    }
+
+    private static JObject? Unique(IEnumerable<JObject> rows)
+    {
+        var matches = rows.Take(2).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
+
+    private static bool IdentityShapeKnown(JObject value)
+    {
+        var fields = value.Properties().Where(p => string.Equals(p.Name, "id", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return fields.Length == 0 || (fields.Length == 1 && fields[0].Name is ("id" or "Id")
+            && (fields[0].Value.Type == JTokenType.Null || (fields[0].Value.Type == JTokenType.String
+                && (string.IsNullOrWhiteSpace(fields[0].Value.Value<string>()) || ProvenId(value).Length > 0))));
+    }
+    private static bool SourceKeyKnown(JObject value)
+    {
+        var fields = value.Properties().Where(p => string.Equals(p.Name, "key", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return fields.Length == 1 && fields[0].Name == "key" && fields[0].Value.Type == JTokenType.String
+            && !string.IsNullOrWhiteSpace(fields[0].Value.Value<string>()) && fields[0].Value.Value<string>() == fields[0].Value.Value<string>()!.Trim();
+    }
+    private static string IdentityHash(string value)
+    {
+        using var sha = SHA256.Create();
+        return "sha256:" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
+    }
+    private static string ProvenId(JObject? value)
+    {
+        var fields = value?.Properties().Where(p => string.Equals(p.Name, "id", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (fields is not { Length: 1 } || fields[0].Name is not ("id" or "Id") || fields[0].Value.Type != JTokenType.String) return "";
+        var id = fields[0].Value.Value<string>()!;
+        return id.Length > 0 && id == id.Trim() ? id : "";
+    }
+
+    private static string EvidenceKey(JObject value)
+    {
+        var fields = value.Properties().Where(p => string.Equals(p.Name, "key", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return fields.Length == 1 && fields[0].Name is ("key" or "Key") && fields[0].Value.Type == JTokenType.String ? fields[0].Value.Value<string>()! : "";
+    }
+
+    private static bool OwnedKind(JObject? value)
+    {
+        if (value is null) return false;
+        var fields = value.Properties().Where(p => string.Equals(p.Name, "kind", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return fields.Length == 0 || (fields.Length == 1 && fields[0].Name is ("kind" or "Kind")
+            && fields[0].Value.Type == JTokenType.Integer && fields[0].Value.Value<int>() == 1);
     }
 
     private void Rebase(JObject baseline)
@@ -158,9 +332,10 @@ public sealed class ProgramSourceEditorProjection
             var boundId = nativeId.Length > 0 ? nativeId : FindCheckpointVariableId(baselineCaw, key, id);
             if (id.Length > 0 && boundId.Length > 0 && id != boundId) throw Unsupported("Source variable identity conflicts with the matching baseline: " + key);
             if (id.Length == 0 && boundId.Length > 0 && variableIds.Add(boundId)) id = boundId;
-            if (id.Length == 0)
+            var generated = id.Length == 0;
+            if (generated)
                 do { id = "v-" + variableSequence++; } while (!variableIds.Add(id));
-            var row = new VariableIdentity(key, variable, boundId);
+            var row = new VariableIdentity(key, variable, boundId, generated);
             identity.Variables.Add(id, row);
             variable.Remove("Id");
             variable["id"] = id;
@@ -512,21 +687,26 @@ public sealed class ProgramSourceEditorProjection
     private static ProgramSourceException Unsupported(string message) => new(UnsupportedCode, message);
     private sealed class VariableIdentity
     {
-        public VariableIdentity(string key, JObject original, string boundId) { Key = key; Original = (JObject)original.DeepClone(); BoundId = boundId; }
+        public VariableIdentity(string key, JObject original, string boundId, bool generated) { Key = key; Original = (JObject)original.DeepClone(); BoundId = boundId; Generated = generated; }
         public string Key { get; }
         public JObject Original { get; }
         public string BoundId { get; }
+        public bool Generated { get; }
     }
     private sealed class ProgramIdentity
     {
         public ProgramIdentity(JObject original, JObject? baselineCaw, JObject? baselineNative)
         {
             Original = (JObject)original.DeepClone();
+            BaselineCaw = (JObject?)baselineCaw?.DeepClone();
+            BaselineNative = (JObject?)baselineNative?.DeepClone();
             foreach (var baseline in new[] { baselineCaw, baselineNative })
                 foreach (var variable in (baseline?["variables"] as JArray ?? baseline?["Variables"] as JArray ?? new JArray()).OfType<JObject>())
                     if ((variable.Value<string>("key") ?? variable.Value<string>("Key")) is { } key) ProtectedKeys.Add(key);
         }
         public JObject Original { get; }
+        public JObject? BaselineCaw { get; }
+        public JObject? BaselineNative { get; }
         public Dictionary<string, VariableIdentity> Variables { get; } = new(StringComparer.Ordinal);
         public HashSet<string> ProtectedKeys { get; } = new(StringComparer.Ordinal);
         public JToken? OriginalId { get; set; }
@@ -538,5 +718,11 @@ public sealed class ProgramSourceEditorProjection
         public JToken? OriginalId { get; }
         public bool Synthetic { get; }
         public JObject Original { get; }
+    }
+    private sealed class IdentityEvidence
+    {
+        public string NativeId { get; set; } = "";
+        public bool NativeUnique { get; set; }
+        public bool CheckpointPaired { get; set; }
     }
 }
