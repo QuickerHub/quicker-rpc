@@ -84,3 +84,22 @@ test("Source rename claims must be internally consistent while legitimate checkp
     assert.equal(sourceVariableRenameProven(row), false);
   }
 });
+
+test("a proven nested ancestor requires the exact nonempty source ID while checkpoint-key pairing stays native-unknown", async () => {
+  const nestedBody = '{"steps":[],"variables":[],"subPrograms":[{"id":"child","kind":1,"steps":[],"variables":[{"id":"v-1","key":"A"}],"subPrograms":[]}]}';
+  const mapping = identity(); mapping.editorDocumentHash = mapping.baselineEditorHash = hash(nestedBody);
+  const row = mapping.variables[0]; row.surface = "sub-child"; row.sourceRowAnchor = { surface: row.surface, key: "A", rowHash: hash("nested-original-row") };
+  Object.assign(row, { provenance: "source", sourceId: row.editorId, sourceIdProven: true, stableIdentityProven: true, identityDenialReason: null,
+    renameMappingProven: true, renameMappingDenialReason: null, renameMappingBasis: "checkpoint-source-id-and-native-key",
+    ancestors: [{ surface: "sub-child", editorId: "child", sourceId: "child", sourceIdProven: true, synthetic: false, owned: true }] });
+  const verified = await verifySourceVariableIdentity(document(mapping, nestedBody)); assert.ok(verified);
+  const origin = sourceVariableOrigin(verified, row.surface, row.editorId); assert.ok(origin);
+  assert.equal(sourceVariableRenameProven(origin), true); assert.equal(origin.nativeIdentity, "unknown");
+  for (const sourceId of [null, "", "foreign-child", " child "]) {
+    const malformed = structuredClone(mapping);
+    (malformed.variables[0].ancestors[0] as Record<string, unknown>).sourceId = sourceId;
+    assert.equal(readSourceVariableIdentity(malformed), undefined);
+    assert.equal(await verifySourceVariableIdentity(document(malformed, nestedBody)), undefined);
+    assert.equal(sourceVariableOrigin(malformed, row.surface, row.editorId), undefined);
+  }
+});
