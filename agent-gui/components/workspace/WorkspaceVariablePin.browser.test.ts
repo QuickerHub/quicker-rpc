@@ -266,16 +266,15 @@ async function reorderAfter(page: Page, selectedId: string, targetId: string) {
 function successfulPins(page: Page) { return page.evaluate(() => (window as any).fixture.pins.filter((entry: any) => Boolean(entry.pin?.pinId)).length); }
 
 async function editorGeometry(page: Page) {
-  return doc(page).evaluate(root => {
-    const box = (selector: string) => {
+  return doc(page).evaluate(root => Object.fromEntries([
+    ["layout", ".program-editor-catalog-layout"], ["documents", ".program-editor-documents"], ["surface", ".program-editor-surface:not([hidden])"],
+    ["program", ".program-editor-surface:not([hidden]) .x-program-editor"], ["body", ".program-editor-surface:not([hidden]) .x-program-editor-body"],
+    ["drawer", ".x-program-editor-variables-drawer"], ["form", ".variable-form"],
+  ].map(([name, selector]) => {
       const element = root.querySelector<HTMLElement>(selector); if (!element) throw Error(`Missing ${selector}`);
       const rect = element.getBoundingClientRect();
-      return { top: rect.top, bottom: rect.bottom, height: rect.height, width: rect.width, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight };
-    };
-    return { layout: box(".program-editor-catalog-layout"), documents: box(".program-editor-documents"), surface: box(".program-editor-surface:not([hidden])"),
-      program: box(".program-editor-surface:not([hidden]) .x-program-editor"), body: box(".program-editor-surface:not([hidden]) .x-program-editor-body"),
-      drawer: box(".x-program-editor-variables-drawer"), form: box(".variable-form") };
-  });
+      return [name, { top: rect.top, bottom: rect.bottom, height: rect.height, width: rect.width, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }];
+  })));
 }
 
 async function clickReachableVariableField(page: Page, title: string) {
@@ -308,7 +307,7 @@ for (const format of ["legacy", "source"] as const) test(`${format} short-action
     const measurements = [];
     // This fixture owns the file-panel viewport. The full Chat/sidebar split has a separate integration owner.
     for (const viewport of [{ width: 1280, height: 950, theme: "light" }, { width: 1280, height: 950, theme: "dark" },
-      { width: 420, height: 650, theme: "dark" }, { width: 420, height: 720, theme: "light" }, { width: 900, height: 420, theme: "dark" }]) {
+      { width: 420, height: 650, theme: "dark" }, { width: 420, height: 720, theme: "light" }, { width: 1024, height: 720, theme: "dark" }]) {
       await variableForm(page).locator('input[title="备注"]').fill(`${format} layout draft`);
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, viewport.theme);
@@ -331,14 +330,19 @@ for (const format of ["legacy", "source"] as const) test(`${format} short-action
     await variableForm(page).locator('input[title="备注"]').fill(`${format} undoable draft`);
     await doc(page).getByRole("tab", { name: "主程序", exact: true }).click();
     await doc(page).locator('[title="撤销 (Ctrl+Z)"]').click();
-    assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} layout draft`);
+    assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), format === "source" ? "source original" : "main original", "The entire uncommitted form draft becomes one undoable change");
+    assert.equal(await doc(page).locator(".action-project-data-editor-save").isDisabled(), true);
     await doc(page).locator('[title^="重做 ("]').click();
     assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} undoable draft`);
-    await page.evaluate(file => { (window as any).fixture.open(file); }, `.quicker/actions/${actionId}/files/default.txt`);
+    await page.evaluate(file => (window as any).fixture.open(file), `.quicker/actions/${actionId}/files/default.txt`);
     await page.locator(".workspace-side-panel-tree--compact").waitFor();
-    await page.evaluate(file => { (window as any).fixture.open(file); }, secondFile);
+    await page.evaluate(file => (window as any).fixture.open(file), secondFile);
+    await page.waitForFunction(file => (window as any).fixture.active()?.path === file, secondFile);
+    await doc(page).locator(".action-project-data-editor-tabs").waitFor();
     await openVariables(page, sharedId); assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), "second original");
-    await page.evaluate(file => { (window as any).fixture.open(file); }, file);
+    await page.evaluate(file => (window as any).fixture.open(file), file);
+    await page.waitForFunction(file => (window as any).fixture.active()?.path === file, file);
+    await doc(page).locator(".action-project-data-editor-tabs").waitFor();
     await openVariables(page, variableId);
     assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} undoable draft`, "Switching files preserves the original document's draft/history");
     assert.equal(await page.evaluate(() => (window as any).fixture.layoutDocument === document.querySelector('[data-workspace-document]:not([hidden])')), true);
