@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { before, test } from "node:test";
 import vm from "node:vm";
-import { jsonSchema, tool, type JSONSchema7 } from "ai";
+import { jsonSchema, tool, type JSONSchema7, type ToolSet } from "ai";
 import { build } from "esbuild";
 import { z } from "zod";
 import { executeListToolsTool } from "./list-tools-tool-execute";
@@ -17,9 +17,8 @@ type FixtureApi = {
 let compiled = "";
 
 before(async () => {
-  // Compile the real catalog and original tool definitions. Replace only the
-  // registry resource port: importing every registered tool would load ambient
-  // config/DB adapters even though schema discovery must never execute a tool.
+  // The production catalog must have no dependency on the global executable
+  // registry, ambient configuration, databases or host transports.
   const result = await build({
     stdin: {
       contents: `
@@ -37,14 +36,6 @@ before(async () => {
     external: ["ai", "zod"],
     metafile: true,
     tsconfig: path.resolve(import.meta.dirname, "../tsconfig.json"),
-    plugins: [{ name: "tool-registry-resource-port", setup(builder) {
-      builder.onResolve({ filter: /^@\/lib\/tools$/ }, () => ({
-        path: "tools", namespace: "resource-port",
-      }));
-      builder.onLoad({ filter: /.*/, namespace: "resource-port" }, () => ({
-        contents: "export const quickerTools = fixtureTools;", loader: "js",
-      }));
-    } }],
   });
   for (const input of Object.keys(result.metafile!.inputs)) {
     assert.doesNotMatch(input.replaceAll("\\", "/"),
@@ -59,7 +50,7 @@ function fixture(overrides: Record<string, unknown> = {}) {
   const module = { exports: {} as FixtureApi };
   const require = createRequire(import.meta.url);
   vm.runInNewContext(compiled, {
-    module, exports: module.exports, fixtureTools,
+    module, exports: module.exports,
     process: { env: { NODE_ENV: "production" } },
     require(id: string) {
       assert.ok(id === "ai" || id === "zod", `Unexpected fixture dependency: ${id}`);
@@ -71,7 +62,8 @@ function fixture(overrides: Record<string, unknown> = {}) {
     ask_question: api.ASK_QUESTION_TOOL_DEF,
     set_thread_title: api.SET_THREAD_TITLE_TOOL_DEF,
   }, overrides);
-  return { execute: api.executeListToolsTool, tools: fixtureTools, originals: api };
+  return { execute: (input: Parameters<typeof executeListToolsTool>[0]) =>
+    api.executeListToolsTool(input, { mode: "agent", tools: fixtureTools as ToolSet }), tools: fixtureTools, originals: api };
 }
 
 type WireTool = {
@@ -91,38 +83,45 @@ function wire(result: Record<string, unknown>) {
   };
 }
 
-test("executeListToolsTool routing returns markdown table", async () => {
-  const result = await executeListToolsTool({ action: "routing" });
+test("executeListToolsTool routing describes only current tools", async () => {
+  const result = await fixture().execute({ action: "routing" });
   assert.equal(result.ok, true);
   const data = result.data as Record<string, unknown>;
-  assert.ok(String(data.routingTable).includes("User intent"));
+  assert.ok(String(data.routingTable).includes("Current tool"));
+  assert.ok(String(data.routingTable).includes("ask_question"));
+  assert.ok(!String(data.routingTable).includes("qkrpc_action_save"));
 });
 
 test("executeListToolsTool bundles lists categorized packs", async () => {
-  const result = await executeListToolsTool({ action: "bundles" });
+  const result = await fixture().execute({ action: "bundles" });
   assert.equal(result.ok, true);
   const data = result.data as { bundles?: Array<{ id: string }> };
-  assert.ok(data.bundles?.some((bundle) => bundle.id === "action_authoring"));
+  assert.deepEqual(Array.from(data.bundles ?? [], bundle => bundle.id), ["core"]);
 });
 
 test("executeListToolsTool bundle requires bundleId", async () => {
-  const result = await executeListToolsTool({ action: "bundle" });
+  const result = await fixture().execute({ action: "bundle" });
   assert.equal(result.ok, false);
 });
 
 test("executeListToolsTool bundle rejects unknown pack", async () => {
-  const result = await executeListToolsTool({
+  const result = await fixture().execute({
     action: "bundle",
     bundleId: "not_a_bundle" as "core",
   });
   assert.equal(result.ok, false);
 });
-test("executeListToolsTool index lists registry tools", async () => {
-  const result = await executeListToolsTool({ action: "index" });
+test("executeListToolsTool index lists only current selected tools", async () => {
+  const result = await fixture().execute({ action: "index" });
   assert.equal(result.ok, true);
   const data = result.data as { toolIds?: string[] };
-  assert.ok(data.toolIds?.includes("docs"));
-  assert.ok(data.toolIds?.includes("list_tools"));
+  assert.deepEqual(Array.from(data.toolIds ?? []), ["ask_question", "set_thread_title"]);
+});
+
+test("unbound discovery never restores the global catalog", async () => {
+  const result = await executeListToolsTool({ action: "get", toolId: "workspace_program" });
+  assert.equal(result.ok, false);
+  assert.equal((result.data as { errorCode: string }).errorCode, "tool_catalog_unbound");
 });
 
 test("get serializes original tool schemas with nested required fields and constraints", async () => {
@@ -180,7 +179,7 @@ test("bundle returns real JSON schemas while retaining bundle and tool metadata"
   assert.equal(result.data.action, "list-tools-bundle");
   assert.equal(result.data.bundleId, "core");
   assert.equal(result.data.label, "核心");
-  assert.match(result.data.description!, /docs/);
+  assert.match(result.data.description!, /execution scope/);
   const tools = result.data.tools!;
   assert.deepEqual(tools.map((item) => item.toolId), ["qkrpc_wait", "ask_question"]);
   const wait = tools[0];
@@ -251,7 +250,7 @@ test("missing schemas remain omitted and unknown tools keep their error result",
   assert.equal("inputSchema" in bundle.data.tools![0], false);
   const unknown = await run.execute({ action: "get", toolId: "not_registered" });
   assert.equal(unknown.ok, false);
-  assert.match(String(unknown.stderr), /Unknown tool: not_registered/);
+  assert.match(String(unknown.stderr), /unavailable in the current execution scope/);
   assert.equal((await run.execute({ action: "get" })).ok, false);
 });
 
