@@ -161,6 +161,115 @@ public sealed class ProgramSourceEditorProjection
         }
     }
 
+    /// <summary>Observed source-row evidence; neither a native identity nor an edit grant is inferred from an ID spelling.</summary>
+    public JObject DescribeStepIdentities(string editorJson, string? baselineDocumentJson = null)
+    {
+        var view = new ProgramSourceEditorProjection(source, baselineCaw, baselineNative);
+        if (baselineDocumentJson is not null) view.Rebase(LosslessProgramJson.ParseObject(baselineDocumentJson));
+        _ = view.ToCaw(editorJson);
+        var rows = new JArray();
+        WalkProgram(LosslessProgramJson.ParseObject(editorJson), view.root, "main", new JArray(), true, true);
+        return new JObject { ["steps"] = rows, ["editorDocumentHash"] = IdentityHash(editorJson),
+            ["baselineEditorHash"] = IdentityHash(baselineDocumentJson ?? view.EditorJson) };
+
+        void WalkProgram(JObject program, ProgramIdentity? identity, string surface, JArray ancestors, bool owned, bool nativeScope)
+        {
+            var pairs = identity is null ? Array.Empty<StepCheckpointPair>() : StepCheckpointPairs(identity).ToArray();
+            WalkSteps(Items(program, "steps"));
+            foreach (var sub in Items(program, "subPrograms"))
+            {
+                var id = RequiredString(sub, "id");
+                view.programs.TryGetValue(id, out var child);
+                var sourceId = ProvenId(child?.Original);
+                var childOwned = owned && child is not null && OwnedKind(child.Original)
+                    && !child.Original.Properties().Any(p => string.Equals(p.Name, "kind", StringComparison.OrdinalIgnoreCase) && p.Name != "kind");
+                var childSurface = "sub-" + id;
+                var chain = (JArray)ancestors.DeepClone();
+                chain.Add(new JObject { ["surface"] = childSurface, ["editorId"] = id,
+                    ["sourceId"] = sourceId.Length == 0 ? JValue.CreateNull() : new JValue(sourceId),
+                    ["sourceIdProven"] = sourceId.Length > 0, ["synthetic"] = child is null || child.SyntheticId, ["owned"] = childOwned });
+                WalkProgram(sub, child, childSurface, chain, childOwned, nativeScope && childOwned && sourceId.Length > 0
+                    && sourceId == ProvenId(child?.BaselineNative) && OwnedKind(child?.BaselineNative));
+            }
+
+            void WalkSteps(JObject[] steps)
+            {
+                foreach (var step in steps)
+                {
+                    var editorId = RequiredString(step, "stepId");
+                    view.stepIdentities.TryGetValue(editorId, out var original);
+                    var sourceId = ProvenStepId(original?.Original, native: false);
+                    var matches = sourceId.Length == 0 ? Array.Empty<StepCheckpointPair>()
+                        : pairs.Where(pair => ProvenStepId(pair.Source, native: false) == sourceId).ToArray();
+                    var paired = matches.Length == 1 ? matches[0] : null;
+                    var nativeId = ProvenStepId(paired?.Native, native: true);
+                    var nativeProven = nativeScope && original?.Owner == identity && nativeId.Length > 0 && nativeId == sourceId
+                        && pairs.Count(pair => ProvenStepId(pair.Native, native: true) == nativeId) == 1;
+                    var syntheticAncestor = ancestors.OfType<JObject>().Any(row => row.Value<bool>("synthetic"));
+                    var unknownAncestor = ancestors.OfType<JObject>().Any(row => !row.Value<bool>("owned") || !row.Value<bool>("sourceIdProven"));
+                    var shapeKnown = original is not null && StepIdentityShapeKnown(original.Original) && SourceKeyKnown(original.Original);
+                    var provenance = sourceId.Length > 0 ? "source" : nativeProven ? "native-checkpoint"
+                        : original is null || (original.Synthetic && shapeKnown) ? "generated" : "unknown";
+                    string? localDenied = !owned ? "unowned-surface" : syntheticAncestor ? "synthetic-surface-ancestor"
+                        : unknownAncestor ? "unproven-surface-ancestor" : original is null || !shapeKnown ? "unproven-source-row"
+                        : original.Owner != identity ? "source-surface-changed" : null;
+                    var denied = localDenied ?? (provenance == "generated" ? "generated-editor-id"
+                        : provenance == "unknown" ? "unproven-step-identity" : null);
+                    rows.Add(new JObject
+                    {
+                        ["surface"] = surface, ["editorId"] = editorId, ["runnerKey"] = RequiredString(step, "stepRunnerKey"),
+                        ["provenance"] = provenance, ["sourceId"] = sourceId.Length == 0 ? JValue.CreateNull() : new JValue(sourceId),
+                        ["sourceIdProven"] = sourceId.Length > 0,
+                        ["nativeCheckpointId"] = nativeId.Length == 0 ? JValue.CreateNull() : new JValue(nativeId),
+                        ["nativeCheckpointIdProven"] = nativeProven, ["nativeIdentity"] = nativeProven ? "checkpoint-proven" : "unknown",
+                        ["ownedSurface"] = owned, ["hasSyntheticAncestor"] = syntheticAncestor, ["ancestors"] = ancestors.DeepClone(),
+                        ["stableIdentityProven"] = denied is null, ["identityDenialReason"] = denied is null ? JValue.CreateNull() : new JValue(denied),
+                        ["documentLocalIdentityProven"] = localDenied is null,
+                        ["documentLocalIdentityDenialReason"] = localDenied is null ? JValue.CreateNull() : new JValue(localDenied),
+                        ["sourceRowAnchor"] = original is null || original.Owner != identity ? JValue.CreateNull() : new JObject
+                        { ["surface"] = surface, ["path"] = original.SourcePath, ["rowHash"] = IdentityHash(original.Original.ToString(Formatting.None)) },
+                    });
+                    WalkSteps(Items(step, "ifSteps"));
+                    WalkSteps(Items(step, "elseSteps"));
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<StepCheckpointPair> StepCheckpointPairs(ProgramIdentity identity)
+    {
+        return Walk(identity.BaselineCaw, identity.BaselineNative, "steps", "Steps");
+        static IEnumerable<StepCheckpointPair> Walk(JObject? caw, JObject? native, string cawName, string nativeName)
+        {
+            var sourceRows = EvidenceRows(caw, cawName, cawName);
+            var nativeRows = EvidenceRows(native, nativeName, char.ToLowerInvariant(nativeName[0]) + nativeName.Substring(1));
+            if (sourceRows.Length != nativeRows.Length) yield break;
+            for (var i = 0; i < sourceRows.Length; i++)
+            {
+                yield return new StepCheckpointPair(sourceRows[i], nativeRows[i]);
+                foreach (var child in Walk(sourceRows[i], nativeRows[i], "ifSteps", "IfSteps")) yield return child;
+                foreach (var child in Walk(sourceRows[i], nativeRows[i], "elseSteps", "ElseSteps")) yield return child;
+            }
+        }
+    }
+
+    private static string ProvenStepId(JObject? value, bool native)
+    {
+        var fields = value?.Properties().Where(p => string.Equals(p.Name, "stepId", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (fields is not { Length: 1 } || (fields[0].Name != "stepId" && (!native || fields[0].Name != "StepId"))
+            || fields[0].Value.Type != JTokenType.String) return "";
+        var id = fields[0].Value.Value<string>()!;
+        return id.Length > 0 && id == id.Trim() ? id : "";
+    }
+
+    private static bool StepIdentityShapeKnown(JObject value)
+    {
+        var fields = value.Properties().Where(p => string.Equals(p.Name, "stepId", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return fields.Length == 0 || (fields.Length == 1 && fields[0].Name == "stepId"
+            && (fields[0].Value.Type == JTokenType.Null || (fields[0].Value.Type == JTokenType.String
+                && (string.IsNullOrWhiteSpace(fields[0].Value.Value<string>()) || ProvenStepId(value, native: false).Length > 0))));
+    }
+
     private static IdentityEvidence VariableEvidence(ProgramIdentity identity, VariableIdentity variable)
     {
         var native = EvidenceRows(identity.BaselineNative, "Variables", "variables");
@@ -343,7 +452,8 @@ public sealed class ProgramSourceEditorProjection
             if (variable.Property("varType") is null && variable["type"] is { } legacyType)
                 variable["varType"] = legacyType.DeepClone();
         }
-        foreach (var step in Items(program, "steps")) ProjectStep(step);
+        var steps = Items(program, "steps");
+        for (var i = 0; i < steps.Length; i++) ProjectStep(steps[i], identity, "/steps/" + i);
         foreach (var sub in Items(program, "subPrograms"))
         {
             if (sub["kind"] is { } kind && (kind.Type != JTokenType.Integer || kind.Value<int>() != 1))
@@ -367,7 +477,7 @@ public sealed class ProgramSourceEditorProjection
         return identity;
     }
 
-    private void ProjectStep(JObject step)
+    private void ProjectStep(JObject step, ProgramIdentity owner, string path)
     {
         RequireSourceAliases(step);
         RequiredString(step, "key");
@@ -379,7 +489,7 @@ public sealed class ProgramSourceEditorProjection
             do { id = "s-" + stepSequence++; } while (!usedSteps.Add(id));
             step["stepId"] = id;
         }
-        stepIdentities.Add(id, new StepIdentity(oldId, synthetic, step));
+        stepIdentities.Add(id, new StepIdentity(oldId, synthetic, step, owner, path));
         if (ProgramSourceSubProgramStepSugar.HasElevatedTarget(step) && !ProgramSourceSubProgramIoFold.IsSubProgramStep(step))
             throw Unsupported("A subprogram target on a different runner cannot be projected.");
         if (step.Property("subProgram") is not null && step.Property("subProgram.var") is not null)
@@ -396,8 +506,11 @@ public sealed class ProgramSourceEditorProjection
         Move(step, "key", "stepRunnerKey");
         Move(step, "inputs", "inputParams");
         Move(step, "outputs", "outputParams");
-        foreach (var child in Items(step, "ifSteps")) ProjectStep(child);
-        foreach (var child in Items(step, "elseSteps")) ProjectStep(child);
+        foreach (var name in new[] { "ifSteps", "elseSteps" })
+        {
+            var children = Items(step, name);
+            for (var i = 0; i < children.Length; i++) ProjectStep(children[i], owner, path + "/" + name + "/" + i);
+        }
     }
 
     private JObject Restore(JObject current)
@@ -714,10 +827,23 @@ public sealed class ProgramSourceEditorProjection
     }
     private sealed class StepIdentity
     {
-        public StepIdentity(JToken? id, bool synthetic, JObject original) { OriginalId = id; Synthetic = synthetic; Original = (JObject)original.DeepClone(); }
+        public StepIdentity(JToken? id, bool synthetic, JObject original, ProgramIdentity owner, string path)
+        {
+            OriginalId = id; Synthetic = synthetic; Original = (JObject)original.DeepClone();
+            RestoreProperty(Original, "stepId", id);
+            Owner = owner; SourcePath = path;
+        }
         public JToken? OriginalId { get; }
         public bool Synthetic { get; }
         public JObject Original { get; }
+        public ProgramIdentity Owner { get; }
+        public string SourcePath { get; }
+    }
+    private sealed class StepCheckpointPair
+    {
+        public StepCheckpointPair(JObject source, JObject native) { Source = source; Native = native; }
+        public JObject Source { get; }
+        public JObject Native { get; }
     }
     private sealed class IdentityEvidence
     {
