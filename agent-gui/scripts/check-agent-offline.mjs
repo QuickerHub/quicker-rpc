@@ -219,6 +219,7 @@ const tests = [
   "lib/db/app-kv.test.ts",
   "lib/db/chat-store-safety.test.ts",
   "lib/chat-store-db.server.test.ts",
+  "lib/chat-storage-recovery-boundary.test.ts",
 ];
 
 // Real client SDK/React imports require React's normal export, independently of

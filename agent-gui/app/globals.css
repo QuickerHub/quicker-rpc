@@ -790,39 +790,6 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   background: var(--surface-hover);
 }
 
-.chat-storage-port-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-shrink: 0;
-  min-height: 1.75rem;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  background: color-mix(in srgb, #f59e0b 14%, var(--app-bg));
-  border-bottom: 1px solid color-mix(in srgb, #f59e0b 32%, var(--border));
-  color: var(--text-muted);
-}
-
-.chat-storage-port-banner__text {
-  line-height: 1.35;
-}
-
-.chat-storage-port-banner__link {
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.45rem;
-  font-size: 0.72rem;
-  background: var(--surface);
-  color: var(--text);
-  text-decoration: none;
-}
-
-.chat-storage-port-banner__link:hover {
-  background: var(--surface-hover);
-}
-
 .titlebar-actions .titlebar-action-btn.ws-icon-btn {
   width: 24px;
   height: 24px;
