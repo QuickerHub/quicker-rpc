@@ -26,6 +26,8 @@ export type SourceVariableIdentity = Readonly<{
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value));
 const hash = (value: unknown): value is string => typeof value === "string" && /^sha256:[a-f0-9]{64}$/i.test(value);
 const nullableId = (value: unknown): value is string | null => value === null || typeof value === "string" && Boolean(value.trim());
+const provenAncestorId = (row: Record<string, unknown>): boolean => row.sourceIdProven === true && typeof row.sourceId === "string"
+  && Boolean(row.sourceId) && row.sourceId === row.sourceId.trim() && row.sourceId === row.editorId;
 
 /** Provenance is received from the actual codec; it is never itself a live grant. */
 export function readSourceVariableIdentity(value: unknown): SourceVariableIdentity | undefined {
@@ -47,7 +49,8 @@ export function readSourceVariableIdentity(value: unknown): SourceVariableIdenti
     if (row.sourceRowAnchor !== null && (!object(row.sourceRowAnchor) || row.sourceRowAnchor.surface !== row.surface
       || typeof row.sourceRowAnchor.key !== "string" || !row.sourceRowAnchor.key.trim() || !hash(row.sourceRowAnchor.rowHash))) return;
     if (row.ancestors.some(ancestor => !object(ancestor) || typeof ancestor.surface !== "string" || typeof ancestor.editorId !== "string"
-      || !nullableId(ancestor.sourceId) || ["sourceIdProven", "synthetic", "owned"].some(key => typeof ancestor[key] !== "boolean"))) return;
+      || !nullableId(ancestor.sourceId) || ["sourceIdProven", "synthetic", "owned"].some(key => typeof ancestor[key] !== "boolean")
+      || ancestor.sourceIdProven === true && !provenAncestorId(ancestor))) return;
     const key = JSON.stringify([row.surface, row.editorId]);
     if (keys.has(key)) return; keys.add(key);
   }
@@ -79,7 +82,7 @@ export function sourceVariableOrigin(identity: SourceVariableIdentity, surface: 
   if (rows.length !== 1) return;
   const row = rows[0];
   if (identity.view !== "observed" || !row.ownedSurface || row.hasSyntheticAncestor || !row.documentLocalIdentityProven || !row.sourceRowAnchor
-    || row.ancestors.some(ancestor => !object(ancestor) || ancestor.synthetic !== false || ancestor.owned !== true || ancestor.sourceIdProven !== true)) return;
+    || row.ancestors.some(ancestor => !object(ancestor) || ancestor.synthetic !== false || ancestor.owned !== true || !provenAncestorId(ancestor))) return;
   return row;
 }
 
