@@ -74,7 +74,8 @@ Explorer 已接有效 `program.source.yaml` bundle 的可视编辑：实际 C# c
 身份文件，当前宿主状态明确未核验。普通 Save 只按完整源码快照写本地，重开从 checkpoint
 计算待同步；显式 Sync 复用原 dry-run 和一次提交，保留部分成功及未知收据。隐藏文件实例
 仍持有 owner，普通文件工具与 source save 不能绕过它。YAML 预览、根 metadata 和外置资源
-只读；源码变量已支持本轮私有授权，源码步骤 pin 与 Agent Save/Sync 尚未开放。真实
+只读；源码变量及 codec 证明的既有步骤已支持本轮私有授权，步骤限备注和当前原生契约
+支持的既有普通输入，Agent Save/Sync 尚未开放。真实
 codec、生产 workspace API 和隔离浏览器回归已覆盖本地编辑链；本机专用 V1 动作的 GUI
 单次 Sync、独立读回与恢复已验收，V2 写回及更广宿主场景仍待验证。见
 [源码包文档协议](../authoring/source-bundle-document.md)。
@@ -224,9 +225,15 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 此本地组合使用源码 `f6fafbed` 的生产 runtime/ASAR 与正式 0.15.1 Electron 工具；不是公开
 安装器完整副本，也未执行 NSIS 或用户升级。此前并发 cold terminal 重复 spawn/503 的失败记录保留。
 当前源码的启动修复（`f4705887`）已实现同目标/owner 共享一次启动、独立等待者取消；stop 先取消并等待启动任务，再仅回收 retained child。
-生产 Node 服务与真实 Node 子进程中的 health/IPC 协议替身已验证并发、归属和 IPC 退出；替身不是生产
-terminal server/node-pty。真实 PTY/终端 UI 和包含本修复的新安装包仍待验收，不将正常退出或启动机制回归
-写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
+生产 Node 服务与真实 Node 子进程中的 health/IPC 协议替身先验证了并发、归属和 IPC 退出；
+候选 `5cb886a9` 另以完整编译产物 `service.mjs`、同一 Node 22.23.4 与产物内 node-pty 1.1.0
+完成真实 PTY 验收：六个并发请求只启动同 owner 的一个 runtime，WS 输出确认 shell PID/cwd，
+resize 到 120×36；shell 自然退出与 onExit 均为 0，dispose 不再派生该 PID 的 kill/helper，
+stderr 排空后仍为空。IPC stop 与所属进程清理在原预算内完成，全部 34 个观察进程及 Job
+在 dispose 前清空，无强制回收；部分 pool shell/辅助进程的非零退出保留，不记为全部退出 0。
+构建 wrapper 在产出完整 app 后因 PATH 缺少 git 的元数据步骤退出 1，未记录的 builder
+退出码不补为 0；运行收据不代替构建成功。终端 UI、包含修复的新安装包、Electron 组合和
+R2 提前断连仍待验收，不写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
 标准 `build` / `start` / `electron:prepare` 和发布入口默认 static，运行目录不含 Next；Next
 移至开发依赖，继续服务 HMR 与显式 `legacy-next` 构建/暂存/启动。删除该兼容分支仍受上述
 完整验收门槛约束，不把默认入口切换记作 A4 完成。见 [运行清单](../engineering/static-agent-runtime.md)。
@@ -275,7 +282,7 @@ Agent 变量授权、Save/Sync、V2 source 写回和通信优化继续保留各�
 | A1：搬入新版设计器（首要界面交付） | 复用 Quicker 新 Designer 的 React 组件、结构化动作模型、catalog/session/workspace bridge 语义，先接 fixture，再接统一 RPC；保留黑白灰深浅主题 | `agent-gui/lib/action-editor/`、现有设计器 UI；Quicker `Quicker.Headless` Designer/Web 源 | 按来源清单迁移步骤/参数、变量、catalog 资源、嵌套结构、选择/撤销/重做、脏状态与保存；保留 qkrpc 外置脚本/默认值文件，连续多次编辑后的保存须与可见文档一致，完整 roundtrip 保留未知字段。已迁入多 surface/live snapshot、模块目录与标题/说明/图标，共用文档 revision、保存票据及本地两文件 CAS；真实 DOM 回归通过。ResourcePane 已接两类绑定目录的筛选、分页、只读选择和刷新；V1 组合动作（已知 XAction）打开复用完整绑定的本地项目或导出到空目录，通过原文件实例入口打开，已有草稿/undo、迟到及未知收据已有 fixture/DOM 回归。169 已验收已有项目复用/重复 UUID/错误 owner 拒绝（HTTP，文件 hash 未变、未执行动作），首次导出及 native GUI 点击仍待验收。全局子程序调用插入/拖放已复用模块参数表单，调用及新变量单事务/undo、未blur草稿和跨文档晚确认已有真实 DOM 回归；动作引用插入/拖放也已接原生 sys:runAction/StartAction 映射、绑定 schema 与同一事务，39 项真实 DOM 及迟到请求不抢快速插入草稿的 13 场景通过；两个调用链原生 GUI 验收、V2/子程序打开、必要资源操作、完整属性与 host session 接线仍待迁移，A1 未完成 |
 | A2：V1/V2 真实动作读写 | 同一动作端口调用不同宿主 adapter，补 V2 native source/codec 与必要 Designer 能力；优先动作编辑链，不等待所有 publish/Chrome 等能力对齐 | Runtime、Plugin.V1/V2、source bundle/codec；[V2 对齐计划](../design/quicker-rpc-plugin-v2.md) | V1 专用动作已验证绑定源目录连续保存、变量/外置文件/步骤绑定重读、错误目标与旧版本拒绝，以及宿主已保存但 checkpoint 失败后的新目录恢复，未重发写入。V2 source adapter、真实 DTO 与 fake 仓储 roundtrip/冲突/取消/部分保存已有离线回归；候选 CLI 的真实 V2 发现/绑定已验证，但 2.3.20 source 仍关闭，待稳定原文 owner/Designer 保护/提交收据后再接真实读写；重启和完整打包仍待验收 |
 | A3：统一 Agent 与编辑会话 | Agent 工具、设计器操作共享目标身份、编辑会话、权限、校验和保存结果；保留 AI SDK 单一执行循环 | Agent application/tools、Designer host bridge、动作服务 | 主动作 session 已附加实际持久绑定，完整身份进入保存票据；普通 Save 在本地 owner/lease 内 CAS，Sync 传精确目录与预期记录并保留部分成功。晚回执按 owner generation 隔离，未绑定可本地保存但不 Sync。主动作“+对话”私有 pin 已授权本轮备注与契约支持的既有普通输入编辑，复用原 APDE revision/history；真实 SDK、隔离完整 SPA、单次撤销和停止隔离已验证。Ask 只读，停止后保留已应用回执且迟到调用不重放；无文件/宿主写入。内部子程序页签已接同一根文档的私有 pin，完整原文定位、外部缓存拒绝及跨编辑面重复 ID 拒绝已有 12 项真实 DOM 与 1 项编译检查的组合回归；主/嵌套及 source 既有变量已通过 read_live(variableFor) → edit_variable_live 接入同一 Session/history，受本轮私有授权、实际读取回执、revision 和来源证明约束。其余变量能力、完整参数模式、属性、外置文件、Agent Save/Sync、多宿主与完整人工/Agent 交错仍未完成 |
-| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 默认生产 build/start/prepare/发布已切静态 React/Node，Next 为开发依赖与显式 legacy；会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后才删除兼容分支。现有 API、资源/native/真实子进程与隔离 Electron 打包启动已验证；现有关闭入口两轮正常退出已验证，四角色0、所属进程/监听先于Job dispose清空，无强制回收。当前 cold terminal 源码已实现同目标/owner 共享启动、独立等待者取消、stop 取消并等待启动后仅回收 retained child；生产 Node 服务与真实 Node 协议替身的并发/归属/IPC 退出已验证，历史重复 spawn/503 失败记录保留；真实 PTY/终端 UI 和包含本修复的新安装包仍待验收。NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
+| A4：收口运行架构 | Designer 和 Agent 使用同一 React renderer、独立 Node service 与薄 Electron 壳；迁移所需 history/settings/workspace API 后移除 Next 宿主 | `agent-service/`、renderer 与 Electron 组合入口 | 默认生产 build/start/prepare/发布已切静态 React/Node，Next 为开发依赖与显式 legacy；会话/审批/设计器、用户数据、原生模块与资源、退出/升级验收通过后才删除兼容分支。现有 API、资源/native/真实子进程与隔离 Electron 打包启动已验证；现有关闭入口两轮正常退出已验证，四角色0、所属进程/监听先于Job dispose清空，无强制回收。当前 cold terminal 源码已实现同目标/owner 共享启动、独立等待者取消、stop 取消并等待启动后仅回收 retained child；生产 Node 服务与真实 Node 协议替身的并发/归属/IPC 退出已验证，历史重复 spawn/503 失败记录保留。候选 5cb886a9 的完整编译产物另已验证单 owner 并发启动、真实 PTY 输入输出/resize、shell 自然退出、dispose 不再派生退出后 helper 及所属进程清理；构建 wrapper 元数据步骤退出 1 与部分辅助进程非零状态保留，未写成构建或全部进程退出 0。终端 UI、包含本修复的新安装包和新的 Electron 组合仍待验收。NSIS 已接最终目录/产品身份/稳定进程句柄核验，同目录 overlay 不运行旧卸载器，纯策略、专属隐藏窗口及两版唯一身份的真实 `/WX` 构建通过。唯一身份的首次安装、同目录两版升级、各7212文件完整hash及合成资料保留已实测；制品GUI源早于最新主线，生产快捷方式/真正卸载、真实旧资料及 P1–P3 完整流程继续验收，Next 兼容入口保留 |
 | A5：实测后优化通信 | 先测大动作、步骤 catalog、资源与连续编辑；复用现有 typed/protobuf 契约和 catalog snapshot/etag，再比较增量、批量、缓存与传输编码 | Designer bridge、RPC Transport、性能 fixture | 记录载荷字节、序列化/解析开销、延迟分位、内存和取消/重连行为；新方案须有基线收益且保持 revision/错误语义。不预先指定 WebSocket 或二进制重写；待 A1–A3 跑通后实施 |
 
 首个实现切片是 A0 的最小身份/能力契约与 A1 的可运行设计器迁移并行推进；真实宿主写入
@@ -313,8 +320,9 @@ prepare 与发布已使用静态 React、独立 Node 和薄 Electron；Next 仅�
 legacy 入口。V2 source adapter 和宿主多实例绑定已有离线集成及编译证据；真实 V2 source
 写回仍关闭。V1 专用动作已验收 source 连续写回、重读、冲突和部分 checkpoint 恢复；
 source Designer 已接同一 Session、本地 Save、pending 重开及单次原生 Sync/恢复。
-Agent 已支持主/嵌套步骤和既有变量的本轮私有授权，源码步骤 pin 与 Agent Save/Sync
-仍未开放。确定性模型 SDK 与隔离完整 SPA 验证了受支持编辑和撤销；真实双宿主、
+Agent 已支持主/嵌套步骤和既有变量的本轮私有授权，源码步骤也已按实际 codec 原行证明
+接入备注与原生契约支持的既有普通输入，Agent Save/Sync 仍未开放。确定性模型 SDK 与
+隔离完整 SPA 验证了受支持编辑和撤销；真实双宿主、
 更广人工/Agent 交错、完整设计器与安装升级仍未验收。
 本节状态必须随实现更新，不把“分支已编译”写成“主产品已可用”。
 
@@ -392,7 +400,7 @@ JSON 再增加一套同步信任文件。后端 123 项针对性检查、实际 
 5 项浏览器回归、PR 的 7 项 CI 与独立审查通过。本机 0.15.1.1 热更新后，真实 V1 GUI
 完成两次本地保存、明确关闭重开并保留 pending、一次 Sync；独立宿主读回确认只改变
 预期步骤备注，随后以新快照单次恢复，原生全文、导出 YAML 和外置文件均与原文一致。
-未运行动作。该切片不包含根 metadata 写入、source Pin/live、外置资源编辑、Agent
+未运行动作。PR #117/#118 当时的切片不包含根 metadata 写入、source Pin/live、外置资源编辑、Agent
 变量权限、V2 实际写回或新安装包；0.15.1 发布产物尚未包含这些 GUI 改动。
 本地快照、提交基线与当前宿主观察的边界见[文档存储契约](../agent-architecture.md#source-bundle-文档存储契约)。
 
@@ -465,8 +473,23 @@ SDK 契约响应为替身，不能当作真实宿主 schema 或 V2 写回验收�
 真实 420px 工作台通过步骤“+对话”、保留原聊天焦点与文档、人工 Note 本地保存、一次
 撤销后重存及关闭重开验收。首次保存仅改变 YAML；撤销重存恢复四份源码文件的原字节，
 独立原生重读确认 editVersion、导出 YAML 与外置文件未变。未运行或 Sync 验收动作，未调用
-真实模型；普通输入的真实原生契约与 SDK 联合编辑仍待单独验收。公开安装包仍为 0.15.1，
+真实模型；普通输入的后续联合验收另述如下。公开安装包仍为 0.15.1，
 主线合并、本机安装与新发布产物分别记录，不提前算作 A3 完成。
+
+后续候选 `8b59042` 的私有组合 `07c7936` 已完成有限的真实 V1 普通输入验收：CLI/插件
+0.15.1.3 的当前绑定原生契约与实际 codec 经生产 client registry/turn 和 AI SDK
+`MockLanguageModelV3`，将专用禁用动作的 `maxLines` 从 0 改为 1；相同 operation 去重后
+只有一次事务，变量绑定 `msg.var` 与控制字段 `style` 均以 `LIVE_STEP_INPUT_UNSUPPORTED`
+拒绝且未应用。真实 CodeMirror 字段显示 1，工具栏一次 Undo 恢复 0、完整 raw 原文及原 DOM，
+revision 为 2 且 dirty=false；Undo 后重放旧回执不重新应用。第四次相同输入的读取仍按原
+`tool_call_limit` 拒绝，验收只通过原 public endpoint 观察 Session，未改预算或绕过门禁。
+候选同时修复 Windows 图标回退的 SVG 正文与缓存标识；实际图片 API 返回 200 并解码为
+24×24，最终错误列表为空，driver 正常退出并释放读取流。前三次验收的可选 JSON 字段、
+CodeMirror 选择器、门禁断言及图标 404 失败记录保留，第四次完整通过；前端检查与清理后
+复查通过。四份 Source 文件字节未变，独立原生重读确认同一宿主会话、editVersion
+1793083043026、YAML 和外置资源哈希均未变；没有 Save、Sync、Run 或付费模型请求。
+此证据覆盖生产客户端与 SDK，不能代替完整生产服务端 Agent 聊天循环、真实模型、
+V2 写回或完整 A3 验收，也不代表新安装包已发布。
 
 **Agent 与工作台的剩余任务**不因转入设计器主线而取消：R1 补操作描述与 TurnPlan 约束；
 R2 补浏览器/网络端口及派生进程 owner；R3 拆会话控制器并验证后台会话/审批/草稿；R4
