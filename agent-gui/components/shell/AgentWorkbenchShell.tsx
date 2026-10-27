@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
+import { ConversationPresentationProvider } from "@/lib/conversation-presentation";
 
 export interface AgentWorkbenchShellProps {
   sidebar?: ReactNode;
@@ -88,11 +89,13 @@ export function AgentConversationFrame({
         ) : null}
       </div>
       <div ref={mainBodyRef} className="app-main-body">
-        <div ref={chatColumnRef} className="app-main-chat-column" hidden={!chatVisible} inert={!chatVisible}>
-          {messages}
-          {approval}
-          {composer}
-        </div>
+        <ConversationPresentationProvider active={visible && chatVisible}>
+          <div ref={chatColumnRef} className="app-main-chat-column" hidden={!chatVisible} inert={!chatVisible}>
+            {messages}
+            {approval}
+            {composer}
+          </div>
+        </ConversationPresentationProvider>
         {dock}
       </div>
     </div>

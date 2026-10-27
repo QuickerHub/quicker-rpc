@@ -15,6 +15,7 @@ const result = spawnSync(process.execPath, [
   "components/workspace/WorkspaceDocumentHost.browser.test.ts",
   "components/workspace/WorkspaceNestedStepPin.browser.test.ts",
   "components/chat/ModelSelector.browser.test.ts",
+  "components/chat/ToolPopupPresentation.browser.test.ts",
   "components/chat/DocsViewer.browser.test.ts",
   "components/chat/QuickerNativeMcpSettings.browser.test.ts",
   "components/chat/ChatChromeStorage.browser.test.ts",
