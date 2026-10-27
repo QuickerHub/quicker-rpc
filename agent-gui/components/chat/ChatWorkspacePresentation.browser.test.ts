@@ -118,6 +118,15 @@ async function compile() {
       builder.onLoad({ filter: /[\\/]components[\\/]chat[\\/]Chat\.tsx$/ }, async args => ({
         contents: `${await readFile(args.path, "utf8")}\nexport { ChatPanel };`, loader: "tsx", resolveDir: path.dirname(args.path),
       }));
+      builder.onLoad({ filter: /[\\/]components[\\/]chat[\\/]useChatMessageEditing\.ts$/ }, async args => {
+        // Observe only frames scheduled synchronously by the actual edit-entry path.
+        const source = (await readFile(args.path, "utf8")).replace(/\r\n/g, "\n");
+        const begin = "    setEditing({ anchorMessageId: message.id, liveDraft, drafts });";
+        const end = "  }, [invalidateConfirmation]);\n\n  const readBranchContext";
+        assert.equal(source.split(begin).length, 2); assert.equal(source.split(end).length, 2);
+        return { contents: source.replace(begin, begin + "\n    window.fixture.historyEntryPhase=true;")
+          .replace(end, "    window.fixture.historyEntryPhase=false;\n" + end), loader: "ts", resolveDir: path.dirname(args.path) };
+      });
       builder.onResolve({ filter: /shared\/IconControl$/ }, args => ({ path: args.path, namespace: "narrow-icon" }));
       builder.onLoad({ filter: /.*/, namespace: "narrow-icon" }, () => ({ contents: "export const IconControl=()=>null;", loader: "js" }));
       builder.onResolve({ filter: /.*/ }, args => Object.hasOwn(leaves, args.path) ? { path: args.path, namespace: "narrow-boundary" } : undefined);
@@ -290,7 +299,13 @@ test("hidden Chat releases global editing and portals while a real private pin r
   const { browser, page, errors } = await openFixture();
   try {
     await page.locator('[data-message-id="chat-a-u2"]').click();
+    await page.waitForFunction(() => {
+      const input = document.querySelector('.composer-inline-input[contenteditable="true"]');
+      return input?.textContent === "editable second message" && document.activeElement === input;
+    });
+    assert.equal(await composer(page).textContent(), "editable second message", "History edit starts with its exact original body and foreground focus");
     await composer(page).fill("retained branch-edit draft");
+    assert.equal(await composer(page).textContent(), "retained branch-edit draft", "The user replacement is exact before hiding Chat");
     await openDocument(page);
     await page.locator(".model-picker-trigger").click();
     await page.getByRole("dialog", { name: "模型选择", exact: true }).waitFor();
@@ -338,6 +353,46 @@ test("hidden Chat releases global editing and portals while a real private pin r
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.calls), []);
     assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []); assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+test("history edit entry cannot move a user's selection after the initial draft becomes editable", { timeout: 90_000 }, async () => {
+  const { browser, page, errors } = await openFixture();
+  try {
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      f.historyFrame = window.requestAnimationFrame.bind(window); f.historyCancelFrame = window.cancelAnimationFrame.bind(window); f.heldHistoryFrames = [];
+      window.requestAnimationFrame = callback => {
+        if (f.historyEntryPhase) { f.heldHistoryFrames.push(callback); return -2000 - f.heldHistoryFrames.length; }
+        return f.historyFrame(callback);
+      };
+      window.cancelAnimationFrame = id => { if (id > -2000) f.historyCancelFrame(id); };
+    });
+    await page.locator('[data-message-id="chat-a-u2"]').click();
+    await page.waitForFunction(() => document.querySelector('.composer-inline-input[contenteditable="true"]')?.textContent === "editable second message");
+    assert.equal(await composer(page).textContent(), "editable second message", "Editing enters with the exact original body");
+    assert.equal(await composer(page).isVisible(), true); assert.equal(await composer(page).isEditable(), true);
+    await composer(page).focus(); await page.keyboard.press("Control+A");
+    assert.equal(await page.evaluate(() => getSelection()?.toString()), "editable second message", "The actual user selected the editable draft");
+    const queued = await page.evaluate(() => {
+      const f = (window as any).fixture, callbacks = f.heldHistoryFrames.splice(0);
+      for (const callback of callbacks) f.historyFrame(callback);
+      return callbacks.length;
+    });
+    await settleLayout(page);
+    const selectionAfterEntryFrames = await page.evaluate(() => getSelection()?.toString());
+    await page.keyboard.insertText("replacement branch draft");
+    console.log(JSON.stringify({ historyEntryFrames: queued, selectionAfterEntryFrames, draft: await composer(page).textContent() }));
+    assert.equal(await composer(page).textContent(), "replacement branch draft", "An already editable user draft must not append behind a delayed entry focus");
+    assert.equal(selectionAfterEntryFrames, "editable second message", "Late entry work cannot collapse the user's actual selection");
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.chatRequests), []);
+    assert.deepEqual(await page.evaluate(() => (window as any).fixture.unexpected), []); assert.deepEqual(errors, []);
+  } finally {
+    await page.evaluate(() => {
+      const f = (window as any).fixture;
+      if (f?.historyFrame) { window.requestAnimationFrame = f.historyFrame; window.cancelAnimationFrame = f.historyCancelFrame; f.heldHistoryFrames = []; }
+    }).catch(() => {});
+    await browser.close();
+  }
 });
 
 test("a real variable pin reads the original Session and queued insertion cannot cross a Chat owner", { timeout: 90_000 }, async () => {
