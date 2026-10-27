@@ -3,6 +3,7 @@ import { saveProgramDocumentClient } from "./program-document-save-client";
 import type { ProgramDocumentSaveResult } from "./program-document-save";
 import type { ProgramDocumentSaveTicket } from "./action-editor/document/programDocumentSession";
 import { verifySourceVariableIdentity, type SourceVariableIdentity } from "./source-variable-identity";
+import { verifySourceStepIdentity, type SourceStepIdentity } from "./source-step-identity";
 import type { LiveProgramSourceTarget } from "./live-program-source-target";
 
 export type SourceBundleClientState = Readonly<{ document?: SourceBundleDocument; ownerToken?: string; error?: string; blocked: boolean }>;
@@ -26,15 +27,15 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
   const connection = new AbortController();
   let closed = false, state: SourceBundleClientState = { blocked: true };
   let lastSaveReceipt: ProgramDocumentSaveResult | undefined;
-  let verifiedMapping: { document: SourceBundleDocument; identity: SourceVariableIdentity } | undefined;
+  let verifiedMapping: { document: SourceBundleDocument; identity: SourceVariableIdentity; steps?: SourceStepIdentity } | undefined;
   let mappingEpoch = 0, mappingPending = false;
   const invalidateMapping = () => { mappingEpoch++; verifiedMapping = undefined; };
   async function observeMapping(document: SourceBundleDocument) {
     const epoch = ++mappingEpoch;
-    const identity = await verifySourceVariableIdentity(document).catch(() => undefined);
+    const [identity, steps] = await Promise.all([verifySourceVariableIdentity(document).catch(() => undefined), verifySourceStepIdentity(document).catch(() => undefined)]);
     if (closed || mappingEpoch !== epoch) return;
-    freezeFacts(identity); freezeFacts(document);
-    verifiedMapping = identity ? { document, identity } : undefined;
+    freezeFacts(identity); freezeFacts(steps); freezeFacts(document);
+    verifiedMapping = identity ? { document, identity, steps } : undefined;
   }
   const update = (next: SourceBundleClientState) => { state = Object.freeze(next); if (!closed) options.onChange(state); };
   const capture = () => {
@@ -58,7 +59,8 @@ export function createSourceBundleDocumentClient(options: { cwd: string; path: s
       const mapping = verifiedMapping;
       if (closed || state.blocked || mappingPending || !state.ownerToken || !mapping || mapping.document !== state.document || mapping.document.editorJson !== baselineEditorJson) return;
       return structuredClone({ actionId: mapping.document.actionId, hostBinding: mapping.document.hostBinding, storageIdentity: mapping.document.storageIdentity,
-        ownerToken: state.ownerToken, sourceSnapshot: mapping.document.sourceSnapshot, codec: mapping.document.codec, variableIdentity: mapping.identity, mappingEpoch });
+        ownerToken: state.ownerToken, sourceSnapshot: mapping.document.sourceSnapshot, codec: mapping.document.codec, variableIdentity: mapping.identity,
+        ...(mapping.steps ? { stepIdentity: mapping.steps } : {}), mappingEpoch });
     },
     async connect(): Promise<void> {
       try {

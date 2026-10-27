@@ -16,12 +16,12 @@ import type { LiveProgramDocumentCommand, LiveProgramDocumentEndpoint, LiveProgr
 
 type Entry = { owner: WorkspaceDocumentOwner; endpoint: LiveProgramDocumentEndpoint };
 type Pin = { ref: LiveProgramDocumentPin; entry: Entry; target: LiveProgramDocumentTarget } &
-  ({ kind: "step"; stepId: string } | { kind: "variable"; variable: ProgramDocumentVariableSelector; rowIdentity?: string });
+  ({ kind: "step"; stepId: string; rowIdentity: string } | { kind: "variable"; variable: ProgramDocumentVariableSelector; rowIdentity?: string });
 type SchemaProof = { stepId: string; runnerKey: string; revision: number; contract: StepRunnerInputContract; editableInputKeys: readonly string[] };
 type Waiter = { execution?: LiveProgramDocumentExecutionOptions; finish(receipt: LiveProgramDocumentReceipt): void };
 type PendingRead = { command: LiveProgramDocumentCommand; fingerprint: string; controller: AbortController; waiters: Set<Waiter> };
 type Scope = { descriptor: LiveProgramDocumentScope; entry: Entry; closed?: string;
-  allowedStepIds: ReadonlySet<string>;
+  allowedStepIds: ReadonlyMap<string, string>;
   allowedVariables: ReadonlyMap<string, { rowIdentity?: string }>;
   gate: ReturnType<typeof createToolCallPolicyGate>;
   operations: Map<string, { fingerprint: string; receipt: LiveProgramDocumentReceipt }>;
@@ -167,8 +167,9 @@ export function createLiveProgramDocumentRegistry(options: {
   async function loadSchema(scope: Scope, pending: PendingRead, snapshot: LiveProgramDocumentSnapshot, stepId: string): Promise<SchemaProof> {
     const matches = snapshot.steps.filter((step) => step.stepId === stepId);
     if (matches.length !== 1) throw failureError("LIVE_STEP_AMBIGUOUS", "The pinned step is missing or not unique.");
-    const step = matches[0]!, projectBinding = scope.descriptor.target.identity.projectBinding;
-    const binding = projectBinding ? parseActionProjectBinding(projectBinding, projectBinding.actionId).hostBinding : undefined;
+    const step = matches[0]!, target = scope.descriptor.target, projectBinding = target.identity.projectBinding;
+    const binding = target.format === "source-bundle" ? target.source.hostBinding ?? undefined
+      : projectBinding ? parseActionProjectBinding(projectBinding, projectBinding.actionId).hostBinding : undefined;
     const endpoint = scope.entry.endpoint;
     if (!binding || !["v1", "v2"].includes(binding.hostKind) || binding.capabilities[STEP_RUNNER_INPUT_CONTRACT_CAPABILITY] !== true || !endpoint.readInputContract)
       throw failureError("LIVE_INPUT_CONTRACT_UNAVAILABLE", "The original bound document has no declared native input contract port.");
@@ -261,6 +262,12 @@ export function createLiveProgramDocumentRegistry(options: {
       const grantedStep = command.input.action === "read_live" ? command.input.stepSchemaFor : command.input.action === "edit_variable_live" ? undefined : command.input.stepId;
       if (grantedStep !== undefined && !scope.allowedStepIds.has(grantedStep))
         return store(fail(descriptor, command, "LIVE_STEP_NOT_GRANTED", "This step was not pinned for the original manual user send; the complete read is context only."));
+      if (grantedStep !== undefined) {
+        const selected = scope.entry.endpoint.readStep?.(grantedStep);
+        if (!selected?.ok || selected.step.rowIdentity !== scope.allowedStepIds.get(grantedStep))
+          return store(fail(descriptor, command, selected?.ok ? "LIVE_STEP_STALE" : selected?.code ?? "LIVE_STEP_UNAVAILABLE",
+            selected?.ok ? "The original step row was removed, moved or replaced." : selected?.error ?? "Step row identity is unavailable."));
+      }
       const grantedVariable = command.input.action === "read_live" ? command.input.variableFor : command.input.action === "edit_variable_live" ? command.input : undefined;
       if (grantedVariable && !scope.allowedVariables.has(variableKey(grantedVariable)))
         return store(fail(descriptor, command, "LIVE_VARIABLE_NOT_GRANTED", "This exact variable surface and identity were not pinned for this manual send."));
@@ -359,8 +366,9 @@ export function createLiveProgramDocumentRegistry(options: {
           return denied("LIVE_STEP_AMBIGUOUS", "The selected step is missing or not unique in this document.");
         if (pins.size >= 512) return denied("LIVE_PIN_LIMIT", "Too many live pins are retained; finish the current operation or reopen the document.");
         const ref = Object.freeze({ pinId: id(), tagId, threadId });
-        if (current.format === "source-bundle") return denied("LIVE_STEP_UNAVAILABLE", "Source step pins are not implemented.");
-        pins.set(ref.pinId, { kind: "step", ref, entry, target: structuredClone(current), stepId });
+        const selected = entry.endpoint.readStep?.(stepId);
+        if (!selected?.ok) return denied(selected?.code ?? "LIVE_STEP_UNAVAILABLE", selected?.error ?? "Step row identity is unavailable.");
+        pins.set(ref.pinId, { kind: "step", ref, entry, target: structuredClone(current), stepId, rowIdentity: selected.step.rowIdentity });
         return ref;
       } catch (error) { return denied("LIVE_DOCUMENT_UNAVAILABLE", error instanceof Error ? error.message : String(error)); }
     },
@@ -402,7 +410,10 @@ export function createLiveProgramDocumentRegistry(options: {
       if (first.target.owner.cwd !== input.cwd.trim()) return unavailable("LIVE_CWD_CONFLICT", "The pinned document belongs to another working directory.");
       try {
         const snapshot = read(first.entry, first.target);
-        if (selected.some((pin) => pin.kind === "step" ? snapshot.steps.filter((step) => step.stepId === pin.stepId).length !== 1 : (() => {
+        if (selected.some((pin) => pin.kind === "step" ? (() => {
+          const row = first.entry.endpoint.readStep?.(pin.stepId);
+          return snapshot.steps.filter((step) => step.stepId === pin.stepId).length !== 1 || !row?.ok || row.step.rowIdentity !== pin.rowIdentity;
+        })() : (() => {
           const row = first.entry.endpoint.readVariable?.(pin.variable);
           return !row?.ok || row.variable.rowIdentity !== pin.rowIdentity;
         })()))
@@ -416,7 +427,7 @@ export function createLiveProgramDocumentRegistry(options: {
       }
       const descriptor = freeze({ version: 1 as const, scopeId: id(), threadId: input.threadId, userMessageId: input.userMessageId,
         cwd: input.cwd.trim(), mode: input.mode, target: structuredClone(first.target) });
-      const scope: Scope = { descriptor, entry: first.entry, allowedStepIds: new Set(selected.flatMap(pin => pin.kind === "step" ? [pin.stepId] : [])),
+      const scope: Scope = { descriptor, entry: first.entry, allowedStepIds: new Map(selected.flatMap(pin => pin.kind === "step" ? [[pin.stepId, pin.rowIdentity] as const] : [])),
         allowedVariables: new Map(selected.flatMap(pin => pin.kind === "variable" ? [[variableKey(pin.variable), { rowIdentity: pin.rowIdentity }] as const] : [])),
         gate: createToolCallPolicyGate(), operations: new Map(), pending: new Map(), schemas: new Map(), captureFingerprint: fingerprint };
       scopes.set(descriptor.scopeId, scope);

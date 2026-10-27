@@ -9,14 +9,19 @@ import { parseActionProjectBinding } from "./action-project-binding";
 import { applyProgramDocumentStepInputs } from "./action-editor/document/programDocumentStepInputs";
 import { readStepRunnerInputContract, STEP_RUNNER_INPUT_CONTRACT_CAPABILITY, type StepRunnerInputContract } from "./step-runner-input-contract";
 import type { LiveProgramDocumentEndpoint, LiveProgramDocumentPin, LiveProgramDocumentReceipt, LiveProgramDocumentScope } from "./live-program-document";
+import { sourceStepTestTarget } from "./source-step-live-test-fixture";
+import type { XProgramPresent } from "./action-editor/program/xProgramHistory";
 
 const content = '{"steps":[{"stepId":"one","stepRunnerKey":"future:one","note":"original","future":9223372036854775807}],"variables":[],"subPrograms":[{"id":"child","name":"Child","steps":[{"stepId":"nested","stepRunnerKey":"future:two","note":"nested"}],"variables":[],"subPrograms":[]}],"future":1e999}';
-function fixture() {
+function fixture(source = false) {
   let sequence = 0, current = true, pendingNote: string | undefined;
   const owner = { cwd: "C:/fixture", path: ".quicker/actions/a/data.json", tabId: "file:a", instanceId: 1, key: workspaceDocumentKey("C:/fixture", "file:a") };
-  const session = createProgramDocumentSession({ content, identity: { documentKey: "fixture:a", projectBinding: null } });
+  let sourceTarget = source ? sourceStepTestTarget(content, "one", "future:one") : undefined;
+  const session = createProgramDocumentSession({ content, identity: { documentKey: "fixture:a", ...(sourceTarget
+    ? { storage: { key: "source-bundle", version: sourceTarget.sourceSnapshot.revision } } : { projectBinding: null }) } });
   const controller = createProgramDocumentEditorController(session, { isCurrent: () => current, onChange() {} });
-  const endpoint = createProgramDocumentLiveEndpoint({ owner, sessionId: "session-a", session, controller, isCurrent: () => current, flushPendingEdits() {
+  const endpoint = createProgramDocumentLiveEndpoint({ owner, sessionId: "session-a", session, controller, isCurrent: () => current,
+    ...(source ? { sourceTarget: () => sourceTarget && structuredClone(sourceTarget) } : {}), flushPendingEdits() {
     if (pendingNote !== undefined) { const next = controller.getSurface("main").getPresent(); next.steps[0]!.note = pendingNote; pendingNote = undefined; controller.getSurface("main").commit(next); }
   } });
   const registry = createLiveProgramDocumentRegistry({ isOwnerCurrent: (candidate) => current && candidate === owner, createId: () => `id-${++sequence}` });
@@ -37,9 +42,46 @@ function fixture() {
   });
   return { registry, owner, endpoint, session, controller, pin, capture, read, edit, release: () => release(),
     replace(next: LiveProgramDocumentEndpoint) { const old = release; release = registry.register(owner, next); return old; },
-    close() { current = false; }, draft(note: string) { pendingNote = note; } };
+    close() { current = false; }, draft(note: string) { pendingNote = note; }, setSourceTarget(value: typeof sourceTarget) { sourceTarget = value; }, sourceTarget: () => sourceTarget };
 }
 const failed = (receipt: LiveProgramDocumentReceipt, code: string) => { assert.equal(receipt.ok, false); if (receipt.ok) throw Error("Expected failure"); assert.equal(receipt.code, code); return receipt; };
+
+test("Source document-local step evidence supports only the selected row in the original Session and one undo", () => {
+  const f = fixture(true); f.draft("source human draft"); const scope = f.capture(), proof = f.read(scope);
+  assert.equal(scope.target.format, "source-bundle"); assert.equal(scope.target.identity.projectBinding, undefined);
+  assert.equal(f.sourceTarget()!.stepIdentity!.steps[0]!.nativeIdentity, "unknown");
+  const result = f.edit(scope, proof); assert.equal(result.ok, true); assert.equal(result.persisted, false);
+  assert.match(f.session.getState().content, /9223372036854775807/); assert.match(f.session.getState().content, /1e999/);
+  f.controller.undo(); assert.equal(f.session.readSnapshot().steps[0]!.note, "source human draft");
+  assert.equal(f.session.getState().dirty, true);
+});
+
+test("old source codecs without step metadata keep their document target but cannot mint a step grant", () => {
+  const f = fixture(true), previous = f.sourceTarget()!;
+  f.setSourceTarget({ ...previous, stepIdentity: undefined });
+  assert.ok(f.endpoint.getTarget(), "source target remains available for old variable/local-save paths");
+  const result = f.registry.pin(f.owner, "old-cli", "one", "chat-a");
+  assert.equal("ok" in result && result.ok, false);
+  if ("ok" in result) assert.equal(result.code, "LIVE_STEP_ORIGIN_UNAVAILABLE");
+  assert.equal(f.session.getState().revision, 0);
+});
+
+test("legacy and Source step grants do not survive delete/recreate, branch moves, runner changes or old mapping epochs", () => {
+  for (const source of [false, true]) for (const change of ["replace", "move", "runner"]) {
+    const f = fixture(source), pin = f.pin(), scope = f.capture([pin]), original = structuredClone(f.session.readSnapshot().steps[0]!);
+    const changePresent = (update: (present: XProgramPresent) => void) => {
+      const present = f.controller.getSurface("main").getPresent(); update(present); f.controller.getSurface("main").commit(present);
+    };
+    if (change === "replace") { changePresent(p => { p.steps = []; }); changePresent(p => { p.steps = [original]; }); }
+    if (change === "move") changePresent(p => { p.steps = [{ ...original, stepId: "new-parent", ifSteps: [original] }]; });
+    if (change === "runner") changePresent(p => { p.steps[0]!.stepRunnerKey = "different:module"; });
+    const proof = f.read(scope, `read-${change}`), result = f.edit(scope, proof, "must not transfer", `edit-${change}`);
+    assert.equal(result.ok, false, `${source}:${change}`); assert.doesNotMatch(f.session.getState().content, /must not transfer/);
+  }
+  const f = fixture(true), pin = f.pin();
+  f.setSourceTarget({ ...f.sourceTarget()!, mappingEpoch: 2 });
+  assert.equal(f.registry.captureForManualSend({ pins: [pin], mode: "edit", userMessageId: "after-save", threadId: "chat-a", cwd: f.owner.cwd }).state, "unavailable");
+});
 
 test("actual Session endpoint flushes the human draft, returns complete unsaved content and applies one Agent undo transaction", () => {
   const f = fixture(); f.draft("human draft"); const scope = f.capture(), before = f.read(scope);
@@ -207,16 +249,19 @@ test("closed original owner/session and a full-read payload limit fail without a
 });
 
 // Real Session/raw transaction fixture for asynchronous native metadata; no host or model is used.
-function inputFixture(inputs: Record<string, unknown> = { text: "before", empty: "", mode3: "old", choice: "first" }, supported = true) {
+function inputFixture(inputs: Record<string, unknown> = { text: "before", empty: "", mode3: "old", choice: "first" }, supported = true, sourceBundle = false) {
   let sequence = 0, current = true, busy = false, writes = 0;
   const owner = { cwd: "C:/fixture", path: ".quicker/actions/input/data.json", tabId: "file:input", instanceId: 1, key: workspaceDocumentKey("C:/fixture", "file:input") };
   const binding = parseActionProjectBinding({ schemaVersion: 1, kind: "action", actionId: "11111111-1111-4111-8111-111111111111",
     hostBinding: { hostInstanceId: "fixture", hostSessionId: "a".repeat(32), endpoint: `QuickerRpc_User_${"C".repeat(24)}_${"a".repeat(32)}`,
       protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fixture", capabilities: { [STEP_RUNNER_INPUT_CONTRACT_CAPABILITY]: supported } } }, "11111111-1111-4111-8111-111111111111");
   const source = `{"steps":[{"stepId":"one","stepRunnerKey":"sys:fixture","note":"original","inputParams":${JSON.stringify(inputs)}},{"stepId":"two","stepRunnerKey":"sys:fixture","inputParams":{"text":"other"}}],"variables":[],"subPrograms":[],"opaque":9223372036854775807}`;
-  const session = createProgramDocumentSession({ content: source, identity: { documentKey: "input-document", projectBinding: binding } });
+  const sourceTarget = sourceBundle ? sourceStepTestTarget(source, "one", "sys:fixture", binding.hostBinding) : undefined;
+  const session = createProgramDocumentSession({ content: source, identity: { documentKey: "input-document", ...(sourceTarget
+    ? { storage: { key: "source-bundle", version: sourceTarget.sourceSnapshot.revision } } : { projectBinding: binding }) } });
   const controller = createProgramDocumentEditorController(session, { isCurrent: () => current, onChange() {} });
-  const base = createProgramDocumentLiveEndpoint({ owner, sessionId: "input-session", session, controller, isCurrent: () => current && !busy, flushPendingEdits() {} });
+  const base = createProgramDocumentLiveEndpoint({ owner, sessionId: "input-session", session, controller, isCurrent: () => current && !busy,
+    ...(sourceTarget ? { sourceTarget: () => structuredClone(sourceTarget) } : {}), flushPendingEdits() {} });
   const calls: { input: { stepRunnerKey: string; controlFieldValue?: string }; signal?: AbortSignal }[] = [];
   let metadata = async (_input: { stepRunnerKey: string; controlFieldValue?: string }, _signal?: AbortSignal) => inputSchema();
   const endpoint: LiveProgramDocumentEndpoint = { ...base,
@@ -417,9 +462,9 @@ test("input receipts survive cancellation raised inside the real synchronous tra
   assert.equal(f.session.readSnapshot().steps[0]!.inputParams.text.value, "committed");
 });
 
-test("input metadata needs an actual declared port but the same endpoint still supports the original note workflow", async () => {
-  for (const how of ["port", "capability"] as const) {
-    const f = inputFixture(undefined, how !== "capability");
+test("legacy and Source metadata need an actual declared port but the same endpoint still supports the original note workflow", async () => {
+  for (const source of [false, true]) for (const how of ["port", "capability"] as const) {
+    const f = inputFixture(undefined, how !== "capability", source);
     if (how === "port") f.replace({ ...f.endpoint, readInputContract: undefined });
     const scope = f.capture();
     failed(await f.registry.executeAsync(scope, f.command(scope)), "LIVE_INPUT_CONTRACT_UNAVAILABLE"); assert.equal(f.calls.length, 0);
@@ -427,6 +472,34 @@ test("input metadata needs an actual declared port but the same endpoint still s
     assert.equal(proof.ok, true); if (!proof.ok || proof.action !== "read_live") return;
     assert.equal(f.registry.execute(scope, { scopeId: scope.scopeId, operationId: "note-edit", input: { action: "edit_live",
       readOperationId: proof.operationId, expectedRevision: proof.revision, stepId: "one", note: "still supported" } }).ok, true);
+  }
+});
+
+test("Source input proof keeps binding, file, dynamic, control and unknown policies closed without a legacy binding", async () => {
+  const f = inputFixture({ text: "before", file: "@file:owned.txt", binding: "@var:selected", dynamic: "$=1", operation: "mode", opaque: "before" }, true, true);
+  const scope = f.capture(); assert.equal(scope.target.identity.projectBinding, undefined);
+  const row = inputSchema().inputs[0]!;
+  f.metadata(async (input) => inputSchema({ controlFieldKey: "operation", appliedControlFieldValue: input.controlFieldValue ?? "mode",
+    inputs: [row, ...["file", "binding", "dynamic"].map(key => ({ ...row, key })),
+      { ...row, key: "operation", isControlField: true }, { ...row, key: "opaque", policyKnown: false, literalPolicy: "unknown" }] }));
+  const proof = await f.schema(scope);
+  assert.deepEqual(proof.stepInputSchema?.editableInputKeys, ["text"]);
+  for (const key of ["file", "binding", "dynamic", "operation", "opaque", "invented"])
+    failed(f.edit(scope, proof, [{ key, value: "must not write" }], `refuse-${key}`), "LIVE_STEP_INPUT_UNSUPPORTED");
+  assert.equal(f.writes(), 0); assert.equal(f.session.getState().revision, 0);
+});
+
+test("Source malformed native metadata and a mapping change while awaiting it cannot mint input proof", async () => {
+  for (const change of ["malformed", "mapping"] as const) {
+    const f = inputFixture(undefined, true, true), scope = f.capture(), pendingSchema = deferredInput<StepRunnerInputContract>();
+    f.metadata(async () => pendingSchema.promise);
+    const pending = f.registry.executeAsync(scope, f.command(scope)); await inputTick();
+    if (change === "mapping") f.replace({ ...f.endpoint, getTarget: () => {
+      const target = f.endpoint.getTarget()!;
+      return target.format === "source-bundle" ? { ...target, source: { ...target.source, mappingEpoch: target.source.mappingEpoch + 1 } } : target;
+    } });
+    pendingSchema.resolve(change === "malformed" ? { ...inputSchema(), source: "ui" } as unknown as StepRunnerInputContract : inputSchema());
+    assert.equal((await pending).ok, false, change); assert.equal(f.writes(), 0); assert.equal(f.session.getState().revision, 0);
   }
 });
 

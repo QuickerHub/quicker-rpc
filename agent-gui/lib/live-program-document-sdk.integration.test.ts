@@ -18,6 +18,9 @@ import { workspaceDocumentKey } from "./workspace-document-instances";
 import { repairInterruptedToolCalls } from "./repair-interrupted-tool-calls";
 import type { AgentUIMessage } from "./chat-types";
 import type { StructuredToolResult } from "./tool-result";
+import { sourceStepTestTarget } from "./source-step-live-test-fixture";
+import type { ProgramDocumentIdentity } from "./action-editor/document/programDocumentSession";
+import type { DesignerCatalogScope } from "./action-editor/catalog/designerCatalogContext";
 
 const threadId = "sdk-live-thread", cwd = "D:\\sdk-fixture\\original", stepId = "sdk-original-step";
 const content = JSON.stringify({ retained: { native: true }, steps: [{ stepId, stepRunnerKey: "sys:delay", note: "baseline", inputParams: { ms: "10" } }], variables: [] });
@@ -41,22 +44,27 @@ type InputFixtureOptions = { beforeContract?: (signal: AbortSignal) => Promise<v
 
 /** The real renderer owner chain, without disk, host, model, network listener or
  * an independent Agent loop. Wrappers below observe calls without deciding them. */
-function documentFixture(input?: InputFixtureOptions) {
+function documentFixture(input?: InputFixtureOptions, source = false) {
   const projectBinding: ActionProjectBinding | null = input ? {
     schemaVersion: 1, kind: "action", actionId: "11111111-1111-4111-8111-111111111111",
     hostBinding: { hostInstanceId: "sdk-fixture-host", hostSessionId: "a".repeat(32), endpoint: `QuickerRpc_User_${"A".repeat(24)}_${"a".repeat(32)}`,
       protocolVersion: 1, schemaVersion: 1, hostKind: "v1", quickerVersion: "fake-only", capabilities: { "stepRunner.inputContract.read": true } },
   } : null;
-  const identity = { documentKey: "sdk-original-document", projectBinding };
+  const sourceTarget = source ? sourceStepTestTarget(input ? inputContent : content, stepId, input ? "sys:notify" : "sys:delay", projectBinding?.hostBinding ?? null) : undefined;
+  const identity: ProgramDocumentIdentity = { documentKey: "sdk-original-document", ...(sourceTarget
+    ? { storage: { key: "source-bundle", version: sourceTarget.sourceSnapshot.revision } } : { projectBinding }) };
   const session = createProgramDocumentSession({ content: input ? inputContent : content, identity });
-  const owner = { key: workspaceDocumentKey(cwd, "file-original"), instanceId: 1, cwd, tabId: "file-original", path: ".quicker/actions/sdk/data.json" };
+  const owner = { key: workspaceDocumentKey(cwd, "file-original"), instanceId: 1, cwd, tabId: "file-original", path: source ? "source/program.source.yaml" : ".quicker/actions/sdk/data.json" };
   const target = { owner, sessionId: "sdk-original-session", identity };
   const controller = createProgramDocumentEditorController(session, { isCurrent: () => true, onChange() {} });
   const present = controller.getSurface("main").getPresent(); present.steps[0]!.note = "human unsaved note";
   let pendingHumanDraft = input ? present : undefined, humanFlushes = 0;
   if (!input) controller.getSurface("main").commit(present);
   const catalogRequests: { url: string; body: Record<string, unknown>; signal: AbortSignal }[] = [];
-  const catalogScope = { cwd, projectDirectory: ".quicker/actions/sdk", expectedProjectBinding: structuredClone(projectBinding) };
+  const catalogScope: Exclude<DesignerCatalogScope, null | undefined> = sourceTarget
+    ? { cwd, projectDirectory: "source", format: "source-bundle", expectedProjectBinding: null,
+      sourceBundle: { ownerToken: sourceTarget.ownerToken, expectedSnapshot: sourceTarget.sourceSnapshot.revision, hostBinding: sourceTarget.hostBinding } }
+    : { cwd, projectDirectory: ".quicker/actions/sdk", expectedProjectBinding: structuredClone(projectBinding) };
   const expectedScope = structuredClone(catalogScope);
   const catalogPort = input ? createDesignerCatalogPort(catalogScope, async (url, init) => {
     assert.equal(url, "/api/step-runner/input-contract", "no UI schema, static fallback, disk, host write, save or sync endpoint is permitted");
@@ -73,6 +81,7 @@ function documentFixture(input?: InputFixtureOptions) {
     ...catalogScope.expectedProjectBinding.hostBinding, capabilities: { "stepRunner.inputContract.read": false },
   };
   const endpoint = createProgramDocumentLiveEndpoint({ owner, sessionId: target.sessionId, session, controller, catalogPort, isCurrent: () => true,
+    ...(sourceTarget ? { sourceTarget: () => structuredClone(sourceTarget) } : {}),
     flushPendingEdits() { if (pendingHumanDraft) { controller.getSurface("main").commit(pendingHumanDraft); pendingHumanDraft = undefined; humanFlushes++; } } });
   const otherOwner = { ...owner, key: workspaceDocumentKey(cwd, "file-other"), tabId: "file-other", instanceId: 2, path: ".quicker/actions/other/data.json" };
   const otherSession = createProgramDocumentSession({ content, identity: { ...identity, documentKey: "sdk-other-document" } });
@@ -128,9 +137,9 @@ function stream(chunks: WireChunk[], signal?: AbortSignal | null, holdOpen = fal
 
 function harness(t: TestContext, response: (body: WireBody, index: number, signal?: AbortSignal | null) => Response, options: {
   messages?: AgentUIMessage[]; afterTool?: (id: string, output: StructuredToolResult, current: { stop(): Promise<void> }) => void;
-  input?: InputFixtureOptions;
+  input?: InputFixtureOptions; source?: boolean;
 } = {}) {
-  const document = documentFixture(options.input);
+  const document = documentFixture(options.input, options.source);
   let registry = document.registry;
   const turn = createLiveProgramDocumentTurn({ threadId, getRegistry: () => registry });
   const refs: AgentChatTransportRefs = { threadId, chatMode: { current: "agent" }, enabledTools: { current: ["workspace_program", "docs"] },
@@ -175,7 +184,7 @@ function harness(t: TestContext, response: (body: WireBody, index: number, signa
     replaceRegistry(next: LiveProgramDocumentRegistry) { registry = next; } };
 }
 
-test("real AI SDK read/addToolOutput/automatic edit continuation freezes the manual document turn", { timeout: 10000 }, async (t) => {
+for (const source of [false, true]) test(`${source ? "Source" : "legacy"} real AI SDK read/addToolOutput/automatic edit continuation freezes the manual document turn`, { timeout: 10000 }, async (t) => {
   const f = harness(t, (body, index) => {
     const scopeId = body.liveProgramDocument.scope.scopeId;
     if (index === 0) return stream(toolChunks("sdk-read-operation", { scopeId, action: "read_live" }));
@@ -187,7 +196,7 @@ test("real AI SDK read/addToolOutput/automatic edit continuation freezes the man
         expectedRevision: receipt.revision, stepId, note: "Agent edited the live note" }));
     }
     assert.equal(index, 2); return stream(finalChunks);
-  }, { afterTool(id) {
+  }, { source, afterTool(id) {
     if (id === "sdk-read-operation") {
       f.refs.workingDirectory.current = "D:\\sdk-fixture\\another-file";
       f.refs.chatMode.current = "ask";
@@ -322,7 +331,7 @@ function toolOutput(body: WireBody, operationId: string): StructuredToolResult {
   return part.output;
 }
 
-test("real AI SDK native input schema read continues into one original-Session parameter transaction", { timeout: 10000 }, async (t) => {
+for (const source of [false, true]) test(`${source ? "Source" : "legacy"} real AI SDK native input schema read continues into one original-Session parameter transaction`, { timeout: 10000 }, async (t) => {
   let humanDraft = "";
   const f = harness(t, (body, index) => {
     const scopeId = body.liveProgramDocument.scope.scopeId;
@@ -344,7 +353,7 @@ test("real AI SDK native input schema read continues into one original-Session p
     assert.equal(receipt.operationId, "sdk-input-edit"); assert.equal(receipt.applied, true); assert.equal(receipt.persisted, false);
     assert.equal(receipt.revisionBefore, 1); assert.equal(receipt.revisionAfter, 2); assert.equal(receipt.undoable, true);
     return stream(finalChunks);
-  }, { input: {} });
+  }, { source, input: {} });
   assert.equal(f.session.getState().revision, 0, "the human control draft has not blurred or committed yet");
   await f.sendManual("manual-input-transaction"); await Promise.all(f.outputs);
   assert.deepEqual(f.errors, []); assert.equal(f.chat.status, "ready"); assert.equal(f.requests.length, 3);
@@ -369,13 +378,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-test("stop while a real SDK input-schema read is pending aborts it without a late edit or continuation", { timeout: 10000 }, async (t) => {
+for (const source of [false, true]) test(`${source ? "Source" : "legacy"} stop while a real SDK input-schema read is pending aborts it without a late edit or continuation`, { timeout: 10000 }, async (t) => {
   const started = deferred<AbortSignal>(), late = deferred<void>();
   t.after(() => late.resolve());
   const f = harness(t, (body, index) => {
     assert.equal(index, 0, "a cancelled metadata read cannot automatically request an edit");
     return stream(toolChunks("sdk-pending-input-read", { scopeId: body.liveProgramDocument.scope.scopeId, action: "read_live", stepSchemaFor: stepId }));
-  }, { input: { async beforeContract(signal) { started.resolve(signal); await late.promise; } } });
+  }, { source, input: { async beforeContract(signal) { started.resolve(signal); await late.promise; } } });
   const sending = f.sendManual("manual-pending-input-stop");
   const signal = await started.promise;
   await f.stop();

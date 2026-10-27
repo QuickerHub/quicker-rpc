@@ -122,6 +122,7 @@ const tests = [
   "lib/source-document-owner.server.test.ts",
   "lib/source-bundle-document-client.test.ts",
   "lib/source-variable-identity.test.ts",
+  "lib/source-step-identity.test.ts",
   "lib/source-bundle-document.server.test.ts",
   "lib/action-explorer-tree.test.ts",
   "lib/action-explorer-server.test.ts",

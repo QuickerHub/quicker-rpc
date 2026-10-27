@@ -143,6 +143,7 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
           </>
         ) : sourceDocument ? (
           <SourceBundleDocumentEditor active={active} path={activeTab.path} content={activeTab.content} cwd={cwd}
+            onPinStepToChat={onPinStepToChat}
             onPinVariableToChat={onPinVariableToChat}
             onSave={async () => ({ ok: false, error: "源码保存必须使用原文档存储端口。" })}
             onSaved={onActionProjectSynced} onSynced={onActionProjectSynced} />
