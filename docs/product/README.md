@@ -232,8 +232,17 @@ resize 到 120×36；shell 自然退出与 onExit 均为 0，dispose 不再派�
 stderr 排空后仍为空。IPC stop 与所属进程清理在原预算内完成，全部 34 个观察进程退出，
 Job 在观察器关闭其句柄前清空，无强制回收；部分 pool shell/辅助进程的非零退出保留，不记为全部退出 0。
 构建 wrapper 在产出完整 app 后因 PATH 缺少 git 的元数据步骤退出 1，未记录的 builder
-退出码不补为 0；运行收据不代替构建成功。终端 UI、包含修复的新安装包、Electron 组合和
-R2 提前断连仍待验收，不写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
+退出码不补为 0；运行收据不代替构建成功。终端 UI、包含修复的新安装包和 Electron 组合
+仍待验收，不写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
+
+后续 `8708e202` 已修复启动阶段丢失停止请求：完整静态产物在 Node 22.23.4 下通过入口前、
+listen 回调中途的 shutdown/disconnect 及 ready 后正常退出六个场景；四个启动取消样本不
+报告 ready，迟到取得的 service owner 正常回收。原 ready10s/stop5s 期限内，八个保留的
+原生句柄全部退出 0，监听与 Job 在关闭前清空，无额外信号或强制终止。构建退出码 0 与
+产物前后全文件校验均已持久记录；原两例 disconnect 失败及其额外 SIGINT 清理、首轮离线
+freshness 超时和校验器工作目录错误单独保留。此项不证明无 IPC 的真实进程、卡住的初始化、
+真实 stop 失败、模型/终端负载、Electron 或新安装包，完整 R2/A4 继续验收。
+
 标准 `build` / `start` / `electron:prepare` 和发布入口默认 static，运行目录不含 Next；Next
 移至开发依赖，继续服务 HMR 与显式 `legacy-next` 构建/暂存/启动。删除该兼容分支仍受上述
 完整验收门槛约束，不把默认入口切换记作 A4 完成。见 [运行清单](../engineering/static-agent-runtime.md)。
