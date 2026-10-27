@@ -267,13 +267,15 @@ function successfulPins(page: Page) { return page.evaluate(() => (window as any)
 
 async function editorGeometry(page: Page) {
   return doc(page).evaluate(root => Object.fromEntries([
+    ["editor", ".action-project-data-editor"], ["header", ".action-project-data-editor-header"], ["tabs", ".action-project-data-editor-tabs"],
+    ["visual", ".action-project-data-editor-visual"],
     ["layout", ".program-editor-catalog-layout"], ["documents", ".program-editor-documents"], ["surface", ".program-editor-surface:not([hidden])"],
     ["program", ".program-editor-surface:not([hidden]) .x-program-editor"], ["body", ".program-editor-surface:not([hidden]) .x-program-editor-body"],
     ["drawer", ".x-program-editor-variables-drawer"], ["form", ".variable-form"],
   ].map(([name, selector]) => {
       const element = root.querySelector<HTMLElement>(selector); if (!element) throw Error(`Missing ${selector}`);
       const rect = element.getBoundingClientRect();
-      return [name, { top: rect.top, bottom: rect.bottom, height: rect.height, width: rect.width, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }];
+      return [name, { top: rect.top, bottom: rect.bottom, height: rect.height, width: rect.width, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, scrollTop: element.scrollTop }];
   })));
 }
 
@@ -307,7 +309,8 @@ for (const format of ["legacy", "source"] as const) test(`${format} short-action
     const measurements = [];
     // This fixture owns the file-panel viewport. The full Chat/sidebar split has a separate integration owner.
     for (const viewport of [{ width: 1280, height: 950, theme: "light" }, { width: 1280, height: 950, theme: "dark" },
-      { width: 420, height: 650, theme: "dark" }, { width: 420, height: 720, theme: "light" }, { width: 1024, height: 720, theme: "dark" }]) {
+      { width: 420, height: 650, theme: "dark" }, { width: 420, height: 720, theme: "light" }, { width: 1024, height: 720, theme: "dark" },
+      { width: 900, height: 420, theme: "dark" }]) {
       await variableForm(page).locator('input[title="备注"]').fill(`${format} layout draft`);
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, viewport.theme);
@@ -324,16 +327,30 @@ for (const format of ["legacy", "source"] as const) test(`${format} short-action
       assert.ok(Math.abs(geometry.drawer.top - geometry.body.top) <= 1 && Math.abs(geometry.drawer.bottom - geometry.body.bottom) <= 1, "Drawer follows actual body bounds");
       assert.ok(geometry.form.clientHeight > 0 && geometry.form.scrollHeight > geometry.form.clientHeight, "The form has a usable scroll viewport");
       await clickReachableVariableField(page, "标签"); await clickReachableVariableField(page, "自定义类型");
+      if (viewport.height === 420) await writeFile(path.join(layoutRoot, `height420-${format}-after-field-geometry.json`), JSON.stringify(await editorGeometry(page), null, 2));
       await page.screenshot({ path: path.join(layoutRoot, `layout-${format}-${viewport.width}x${viewport.height}-${viewport.theme}.png`) });
     }
-    await page.setViewportSize({ width: 1280, height: 950 });
     await variableForm(page).locator('input[title="备注"]').fill(`${format} undoable draft`);
     await doc(page).getByRole("tab", { name: "主程序", exact: true }).click();
+    assert.equal(await doc(page).locator(".action-project-data-editor-save").isEnabled(), true);
+    await doc(page).locator(".action-project-data-editor-save").click({ trial: true });
     await doc(page).locator('[title="撤销 (Ctrl+Z)"]').click();
     assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), format === "source" ? "source original" : "main original", "The entire uncommitted form draft becomes one undoable change");
     assert.equal(await doc(page).locator(".action-project-data-editor-save").isDisabled(), true);
     await doc(page).locator('[title^="重做 ("]').click();
     assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} undoable draft`);
+    await surface(page).locator(".variable-toolbar-btn--close").click();
+    await surface(page).locator(".x-program-editor-variables-drawer").waitFor({ state: "hidden" });
+    await openVariables(page, variableId);
+    assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} undoable draft`);
+    await doc(page).locator(".action-project-data-editor-save").click({ trial: true });
+    if (format === "source") {
+      const codec = doc(page).locator("[data-source-bundle-status] details");
+      await codec.locator("summary").click(); assert.equal(await codec.evaluate(element => (element as HTMLDetailsElement).open), true);
+      assert.ok(await doc(page).locator(".action-project-data-editor-header").evaluate(element => element.scrollTop > 0), "Source facts and actions remain reachable through the constrained header");
+      await codec.locator("summary").click(); assert.equal(await codec.evaluate(element => (element as HTMLDetailsElement).open), false);
+    }
+    await page.setViewportSize({ width: 1280, height: 950 });
     await page.evaluate(file => (window as any).fixture.open(file), `.quicker/actions/${actionId}/files/default.txt`);
     await page.locator(".workspace-side-panel-tree--compact").waitFor();
     await page.evaluate(file => (window as any).fixture.open(file), secondFile);
