@@ -74,7 +74,6 @@ import {
 } from "@/lib/launcher/launcher-session";
 import { AppSettingsPopup } from "@/components/chat/AppSettingsPopup";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
-import { ChatStoragePortBanner } from "@/components/dev/ChatStoragePortBanner";
 import { ReleasePreviewBanner } from "@/components/dev/ReleasePreviewBanner";
 import { ChatConversationHeader } from "@/components/chat/ChatConversationHeader";
 import { WorkspaceSidePanelTabBar } from "@/components/workspace/WorkspaceSidePanelTabBar";
@@ -1623,9 +1622,6 @@ export function Chat() {
                 <div className="designer-embed-debug-banner" role="status">
                   设计器调试模式 · 左侧列出所有 ActionDesigner 对话
                 </div>
-              ) : null}
-              {showMainChrome ? (
-                <ChatStoragePortBanner store={storeWithOpenTabMessages} />
               ) : null}
               {showMainChrome ? <ReleasePreviewBanner /> : null}
               <div className="app-content-row">
