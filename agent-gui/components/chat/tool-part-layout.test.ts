@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  analyzeToolUiPart,
   buildToolBatchSummary,
   segmentMessageParts,
 } from "./tool-part-layout.ts";
+
+test("one metadata call keeps its failed receipt and attention state in the message projection", () => {
+  const input = Object.freeze({ id: "11111111-1111-4111-8111-111111111111", title: "New requested title" });
+  const output = Object.freeze({ ok: false, exitCode: 1, data: Object.freeze({ error: "EDIT_VERSION_CONFLICT" }), stderr: "The action version changed" });
+  const part = Object.freeze({ type: "tool-qkrpc_action_set_metadata", toolCallId: "metadata-original-call", state: "output-available", input, output });
+  const before = JSON.stringify(part);
+  const projected = analyzeToolUiPart(part as Parameters<typeof analyzeToolUiPart>[0], 0);
+  assert.equal(projected.meta, "失败 · EDIT_VERSION_CONFLICT");
+  assert.equal(projected.needsAttention, true); assert.equal(projected.isRunning, false);
+  assert.equal(projected.part, part); assert.equal(projected.index, 0); assert.equal(JSON.stringify(part), before);
+});
 
 test("segmentMessageParts keeps reasoning and tools as separate ordered segments", () => {
   const parts = [
