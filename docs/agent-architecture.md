@@ -261,6 +261,38 @@ React renderer：Agent 工作台 + Quicker Designer 组件/文档 controller
 离线 codec 校验与 source dry-run 保持离线能力；其逻辑目标身份随文档保存，不要求为了
 校验而连接运行中的宿主。实际写回时才重新核验目标 session、能力和预期版本。
 
+#### Source bundle 文档存储契约
+
+已有 bundle 接入设计器时，`program.source.yaml` 与 `files/` 是唯一正文来源；
+`quicker.source.json` 和 `.qkrpc/baseline.json` 由 source 工具管理。格式适配器将同一
+C# codec 的未物化投影交给现有文档 Session，复用其 controller、保存票据与历史。
+不创建镜像 `data.json`、第二份历史或浏览器 YAML codec。根 metadata 在此端口只读，
+不能继承旧 JSON 属性编辑器的权限。实现与验收状态以产品计划为准。
+
+离线 `source.document` 的 inspect、preview、save-local 共用 CLI stdin JSON 与 HTTP
+调用契约，在宿主发现、连接和启动之前完成。结果携带实际 codec descriptor、完整目标
+来源和本地字节快照；快照包含 YAML、管理文件及全部 `files/` 内容。它只供本地乐观
+并发检查，不证明宿主身份、当前能力或动作可写。来源或 codec 变化必须重新读取。
+
+投影保留外置引用、未知字段和数值原文。GUI 补出的变量/步骤 ID 不得写成新的原生字段，
+已有原生 ID 则必须保留。连续保存用票据中的完整 baselineEditorJson 验证可逆映射，
+不能仅凭名称或数组位置接受一次 ID 重映射；无法证明保真时明确拒绝。保存回执只推进
+对应票据的存储基线，同期新草稿、当前 ID 和撤销历史继续保留。
+既有 V1 变量若 native 与源都无真实 ID，当前 codec 无法在改名后证明原始变量元数据的
+归属，须拒绝该改名，不把纯投影中无 native baseline 的改名测试当作宿主保真验收。
+
+普通 Save 比较预期快照，只写 YAML 和明确提交的资源，不推进原生 checkpoint。
+无语义变化时保留原 YAML 字节；改变正文后可由 codec 规范化输出，不承诺保留注释排版。
+跨文件写入保留已写列表与失败事实，不能宣称普通文件替换提供对任意外部写入者的原子事务。
+重开文档后，待同步状态由当前物化可编辑正文与管理 checkpoint 比较；不能依赖内存 dirty、
+时间戳或 editVersion 相等。clean 只表示与提交基线一致，当前宿主状态仍为未观测。
+
+显式 Sync 从同一份冻结 Prepared 选择绑定、派发正文和更新 checkpoint，返回实际消费的
+快照、正文摘要、宿主保存及本地 checkpoint 结果。提交期间新增的本地修改不得进入已提交
+基线，重读后仍为 pending。管理文件变化则拒绝推进 checkpoint；宿主已保存而本地确认
+失败、部分持久化与结果未知分别保留，均不能自动重放。Agent 直接 source 保存也必须
+服从设计器文档 owner，不能因为面板隐藏或切聊天绕过尚未提交的人工草稿。
+
 `GetHostSessionAsync` 已将实际 host kind/version、协议/schema、bootstrap session 和动作
 能力暴露到 RPC、CLI `ping --json` 与 HTTP `/health`。session 在同一次插件加载内稳定，
 不等同于跨重启的实例 ID。旧插件仅在方法不存在时兼容返回未知身份，不按版本猜能力；

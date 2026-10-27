@@ -358,7 +358,7 @@ P2 负责宿主连接调用侧，P3 负责 V2 实现，P4 负责 HTTP/desktop �
 | `TreeActionToolbox` | 真实分类、搜索树、控制字段/预置参数、拖放位置与双击插入、编辑确认与撤销 | 已接生产工作区，分类/搜索与预置参数通过原参数确认、撤销和完整文档保存链；真实 catalog 未提供的统计/收藏等继续待适配 |
 | `EditorResourcePane` / `ResourceExplorer` | 动作/全局子程序目录、分页/定位/选择、必要编辑操作及刷新 | 七组 catalog 请求已接文档 port 与目标隔离；V1 runtime 目录已实测完整分页。V1 组合动作（已知 XAction）打开额外要求正文读能力，按完整目标复用本地文件或只向空目录导出；原工作台保留已有实例、dirty/undo，异步/未知收据不抢焦点、不重放。fixture、真实 DOM 与隔离开发态前端检查通过；169 已有项目复用/重查/owner拒绝已有真实HTTP验收，fresh export与native GUI点击待验收。全局子程序调用插入/拖放已接同一参数确认和文档事务，schema/IO失败不确认、换owner不误插、新变量与调用一起撤销；动作引用插入/拖放也已接同一参数确认与事务，39 项真实 DOM 和迟到请求对新搜索/取消的隔离通过；两个调用链原生 GUI 验收、V2/子程序打开和资源写操作仍待迁移，不以受限搜索冒充完整目录 |
 | `ActionMetaEditor` / context menu | 外观、运行/更新选项、关联、自定义右键；与正文统一 dirty/版本/保存 | 标题/说明/图标已接同一文档 revision、dirty 与保存票据；本地 body/metadata CAS 及部分写入分别反馈。主动作/子程序共用 FA 搜索、风格分页、选色和手填规格；上传图标库及其它属性仍待原生契约 |
-| 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | 有效 bundle 已通过实际 C# codec 接入原 APDE/Session，支持本地 CAS Save、只读 YAML 预览、重开 pending 与显式原生 Sync 收据核对；身份与 checkpoint 不由普通 Save 改写。隔离 codec/API/DOM 回归覆盖本地链，真实宿主集成继续验收；metadata、资源编辑和源码实时 pin 暂未开放，不新增 Agent 权限 |
+| 外置文件与 source bundle | `files/`、脚本/变量默认值引用、未知原生字段、YAML 与 native codec | 有效 bundle 已通过实际 C# codec 接入原 APDE/Session，支持本地 CAS Save、只读 YAML 预览、重开 pending 与显式原生 Sync 收据核对；身份与 checkpoint 不由普通 Save 改写。隔离 codec/API/DOM 回归及真实 V1 单次同步、恢复已通过；metadata、资源编辑和源码实时 pin 暂未开放，不新增 Agent 权限 |
 | 运行/诊断 bridge | 已确认范围内的 run/trace、失败定位、取消与结果展示 | 复用现有 RPC/Agent 服务；新版设计器调用侧与宿主能力逐项接线 |
 
 普通保存只写本地工作区。显式 Sync 已在同一文档写入队列内先保存正文，再用返回的精确
@@ -377,6 +377,20 @@ native CAS 恢复，原生正文哈希、导出 YAML 和外置资源字节均与
 也不证明 GUI 已接 YAML/source bundle、V2 写回或 A1–A3 整体完成。此后界面改动尚未进入
 0.15.1 安装包。已保存但尚未 Sync 的提示目前只在当前编辑会话保留；重开工作台后版本
 状态不能识别这批本地改动，跨重启同步检查仍待补齐，不应把“版本一致”当作正文一致。
+
+“已有有效 source bundle → 同一设计器 Session → 本地 YAML 保存 → 关闭重开仍识别
+待同步 → 显式单次 source Sync”已在 PR #117/#118 合并。沿用现有 C# codec，不给旧
+JSON 再增加一套同步信任文件。后端 123 项针对性检查、实际 codec/生产 API/Session 的
+5 项浏览器回归、PR 的 7 项 CI 与独立审查通过。本机 0.15.1.1 热更新后，真实 V1 GUI
+完成两次本地保存、明确关闭重开并保留 pending、一次 Sync；独立宿主读回确认只改变
+预期步骤备注，随后以新快照单次恢复，原生全文、导出 YAML 和外置文件均与原文一致。
+未运行动作。该切片不包含根 metadata 写入、source Pin/live、外置资源编辑、Agent
+变量权限、V2 实际写回或新安装包；0.15.1 发布产物尚未包含这些 GUI 改动。
+本地快照、提交基线与当前宿主观察的边界见[文档存储契约](../agent-architecture.md#source-bundle-文档存储契约)。
+
+用户已于 2026-10-26 确认变量行沿用“+对话”：只授权本轮实际选中的变量，修改共用
+原文档的校验、引用更新和撤销，仍由用户保存。入口与私有变量 scope 尚待接线验收；
+这项确认不等于当前工具已经支持变量写入，也不授予 Agent Save/Sync 或其它文档权限。
 
 **Agent 与工作台的剩余任务**不因转入设计器主线而取消：R1 补操作描述与 TurnPlan 约束；
 R2 补浏览器/网络端口及派生进程 owner；R3 拆会话控制器并验证后台会话/审批/草稿；R4
