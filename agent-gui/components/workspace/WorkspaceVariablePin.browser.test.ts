@@ -17,6 +17,7 @@ const resource = "external variable default\r\nkept byte for byte\r\n";
 const integer = "9007199254740993123456789", decimal = "0.12345678901234567890123456789";
 const hash = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex").toUpperCase();
 const taskRoot = path.resolve(process.cwd(), "../.tmp/variable-live-scope");
+const layoutRoot = path.resolve(process.cwd(), "../.tmp/source-designer-layout");
 const variable = (id: string, key: string, desc: string) => ({ id, key, varType: 0, desc, defaultValue: "inline original", group: "original", saveState: false, isLocked: false });
 const referenceStep = (id: string) => ({ stepId: id, stepRunnerKey: "fixture:inputs", note: "original note", inputParams: { "value.var": "message", expression: "$={message}" }, outputParams: { result: "message.member" } });
 function legacyBody(second = false): string {
@@ -263,6 +264,91 @@ async function reorderAfter(page: Page, selectedId: string, targetId: string) {
   }, { selectedId, targetId });
 }
 function successfulPins(page: Page) { return page.evaluate(() => (window as any).fixture.pins.filter((entry: any) => Boolean(entry.pin?.pinId)).length); }
+
+async function editorGeometry(page: Page) {
+  return doc(page).evaluate(root => Object.fromEntries([
+    ["layout", ".program-editor-catalog-layout"], ["documents", ".program-editor-documents"], ["surface", ".program-editor-surface:not([hidden])"],
+    ["program", ".program-editor-surface:not([hidden]) .x-program-editor"], ["body", ".program-editor-surface:not([hidden]) .x-program-editor-body"],
+    ["drawer", ".x-program-editor-variables-drawer"], ["form", ".variable-form"],
+  ].map(([name, selector]) => {
+      const element = root.querySelector<HTMLElement>(selector); if (!element) throw Error(`Missing ${selector}`);
+      const rect = element.getBoundingClientRect();
+      return [name, { top: rect.top, bottom: rect.bottom, height: rect.height, width: rect.width, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }];
+  })));
+}
+
+async function clickReachableVariableField(page: Page, title: string) {
+  const input = variableForm(page).locator(`input[title="${title}"]`);
+  await input.scrollIntoViewIfNeeded(); await input.click();
+  const result = await input.evaluate(element => {
+    const rect = element.getBoundingClientRect(), x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+    const clippedBy: string[] = [];
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      const bounds = parent.getBoundingClientRect(), style = getComputedStyle(parent);
+      if ((/(auto|scroll|hidden|clip)/.test(style.overflowY) && (y < bounds.top || y >= bounds.bottom))
+        || (/(auto|scroll|hidden|clip)/.test(style.overflowX) && (x < bounds.left || x >= bounds.right))) clippedBy.push(parent.className);
+    }
+    return { clippedBy, hit: document.elementFromPoint(x, y) === element, focused: document.activeElement === element,
+      inViewport: x >= 0 && y >= 0 && x < innerWidth && y < innerHeight };
+  });
+  assert.deepEqual(result, { clippedBy: [], hit: true, focused: true, inViewport: true }, `Actual field ${title} must be clickable inside every clipping ancestor`);
+}
+
+for (const format of ["legacy", "source"] as const) test(`${format} short-action file-panel layout fills the designer and keeps variable fields reachable across window sizes and themes`, { timeout: 120_000 }, async () => {
+  await mkdir(layoutRoot, { recursive: true });
+  const file = format === "source" ? sourceFile : legacyFile, variableId = format === "source" ? sourceId : sharedId;
+  const fixture = await openFixture(file); const { page } = fixture;
+  try {
+    await openVariables(page, variableId);
+    const initialGeometry = await editorGeometry(page);
+    await writeFile(path.join(layoutRoot, `layout-${format}-initial-geometry.json`), JSON.stringify({ treeCount: await page.locator(".workspace-side-panel-tree").count(), ...initialGeometry }, null, 2));
+    assert.ok(Math.abs(initialGeometry.surface.height - initialGeometry.documents.height) <= 2, `Short steps must receive the document's available height: ${JSON.stringify(initialGeometry)}`);
+    await page.evaluate(() => { (window as any).fixture.layoutDocument = document.querySelector('[data-workspace-document]:not([hidden])'); });
+    const measurements = [];
+    // This fixture owns the file-panel viewport. The full Chat/sidebar split has a separate integration owner.
+    for (const viewport of [{ width: 1280, height: 950, theme: "light" }, { width: 1280, height: 950, theme: "dark" },
+      { width: 420, height: 650, theme: "dark" }, { width: 420, height: 720, theme: "light" }, { width: 1024, height: 720, theme: "dark" }]) {
+      await variableForm(page).locator('input[title="备注"]').fill(`${format} layout draft`);
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, viewport.theme);
+      await page.evaluate(() => new Promise<void>(done => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+      assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} layout draft`, "Resize/theme changes preserve the human draft");
+      assert.equal(await page.evaluate(() => (window as any).fixture.layoutDocument === document.querySelector('[data-workspace-document]:not([hidden])')), true, "Layout changes retain the original document instance");
+      const geometry = await editorGeometry(page); measurements.push({ ...viewport, geometry });
+      await writeFile(path.join(layoutRoot, `layout-${format}-geometry.json`), JSON.stringify(measurements, null, 2));
+      assert.equal(await page.locator(".workspace-side-panel-tree").count(), 0, "Both document formats reuse the existing full designer panel");
+      for (const key of ["documents", "surface", "program", "body", "drawer", "form"] as const) assert.ok(geometry[key].height > 0, `${format}/${viewport.width}x${viewport.height}: ${key} has real height: ${JSON.stringify(geometry)}`);
+      assert.ok(geometry.documents.top >= geometry.layout.top - 1 && geometry.documents.bottom <= geometry.layout.bottom + 1, `Catalog rows must stay within the available editor height: ${JSON.stringify(geometry)}`);
+      assert.ok(Math.abs(geometry.surface.height - geometry.documents.height) <= 2, `Short steps must not shrink the active surface: ${JSON.stringify(geometry)}`);
+      assert.ok(Math.abs(geometry.program.height - geometry.surface.height) <= 2, `XProgramEditor fills its surface: ${JSON.stringify(geometry)}`);
+      assert.ok(Math.abs(geometry.drawer.top - geometry.body.top) <= 1 && Math.abs(geometry.drawer.bottom - geometry.body.bottom) <= 1, "Drawer follows actual body bounds");
+      assert.ok(geometry.form.clientHeight > 0 && geometry.form.scrollHeight > geometry.form.clientHeight, "The form has a usable scroll viewport");
+      await clickReachableVariableField(page, "标签"); await clickReachableVariableField(page, "自定义类型");
+      await page.screenshot({ path: path.join(layoutRoot, `layout-${format}-${viewport.width}x${viewport.height}-${viewport.theme}.png`) });
+    }
+    await page.setViewportSize({ width: 1280, height: 950 });
+    await variableForm(page).locator('input[title="备注"]').fill(`${format} undoable draft`);
+    await doc(page).getByRole("tab", { name: "主程序", exact: true }).click();
+    await doc(page).locator('[title="撤销 (Ctrl+Z)"]').click();
+    assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), format === "source" ? "source original" : "main original", "The entire uncommitted form draft becomes one undoable change");
+    assert.equal(await doc(page).locator(".action-project-data-editor-save").isDisabled(), true);
+    await doc(page).locator('[title^="重做 ("]').click();
+    assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} undoable draft`);
+    await page.evaluate(file => (window as any).fixture.open(file), `.quicker/actions/${actionId}/files/default.txt`);
+    await page.locator(".workspace-side-panel-tree--compact").waitFor();
+    await page.evaluate(file => (window as any).fixture.open(file), secondFile);
+    await page.waitForFunction(file => (window as any).fixture.active()?.path === file, secondFile);
+    await doc(page).locator(".action-project-data-editor-tabs").waitFor();
+    await openVariables(page, sharedId); assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), "second original");
+    await page.evaluate(file => (window as any).fixture.open(file), file);
+    await page.waitForFunction(file => (window as any).fixture.active()?.path === file, file);
+    await doc(page).locator(".action-project-data-editor-tabs").waitFor();
+    await openVariables(page, variableId);
+    assert.equal(await variableForm(page).locator('input[title="备注"]').inputValue(), `${format} undoable draft`, "Switching files preserves the original document's draft/history");
+    assert.equal(await page.evaluate(() => (window as any).fixture.layoutDocument === document.querySelector('[data-workspace-document]:not([hidden])')), true);
+    assert.equal(fixture.calls.some(call => /save|sync|write|run/.test(String(call.op))), false); assert.deepEqual(fixture.errors, []);
+  } finally { await fixture.close(); }
+});
 
 // Select only this test for static preparation. Normal CI runs every test below;
 // unavailable codec/browser support is a failure, never a silent skip.
