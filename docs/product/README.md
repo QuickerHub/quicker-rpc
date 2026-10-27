@@ -229,8 +229,8 @@ setup 专属短 TEMP、600 秒有界等待与进度记录。此制品验证安�
 候选 `5cb886a9` 另以完整编译产物 `service.mjs`、同一 Node 22.23.4 与产物内 node-pty 1.1.0
 完成真实 PTY 验收：六个并发请求只启动同 owner 的一个 runtime，WS 输出确认 shell PID/cwd，
 resize 到 120×36；shell 自然退出与 onExit 均为 0，dispose 不再派生该 PID 的 kill/helper，
-stderr 排空后仍为空。IPC stop 与所属进程清理在原预算内完成，全部 34 个观察进程及 Job
-在 dispose 前清空，无强制回收；部分 pool shell/辅助进程的非零退出保留，不记为全部退出 0。
+stderr 排空后仍为空。IPC stop 与所属进程清理在原预算内完成，全部 34 个观察进程退出，
+Job 在观察器关闭其句柄前清空，无强制回收；部分 pool shell/辅助进程的非零退出保留，不记为全部退出 0。
 构建 wrapper 在产出完整 app 后因 PATH 缺少 git 的元数据步骤退出 1，未记录的 builder
 退出码不补为 0；运行收据不代替构建成功。终端 UI、包含修复的新安装包、Electron 组合和
 R2 提前断连仍待验收，不写成全部 A4 完成。细节见[运行清单](../engineering/static-agent-runtime.md#生产-electron-正常退出验收)。
