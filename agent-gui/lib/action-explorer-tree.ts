@@ -6,8 +6,10 @@ export type ExplorerTreeNode = {
   name: string;
   path: string;
   kind: "file" | "directory";
-  /** Display title from info.json (action project root or embedded subprogram root). */
+  /** Display title from the project's local identity file. */
   title?: string;
+  /** Workspace-relative program entry; absent for legacy data.json projects. */
+  entryPath?: string;
   /** Summary from info.json (action project root). */
   description?: string;
   /** Icon spec from info.json (action project root). */
@@ -59,7 +61,7 @@ export function computeExplorerTreeSignature(tree: ActionExplorerTree): string {
   const walk = (nodes: ExplorerTreeNode[]) => {
     for (const node of nodes) {
       lines.push(
-        `${node.path}\t${node.kind}\t${node.title ?? ""}\t${node.description ?? ""}\t${node.icon ?? ""}\t${node.actionId ?? ""}\t${node.subProgramId ?? ""}\t${node.children?.length ?? 0}`,
+        `${node.path}\t${node.kind}\t${node.title ?? ""}\t${node.entryPath ?? ""}\t${node.description ?? ""}\t${node.icon ?? ""}\t${node.actionId ?? ""}\t${node.subProgramId ?? ""}\t${node.children?.length ?? 0}`,
       );
       if (node.children?.length) walk(node.children);
     }
@@ -72,6 +74,7 @@ export type ActionProjectMeta = {
   dirName: string;
   path: string;
   title?: string;
+  entryPath?: string;
   description?: string;
   icon?: string;
   actionId?: string;
@@ -130,6 +133,7 @@ export function buildExplorerTree(
             ?? metaByDir.get(part.toLowerCase());
           if (meta) {
             if (meta.title) node.title = meta.title;
+            node.entryPath = meta.entryPath;
             if (meta.actionId) node.actionId = meta.actionId;
           } else if (/^[0-9a-f-]{36}$/i.test(part)) {
             node.actionId = part;
@@ -281,8 +285,8 @@ export function injectEmbeddedSubProgramsIntoProjectTree(
 }
 
 /**
- * Build action-project tree from local info.json scan (roots) + workspace file listing (children).
- * Project labels never come from qkrpc tool output — only from on-disk info.json.
+ * Build action-project tree from local identity metadata (roots) + workspace file listing (children).
+ * Project labels come from on-disk info.json or quicker.source.json, never qkrpc tool output.
  */
 export function buildExplorerTreeFromProjectMeta(
   actionsRoot: string,
@@ -330,6 +334,7 @@ export function buildExplorerTreeFromProjectMeta(
       path: projectPath,
       kind: "directory",
       title: meta?.title,
+      entryPath: meta?.entryPath,
       description: meta?.description,
       icon: meta?.icon,
       actionId:
@@ -439,6 +444,7 @@ function toPublicNode(node: InternalNode): ExplorerTreeNode {
     path: node.path,
     kind: node.kind,
     title: node.title,
+    entryPath: node.entryPath,
     actionId: node.actionId,
     children,
   };
@@ -583,22 +589,31 @@ export function isGlobalSubProgramRootNode(node: ExplorerTreeNode): boolean {
   return rel.length > 0 && !rel.includes("/");
 }
 
-/** Relative path to a project root's info.json, or null if not a project root. */
+/** Legacy editable metadata path; source identity metadata stays read-only. */
 export function actionProjectInfoJsonPath(
   node: ExplorerTreeNode,
   actionsRoot = ACTIONS_ROOT_SUFFIX,
 ): string | null {
   if (!isActionProjectRootNode(node, actionsRoot)) return null;
+  if (
+    node.entryPath !== undefined
+    && actionProjectDataJsonPath(node, actionsRoot) !== `${normalizeExplorerTreePath(node.path)}/data.json`
+  ) return null;
   return `${node.path.replace(/\\/g, "/")}/info.json`;
 }
 
-/** Relative path to a project root's data.json (step editor), or null if not a project root. */
+/** Program entry for a project root; the legacy helper name is kept for callers. */
 export function actionProjectDataJsonPath(
   node: ExplorerTreeNode,
   actionsRoot = ACTIONS_ROOT_SUFFIX,
 ): string | null {
   if (!isActionProjectRootNode(node, actionsRoot)) return null;
-  return `${node.path.replace(/\\/g, "/")}/data.json`;
+  const projectPath = normalizeExplorerTreePath(node.path);
+  if (node.entryPath === undefined) return `${projectPath}/data.json`;
+  const entryPath = normalizeExplorerTreePath(node.entryPath);
+  return entryPath === `${projectPath}/program.source.yaml` || entryPath === `${projectPath}/data.json`
+    ? entryPath
+    : null;
 }
 
 /** Relative path to embedded subprogram data.json, or null if not a subprogram root. */

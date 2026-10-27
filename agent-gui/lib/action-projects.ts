@@ -20,6 +20,7 @@ export type ActionProjectRow = {
   dirName: string;
   path: string;
   title?: string;
+  entryPath?: string;
   actionId?: string;
 };
 
@@ -61,6 +62,7 @@ export function parseActionProjectsFromToolData(
       dirName,
       path,
       title: readString(o, "title", "Title"),
+      entryPath: readString(o, "entryPath", "EntryPath"),
       actionId: readString(o, "actionId", "ActionId", "id", "Id"),
     });
   }
