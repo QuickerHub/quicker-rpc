@@ -7,9 +7,11 @@ import {
   applyEmbeddedSubProgramMeta,
   buildExplorerTree,
   buildExplorerTreeFromProjectMeta,
+  computeExplorerTreeSignature,
   createActionExplorerTreeShell,
   displayNodeLabel,
   displayNodeSubtitle,
+  explorerProgramDataJsonPath,
   findExplorerTreeNode,
   isActionProjectFolderNode,
   isActionProjectRootNode,
@@ -249,6 +251,43 @@ test("actionProjectInfoJsonPath for project root", () => {
     actionProjectInfoJsonPath({ name: "data.json", path: `${ROOT}/foo/data.json`, kind: "file" }, ROOT),
     null,
   );
+});
+
+test("source project entry survives both tree builders and keeps root metadata read-only", () => {
+  const projectPath = `${ROOT}/${ACTION_ID}`;
+  const entryPath = `${projectPath}/program.source.yaml`;
+  const meta = [{ dirName: ACTION_ID, path: projectPath, title: "Source action", actionId: ACTION_ID, entryPath }];
+  const entries = [{ path: `${ACTION_ID}/program.source.yaml`, kind: "file" as const }];
+  for (const children of [
+    buildExplorerTree(ROOT, entries, meta),
+    buildExplorerTreeFromProjectMeta(ROOT, meta, entries),
+  ]) {
+    const node = children[0]!;
+    assert.equal(node.entryPath, entryPath);
+    assert.equal(displayNodeLabel(node, ROOT), "Source action");
+    assert.equal(actionProjectDataJsonPath(node, ROOT), entryPath);
+    assert.equal(explorerProgramDataJsonPath(node, ROOT), entryPath);
+    assert.equal(actionProjectInfoJsonPath(node, ROOT), null);
+    const tree = { rootPath: ROOT, rootLabel: "动作项目", children };
+    const legacyTree = { ...tree, children: [{ ...node, entryPath: undefined }] };
+    assert.notEqual(computeExplorerTreeSignature(tree), computeExplorerTreeSignature(legacyTree));
+  }
+});
+
+test("project entry cannot redirect selection outside its own known program file", () => {
+  const projectPath = `${ROOT}/${ACTION_ID}`;
+  const node = { name: ACTION_ID, path: projectPath, kind: "directory" as const };
+  for (const entryPath of [
+    `${projectPath}/../other/program.source.yaml`,
+    `${projectPath}/files/program.source.yaml`,
+    `${projectPath}/quicker.source.json`,
+    "",
+  ]) {
+    assert.equal(explorerProgramDataJsonPath({ ...node, entryPath }, ROOT), null);
+    assert.equal(actionProjectInfoJsonPath({ ...node, entryPath }, ROOT), null);
+  }
+  assert.equal(explorerProgramDataJsonPath({ ...node, entryPath: `${projectPath}/data.json` }, ROOT), `${projectPath}/data.json`);
+  assert.equal(actionProjectInfoJsonPath({ ...node, entryPath: `${projectPath}/data.json` }, ROOT), `${projectPath}/info.json`);
 });
 
 const SUB_ID = "039e60db-424c-4653-8798-01feb36b1aa0";

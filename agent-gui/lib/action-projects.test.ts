@@ -44,3 +44,15 @@ test("shouldRefreshExplorerAfterTool", () => {
   });
   assert.equal(shouldRefreshExplorerAfterTool("qkrpc_action_get", getOk), true);
 });
+
+test("action project list preserves source entry without inventing a legacy entry", () => {
+  const root = ".quicker/actions";
+  const parsed = parseActionProjectsFromToolData({
+    projects: [
+      { dirName: "source", path: `${root}/source`, title: "Source", entryPath: `${root}/source/program.source.yaml` },
+      { dirName: "legacy", path: `${root}/legacy`, title: "Legacy" },
+    ],
+  });
+  assert.equal(parsed?.projects[0]?.entryPath, `${root}/source/program.source.yaml`);
+  assert.equal(parsed?.projects[1]?.entryPath, undefined);
+});

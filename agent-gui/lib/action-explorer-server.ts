@@ -3,7 +3,7 @@ import { guardActionProjectBindingWrite } from "./action-project-host-binding.se
 import { SourceDocumentOwnerError, withExternalSourceDocumentWrite } from "./source-document-owner.server";
 import { isActionSourceManagedPath } from "./qkrpc-action-source";
 import { join } from "node:path";
-import { readdir, readFile, rm } from "node:fs/promises";
+import { lstat, readdir, readFile, rm } from "node:fs/promises";
 import { basename } from "node:path";
 import {
   actionProjectDirFromName,
@@ -28,7 +28,7 @@ import {
   writeWorkspaceFile,
 } from "@/lib/workspace-fs";
 
-/** Summaries for agent tool + explorer (scans each .quicker/actions project info.json). */
+/** Summaries for agent tool + explorer from actual source identities or legacy info.json. */
 export async function listWorkspaceActionProjects(): Promise<{
   ok: true;
   root: string;
@@ -60,6 +60,11 @@ export async function loadActionProjectMeta(): Promise<ActionProjectMeta[]> {
   const meta: ActionProjectMeta[] = [];
   for (const dirName of dirNames) {
     const projectPath = actionProjectDirFromName(dirName);
+    const source = await readSourceActionProjectMeta(dirName, projectPath);
+    if (source) {
+      meta.push(source);
+      continue;
+    }
     const infoPath = resolveWorkspacePath(`${projectPath}/info.json`);
     if (!infoPath.ok) continue;
 
@@ -97,6 +102,29 @@ export async function loadActionProjectMeta(): Promise<ActionProjectMeta[]> {
       sensitivity: "base",
     }),
   );
+}
+
+/** Navigation facts only; opening the document still performs the complete codec/bundle checks. */
+async function readSourceActionProjectMeta(dirName: string, projectPath: string): Promise<ActionProjectMeta | undefined> {
+  const entryPath = `${projectPath}/program.source.yaml`;
+  const sourcePath = resolveWorkspacePath(entryPath);
+  const identityPath = resolveWorkspacePath(`${projectPath}/quicker.source.json`);
+  if (!sourcePath.ok || !identityPath.ok) return;
+  try {
+    const [source, identity] = await Promise.all([lstat(sourcePath.absolute), lstat(identityPath.absolute)]);
+    if (!source.isFile() || !identity.isFile()) return;
+    const parsed: unknown = JSON.parse(stripJsonBom(await readFile(identityPath.absolute, "utf8")));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+    const row = parsed as Record<string, unknown>;
+    if (row.schema !== "quicker.source-bundle.v1" || row.kind !== "action"
+      || typeof row.actionId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.actionId)
+      || (row.title !== undefined && row.title !== null && typeof row.title !== "string")) return;
+    return { dirName, path: projectPath, entryPath, actionId: row.actionId,
+      title: typeof row.title === "string" ? row.title.trim() || undefined : undefined };
+  } catch {
+    // Missing, unreadable or invalid source identities do not override legacy projects.
+    return;
+  }
 }
 
 async function readEmbeddedSubProgramMetaEntry(
@@ -197,7 +225,7 @@ function emptyActionExplorerTree(rootPath: string): ActionExplorerTree {
   };
 }
 
-/** Fast path: top-level action projects from info.json only (no recursive file scan). */
+/** Fast path: top-level source/legacy project metadata only (no recursive file scan). */
 export async function buildActionExplorerTreeRoots(): Promise<
   | { ok: true; tree: ActionExplorerTree }
   | { ok: false; error: string }

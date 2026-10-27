@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { runWithQkrpcCwdAsync } from "./qkrpc-request-context.ts";
@@ -8,6 +8,133 @@ import {
   displayNodeLabel,
   isEmbeddedSubProgramRootNode,
 } from "./action-explorer-tree.ts";
+
+async function withSourceExplorerFixture(run: (root: string) => Promise<void>): Promise<void> {
+  const fixtures = resolve(import.meta.dirname, "..", "..", ".tmp");
+  await mkdir(fixtures, { recursive: true });
+  const root = await mkdtemp(join(fixtures, "source-explorer-"));
+  try { await run(root); }
+  finally {
+    assert.equal(dirname(root), fixtures, "cleanup must stay in this repository's owned .tmp fixture directory");
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+const sourceActionId = "4b625e36-8d72-4c60-a826-219e08bf9e51";
+const legacyActionId = "d46ddf62-2496-4437-a323-b4f7bb975e60";
+const sourceIdentity = (extra: Record<string, unknown> = {}) => JSON.stringify({
+  schema: "quicker.source-bundle.v1", kind: "action", actionId: sourceActionId, title: "Actual source title", ...extra,
+});
+
+test("source project roots use actual sidecar identity and YAML entry without creating legacy mirrors", async () => {
+  await withSourceExplorerFixture(async root => {
+    const dirName = "friendly-source-folder", projectPath = `.quicker/actions/${dirName}`;
+    const project = join(root, ".quicker", "actions", dirName);
+    await mkdir(project, { recursive: true });
+    const yaml = "$schema: quicker.program.source.v1\nsteps: []\nvariables: []\n";
+    const identity = "\uFEFF" + sourceIdentity();
+    await writeFile(join(project, "program.source.yaml"), yaml, "utf8");
+    await writeFile(join(project, "quicker.source.json"), identity, "utf8");
+
+    await runWithQkrpcCwdAsync(root, async () => {
+      const { loadActionProjectMeta, listWorkspaceActionProjects, buildActionExplorerTreeRoots, buildActionExplorerTree } = await import("./action-explorer-server.ts");
+      const expected = { dirName, path: projectPath, entryPath: `${projectPath}/program.source.yaml`, actionId: sourceActionId, title: "Actual source title" };
+      assert.deepEqual(await loadActionProjectMeta(), [expected]);
+      const listed = await listWorkspaceActionProjects();
+      assert.ok(listed.ok); if (listed.ok) assert.deepEqual(listed.projects, [expected]);
+      for (const result of [await buildActionExplorerTreeRoots(), await buildActionExplorerTree()]) {
+        assert.ok(result.ok); if (!result.ok) continue;
+        assert.equal(result.tree.children.length, 1);
+        const node = result.tree.children[0]!;
+        assert.equal(node.path, projectPath);
+        assert.equal(node.entryPath, `${projectPath}/program.source.yaml`);
+        assert.equal(node.actionId, sourceActionId);
+        assert.equal(node.title, "Actual source title");
+      }
+    });
+    assert.deepEqual((await readdir(project)).sort(), ["program.source.yaml", "quicker.source.json"]);
+    assert.equal(await readFile(join(project, "program.source.yaml"), "utf8"), yaml);
+    assert.equal(await readFile(join(project, "quicker.source.json"), "utf8"), identity);
+  });
+});
+
+test("a valid source bundle wins over coexisting legacy metadata and a GUID-shaped folder name", async () => {
+  await withSourceExplorerFixture(async root => {
+    const projectPath = `.quicker/actions/${legacyActionId}`;
+    const project = join(root, ".quicker", "actions", legacyActionId);
+    await mkdir(project, { recursive: true });
+    const legacy = JSON.stringify({ id: legacyActionId, title: "Legacy title", description: "legacy description", icon: "legacy icon" });
+    await writeFile(join(project, "info.json"), legacy, "utf8");
+    await writeFile(join(project, "data.json"), '{"steps":[],"variables":[]}', "utf8");
+    await writeFile(join(project, "program.source.yaml"), "steps: []\n", "utf8");
+    await writeFile(join(project, "quicker.source.json"), sourceIdentity(), "utf8");
+
+    await runWithQkrpcCwdAsync(root, async () => {
+      const { loadActionProjectMeta } = await import("./action-explorer-server.ts");
+      assert.deepEqual(await loadActionProjectMeta(), [{ dirName: legacyActionId, path: projectPath,
+        entryPath: `${projectPath}/program.source.yaml`, actionId: sourceActionId, title: "Actual source title" }]);
+    });
+    assert.equal(await readFile(join(project, "info.json"), "utf8"), legacy);
+  });
+});
+
+test("invalid or incomplete source identities never select the source entry or override legacy metadata", async () => {
+  await withSourceExplorerFixture(async root => {
+    const cases = [
+      { name: "schema", identity: sourceIdentity({ schema: "quicker.source-bundle.v2" }) },
+      { name: "kind", identity: sourceIdentity({ kind: "subprogram" }) },
+      { name: "id", identity: sourceIdentity({ actionId: "not-an-action-guid" }) },
+      { name: "id-type", identity: sourceIdentity({ actionId: 123 }) },
+      { name: "title-type", identity: sourceIdentity({ title: { title: "not a title string" } }) },
+      { name: "array", identity: "[]" },
+      { name: "malformed", identity: "{" },
+      { name: "missing-identity", missingIdentity: true },
+      { name: "missing-yaml", missingYaml: true },
+      { name: "yaml-directory", yamlDirectory: true },
+      { name: "identity-directory", identityDirectory: true },
+    ];
+    for (const fixture of cases) {
+      const project = join(root, ".quicker", "actions", fixture.name);
+      await mkdir(project, { recursive: true });
+      await writeFile(join(project, "info.json"), JSON.stringify({ id: legacyActionId, title: `Legacy ${fixture.name}` }), "utf8");
+      if (fixture.yamlDirectory) await mkdir(join(project, "program.source.yaml"));
+      else if (!fixture.missingYaml) await writeFile(join(project, "program.source.yaml"), "steps: []\n", "utf8");
+      if (fixture.identityDirectory) await mkdir(join(project, "quicker.source.json"));
+      else if (!fixture.missingIdentity) await writeFile(join(project, "quicker.source.json"), fixture.identity ?? sourceIdentity(), "utf8");
+    }
+
+    await runWithQkrpcCwdAsync(root, async () => {
+      const { loadActionProjectMeta } = await import("./action-explorer-server.ts");
+      const projects = await loadActionProjectMeta();
+      assert.equal(projects.length, cases.length);
+      for (const fixture of cases) {
+        const row = projects.find(project => project.dirName === fixture.name)!;
+        assert.ok(row, fixture.name);
+        assert.equal(row.entryPath, undefined, fixture.name);
+        assert.equal(row.actionId, legacyActionId, fixture.name);
+        assert.equal(row.title, `Legacy ${fixture.name}`, fixture.name);
+      }
+    });
+  });
+});
+
+test("a valid source identity without a title does not borrow a legacy title or infer its action ID from the folder", async () => {
+  await withSourceExplorerFixture(async root => {
+    const project = join(root, ".quicker", "actions", legacyActionId);
+    await mkdir(project, { recursive: true });
+    await writeFile(join(project, "info.json"), JSON.stringify({ id: legacyActionId, title: "Must not leak into source title" }), "utf8");
+    await writeFile(join(project, "program.source.yaml"), "steps: []\n", "utf8");
+    await writeFile(join(project, "quicker.source.json"), sourceIdentity({ title: null }), "utf8");
+
+    await runWithQkrpcCwdAsync(root, async () => {
+      const { loadActionProjectMeta } = await import("./action-explorer-server.ts");
+      const [row] = await loadActionProjectMeta();
+      assert.equal(row?.actionId, sourceActionId);
+      assert.equal(row?.title, undefined);
+      assert.equal(row?.entryPath, `.quicker/actions/${legacyActionId}/program.source.yaml`);
+    });
+  });
+});
 
 test("buildActionExplorerTreeRoots returns project folders without file children", async () => {
   const root = join(tmpdir(), `qkrpc-explorer-roots-${Date.now()}`);
@@ -37,7 +164,7 @@ test("buildActionExplorerTreeRoots returns project folders without file children
       if (!roots.ok) return;
       assert.equal(roots.tree.children.length, 1);
       assert.equal(roots.tree.children[0]?.title, "截图OCR");
-      assert.equal(roots.tree.children[0]?.children, undefined);
+      assert.equal(roots.tree.children[0]?.children?.length ?? 0, 0);
 
       const full = await buildActionExplorerTree();
       assert.equal(full.ok, true);
