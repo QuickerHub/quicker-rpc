@@ -7,8 +7,8 @@
 主流 coding agent 的上下文模型很简单：
 
 1. **完整 messages** — 每轮把 UI 消息（含 tool call / tool result）转成 model messages 送入 LLM。
-2. **静态 system** — 角色、能力、工具族说明；不重复工具 schema。
-3. **可选 @-pin** — 仅当用户最新消息里 `@` 了动作时，在 system 追加一行 id 提示（不锁定、不拦截工具）。
+2. **System 与当前目录** — 角色和工作流参考加本轮最终工具目录；可用能力以当前定义和执行门禁为准，不从静态工具族补回。
+3. **明确目标** — 消息中的动作 pin、Designer embed 与 live 文档范围分别提供目标上下文；普通动作提示不授予权限，live 操作还须遵守该轮冻结的文档授权和工具选择。
 4. **窗口快满才压缩** — token 用量 ≥ **90%**（有 provider usage 时）或估算 ≥ **92%** 时，按 **token 预算**（约 45% 窗口 − 4K headroom）保留近端完整 messages，对更早轮次做 structured LLM 摘要进 `systemSuffix`；旧 round 的大 tool 输出可先 **microcompact**。若 provider 仍返回 context length / prompt too long，服务端 **reactive compact** 最多重试 1 次（`force: true`）。不做 `pruneMessages` 式无条件裁剪。
 
 动作 id 以对话历史中的 tool 结果为准（如 `qkrpc_action_create` 返回的 `actionId`），不靠线程级状态机或本地 project 列表注入。
@@ -19,32 +19,20 @@
 
 一次 `/api/chat` 请求的最终 **`system`** 由多块拼接；**`messages`** 经用户消息展开与（可选）上下文压缩后送入模型。工具参数细节在各自 **`tool.description` / `inputSchema`** 中，不在 system 里重复。
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ system（按顺序 join "\n\n"，空块跳过）                        │
-├─────────────────────────────────────────────────────────────┤
-│ 1. [可选] title-test 模式声明                                │
-│ 2. buildSystemInstructions(cwd, chatMode)                   │
-│    ├─ Agent: SYSTEM_INSTRUCTIONS                              │
-│    │     + Preloaded skills (essentials: tier0/tier2 摘录)    │
-│    │     + Available skills catalog                         │
-│    │     + Workspace rules (compact) + Subagents catalog    │
-│    │     + ## cwd                                           │
-│    └─ Launcher: LAUNCHER_SYSTEM_INSTRUCTIONS                │
-│ 2b. [Agent] Intent-matched pattern skills (this turn)         │
-│     formatIntentMatchedSkillsForPrompt — 编写意图 keyword 匹配 │
-│ 3. formatActionScopeForSystem(actionScope)  ← 仅用户 @ 动作   │
-│ 4. buildLauncherCommandCachePromptBlock     ← 仅 launcher     │
-│ 5. buildThreadTitleAgentInstruction         ← 仅 agent 首条   │
-│ 6. preparedContext.systemSuffix             ← 长对话压缩摘要  │
-└─────────────────────────────────────────────────────────────┘
+`prepareAgentTurnRuntime` 先完成工具选择、MCP/live 组合、模式门禁和调用策略，再绑定
+当前目录并生成唯一 TurnPlan。模型 schema 精简保留这些实际定义的说明；目录不会恢复
+已被移除的工具。随后生成的 system 按下列顺序拼接，空块跳过：
 
-messages ← prepareCompressedContext(modelMessages)
-         ← expandUserMessageForModel（user 文本内 tag → <qka>）
-tools    ← pickChatTools(quickerTools, enabledTools, …)
-```
+1. 可选 title-test 与 benchmark 声明。
+2. `buildSystemInstructions(cwd, mode, toolCatalog)`：Agent/Ask/Launcher 基座、当前工具目录、适用的 skill/工作区参考和 cwd；子代理说明须有当前 task 工具。
+3. 意图匹配 skill、可用的开发检查指引、动作 scope。
+4. Designer embed、可用的 Launcher cache、可用的标题工具指引。
+5. `preparedContext.systemSuffix` 压缩摘要。
+6. 当前 MCP 工具/provider 指引和 live 文档范围或不可用说明。
 
-组装入口：`agent-gui/app/api/chat/route.ts` → `buildSystemInstructions`（`lib/instructions.ts`）。
+请求与消息准备由 `agent-harness/turn-request.server.ts` 负责；system 组合入口是
+`agent-harness/turn-runtime.server.ts` → `agent-turn-runtime.ts` → `instructions.ts` /
+`agent-system-prompt.ts`。HTTP route 仅接入同一 Agent handler，Next 和独立服务复用该链。
 
 ---
 
@@ -53,6 +41,7 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 | 模式 | 常量 | 源文件 | 用途 |
 |------|------|--------|------|
 | **Agent**（默认） | `SYSTEM_INSTRUCTIONS` | `agent-gui/lib/instructions.ts` | 通用助手：Role、Communication、Runtime、Capabilities、Skills 路由 |
+| **Ask** | `ASK_SYSTEM_INSTRUCTIONS` | 同上 | 只读模式说明与当前允许的读取端口 |
 | **Launcher** | `LAUNCHER_SYSTEM_INSTRUCTIONS` | 同上 | 全局快捷键轻量面：快速执行、短回复、工具子集 |
 
 模式由请求体 `chatMode` 决定（`agent-gui/lib/chat-mode.ts`）。
@@ -64,7 +53,7 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 | Role | Quicker 桌面 + 本机环境；先匹配意图再选工具 |
 | Communication | 用户语言（默认中文）；不对用户暴露工具名/CLI/JSON |
 | Runtime | qkrpc serve；侧栏 cwd = shell / qkrpc / workspace 根；`<qka id="uuid">` |
-| Capabilities | 按域列出工具族（run、settings、local、layout、safety、dev UI） |
+| Workflow reference | 工作流和工具族仅为参考；最终工具目录、模式和实际执行端口决定本轮可用范围 |
 | Skills | action authoring essentials 预加载；`skill_load` 按精确名称分页深读 |
 
 ### Launcher 基座差异
@@ -72,7 +61,7 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 - 更短、强调「立即执行 + 一句结果」
 - **Out of scope**：`workspace_program`、`qkrpc_step_runner_*`、`dev_frontend_check`、`llm_settings` 等多步编写
 - 含 `ACTION_LINK_SUMMARY_PROMPT`（patch 后摘要规则）
-- 工具集固定为 `LAUNCHER_TOOL_IDS`（`chat-mode.ts`），最多 12 步
+- 默认工具由 `LAUNCHER_TOOL_IDS`（`chat-mode.ts`）给出，再与用户勾选、命令限制求交；最多 12 步
 
 完整产品/架构说明见 [agent-gui-launcher.md](agent-gui-launcher.md)（双窗桥接、cache/resolve 直连、持久化边界）。
 
@@ -112,9 +101,9 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 | 块 | 条件 | 生成函数 | 内容 |
 |----|------|----------|------|
 | **cwd** | 有效工作目录已解析 | `buildSystemInstructions` | `## cwd` + `qkrpc cwd: {path}` |
-| **Action scope** | 最新消息含 `@` 动作 | `formatActionScopeForSystem` | 用户 pin 的动作 id（可选提示） |
-| **Launcher cache** | `chatMode === launcher` 且命中缓存 | `buildLauncherCommandCachePromptBlock` | 相似历史指令与步骤，供复用 |
-| **Thread title** | Agent 首条用户消息且未手动标题 | `buildThreadTitleAgentInstruction` | 要求调用隐藏工具 `set_thread_title` |
+| **Action scope** | 消息 pin 或显式 Designer 上下文形成目标 | `formatActionScopeForSystem` | 本轮动作目标提示，不扩大工具权限 |
+| **Launcher cache** | Launcher 且最终目录有 `launcher_command_cache` | `buildLauncherCommandCachePromptBlock` | 相似历史指令与步骤，供复用 |
+| **Thread title** | 非 Launcher，最终目录有 `set_thread_title`，且标题条件满足 | `buildThreadTitleAgentInstruction` | 调用当前可用的标题工具；显式空集合时不加入指引 |
 | **Context compression** | 接近 context 上限（~90% usage）且存在可摘要旧切片 | `prepareCompressedContext` → `systemSuffix` | token 预算内近端完整 messages + 旧轮 structured 摘要；可选 microcompact；压缩后 reinject 最近 patch 文件；provider 拒收时 reactive 重试 |
 
 工作目录解析：`resolveEffectiveWorkingDirectory()`（侧栏设置 → 否则服务端默认：dev 为 repo 根，发布为 `Documents/QuickerAgent/workspace`）。
@@ -137,6 +126,12 @@ Action scope 与 user tag 共用 `<qka>` 解析（`lib/action-scope.ts`）。
 
 System 投影本轮最终可执行工具及其操作限制；具体参数、枚举、示例来自当前 SDK 定义的
 `description` / `inputSchema`。静态工具族和工作流文档不增加当前权限。
+
+动作/子程序 get、workspace 与动作 open 的 `operationPolicy.operationFacts` 描述当前端口
+可能的宿主修改、本地持久写、bootstrap、导出/修补和后台诊断。`approval` 只观察当前
+`needsApproval` 定义，动态回调标为 runtime，不提前调用。未知端口保持 unknown；这些事实
+既不授权也不证明操作发生。`TurnPlan.proposedOperation` 使用同一输入相关定义，避免将
+可能写入的兼容读取恢复步骤当纯读。完整边界见[Agent 架构](agent-architecture.md)。
 
 | 类别 | 代表模块 |
 |------|----------|
@@ -187,7 +182,7 @@ CLI 消费者：`qkrpc guide get` 读 `docs/action-authoring/cli/`（同 manifes
 
 | 模式 | 触发 | System 差异 |
 |------|------|-------------|
-| **title-test** | `/tool-test` `titleTestOnly` | 仅 `set_thread_title` 工具 + `buildTitleTestChatInstruction` |
+| **title-test** | `/tool-test` `titleTestOnly` | 当前允许标题工具时加入 `buildTitleTestChatInstruction`；不绕过显式空集合 |
 | **contextCompressionForce** | tool-test dev | 强制压缩（非 production） |
 | **Launcher direct** | cache/resolve 命中 | 可能短路 stream，不经过完整 system 栈 |
 
@@ -198,7 +193,11 @@ CLI 消费者：`qkrpc guide get` 读 `docs/action-authoring/cli/`（同 manifes
 | 路径 | 职责 |
 |------|------|
 | `agent-gui/lib/instructions.ts` | System 基座 + `buildSystemInstructions` |
-| `agent-gui/app/api/chat/route.ts` | 最终 system/messages/tools 组装 |
+| `agent-gui/app/api/chat/route.ts` | HTTP 入口，委托公共 Agent handler |
+| `agent-gui/lib/agent-harness/turn-runtime.server.ts` | 最终工具、唯一计划、压缩上下文与 system 组合 |
+| `agent-gui/lib/agent-turn-runtime.ts` | 条件化 system builder |
+| `agent-gui/lib/tool-catalog-system-prompt.ts` | 当前定义、模式/操作事实与审批描述 |
+| `agent-gui/lib/program-tool-operation-facts.ts` | 已建模程序端口的可能副作用；不授予权限 |
 | `agent-gui/lib/action-authoring-docs.ts` | tier0 + topic index 注入 |
 | `agent-gui/lib/action-scope.ts` | 动作上下文 system 块 |
 | `agent-gui/lib/context-compression.ts` | 长对话摘要 suffix |

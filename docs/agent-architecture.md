@@ -803,7 +803,22 @@ runtime 在最终工具交集、模式门禁与调用策略组合后只解析一
 可读本地数据，但 diagnostics 仍不可执行。历史反馈要求的步骤若不在最终工具集，或其操作
 被当前模式拒绝，保留未满足要求及 `blockedNextAction` 原因，移除可执行 `nextAction`，
 恢复与验证转为 `ask_user`。runtime snapshot 投影这份计划，不重新从历史选出被拒绝的步骤。
-这不证明未知外部工具的副作用或 wrapper 操作描述已全部统一。
+对于动作/子程序 get、`workspace_program` 和动作 open，`program-tool-operation-facts.ts`
+统一描述当前执行端口的可能副作用。实际 wrapper、模式门禁、目录/system 和 `TurnPlan`
+消费同一份定义；它不是 Quicker 版本知识、权限授予或操作已完成的证明。
+
+| 端口 | 宿主程序修改 | 本地持久写与其它副作用 |
+|---|---|---|
+| Ask get / 已有连接 | 无 | 重建限定 CLI 参数并禁用 bootstrap；不自动导出 |
+| Agent/Launcher 兼容 get | 无 | 可能启动连接并 extract/export 到工作区 |
+| Ask workspace / 已有本地正文 | 无 | 只读；缺正文不补空、导出或修补元数据 |
+| Agent workspace | patch 可能修改 | 正文/文件读取可能导出或补空；子程序列表可能修补元数据；磁盘修改可能排入后台 lint。summary 与仅动作列表保留纯读事实 |
+| action open / source bundle | 无 | 可能启动连接并写本地 bundle；未知收据不重放 |
+
+`TurnPlan.proposedOperation` 保留候选输入的事实，包括被阻塞的要求；只有候选可执行且
+原风险为 read 时，可能持久写或 bootstrap 才提升为 write。仍须通过原工具选择、模式、
+父级限制和审批。目录的 `approval` 从当前定义读取 boolean/runtime/unknown，不调用审批
+函数来猜结果。renderer-live、未建模操作及外部工具的副作用保持 unknown，不套用磁盘事实。
 
 invoke 的持久化事实由纯 `qkrpc-operation-effects.ts` 定义：宿主修改与本地文件持久写
 分别描述。宿主绑定仍只消费前者；HTTP/CLI 的未知收据、transport fallback 和工具重试
@@ -811,8 +826,8 @@ invoke 的持久化事实由纯 `qkrpc-operation-effects.ts` 定义：宿主修�
 缺少确认后不能当纯读重放。未知操作保守处理，只有显式 dry-run 保留离线语义。
 CLI 只有确定启动失败才说明命令未开始；缺少 spawn 事件不能反推未派发。结构化
 `WRITE_RESULT_UNKNOWN` 不再被 stderr 重新归类为连接失败或丢失为自动恢复建议。
-这些事实只覆盖 invoke，不替代工具模式权限或包含 wrapper 后续的工作区 augmentation；
-bootstrap、父子权限与 TurnPlan 的完整统一仍继续迁移。
+这些事实仍只覆盖 invoke，绑定与 transport 的既有消费范围不扩大。完整 wrapper 的可能
+副作用由上述端口事实补充；未知 wrapper、外部工具和其它执行约束继续单独审计。
 
 Ask 的动作/子程序 get 使用显式读取执行端口，绕开兼容 get 的自动导出，并重建限定命令，
 只通过 CLI `--no-bootstrap` 连接现有宿主；不进入可能自启动的 HTTP pool，不重试或转走
