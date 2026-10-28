@@ -3,6 +3,8 @@
 import {
   LAUNCHER_TOOL_IDS,
   defaultLauncherToolIds,
+  resolveEnabledToolsForChatMode,
+  type ChatMode,
 } from "@/lib/chat-mode";
 import { filterDevOnlyToolIds } from "@/lib/dev-agent-tools";
 
@@ -34,6 +36,8 @@ export type ToolMeta = {
   description?: string;
   /** Hidden from ToolSelector but tracked in registry / coverage. */
   pickerHidden?: boolean;
+  /** UI wording for the existing Ask read port; does not grant capabilities. */
+  askPresentation?: { label: string; description: string };
 };
 
 export const TOOL_GROUP_LABELS: Record<ToolGroupId, string> = {
@@ -172,6 +176,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     group: "read",
     category: "workspace",
     description: "编辑 .quicker 程序体：data.json/files → patch；改动在侧栏已改动可见",
+    askPresentation: { label: "读取工作区程序", description: "只读取已有本地程序，不自动导出、补建文件或修改内容" },
   },
   {
     id: "Read",
@@ -210,6 +215,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   },
   {
     id: "qkrpc_action_get",
+    askPresentation: { label: "读取动作", description: "读取已连接宿主，不自动导出本地工作区或启动 Quicker" },
     label: "同步动作",
     group: "write",
     category: "action",
@@ -336,6 +342,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   },
   {
     id: "qkrpc_subprogram_get",
+    askPresentation: { label: "读取子程序", description: "读取已连接宿主，不自动导出本地工作区或启动 Quicker" },
     label: "同步子程序",
     group: "write",
     category: "subprogram",
@@ -438,8 +445,10 @@ export function toolsInCategory(group: ToolGroupId, category: ToolCategoryId): T
 }
 
 /** Tools shown in the chat tool picker (excludes internal chat-only tools). */
-export function pickerVisibleTools(): ToolMeta[] {
-  return QKRPC_TOOL_REGISTRY.filter((t) => !t.pickerHidden);
+export function pickerVisibleTools(mode?: ChatMode): ToolMeta[] {
+  const allowed = mode ? new Set(resolveEnabledToolsForChatMode(mode, undefined, defaultEnabledToolIds)) : undefined;
+  return QKRPC_TOOL_REGISTRY.filter((t) => !t.pickerHidden && (!allowed || allowed.has(t.id))).map(tool => mode === "ask"
+    ? { ...tool, ...tool.askPresentation, group: "read" } : tool);
 }
 
 export const ALL_QKRPC_TOOL_IDS = QKRPC_TOOL_REGISTRY.map((t) => t.id);

@@ -33,7 +33,7 @@ import {
 import type { ResolvedAgentTurnRequest } from "@/lib/agent-harness/turn-request.server";
 import { applyToolCallPolicies } from "@/lib/agent-tool-policy";
 import { loadConfiguredMcpTools } from "@/lib/agent-mcp/load.server";
-import { restrictComposedTools } from "@/lib/chat-tool-selection";
+import { resolveTurnToolAllowlist, restrictComposedTools } from "@/lib/chat-tool-selection";
 import { createTaskToolForParent, TASK_TOOL } from "@/lib/task-tool.server";
 import { applyToolModeGuards, type ReadOnlyToolExecutors } from "@/lib/agent-tool-mode-guard";
 import { executeQkrpcActionGetReadOnly } from "@/lib/qkrpc-action-tool.server";
@@ -67,9 +67,10 @@ export async function resolveAgentTurnScope(
   let designerEmbedBlock: string | undefined;
 
   if (request.actionDesigner && request.chatMode !== CHAT_MODE_LAUNCHER) {
-    // The current remote context adapter may bootstrap Quicker. Keep the local
-    // embed target, but do not request live window state in Ask mode.
-    const designerSnapshot = request.chatMode === "ask"
+    // Keep the explicit local target without bootstrapping an unavailable capability.
+    const localContextOnly = request.chatMode === "ask"
+      || resolveTurnToolAllowlist(request.body.enabledTools, request.slashCommand.overrides.toolAllowlist)?.length === 0;
+    const designerSnapshot = localContextOnly
       ? { ok: false, designers: [] }
       : await readDesignerContext(false);
     abortSignal?.throwIfAborted();
@@ -84,6 +85,8 @@ export async function resolveAgentTurnScope(
     ) || undefined;
     if (request.chatMode === "ask") {
       designerEmbedBlock += "\n- Ask 模式未请求远端设计器上下文；当前标题与选中步骤不可用。仅使用消息中明确提供的程序范围。";
+    } else if (localContextOnly) {
+      designerEmbedBlock += "\n- 本轮工具已禁用，未请求远端设计器上下文；仅使用消息中明确提供的程序范围。";
     }
     actionScope = mergeDesignerDefaultActionScope(
       actionScope,
@@ -120,20 +123,21 @@ export async function prepareAgentTurnRuntime(params: {
   const { request, scope, model, modelId, abortSignal } = params;
   const liveSelection = request.liveProgramDocument ?? { state: "none" as const };
   const liveIntent = liveSelection.state !== "none";
+  const turnToolAllowlist = resolveTurnToolAllowlist(request.body.enabledTools, request.slashCommand.overrides.toolAllowlist);
+  const toolsDisabled = turnToolAllowlist?.length === 0;
   abortSignal?.throwIfAborted();
-  const staticTools = selectChatTools({
+  const staticTools = toolsDisabled ? {} : selectChatTools({
     chatMode: request.chatMode,
     enabledToolIds: request.enabledToolIds,
     titleTest: request.titleTest,
     benchMode: request.benchMode,
   });
-  // A command with no possible MCP id cannot use any external transport.
-  const commandToolAllowlist = request.slashCommand.overrides.toolAllowlist;
+  // A final restriction with no possible MCP id cannot acquire an external transport.
   const shouldLoadMcp = !request.titleTest
     && !liveIntent
     && !request.benchMode
     && request.chatMode !== CHAT_MODE_LAUNCHER
-    && (commandToolAllowlist === undefined || commandToolAllowlist.some(isNamespacedMcpToolId));
+    && (turnToolAllowlist === undefined || turnToolAllowlist.some(isNamespacedMcpToolId));
   const mcp = shouldLoadMcp
     ? await loadConfiguredMcpTools(request.cwd, { chatMode: request.chatMode, abortSignal })
     : {
@@ -150,7 +154,7 @@ export async function prepareAgentTurnRuntime(params: {
         liveSelection.state === "ready" ? liveSelection.scope.scopeId : "unavailable"));
     const composedTools = restrictComposedTools(
       liveComposition.tools,
-      request.slashCommand.overrides.toolAllowlist,
+      turnToolAllowlist,
     );
     const readOnlyExecutors: ReadOnlyToolExecutors = {
       ...(liveIntent ? {} : { workspace_program: (input: unknown) => executeWorkspaceProgramReadOnly(input as Parameters<typeof executeWorkspaceProgramReadOnly>[0]) }),
@@ -234,7 +238,7 @@ export async function prepareAgentTurnRuntime(params: {
       repairedMessages: request.repairedMessages,
       slashCommandName: request.slashCommand.commandName,
       titleManual: request.body.titleManual === true,
-      titleTest: request.titleTest,
+      titleTest: request.titleTest && !toolsDisabled,
       benchMode: request.benchMode,
     });
     abortSignal?.throwIfAborted();
@@ -256,7 +260,9 @@ export async function prepareAgentTurnRuntime(params: {
     const mcpSystemBlock = [mcpSystemLines.join("\n"),
       formatMcpGuidanceForTools("catalogs" in mcp ? mcp.catalogs : [], enabledRuntimeToolIds)]
       .filter(Boolean).join("\n\n");
-    const liveSystemBlock = !liveIntent ? "" : liveSelection.state === "ready"
+    const liveSystemBlock = !liveIntent ? "" : !fullTools.workspace_program
+      ? "## Live Designer document\nThe original pin remains the target, but workspace_program is unavailable in this turn. Do not edit it or substitute disk/native authoring."
+      : liveSelection.state === "ready"
       ? `## Live Designer document\nThis manual user turn targets the original pinned live document ${liveSelection.scope.target.identity.documentKey}. Retain scopeId ${liveSelection.scope.scopeId}. The visible file or cwd may change during automatic continuation; never substitute it. ${describeLiveProgramDocumentOperations(liveSelection.scope.mode)} Disk/native authoring, Shell and external MCP are unavailable in this scope.`
       : `## Live Designer document unavailable\n${liveSelection.state === "unavailable" ? liveSelection.error : "The target is unavailable."}\nDo not substitute legacy disk or native editing. Report this scope failure and request a fresh step pin if the user wants live editing.`;
     const buildSystemForPreparedContext = (context: PreparedChatContext) =>

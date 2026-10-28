@@ -135,7 +135,8 @@ Action scope 与 user tag 共用 `<qka>` 解析（`lib/action-scope.ts`）。
 
 ## 5. 工具描述 = Prompt 延伸
 
-System 只列 **工具族**；具体参数、枚举、示例在 **`lib/*-tool*.ts`** 的 `tool({ description, inputSchema })` 中。
+System 投影本轮最终可执行工具及其操作限制；具体参数、枚举、示例来自当前 SDK 定义的
+`description` / `inputSchema`。静态工具族和工作流文档不增加当前权限。
 
 | 类别 | 代表模块 |
 |------|----------|
@@ -146,7 +147,10 @@ System 只列 **工具族**；具体参数、枚举、示例在 **`lib/*-tool*.t
 | 本地 | `shell-tool.ts`, `browser-tool.server.ts` |
 | Launcher | `launcher-resolve-tool`, `launcher-command-cache-tool` |
 
-UI 工具勾选 → `enabledTools` → `pickChatTools`；Launcher 忽略勾选，用固定列表。
+UI 原始工具勾选 → HTTP `enabledTools` → 服务端模式交集 → 内部/MCP/live 组合与最终命令限制。
+Ask 和 Launcher 同样遵守显式勾选；缺省使用各模式默认值，原始 `[]` 禁用本轮所有来源，
+包括启动器 direct 快捷路径。MCP-only 命令的内置交集为空不等于用户选择 `[]`。
+完整合同见[Agent 架构](agent-architecture.md)。
 
 ---
 

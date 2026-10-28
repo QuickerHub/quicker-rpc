@@ -65,6 +65,11 @@ test("production turn scope preserves local Ask context without requesting live 
     assert.equal(designerReads, 1);
     assert.match(agent.designerEmbedBlock ?? "", /Remote title/);
     assert.match(agent.designerEmbedBlock ?? "", /Remote selection/);
+    const disabled = await resolveAgentTurnScope({ ...request, chatMode: "agent",
+      body: { ...request.body, enabledTools: [] } }, undefined, undefined, read);
+    assert.equal(designerReads, 1, "Disabling tools must not bootstrap a host to enrich the turn scope");
+    assert.equal(disabled.actionScope.pinnedLatest?.id, id);
+    assert.doesNotMatch(disabled.designerEmbedBlock ?? "", /Remote title|remote-step/);
     const launcher = await resolveAgentTurnScope({ ...request, chatMode: "launcher" }, undefined, undefined, read);
     assert.equal(designerReads, 1);
     assert.equal(launcher.designerEmbedBlock, undefined);

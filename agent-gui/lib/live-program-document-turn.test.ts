@@ -96,6 +96,29 @@ test("live turn body freezes cwd/mode/tool selection; a stale SDK scope ID canno
   assert.ok(current.state === "ready" && current.scope.mode === "read");
 });
 
+test("a live pin cannot grant a client operation excluded by the frozen tool choice or mode", async () => {
+  for (const row of [
+    { mode: "agent" as const, tools: [] },
+    { mode: "ask" as const, tools: ["Write"] },
+    { mode: "launcher" as const, tools: ["workspace_program"] },
+  ]) {
+    const f = fixture(); f.pin();
+    const body = f.turn.begin({ userMessageId: "restricted", text: formatProgramStepTagMarkup(f.tag),
+      cwd: f.cwd, chatMode: row.mode, enabledTools: row.tools })!;
+    assert.equal(body.liveProgramDocument.state, "ready");
+    if (body.liveProgramDocument.state !== "ready") throw Error("Expected a real owned pin");
+    const scopeId = body.liveProgramDocument.scope.scopeId;
+    const read = await f.turn.executeAsync("blocked-read", { scopeId, action: "read_live", stepSchemaFor: "step-one" });
+    const edit = f.turn.execute("blocked-edit", { scopeId, action: "edit_live", readOperationId: "blocked-read",
+      expectedRevision: 3, stepId: "step-one", note: "must not change" });
+    assert.equal(read.ok, false); assert.equal(edit.ok, false);
+    assert.equal((read.data as any).code, "LIVE_DOCUMENT_TOOL_DISABLED");
+    assert.equal((edit.data as any).code, "LIVE_DOCUMENT_TOOL_DISABLED");
+    assert.equal(f.stats().executions, 0);
+    assert.equal(f.turn.getResult("blocked-edit"), undefined);
+  }
+});
+
 test("stop before dispatch cannot edit; an applied receipt survives repair without claiming persistence or reloading disk", () => {
   const f = fixture(); f.pin(); f.begin(); f.turn.stop();
   assert.equal(f.turn.execute("stopped", { scopeId: "scope-user-one", action: "read_live" }).ok, false);

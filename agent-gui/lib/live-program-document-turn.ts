@@ -1,4 +1,4 @@
-import type { ChatMode } from "./chat-mode";
+import { resolveEnabledToolsForChatMode, type ChatMode } from "./chat-mode";
 import { findProgramStepTagMarkupHits } from "./program-step-tag";
 import { findProgramVariableTagMarkupHits } from "./program-variable-tag";
 import type { LiveProgramDocumentPin, LiveProgramDocumentRegistry, LiveProgramDocumentRegistryFailure, LiveProgramDocumentSelection, LiveProgramDocumentReceipt } from "./live-program-document";
@@ -46,6 +46,9 @@ export function createLiveProgramDocumentTurn(options: {
     if (!selected || selected.state !== "ready" || !owner) {
       return fail(selected?.state === "unavailable" ? selected.code : "LIVE_DOCUMENT_UNAVAILABLE",
         selected?.state === "unavailable" ? selected.error : "没有本轮授权的实时文档，未使用磁盘回退。");
+    }
+    if (!resolveEnabledToolsForChatMode(body!.chatMode, [...body!.enabledTools], () => []).includes("workspace_program")) {
+      return fail("LIVE_DOCUMENT_TOOL_DISABLED", "本轮工具选择或模式未开放实时文档操作，未读取或修改文档。");
     }
     if (input.scopeId !== selected.scope.scopeId) return fail("LIVE_DOCUMENT_SCOPE_CHANGED", "调用不属于原始消息的实时文档范围，未修改当前文档。");
     const previous = results.get(operationId);

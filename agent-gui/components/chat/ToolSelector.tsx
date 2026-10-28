@@ -1,7 +1,9 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
+import type { ChatMode } from "@/lib/chat-mode";
+import { clampBoxToViewport } from "@/lib/floating-menu-layout";
 import {
   defaultEnabledToolIds,
   pickerVisibleTools,
@@ -10,12 +12,12 @@ import {
   TOOL_CATEGORY_LABELS,
   TOOL_CATEGORY_ORDER_BY_GROUP,
   TOOL_GROUP_LABELS,
-  toolsInCategory,
   type ToolCategoryId,
   type ToolGroupId,
 } from "@/lib/tool-registry";
 
 type ToolSelectorProps = {
+  chatMode?: ChatMode;
   enabledTools: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
@@ -28,19 +30,39 @@ function countEnabledInSet(ids: string[], enabledSet: Set<string>): number {
 }
 
 export const ToolSelector = memo(function ToolSelector({
+  chatMode = "agent",
   enabledTools,
   onChange,
   disabled,
 }: ToolSelectorProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useMountedAriaControlsId();
   const enabledSet = new Set(enabledTools);
-  const visibleTools = pickerVisibleTools();
+  const visibleTools = pickerVisibleTools(chatMode);
+  const visibleEnabledCount = countEnabledInSet(visibleTools.map(tool => tool.id), enabledSet);
   const writeOff = !GROUP_ORDER.slice(1).some((g) =>
     visibleTools.some((t) => t.group === g && enabledSet.has(t.id)),
   );
   const totalTools = visibleTools.length;
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const anchor = rootRef.current, panel = panelRef.current;
+    if (!anchor || !panel) return;
+    const update = () => {
+      const left = anchor.getBoundingClientRect().left;
+      const box = panel.getBoundingClientRect();
+      const bounded = clampBoxToViewport({ left, top: box.top, width: box.width, height: box.height });
+      panel.style.left = `${bounded.left - left}px`;
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(anchor); observer.observe(panel);
+    window.addEventListener("resize", update);
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -52,8 +74,8 @@ export const ToolSelector = memo(function ToolSelector({
   }, [open]);
 
   const applyIds = (next: Set<string>) => {
-    const ids = QKRPC_TOOL_REGISTRY.map((t) => t.id).filter((x) => next.has(x));
-    if (ids.length === 0) return;
+    const ids = visibleTools.some(tool => next.has(tool.id))
+      ? QKRPC_TOOL_REGISTRY.map((t) => t.id).filter((x) => next.has(x)) : [];
     onChange(ids);
     storeEnabledTools(ids);
   };
@@ -83,7 +105,7 @@ export const ToolSelector = memo(function ToolSelector({
 
   const setCategory = (group: ToolGroupId, category: ToolCategoryId, on: boolean) => {
     setTools(
-      toolsInCategory(group, category).map((t) => t.id),
+      visibleTools.filter(tool => tool.group === group && tool.category === category).map(tool => tool.id),
       on,
     );
   };
@@ -103,14 +125,15 @@ export const ToolSelector = memo(function ToolSelector({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        title="选择 Agent 可调用的 qkrpc 工具"
+        title="选择当前会话的内置工具；模式与命令仍会限制实际能力"
       >
         工具
-        <span className="tool-selector-count">{enabledTools.length}</span>
+        <span className="tool-selector-count">{visibleEnabledCount}</span>
       </button>
 
       {open && (
         <div
+          ref={panelRef}
           id={panelId}
           className="composer-popup tool-selector-panel"
           role="dialog"
@@ -118,9 +141,9 @@ export const ToolSelector = memo(function ToolSelector({
         >
           <div className="tool-selector-header">
             <div className="tool-selector-header-main">
-              <span>可用工具</span>
+              <span>内置工具</span>
               <span className="tool-selector-header-meta">
-                {enabledTools.length}/{totalTools} 已启用
+                {visibleEnabledCount}/{totalTools} 已选
               </span>
             </div>
             <button type="button" className="tool-selector-link" onClick={resetAll}>
@@ -128,13 +151,19 @@ export const ToolSelector = memo(function ToolSelector({
             </button>
           </div>
 
+          <p className="tool-selector-header-meta">
+            {enabledTools.length === 0 ? "本轮全部工具已禁用，包括外部 MCP。"
+              : "仅调整当前会话。外部 MCP 按连接设置启用；关闭全部选项会禁用本轮所有工具。"}
+          </p>
+
           {GROUP_ORDER.map((group) => {
             const groupTools = visibleTools.filter((t) => t.group === group);
+            if (groupTools.length === 0) return null;
             const groupIds = groupTools.map((t) => t.id);
             const groupEnabled = countEnabledInSet(groupIds, enabledSet);
             const allOn = groupEnabled === groupIds.length;
             const categories = TOOL_CATEGORY_ORDER_BY_GROUP[group].filter(
-              (category) => toolsInCategory(group, category).length > 0,
+              (category) => groupTools.some(tool => tool.category === category),
             );
 
             return (
@@ -163,7 +192,7 @@ export const ToolSelector = memo(function ToolSelector({
                 </div>
 
                 {categories.map((category) => {
-                  const items = toolsInCategory(group, category);
+                  const items = groupTools.filter(tool => tool.category === category);
                   const itemIds = items.map((t) => t.id);
                   const categoryEnabled = countEnabledInSet(itemIds, enabledSet);
                   const categoryAllOn = categoryEnabled === itemIds.length;

@@ -110,20 +110,14 @@ export function maxStepsForChatMode(mode: ChatMode): number {
   return AGENT_MAX_STEPS;
 }
 
-/** Resolve tool ids sent to /api/chat for the active chat mode. */
+/** Narrow explicit built-in choices; only an absent choice uses mode defaults. */
 export function resolveEnabledToolsForChatMode(
   mode: ChatMode,
   enabledTools: string[] | undefined,
   fallbackEnabledTools: () => string[],
 ): string[] {
-  if (mode === CHAT_MODE_LAUNCHER) {
-    return defaultLauncherToolIds();
-  }
-  if (mode === CHAT_MODE_ASK) {
-    return defaultAskToolIds();
-  }
-  if (enabledTools !== undefined) {
-    return enabledTools;
-  }
-  return fallbackEnabledTools();
+  const modeIds = mode === CHAT_MODE_LAUNCHER ? defaultLauncherToolIds()
+    : mode === CHAT_MODE_ASK ? defaultAskToolIds() : undefined;
+  if (enabledTools === undefined) return modeIds ?? fallbackEnabledTools();
+  return modeIds ? enabledTools.filter(id => modeIds.includes(id)) : enabledTools;
 }

@@ -21,8 +21,6 @@ import { isChatStoreHydrated } from "@/lib/use-chat-store";
 import { replaceChatMessagesIfCurrent } from "@/lib/chat-message-edit-branch";
 import { createLiveProgramDocumentTurn } from "@/lib/live-program-document-turn";
 import type { LiveProgramDocumentRegistry, LiveProgramDocumentPin, LiveProgramDocumentRegistryFailure } from "@/lib/live-program-document";
-import { resolveEnabledToolsForChatMode } from "@/lib/chat-mode";
-import { loadStoredEnabledTools } from "@/lib/tool-registry";
 
 const CHAT_PERSIST_DEBOUNCE_MS = 400;
 const CHAT_PERSIST_MAX_INTERVAL_MS = 5000;
@@ -192,7 +190,7 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
       const text = "text" in payload ? payload.text ?? "" : "parts" in payload
         ? payload.parts?.filter((part) => part.type === "text").map((part) => part.text).join("\n") ?? "" : "";
       liveTurn.begin({ userMessageId: id, text, cwd: workingDirectoryRef.current.trim(), chatMode: chatModeRef.current,
-        enabledTools: resolveEnabledToolsForChatMode(chatModeRef.current, enabledToolsRef.current, loadStoredEnabledTools) });
+        enabledTools: enabledToolsRef.current });
       // The SDK's shorthand {text, files} branch discards a supplied id. Send
       // parts so the grant and the actual original user message share one ID.
       if ("text" in payload || "files" in payload) {

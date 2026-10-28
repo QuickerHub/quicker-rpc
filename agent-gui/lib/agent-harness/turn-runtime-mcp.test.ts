@@ -109,12 +109,12 @@ function fixture({ omitMcpDescription = false, childTools }: { omitMcpDescriptio
   });
   const prepare = (options: {
     mode?: ChatMode; allowlist?: string[]; titleTest?: boolean; benchMode?: boolean; abortSignal?: AbortSignal;
-    enabledToolIds?: string[]; messages?: AgentUIMessage[]; liveProgramDocument?: LiveProgramDocumentSelection;
+    enabledToolIds?: string[]; requestEnabledTools?: string[]; messages?: AgentUIMessage[]; liveProgramDocument?: LiveProgramDocumentSelection;
   } = {}): Promise<PreparedAgentTurnRuntime> => {
     const request = {
       chatMode: options.mode ?? "agent", enabledToolIds: options.enabledToolIds ?? ["Read"],
       titleTest: options.titleTest ?? false, benchMode: options.benchMode ?? false,
-      slashCommand: { overrides: { toolAllowlist: options.allowlist } }, body: {},
+      slashCommand: { overrides: { toolAllowlist: options.allowlist } }, body: { enabledTools: options.requestEnabledTools },
       messagesForModel: [], repairedMessages: options.messages ?? [], lastUserText: "hello", cwd: "fixture-only",
       liveProgramDocument: options.liveProgramDocument,
     };
@@ -172,6 +172,52 @@ test("empty command selection reaches the real model boundary without advertisin
     assert.doesNotMatch(system, /\*\*Core\*\* \(full schema every turn\):/);
     assert.match(system, /DOC_REFERENCE_ONLY: Write and qkrpc_action_save/);
   } finally { await runtime.dispose(); }
+});
+
+for (const mode of ["agent", "ask", "launcher"] as const) {
+  test(`${mode}: explicit HTTP empty selection disables internal and configured MCP tools at the SDK boundary`, async () => {
+    const run = fixture();
+    const runtime = await run.prepare({ mode, requestEnabledTools: [], enabledToolIds: [],
+      allowlist: ["Read", "list_tools", "mcp__fixture__read"] });
+    try {
+      const { system, call } = await captureModelBoundary(runtime);
+      assert.deepEqual(Object.keys(runtime.tools), []);
+      assert.equal(call.tools?.length ?? 0, 0);
+      assert.deepEqual(readPromptCatalog(system).tools, []);
+      assert.equal(run.probe.loads, 0);
+      assert.equal(run.probe.connections, 0);
+      assert.deepEqual(Array.from(run.probe.plans[0].enabledToolIds), []);
+    } finally { await runtime.dispose(); }
+    assert.equal(run.probe.disposals, 0);
+  });
+}
+
+test("an MCP-only command may have zero built-in IDs without meaning disable all", async () => {
+  const run = fixture();
+  const runtime = await run.prepare({ enabledToolIds: [], allowlist: ["mcp__fixture__read"] });
+  try {
+    await captureModelBoundary(runtime);
+    assert.deepEqual(Object.keys(runtime.tools), ["mcp__fixture__read"]);
+    assert.equal(run.probe.connections, 1);
+  } finally { await runtime.dispose(); }
+});
+
+test("explicit empty HTTP selection also wins over title-test and live document support", async () => {
+  for (const options of [
+    { titleTest: true },
+    { liveProgramDocument: { state: "unavailable" as const, code: "fixture", error: "No fixture pin", retryable: false as const } },
+  ]) {
+    const run = fixture();
+    const runtime = await run.prepare({ ...options, requestEnabledTools: [], enabledToolIds: ["workspace_program"] });
+    try {
+      const { system } = await captureModelBoundary(runtime);
+      assert.deepEqual(Object.keys(runtime.tools), []);
+      assert.deepEqual(readPromptCatalog(system).tools, []);
+      assert.equal(run.probe.connections, 0);
+      assert.doesNotMatch(system, /## Thread title \(first user message only\)/);
+      if (options.liveProgramDocument) assert.match(system, /workspace_program is unavailable in this turn/);
+    } finally { await runtime.dispose(); }
+  }
 });
 
 for (const selected of [["Read", "list_tools"], [], ["mcp__fixture__read", "list_tools"]]) {

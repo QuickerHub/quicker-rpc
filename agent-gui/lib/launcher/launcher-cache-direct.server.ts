@@ -32,7 +32,11 @@ async function toolStepNeedsApproval(
 
 export async function canDirectExecuteLauncherCacheEntry(
   entry: LauncherCommandCacheEntry,
+  enabledToolIds: readonly string[],
 ): Promise<boolean> {
+  // Reject the entire chain before approval inspection or executing its prefix.
+  const enabled = new Set(enabledToolIds);
+  if (entry.steps.some((step) => !enabled.has(step.toolName))) return false;
   for (const step of entry.steps) {
     if (await toolStepNeedsApproval(step.toolName, step.input)) {
       return false;
@@ -45,13 +49,15 @@ export async function tryRespondWithLauncherCacheDirect(params: {
   userText: string;
   repairedMessages: AgentUIMessage[];
   cwd?: string;
+  enabledToolIds: readonly string[];
 }): Promise<Response | null> {
+  if (params.enabledToolIds.length === 0) return null;
   const entry = findDirectLauncherCacheMatch(
     params.userText,
     loadLauncherCommandCache().entries,
   );
   if (!entry) return null;
-  if (!(await canDirectExecuteLauncherCacheEntry(entry))) return null;
+  if (!(await canDirectExecuteLauncherCacheEntry(entry, params.enabledToolIds))) return null;
 
   recordLauncherCommandCacheHits([entry.id]);
   return createLauncherCacheDirectStreamResponse({
@@ -61,7 +67,7 @@ export async function tryRespondWithLauncherCacheDirect(params: {
   });
 }
 
-export function createLauncherCacheDirectStreamResponse(params: {
+function createLauncherCacheDirectStreamResponse(params: {
   entry: LauncherCommandCacheEntry;
   originalMessages: AgentUIMessage[];
   cwd?: string;
