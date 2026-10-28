@@ -147,7 +147,11 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     approvalOwner.active = true;
     return () => { approvalOwner.active = false; };
   }, [approvalOwner]);
-  const respondToPendingApprovals = useCallback((expectedIds: string[], approved: boolean): boolean => {
+  const respondToPendingApprovals = useCallback((
+    expectedIds: string[],
+    approved: boolean,
+    validateCurrent?: (pending: ReturnType<typeof collectPendingApprovals>) => boolean,
+  ): boolean => {
     if (!approvalOwner.active || expectedIds.length === 0
       || new Set(expectedIds).size !== expectedIds.length
       || expectedIds.some(id => approvalOwner.claimed.has(id))) return false;
@@ -161,7 +165,8 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
       const lastPending = last?.role === "assistant" ? collectPendingApprovals([last]) : [];
       matches = pending.length === expectedIds.length && lastPending.length === expectedIds.length
         && new Set(lastPending.map(approval => approval.id)).size === expectedIds.length
-        && lastPending.every(approval => expectedIds.includes(approval.id));
+        && lastPending.every(approval => expectedIds.includes(approval.id))
+        && (!validateCurrent || validateCurrent(lastPending));
       return current;
     });
     if (!matches) return false;

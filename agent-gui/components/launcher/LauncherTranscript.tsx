@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
   resolveAgentActivity,
@@ -25,6 +25,7 @@ type LauncherTranscriptProps = {
   pendingApprovalCount: number;
   pendingApprovals: PendingToolApproval[];
   workspaceDeleteHits: WorkspaceDeleteProjectHit[];
+  workspaceDeleteSnapshotId?: string;
   pendingAskQuestionCount?: number;
   workingDirectory: string;
 };
@@ -37,19 +38,12 @@ export function LauncherTranscript({
   pendingApprovalCount,
   pendingApprovals,
   workspaceDeleteHits,
+  workspaceDeleteSnapshotId,
   pendingAskQuestionCount = 0,
   workingDirectory,
 }: LauncherTranscriptProps) {
-  const [deleteWorkspaceToo, setDeleteWorkspaceToo] = useState(false);
-
-  const pendingWorkspaceDeleteKey = useMemo(
-    () => workspaceDeleteHits.map((hit) => `${hit.kind}:${hit.id}`).join("\0"),
-    [workspaceDeleteHits],
-  );
-
-  useEffect(() => {
-    setDeleteWorkspaceToo(false);
-  }, [pendingWorkspaceDeleteKey]);
+  const [checkedDeleteSnapshotId, setCheckedDeleteSnapshotId] = useState<string>();
+  const deleteWorkspaceToo = !!workspaceDeleteSnapshotId && checkedDeleteSnapshotId === workspaceDeleteSnapshotId;
 
   const agentActivity = useMemo(
     () =>
@@ -123,9 +117,9 @@ export function LauncherTranscript({
             disabled={busy}
             workspaceHits={workspaceDeleteHits}
             deleteWorkspaceToo={deleteWorkspaceToo}
-            onDeleteWorkspaceTooChange={setDeleteWorkspaceToo}
+            onDeleteWorkspaceTooChange={checked => setCheckedDeleteSnapshotId(checked ? workspaceDeleteSnapshotId : undefined)}
             onApproveAll={(options) => {
-              postLauncherApprovalRespond(sessionId, true, { ...options, approvalIds: pendingApprovals.map(approval => approval.id) });
+              postLauncherApprovalRespond(sessionId, true, { ...options, approvalIds: pendingApprovals.map(approval => approval.id), workspaceDeleteSnapshotId });
             }}
             onDenyAll={() => {
               postLauncherApprovalRespond(sessionId, false, { approvalIds: pendingApprovals.map(approval => approval.id) });

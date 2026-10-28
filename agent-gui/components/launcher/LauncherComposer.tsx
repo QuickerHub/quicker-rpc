@@ -56,6 +56,7 @@ type LauncherSessionState = {
   pendingAskQuestionCount: number;
   pendingApprovals: PendingToolApproval[];
   workspaceDeleteHits: WorkspaceDeleteProjectHit[];
+  workspaceDeleteSnapshotId?: string;
 };
 
 type LauncherComposerProps = {
@@ -254,6 +255,7 @@ export function LauncherPanel() {
           pendingAskQuestionCount: message.pendingAskQuestionCount ?? 0,
           pendingApprovals: message.pendingApprovals ?? [],
           workspaceDeleteHits: message.workspaceDeleteHits ?? [],
+          workspaceDeleteSnapshotId: message.workspaceDeleteSnapshotId,
         };
       });
     });
@@ -337,6 +339,7 @@ export function LauncherPanel() {
                 pendingApprovalCount={session.pendingApprovalCount}
                 pendingApprovals={session.pendingApprovals}
                 workspaceDeleteHits={session.workspaceDeleteHits}
+                workspaceDeleteSnapshotId={session.workspaceDeleteSnapshotId}
                 pendingAskQuestionCount={session.pendingAskQuestionCount}
                 workingDirectory={workingDirectory}
               />
