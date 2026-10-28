@@ -6,7 +6,7 @@ export type LauncherSessionHandlers = {
   addToolOutput: ChatAddToolOutput;
   respondToAllPendingApprovals: (
     approved: boolean,
-    options: { approvalIds: string[]; deleteWorkspace?: boolean },
+    options: { approvalIds: string[]; deleteWorkspace?: boolean; workspaceDeleteSnapshotId?: string },
   ) => void;
 };
 
@@ -38,7 +38,7 @@ export function dispatchLauncherToolOutput(
 export function dispatchLauncherApprovalResponse(
   sessionId: string,
   approved: boolean,
-  options: { approvalIds: string[]; deleteWorkspace?: boolean },
+  options: { approvalIds: string[]; deleteWorkspace?: boolean; workspaceDeleteSnapshotId?: string },
 ): boolean {
   const handlers = handlersBySession.get(sessionId);
   if (!handlers) return false;

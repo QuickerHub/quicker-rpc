@@ -25,6 +25,7 @@ export type LauncherSessionSyncMessage = {
   pendingAskQuestionCount?: number;
   pendingApprovals?: PendingToolApproval[];
   workspaceDeleteHits?: WorkspaceDeleteProjectHit[];
+  workspaceDeleteSnapshotId?: string;
 };
 
 export type LauncherToolOutputMessage = {
@@ -39,6 +40,7 @@ export type LauncherApprovalRespondMessage = {
   approved: boolean;
   approvalIds: string[];
   deleteWorkspace?: boolean;
+  workspaceDeleteSnapshotId?: string;
 };
 
 export type LauncherSessionClearMessage = {
@@ -94,6 +96,7 @@ export function postLauncherSessionSync(payload: {
   pendingAskQuestionCount?: number;
   pendingApprovals?: PendingToolApproval[];
   workspaceDeleteHits?: WorkspaceDeleteProjectHit[];
+  workspaceDeleteSnapshotId?: string;
 }): void {
   postLauncherMessage({
     type: "agent:session-sync",
@@ -115,7 +118,7 @@ export function postLauncherToolOutput(
 export function postLauncherApprovalRespond(
   sessionId: string,
   approved: boolean,
-  options: { approvalIds: string[]; deleteWorkspace?: boolean },
+  options: { approvalIds: string[]; deleteWorkspace?: boolean; workspaceDeleteSnapshotId?: string },
 ): void {
   postLauncherMessage({
     type: "launcher:approval-respond",
@@ -123,6 +126,7 @@ export function postLauncherApprovalRespond(
     approved,
     approvalIds: options.approvalIds,
     deleteWorkspace: options?.deleteWorkspace,
+    workspaceDeleteSnapshotId: options.workspaceDeleteSnapshotId,
   });
 }
 
@@ -195,6 +199,7 @@ export function subscribeLauncherBridge(
         pendingApprovals: Array.isArray(payload.pendingApprovals)
           ? payload.pendingApprovals
           : undefined,
+        workspaceDeleteSnapshotId: typeof payload.workspaceDeleteSnapshotId === "string" ? payload.workspaceDeleteSnapshotId : undefined,
         workspaceDeleteHits: Array.isArray(payload.workspaceDeleteHits)
           ? payload.workspaceDeleteHits
           : undefined,
@@ -225,6 +230,7 @@ export function subscribeLauncherBridge(
         sessionId: payload.sessionId,
         approved: payload.approved,
         approvalIds: payload.approvalIds,
+        workspaceDeleteSnapshotId: typeof payload.workspaceDeleteSnapshotId === "string" ? payload.workspaceDeleteSnapshotId : undefined,
         deleteWorkspace:
           typeof payload.deleteWorkspace === "boolean"
             ? payload.deleteWorkspace

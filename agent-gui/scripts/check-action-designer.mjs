@@ -27,6 +27,7 @@ const result = spawnSync(process.execPath, [
   "components/chat/ChatWorkspacePresentation.browser.test.ts",
   "components/chat/ChatMessageEditing.integration.browser.test.ts",
   "components/chat/ChatApprovalLifecycle.integration.browser.test.ts",
+  "components/chat/ChatWorkspaceDeleteApproval.integration.browser.test.ts",
   "lib/action-editor/program/VariableReferences.browser.test.ts",
 ], { cwd: root, stdio: "inherit" });
 if (result.error) throw result.error;

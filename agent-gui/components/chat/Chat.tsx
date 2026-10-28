@@ -22,18 +22,11 @@ import {
   getToolMeta,
   loadStoredEnabledTools,
 } from "@/lib/tool-registry";
-import { extractApprovalTargetId } from "@/lib/tool-approval-display";
 import { collectPendingApprovals } from "@/lib/collect-pending-approvals";
 import { ApprovalDock } from "@/components/chat/ApprovalDock";
-import {
-  findWorkspaceProjectsInTree,
-  findWorkspaceSubProgramsInTree,
-  type WorkspaceDeleteProjectHit,
-} from "@/lib/workspace-action-project-lookup";
-import {
-  deleteActionProjectApi,
-  fetchActionExplorerTree,
-} from "@/lib/workspace-explorer-api";
+import type { WorkspaceDeleteProjectHit } from "@/lib/workspace-action-project-lookup";
+import { deleteActionProjectApi } from "@/lib/workspace-explorer-api";
+import { useWorkspaceDeleteApproval, workspaceDeleteMatchesApprovals } from "./useWorkspaceDeleteApproval";
 import {
   applySidebarCollapsed,
   loadSidebarCollapsed,
@@ -224,6 +217,8 @@ type ChatPanelProps = {
   designerEmbedScoped?: boolean;
   actionDesigner?: ActionDesignerThreadRef;
 };
+
+const EMPTY_WORKSPACE_DELETE_HITS: WorkspaceDeleteProjectHit[] = [];
 
 function ChatPanel({
   threadId,
@@ -438,70 +433,12 @@ function ChatPanel({
     visible,
   ]);
 
-  const pendingActionDeleteIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const approval of pendingApprovals) {
-      if (approval.toolName !== "qkrpc_action_delete") continue;
-      const id = extractApprovalTargetId(approval.input);
-      if (id) ids.push(id);
-    }
-    return ids;
-  }, [pendingApprovals]);
-  const pendingSubprogramDeleteIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const approval of pendingApprovals) {
-      if (approval.toolName !== "qkrpc_subprogram_delete") continue;
-      const id = extractApprovalTargetId(approval.input);
-      if (id) ids.push(id);
-    }
-    return ids;
-  }, [pendingApprovals]);
-  const pendingWorkspaceDeleteKey = [
-    ...pendingActionDeleteIds,
-    ...pendingSubprogramDeleteIds,
-  ].join("\0");
-
-  const [workspaceDeleteHits, setWorkspaceDeleteHits] = useState<
-    WorkspaceDeleteProjectHit[]
-  >([]);
-  const [deleteWorkspaceToo, setDeleteWorkspaceToo] = useState(false);
-
-  useEffect(() => {
-    const cwd = workingDirectory.trim();
-    if (
-      !cwd
-      || (pendingActionDeleteIds.length === 0
-        && pendingSubprogramDeleteIds.length === 0)
-    ) {
-      setWorkspaceDeleteHits([]);
-      setDeleteWorkspaceToo(false);
-      return;
-    }
-
-    let cancelled = false;
-    void fetchActionExplorerTree(cwd).then((result) => {
-      if (cancelled) return;
-      if (!result.ok) {
-        setWorkspaceDeleteHits([]);
-        return;
-      }
-      setWorkspaceDeleteHits([
-        ...findWorkspaceProjectsInTree(result.tree, pendingActionDeleteIds),
-        ...findWorkspaceSubProgramsInTree(
-          result.subprogramTree,
-          pendingSubprogramDeleteIds,
-        ),
-      ]);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [workingDirectory, pendingWorkspaceDeleteKey]);
-
-  useEffect(() => {
-    setDeleteWorkspaceToo(false);
-  }, [pendingWorkspaceDeleteKey, workspaceDeleteHits.length]);
+  const { snapshot: workspaceDeleteSnapshot, getSnapshot: getWorkspaceDeleteSnapshot } =
+    useWorkspaceDeleteApproval(threadId, workingDirectory, pendingApprovals);
+  const workspaceDeleteHits = workspaceDeleteSnapshot?.hits ?? EMPTY_WORKSPACE_DELETE_HITS;
+  const workspaceDeleteSnapshotId = workspaceDeleteSnapshot?.id;
+  const [checkedDeleteSnapshotId, setCheckedDeleteSnapshotId] = useState<string>();
+  const deleteWorkspaceToo = !!workspaceDeleteSnapshotId && checkedDeleteSnapshotId === workspaceDeleteSnapshotId;
 
   const busy = status === "submitted" || status === "streaming";
 
@@ -586,6 +523,7 @@ function ChatPanel({
         pendingAskQuestionCount,
         pendingApprovals,
         workspaceDeleteHits,
+        workspaceDeleteSnapshotId,
       });
     }, 120);
 
@@ -599,6 +537,7 @@ function ChatPanel({
     pendingAskQuestionCount,
     pendingApprovals,
     workspaceDeleteHits,
+    workspaceDeleteSnapshotId,
   ]);
 
   useMessagesScrollportHeight(messagesRef, chatPresentationActive);
@@ -879,29 +818,19 @@ function ChatPanel({
   }, [clearQueue, interruptAgentRun]);
 
   const respondToAllPendingApprovals = useCallback(
-    (approved: boolean, options: { approvalIds: string[]; deleteWorkspace?: boolean }) => {
-      if (!respondToPendingApprovals(options.approvalIds, approved)) return;
-
-      if (
-        approved
-        && options?.deleteWorkspace
-        && workspaceDeleteHits.length > 0
-      ) {
-        const cwd = workingDirectory.trim();
-        if (cwd) {
-          void Promise.all(
-            workspaceDeleteHits.map((hit) =>
-              deleteActionProjectApi(cwd, hit.projectPath),
-            ),
-          );
-        }
+    (approved: boolean, options: { approvalIds: string[]; deleteWorkspace?: boolean; workspaceDeleteSnapshotId?: string }) => {
+      const snapshot = approved && options.deleteWorkspace
+        ? getWorkspaceDeleteSnapshot(options.workspaceDeleteSnapshotId) : null;
+      // Reject the whole decision before claiming SDK approvals if its attached
+      // deletion no longer belongs to the displayed lookup and workspace.
+      if (approved && options.deleteWorkspace && !snapshot) return;
+      if (!respondToPendingApprovals(options.approvalIds, approved,
+        snapshot ? pending => workspaceDeleteMatchesApprovals(snapshot, pending) : undefined)) return;
+      if (snapshot) {
+        void Promise.all(snapshot.hits.map(hit => deleteActionProjectApi(snapshot.cwd, hit.projectPath)));
       }
     },
-    [
-      respondToPendingApprovals,
-      workspaceDeleteHits,
-      workingDirectory,
-    ],
+    [respondToPendingApprovals, getWorkspaceDeleteSnapshot],
   );
 
   useEffect(() => {
@@ -1253,9 +1182,9 @@ function ChatPanel({
           disabled={busy}
           workspaceHits={workspaceDeleteHits}
           deleteWorkspaceToo={deleteWorkspaceToo}
-          onDeleteWorkspaceTooChange={setDeleteWorkspaceToo}
+          onDeleteWorkspaceTooChange={checked => setCheckedDeleteSnapshotId(checked ? workspaceDeleteSnapshotId : undefined)}
           onApproveAll={(options) =>
-            respondToAllPendingApprovals(true, { ...options, approvalIds: pendingApprovals.map(approval => approval.id) })}
+            respondToAllPendingApprovals(true, { ...options, approvalIds: pendingApprovals.map(approval => approval.id), workspaceDeleteSnapshotId })}
           onDenyAll={() => respondToAllPendingApprovals(false, { approvalIds: pendingApprovals.map(approval => approval.id) })}
         />
       )}
@@ -1542,7 +1471,7 @@ export function Chat() {
         dispatchLauncherApprovalResponse(
           message.sessionId,
           message.approved,
-          { approvalIds: message.approvalIds, deleteWorkspace: message.deleteWorkspace },
+          { approvalIds: message.approvalIds, deleteWorkspace: message.deleteWorkspace, workspaceDeleteSnapshotId: message.workspaceDeleteSnapshotId },
         );
       }
     });
