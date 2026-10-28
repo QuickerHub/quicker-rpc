@@ -85,13 +85,12 @@ export function hasOnlyToolSummaryData(data: unknown): data is Record<string, un
     && Object.keys(data).every((key) => data[key] === undefined || SUMMARY_DATA_KEYS.has(key));
 }
 
-function hasDisplayValue(value: unknown, seen = new WeakSet<object>()): boolean {
+function hasDisplayValue(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === "string") return value.trim().length > 0;
   if (typeof value !== "object") return typeof value === "number" || typeof value === "boolean";
-  if (seen.has(value)) return false;
-  seen.add(value);
-  return Object.values(value).some((entry) => hasDisplayValue(entry, seen));
+  // A defined key still conveys a cleared value or an empty collection.
+  return Object.values(value).some((entry) => entry !== undefined);
 }
 
 /** Content available to the generic result renderer, beyond an omitted outcome. */

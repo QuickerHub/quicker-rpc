@@ -112,12 +112,12 @@ test("generic full UI results have a visual view without action metadata", () =>
   assert.equal(JSON.stringify(output), before);
 });
 
-test("generic visual eligibility preserves zero and false while blank results use the model fallback", () => {
-  for (const data of [0, false, "Full text", { futureField: 0 }, { enabled: false }, [false]]) {
+test("generic visual eligibility preserves zero and false while empty primitives use the model fallback", () => {
+  for (const data of [0, false, "Full text", { futureField: 0 }, { enabled: false }, [false], { message: " \n\t " }]) {
     assert.equal(toolPopupHasVisualView("future_extension", undefined, { ok: true, exitCode: 0, data }), true, JSON.stringify(data));
     assert.equal(toolPopupHasVisualView("future_extension", undefined, data), true, JSON.stringify(data));
   }
-  for (const data of [null, undefined, " \n\t ", {}, [], { message: " \n\t " }]) {
+  for (const data of [null, undefined, " \n\t ", {}, []]) {
     assert.equal(toolPopupHasVisualView("future_extension", undefined, { ok: true, exitCode: 0, data }), false, JSON.stringify(data));
     assert.equal(toolPopupHasVisualView("future_extension", undefined, data), false, JSON.stringify(data));
   }
@@ -125,6 +125,16 @@ test("generic visual eligibility preserves zero and false while blank results us
   assert.equal(toolPopupHasVisualView("future_extension", { id: "original" }, {
     ok: true, exitCode: 0, data: { id: "original", message: "Done" },
   }), false, "A redundant outcome alone does not enable an empty visual body");
+});
+
+test("generic visual eligibility retains unknown object keys with empty, cleared and zero-result values", () => {
+  for (const data of [{ futureField: "" }, { setting: null }, { matches: [] }, { futureObject: {} }]) {
+    assert.equal(toolPopupHasVisualView("future_extension", undefined, data), true, JSON.stringify(data));
+    assert.equal(toolPopupHasVisualView("future_extension", undefined, { ok: true, exitCode: 0, data }), true, JSON.stringify(data));
+    assert.equal(toolPopupHasVisualView("future_extension", undefined, {
+      ok: true, exitCode: 0, data: { message: "Summary" }, displayData: data,
+    }), true, JSON.stringify(data));
+  }
 });
 
 test("resolveToolPopupBodyView coerces visual to model when unavailable", () => {
