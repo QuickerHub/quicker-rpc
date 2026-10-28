@@ -9,6 +9,7 @@ import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { currentQkrpcTarget, configuredQkrpcBinding, hasUnverifiedQkrpcRead, markUnverifiedQkrpcRead, bindQkrpcTarget, readHostBinding, isOfflineSourceInvoke, isQkrpcReadOnlyInvoke, bindingFailure, type QkrpcHostBinding } from "@/lib/qkrpc-host-binding";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
 import { isQkrpcInvokeReplaySafe } from "@/lib/qkrpc-operation-effects";
+import { isSideEffectFreeProgramRead, programToolOperationFacts, type ProgramToolExecutionPort } from "./program-tool-operation-facts";
 import { parseQkrpcJson } from "@/lib/qkrpc-json";
 import {
   isBundledAgentRuntime,
@@ -670,6 +671,20 @@ export function isRetryableQkrpcFailure(result: QkrpcRunResult): boolean {
 
 const QKRPC_TOOL_MAX_ATTEMPTS = 3;
 const QKRPC_RETRY_BASE_DELAY_MS = 1_200;
+
+/** Named production ports share the same wrapper facts used by planning and discovery. */
+export function runQkrpcProgramToolPort(args: string[], port: Extract<ProgramToolExecutionPort, "connected-host" | "compatibility-get" | "source-bundle">, options?: QkrpcRunOptions): Promise<QkrpcRunResult> {
+  const invoke = argvToInvoke(args);
+  const toolId = invoke?.op === "action.get" ? "qkrpc_action_get" : invoke?.op === "subprogram.get" ? "qkrpc_subprogram_get" : invoke?.op === "action.open" ? "qkrpc_action_open" : "unknown";
+  const facts = programToolOperationFacts(toolId, {}, port);
+  if (!facts.known) return Promise.resolve(qkrpcValidationError("Operation is unavailable through this program execution port."));
+  if (port === "connected-host" && isSideEffectFreeProgramRead(facts)) return runQkrpcReadOnlyGetForTool(args, options);
+  if (port === "source-bundle" && facts.replayAfterUnknown === "unsafe") return runQkrpcForToolOnce(args, options);
+  // This retries only the get invoke, before the wrapper's export starts. The
+  // complete compatibility wrapper remains unsafe to replay after an unknown result.
+  if (port === "compatibility-get") return runQkrpcForTool(args, options);
+  return Promise.resolve(qkrpcValidationError("Unsupported program execution port."));
+}
 
 /** One attempt with the tool connectivity gate; mutating source calls must not auto-retry. */
 export function runQkrpcForToolOnce(args: string[], options?: QkrpcRunOptions): Promise<QkrpcRunResult> {

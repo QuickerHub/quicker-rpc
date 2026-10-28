@@ -19,6 +19,7 @@ import {
 } from "@/lib/tool-bundles";
 import type { ToolNextAction } from "@/lib/tool-result";
 import { getToolModeAvailability, getToolModeOperationDecision, type ToolOperationConstraints } from "@/lib/agent-tool-mode-guard";
+import { programToolExecutionPort, programToolOperationFacts, type ProgramToolOperationFacts } from "../program-tool-operation-facts";
 
 export type AgentIntent =
   | "conversation"
@@ -68,6 +69,8 @@ export type TurnPlan = {
   slimToolIds: string[];
   blockedToolIds: string[];
   nextAction?: ToolNextAction;
+  /** Wrapper facts for the proposed recovery, including a blocked requirement. Never authority. */
+  proposedOperation?: ProgramToolOperationFacts;
   blockedNextAction?: { action: ToolNextAction; reason: string };
   recoveryDecision: AgentRecoveryDecision;
   verificationPolicy: VerificationPolicy;
@@ -220,6 +223,14 @@ export function resolveTurnPlan(params: ResolveTurnPlanParams): TurnPlan {
     if (reason) blockedNextAction = { action: candidate, reason };
   }
   const nextAction = blockedNextAction ? undefined : candidate;
+  const candidatePort = candidate ? programToolExecutionPort(candidate.tool, params.chatMode, readOnlyToolIds.has(candidate.tool),
+    Object.hasOwn(params.operationConstraints ?? {}, candidate.tool) ? params.operationConstraints?.[candidate.tool]?.allowedActions : undefined) : undefined;
+  const proposedOperation = candidate && candidatePort ? programToolOperationFacts(candidate.tool, candidate.input, candidatePort) : undefined;
+  // A nominal get/read can bootstrap or persist through its wrapper. Do not keep
+  // a read-only plan classification for an executable recovery with these facts.
+  const risk = turnState.risk === "read" && nextAction && proposedOperation
+    && [proposedOperation.hostMutation, proposedOperation.localPersistence, proposedOperation.connectionBootstrap].includes("possible")
+    ? "write" : turnState.risk;
   let recoveryDecision: AgentRecoveryDecision = proposedRecovery;
   if (blockedNextAction && proposedRecovery.kind === "next_action") {
     const action = blockedNextAction.action;
@@ -238,7 +249,7 @@ export function resolveTurnPlan(params: ResolveTurnPlanParams): TurnPlan {
   const verificationPolicy = verificationPolicyFor({
     mode: params.chatMode,
     intent,
-    risk: turnState.risk,
+    risk,
     recoveryDecision,
     nextAction,
   });
@@ -248,7 +259,7 @@ export function resolveTurnPlan(params: ResolveTurnPlanParams): TurnPlan {
     userText: params.userText,
     intent,
     legacyIntent: turnState.intent,
-    risk: turnState.risk,
+    risk,
     targets: targetsFromParams(params),
     capabilityBundles: capabilityBundlesFor(intent, activeToolBundles),
     activeToolBundles,
@@ -261,11 +272,12 @@ export function resolveTurnPlan(params: ResolveTurnPlanParams): TurnPlan {
       ...requiredToolIds.filter((id) => !enabled.has(id)),
     ])],
     nextAction,
+    ...(proposedOperation ? { proposedOperation } : {}),
     ...(blockedNextAction ? { blockedNextAction } : {}),
     recoveryDecision,
     verificationPolicy,
     systemHints: blockedNextAction && recoveryDecision.kind === "ask_user"
       ? [...turnState.verificationHints, recoveryDecision.reason] : turnState.verificationHints,
-    turnState,
+    turnState: risk === turnState.risk ? turnState : { ...turnState, risk },
   };
 }

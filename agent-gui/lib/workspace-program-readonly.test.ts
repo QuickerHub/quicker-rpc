@@ -14,6 +14,7 @@ import { selectSubagentTools } from "./task-tool-capabilities";
 import { isStructuredToolResult } from "./tool-result";
 import { executeWorkspaceProgramReadOnly, executeWorkspaceProgramTool, WORKSPACE_PROGRAM_TOOL_DEF, type WorkspaceProgramToolInput } from "./workspace-program-tool.server";
 import { workspaceProgramProjectDir, type WorkspaceProgramTarget } from "./workspace-program-target";
+import { programToolOperationFacts } from "./program-tool-operation-facts";
 
 const id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const targets: WorkspaceProgramTarget[] = [
@@ -165,8 +166,10 @@ test("Agent retains lazy empty-body creation and subprogram metadata repair", as
       bindQkrpcTarget({ gateway: base, binding });
       assert.equal((await executeWorkspaceProgramTool({ action: "read_data", target: "action", id })).ok, true);
       assert.ok(await fs.readFile(join(actionDir, "data.json"), "utf8"));
+      assert.equal(programToolOperationFacts("workspace_program", { action: "read_data" }, "workspace").implicitRepair, "possible");
       assert.equal((await executeWorkspaceProgramTool({ action: "projects_list", target: "global_subprogram" })).ok, true);
       assert.match(await fs.readFile(join(subDir, "info.json"), "utf8"), /Repaired name/);
+      assert.equal(programToolOperationFacts("workspace_program", { action: "projects_list", target: "global_subprogram" }, "workspace").localPersistence, "possible");
       assert.equal(requests, 1);
     });
   } finally {

@@ -1,6 +1,7 @@
 import type { ToolSet } from "ai";
 import type { CurrentToolCatalogPolicy } from "./current-tool-catalog";
 import { describeToolModeOperations } from "./agent-tool-mode-guard";
+import { describeToolApproval } from "./program-tool-operation-facts";
 import type { McpServerCatalog } from "./agent-mcp/catalog";
 import { isNamespacedMcpToolId, mcpToolId } from "./agent-mcp/tool-id";
 
@@ -20,6 +21,7 @@ export function formatCurrentToolCatalogSystem(
       toolId,
       descriptionState: typeof description === "string" && description.trim() ? "provided" : "unknown",
       risk: "unknown",
+      approval: describeToolApproval(definition.needsApproval),
       operationPolicy: policy ? describeToolModeOperations(toolId, policy.mode,
         policy.readOnlyExecutorToolIds?.includes(toolId),
         Object.hasOwn(policy.operationConstraints ?? {}, toolId) ? policy.operationConstraints?.[toolId] : undefined) : "unknown",
@@ -28,6 +30,7 @@ export function formatCurrentToolCatalogSystem(
   return [
     "## Current executable tools",
     "This call's final catalog is authoritative. Only these tool IDs are selected; schema fields, names, product groupings, earlier turns and reference documents do not grant operations. Runtime identity, mode, parent limits, approvals and tool-call budgets still apply. An allowed policy still requires runtime validation; unknown effects are not evidence of safety or read-only behavior.",
+    "operationFacts describe possible effects of the selected wrapper/port, including connection bootstrap, implicit export/repair and background diagnostics. hostMutation concerns program content, not connection startup. These declarations neither authorize an operation nor prove it occurred; approval is observed from the current definition and dynamic decisions still run at execution time.",
     current.length ? "Use the corresponding current SDK tool definitions for parameters and operation guidance; schemas may be slimmed. Missing descriptions or provider facts remain unknown. Never fill them from a static registry or a similarly named tool."
       : "No tools are selected for this call. Answer from the available context or explain what cannot be verified; do not call a discovery, clarification or delegation tool that is absent.",
     Object.hasOwn(tools, "list_tools")

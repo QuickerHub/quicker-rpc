@@ -1,4 +1,5 @@
 import { tool } from "ai";
+import { programToolExecutionPort } from "./program-tool-operation-facts";
 import { z } from "zod";
 import { qkrpcEditVersionSchema, type QkrpcEditVersion } from "@/lib/qkrpc-edit-version-schema";
 import {
@@ -20,7 +21,7 @@ import {
   formatQkrpcReadOnlyGetResultForAgent,
   qkrpcValidationError,
   runQkrpcForTool,
-  runQkrpcReadOnlyGetForTool,
+  runQkrpcProgramToolPort,
   runQkrpcWithPatchFileForTool,
   runQkrpcWithProgramForTool,
 } from "@/lib/qkrpc";
@@ -188,7 +189,7 @@ export async function executeQkrpcSubprogramGetReadOnly(
   options?.abortSignal?.throwIfAborted();
   const args = ["subprogram", "get", "--id", input.id];
   if (input.returnMode) args.push("--return-mode", input.returnMode);
-  const result = await runQkrpcReadOnlyGetForTool(args, options);
+  const result = await runQkrpcProgramToolPort(args, "connected-host", options);
   return formatToolResultForAgent(QKRPC_SUBPROGRAM_GET_TOOL, input, formatQkrpcReadOnlyGetResultForAgent(result));
 }
 
@@ -197,10 +198,10 @@ export async function executeQkrpcSubprogramIdTool(
 ): Promise<Record<string, unknown>> {
   switch (input.action) {
     case "get": {
-      if (getRequestChatMode() === "ask") return executeQkrpcSubprogramGetReadOnly(input);
+      if (programToolExecutionPort(QKRPC_SUBPROGRAM_GET_TOOL, getRequestChatMode() ?? "agent", true) === "connected-host") return executeQkrpcSubprogramGetReadOnly(input);
       const args = ["subprogram", "get", "--id", input.id];
       if (input.returnMode) args.push("--return-mode", input.returnMode);
-      const getResult = await runQkrpcForTool(args);
+      const getResult = await runQkrpcProgramToolPort(args, "compatibility-get");
       if (!getResult.ok) {
         return formatQkrpcResultForAgent(getResult);
       }
