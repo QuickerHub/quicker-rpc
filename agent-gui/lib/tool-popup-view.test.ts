@@ -100,6 +100,33 @@ test("docsToolHasPopupVisual false before structured search output", () => {
   );
 });
 
+test("generic full UI results have a visual view without action metadata", () => {
+  const input = Object.freeze({ id: "11111111-1111-4111-8111-111111111111" });
+  const output = Object.freeze({
+    ok: true, exitCode: 0, source: "local",
+    data: Object.freeze({ id: input.id, message: "Indexed", answer: "OWNED_UI_MODEL_ONLY" }),
+    displayData: Object.freeze({ id: input.id, message: "Full indexed result", answer: "OWNED_UI_FULL_RESULT", futureField: 0, enabled: false }),
+  });
+  const before = JSON.stringify(output);
+  assert.equal(toolPopupHasVisualView("future_extension", input, output), true);
+  assert.equal(JSON.stringify(output), before);
+});
+
+test("generic visual eligibility preserves zero and false while blank results use the model fallback", () => {
+  for (const data of [0, false, "Full text", { futureField: 0 }, { enabled: false }, [false]]) {
+    assert.equal(toolPopupHasVisualView("future_extension", undefined, { ok: true, exitCode: 0, data }), true, JSON.stringify(data));
+    assert.equal(toolPopupHasVisualView("future_extension", undefined, data), true, JSON.stringify(data));
+  }
+  for (const data of [null, undefined, " \n\t ", {}, [], { message: " \n\t " }]) {
+    assert.equal(toolPopupHasVisualView("future_extension", undefined, { ok: true, exitCode: 0, data }), false, JSON.stringify(data));
+    assert.equal(toolPopupHasVisualView("future_extension", undefined, data), false, JSON.stringify(data));
+  }
+  assert.equal(toolPopupHasVisualView("future_extension", undefined, { ok: false, exitCode: 1, data: null }), true);
+  assert.equal(toolPopupHasVisualView("future_extension", { id: "original" }, {
+    ok: true, exitCode: 0, data: { id: "original", message: "Done" },
+  }), false, "A redundant outcome alone does not enable an empty visual body");
+});
+
 test("resolveToolPopupBodyView coerces visual to model when unavailable", () => {
   assert.equal(resolveToolPopupBodyView("visual", false), "model");
   assert.equal(resolveToolPopupBodyView("visual", true), "visual");

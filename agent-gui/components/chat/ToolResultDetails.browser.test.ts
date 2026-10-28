@@ -18,18 +18,18 @@ import{buildModelFacingToolOutput}from'@/lib/tool-result-model-messages';
 import{WorkspaceExplorerShellProvider,WorkspaceExplorerPanelProvider}from'@/lib/workspace-explorer';
 import '@/app/globals.css';
 const id='11111111-1111-4111-8111-111111111111';
-const result=(data,extra={})=>({ok:true,exitCode:0,data,...extra});
+const result=(data,extra={})=>({ok:true,exitCode:0,source:'local',data,...extra});
 const cases=[
- {key:'known',tool:'qkrpc_action_set_metadata',input:{id},output:result({id,title:'Stored title',message:'Stored',answer:'known_full_answer',futureField:0}),text:'known_full_answer'},
- {key:'unknown',tool:'future_extension',input:{id},output:result({id,title:'Extension title',message:'Finished',answer:'unknown_full_answer'}),text:'unknown_full_answer'},
- {key:'display',tool:'future_extension',input:{id},output:result({id,title:'Compressed title',message:'Indexed'},{displayData:{id,title:'Full display title',message:'Full indexed result',body:{answer:'display_only_full_answer'}}}),text:'display_only_full_answer'},
- {key:'whitespace',tool:'future_extension',input:{id},output:result({id,title:'Whitespace message',message:'  \\n\\t ',answer:'whitespace_full_answer'}),text:'whitespace_full_answer'},
- {key:'meaningful',tool:'future_extension',input:{id},output:result({id,title:'No message',answer:'meaningful_full_answer'}),text:'meaningful_full_answer'},
- {key:'failure',tool:'future_extension',input:{id},output:{ok:false,exitCode:1,data:{id,message:'Failed',answer:'failure_full_answer'},stderr:'Original extension failure'},text:'failure_full_answer',failure:true},
+ {key:'known',tool:'qkrpc_action_set_metadata',input:{id},output:result({id,title:'Stored title',message:'Stored',answer:'known_full_answer',futureField:0}),text:'known_full_answer',visual:true},
+ {key:'unknown',tool:'future_extension',input:{id},output:result({id,message:'Finished',answer:'unknown_full_answer'}),text:'unknown_full_answer',visual:true},
+ {key:'display',tool:'future_extension',input:{id},output:result({id,message:'Indexed',answer:'OWNED_UI_MODEL_ONLY'},{displayData:{id,message:'Full indexed result',answer:'OWNED_UI_FULL_RESULT',futureField:0,enabled:false}}),text:'OWNED_UI_FULL_RESULT',visual:true},
+ {key:'whitespace',tool:'future_extension',input:{id},output:result({id,message:'  \\n\\t ',answer:'whitespace_full_answer'}),text:'whitespace_full_answer',visual:true},
+ {key:'meaningful',tool:'future_extension',input:{id},output:result({id,answer:'meaningful_full_answer'}),text:'meaningful_full_answer',visual:true},
+ {key:'failure',tool:'future_extension',input:{id},output:{ok:false,exitCode:1,data:{id,message:'Failed',answer:'failure_full_answer'},stderr:'Original extension failure'},text:'failure_full_answer',failure:true,visual:true},
  {key:'framework',tool:'future_extension',input:{},errorText:'Original SDK failure',text:'Original SDK failure',failure:true},
- {key:'plain',tool:'future_extension',input:{},output:'unstructured_full_answer',text:'unstructured_full_answer'},
- {key:'partial',tool:'qkrpc_action_save',input:{dir:'.tmp/synthetic-source',dryRun:false},output:{ok:false,exitCode:1,data:{ok:false,error:'SOURCE_CHECKPOINT_FAILED',data:{persisted:true}},stderr:'Original checkpoint failure'},text:'Original checkpoint failure',partial:true},
- {key:'compact',tool:'future_extension',input:{},output:result({message:'Finished',answer:'compact_full_answer'}),text:'compact_full_answer',compact:true},
+ {key:'plain',tool:'future_extension',input:{},output:'unstructured_full_answer',text:'unstructured_full_answer',visual:true},
+ {key:'partial',tool:'qkrpc_action_save',input:{dir:'.tmp/synthetic-source',dryRun:false},output:{ok:false,exitCode:1,data:{ok:false,error:'SOURCE_CHECKPOINT_FAILED',data:{persisted:true}},stderr:'Original checkpoint failure'},text:'Original checkpoint failure',partial:true,visual:true},
+ {key:'compact',tool:'future_extension',input:{},output:result({message:'Finished',answer:'compact_full_answer'}),text:'compact_full_answer',compact:true,visual:true},
  {key:'outcome',tool:'qkrpc_action_delete',input:{id},output:result({action:'delete',actionId:id,message:'Deleted'}),text:'Deleted',outcome:true},
  {key:'blank',tool:'future_extension',input:{},output:result('  '),blank:true},
  {key:'null',tool:'future_extension',input:{},output:result(null),blank:true},
@@ -76,7 +76,7 @@ test("real ToolPart details and compact bodies preserve additional results throu
     await page.goto(origin); await page.addStyleTag({ content: compiled.outputFiles.find(file => file.path.endsWith(".css"))!.text });
     await page.addScriptTag({ content: compiled.outputFiles.find(file => file.path.endsWith(".js"))!.text });
     await page.locator('main[data-current="known"] .tool-summary').waitFor();
-    const cases = await page.evaluate(() => (window as any).toolDetailsFixture.cases.map(({ key, text, failure, partial, compact, outcome, blank }: any) => ({ key, text, failure, partial, compact, outcome, blank })));
+    const cases = await page.evaluate(() => (window as any).toolDetailsFixture.cases.map(({ key, text, failure, partial, compact, outcome, blank, visual }: any) => ({ key, text, failure, partial, compact, outcome, blank, visual })));
     for (const sample of [{ width: 1024, height: 720, theme: "light" }, { width: 420, height: 650, theme: "dark" }, { width: 420, height: 650, theme: "light" }]) {
       await page.setViewportSize(sample); await page.evaluate(theme => document.documentElement.dataset.theme = theme, sample.theme);
       for (const current of cases) {
@@ -87,8 +87,14 @@ test("real ToolPart details and compact bodies preserve additional results throu
         if (current.compact) assert.match(await page.locator('[data-compact]').innerText(), /compact_full_answer/);
         await row.click(); const dialog = page.getByRole("dialog"); await dialog.waitFor();
         const visual = dialog.getByRole("tab", { name: "可视化", exact: true });
+        assert.equal(await visual.isDisabled(), !current.visual, `${current.key}: generic visual availability`);
         if (!(await visual.isDisabled())) await visual.click();
         if (!current.blank) assert.ok((await dialog.locator('.tool-result-popup-body').innerText()).includes(current.text), `${current.key}: full result is reachable`);
+        if (current.key === "display") {
+          const body = await dialog.locator('.tool-result-popup-body').innerText();
+          assert.match(body, /futureField\s+0/); assert.match(body, /enabled\s+false/);
+          assert.ok(!body.includes("OWNED_UI_MODEL_ONLY"), "Visual uses the full UI payload");
+        }
         const geometry = await dialog.evaluate(element => { const rect = element.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: innerWidth, height: innerHeight }; });
         assert.ok(geometry.left >= 0 && geometry.right <= geometry.width && geometry.top >= 0 && geometry.bottom <= geometry.height, "Details remain in the viewport");
         if (current.key === "display") {
@@ -96,11 +102,19 @@ test("real ToolPart details and compact bodies preserve additional results throu
         }
         await dialog.getByRole("tab", { name: "模型数据", exact: true }).click();
         assert.equal(await dialog.locator('.tool-body--popup-model').count(), 1);
+        if (current.key === "display") {
+          const body = await dialog.locator('.tool-body--popup-model').innerText();
+          assert.ok(body.includes("OWNED_UI_MODEL_ONLY")); assert.ok(!body.includes("OWNED_UI_FULL_RESULT"), "Full UI payload stays in its closed UI-only details");
+          const projected = await page.evaluate(() => {
+            const f = (window as any).toolDetailsFixture; return JSON.parse(f.modelsNow())[f.parts.filter((p: any) => p.state === 'output-available').findIndex((p: any) => p.toolCallId === 'original-display')];
+          });
+          assert.equal(projected.data.answer, "OWNED_UI_MODEL_ONLY"); assert.equal("displayData" in projected, false);
+        }
         await dialog.getByRole("button", { name: "关闭", exact: true }).last().click(); await dialog.waitFor({ state: "hidden" });
         await page.evaluate(() => { const f = (window as any).toolDetailsFixture; f.row = document.querySelector('main .tool-summary'); f.history(); });
         await page.waitForFunction(() => { const f = (window as any).toolDetailsFixture; return f.part !== f.parts[f.index] && JSON.stringify(f.part) === JSON.stringify(f.parts[f.index]); });
         assert.equal(await page.evaluate(() => (window as any).toolDetailsFixture.row === document.querySelector('main .tool-summary')), true);
-        await row.click(); await dialog.waitFor(); if (!(await visual.isDisabled())) await visual.click();
+        await row.click(); await dialog.waitFor(); assert.equal(await visual.isDisabled(), !current.visual, `${current.key}: history visual availability`); if (!(await visual.isDisabled())) await visual.click();
         if (!current.blank) assert.ok((await dialog.locator('.tool-result-popup-body').innerText()).includes(current.text), `${current.key}: history retains full result`);
         await dialog.getByRole("button", { name: "关闭", exact: true }).last().click(); await dialog.waitFor({ state: "hidden" });
         samples.push({ ...sample, key: current.key, geometry });

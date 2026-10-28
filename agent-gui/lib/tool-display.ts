@@ -1,4 +1,4 @@
-import { isStructuredToolResult } from "./tool-result";
+import { isStructuredToolResult, resolveToolResultForDisplay } from "./tool-result";
 import {
   parseStepRunnerGetFromQkrpcData,
   parseStepRunnerGetInput,
@@ -83,6 +83,25 @@ const SUMMARY_ENVELOPE_KEYS = new Set(["ok", "exitCode", "source", "data"]);
 export function hasOnlyToolSummaryData(data: unknown): data is Record<string, unknown> {
   return isShallowCompactResultData(data)
     && Object.keys(data).every((key) => data[key] === undefined || SUMMARY_DATA_KEYS.has(key));
+}
+
+function hasDisplayValue(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value !== "object") return typeof value === "number" || typeof value === "boolean";
+  if (seen.has(value)) return false;
+  seen.add(value);
+  return Object.values(value).some((entry) => hasDisplayValue(entry, seen));
+}
+
+/** Content available to the generic result renderer, beyond an omitted outcome. */
+export function hasGenericToolResultBody(input: unknown, output: unknown): boolean {
+  if (!isStructuredToolResult(output)) return hasDisplayValue(output);
+  if (shouldOmitCompactToolResultBody(input, output)) return false;
+  if (!output.ok || output.exitCode !== 0) return true;
+  if (hasDisplayValue(resolveToolResultForDisplay(output).data)) return true;
+  return Object.entries(output).some(([key, value]) =>
+    key !== "displayData" && !SUMMARY_ENVELOPE_KEYS.has(key) && hasDisplayValue(value));
 }
 
 /** Request is a single id already reflected in a successful result. */

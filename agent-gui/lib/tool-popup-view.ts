@@ -28,8 +28,9 @@ import {
   workspaceFileToolHasPopupVisual,
 } from "@/lib/workspace-file-tool";
 import { docsToolHasPopupVisual } from "@/lib/docs-tool-view";
+import { hasGenericToolResultBody } from "@/lib/tool-display";
 
-/** Whether the popup can show a structured visual body (not only raw JSON). */
+/** Specialized views take priority; other results use the generic payload body. */
 export function toolPopupHasVisualView(
   toolName: string,
   input?: unknown,
@@ -108,5 +109,5 @@ export function toolPopupHasVisualView(
     if (Object.keys(rest).length > 0) return true;
   }
 
-  return isActionListTool(toolName, input);
+  return isActionListTool(toolName, input) || hasGenericToolResultBody(input, output);
 }
