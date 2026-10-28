@@ -8,8 +8,7 @@ import { ActionTracePanel } from "@/components/action-trace/ActionTracePanel";
 import { WorkspaceExplorerEditorArea } from "@/components/workspace/WorkspaceExplorerEditorArea";
 import type { WorkspaceDocumentChatPresentation } from "./WorkspaceDocumentHost";
 import { WorkspaceResourceManager } from "@/components/workspace/WorkspaceResourceManager";
-import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
-import { storeChatColumnWidth } from "@/lib/explorer-prefs";
+import { WorkspacePanelResizer } from "./WorkspacePanelResizer";
 import { useEmbeddedTerminal } from "@/lib/embedded-terminal-context";
 import {
   browserIdFromSideView,
@@ -33,49 +32,6 @@ export function WorkspaceExplorerPanel({ chatPresentation }: { chatPresentation:
     useWorkspaceExplorerShell();
   const { activeTab } = useWorkspaceExplorerEditor();
   const { open: defaultTerminalOpen } = useEmbeddedTerminal();
-
-  const handleResizePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (e.button !== 0 || chatColumnWidth == null) return;
-      e.preventDefault();
-      const splitHost = e.currentTarget.closest<HTMLElement>(".app-main-body");
-      if (!splitHost) return;
-
-      const startX = e.clientX;
-      const startChatWidth = splitHost.querySelector<HTMLElement>(".app-main-chat-column")?.getBoundingClientRect().width;
-      if (!startChatWidth) return;
-      let latestChatWidth = startChatWidth;
-      let moved = false;
-      document.body.classList.add("workspace-explorer-resizing");
-
-      const onMove = (ev: PointerEvent) => {
-        const containerWidth = splitHost.getBoundingClientRect().width;
-        if (containerWidth <= 0) return;
-        if (!moved && ev.clientX === startX) return;
-        moved = true;
-        latestChatWidth = startChatWidth + (ev.clientX - startX);
-        setChatColumnWidth(latestChatWidth, containerWidth, false);
-        dispatchWorkspaceLayoutResize();
-      };
-
-      const onUp = () => {
-        document.body.classList.remove("workspace-explorer-resizing");
-        dispatchWorkspaceLayoutResize();
-        document.removeEventListener("pointermove", onMove);
-        document.removeEventListener("pointerup", onUp);
-        const containerWidth = splitHost.getBoundingClientRect().width;
-        if (containerWidth > 0 && moved && latestChatWidth !== startChatWidth) {
-          storeChatColumnWidth(latestChatWidth, containerWidth);
-        } else if (containerWidth > 0 && moved) {
-          setChatColumnWidth(chatColumnWidth, containerWidth, false);
-        }
-      };
-
-      document.addEventListener("pointermove", onMove);
-      document.addEventListener("pointerup", onUp);
-    },
-    [chatColumnWidth, setChatColumnWidth],
-  );
 
   const handleProjectRemoved = useCallback(() => {
     workspaceExplorerActionsRef.current.notifyProjectRemoved();
@@ -115,13 +71,7 @@ export function WorkspaceExplorerPanel({ chatPresentation }: { chatPresentation:
       className="workspace-explorer workspace-side-panel"
       aria-label="工作区侧栏"
     >
-      <div
-        className="workspace-explorer-resizer"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="调整侧栏宽度"
-        onPointerDown={handleResizePointerDown}
-      />
+      <WorkspacePanelResizer chatColumnWidth={chatColumnWidth} setChatColumnWidth={setChatColumnWidth} />
 
       <div
         className={`workspace-side-panel-body${splitTreeAndEditor ? " workspace-side-panel-body--split-editor" : ""}`}
