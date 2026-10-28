@@ -10,6 +10,7 @@ import { resolveTurnPlan } from "./agent-core/turn-plan";
 import { formatLocalToolResult, isStructuredToolResult } from "./tool-result";
 import type { AgentUIMessage } from "./chat-types";
 import { buildAgentRuntimeSnapshot } from "./agent-runtime-snapshot";
+import { buildAgentTurnState } from "./agent-turn-state";
 
 const scope = { pinnedLatest: undefined, pinnedLatestAll: [] };
 const options = { toolCallId: "program-facts", messages: [] } as ToolExecutionOptions;
@@ -70,6 +71,30 @@ test("wrapper facts project the same ports into recovery, catalog, system and fi
     assert.ok(isStructuredToolResult(result)); assert.equal(result.ok, row.allowed);
     assert.equal(base, row.allowed && row.mode !== "ask" ? 1 : 0);
     assert.equal(reads, row.allowed && row.mode === "ask" ? 1 : 0);
+  }
+});
+
+test("operation facts upgrade an initially read-only recovery only when the wrapper may persist or bootstrap", () => {
+  const params = { actionScope: scope, chatMode: "agent" as const,
+    enabledToolIds: ["workspace_program"], userText: "只读查看程序" };
+  assert.equal(buildAgentTurnState(params).risk, "read", "establish the legacy inference before operation facts are applied");
+  for (const row of [
+    { mode: "content", risk: "write", effect: "possible" },
+    { mode: "summary", risk: "read", effect: "none" },
+  ] as const) {
+    const next = { tool: "workspace_program", priority: "required" as const, reason: "Read the program",
+      input: { action: "read_data", target: "action", id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", mode: row.mode } };
+    const messages = [{ id: "prior", role: "assistant", parts: [{ type: "tool-fixture", toolCallId: "prior", state: "output-available", input: {},
+      output: formatLocalToolResult({}, false, "Required step", { nextActions: [next] }) }] }] as AgentUIMessage[];
+    const plan = resolveTurnPlan({ ...params, messages });
+    assert.deepEqual(plan.nextAction, next, "both controls must reach the executable recovery branch");
+    assert.equal(plan.blockedNextAction, undefined);
+    assert.equal(plan.proposedOperation?.port, "workspace");
+    assert.equal(plan.proposedOperation?.hostMutation, "none");
+    assert.equal(plan.proposedOperation?.localPersistence, row.effect);
+    assert.equal(plan.proposedOperation?.connectionBootstrap, row.effect);
+    assert.equal(plan.risk, row.risk);
+    assert.equal(plan.turnState.risk, row.risk);
   }
 });
 
