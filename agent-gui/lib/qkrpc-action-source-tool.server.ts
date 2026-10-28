@@ -1,5 +1,5 @@
 import { createQkrpcActionSourceTools } from "@/lib/qkrpc-action-source-tool";
-import { formatQkrpcResult, runQkrpcForToolOnce } from "@/lib/qkrpc";
+import { formatQkrpcResult, runQkrpcForToolOnce, runQkrpcProgramToolPort } from "@/lib/qkrpc";
 import { resolveActionSourceDirectory } from "@/lib/action-source-directory.server";
 import { rememberActionSourceDirectory } from "@/lib/action-source-read-guard.server";
 import { SourceDocumentOwnerError, withExternalSourceDocumentWrite } from "./source-document-owner.server";
@@ -11,7 +11,8 @@ const sourceTools = createQkrpcActionSourceTools({
   // Single attempt preserves ambiguous/partial write failures instead of retrying or softening them.
   run: async (args, options) => {
     const directory = args[args.indexOf("--dir") + 1];
-    try { return await withExternalSourceDocumentWrite(directory, async () => formatQkrpcResult(await runQkrpcForToolOnce(args, options)), true); }
+    try { return await withExternalSourceDocumentWrite(directory, async () => formatQkrpcResult(await (args[1] === "open"
+      ? runQkrpcProgramToolPort(args, "source-bundle", options) : runQkrpcForToolOnce(args, options))), true); }
     catch (error) {
       if (!(error instanceof SourceDocumentOwnerError)) throw error;
       return { ...formatLocalToolResult({ errorCode: error.code }, false, error.message, { retryable: false }) };

@@ -1,4 +1,5 @@
 import { tool } from "ai";
+import { isSideEffectFreeProgramRead, programToolExecutionPort, programToolOperationFacts } from "./program-tool-operation-facts";
 import { z } from "zod";
 import {
   buildDiagnosticsFixReadInput,
@@ -273,8 +274,6 @@ async function executeDiagnostics(
   );
 }
 
-const READ_ONLY_WORKSPACE_ACTIONS = new Set(["projects_list", "read_data", "file_read", "file_info", "file_search"]);
-
 /** This policy is supplied by the execution boundary, never by model input. */
 export async function executeWorkspaceProgramReadOnly(input: WorkspaceProgramToolInput) {
   return formatToolResultForAgent(WORKSPACE_PROGRAM_TOOL, input,
@@ -285,9 +284,9 @@ export async function executeWorkspaceProgramTool(
   input: WorkspaceProgramToolInput,
   options?: WorkspaceProgramReadOptions,
 ): Promise<Record<string, unknown>> {
-  const readOnly = options?.readOnly === true || getRequestChatMode() === "ask";
+  const readOnly = options?.readOnly === true || programToolExecutionPort(WORKSPACE_PROGRAM_TOOL, getRequestChatMode() ?? "agent", true) === "local-existing";
   const readOptions = { readOnly };
-  if (readOnly && !READ_ONLY_WORKSPACE_ACTIONS.has(input.action)) {
+  if (readOnly && !isSideEffectFreeProgramRead(programToolOperationFacts(WORKSPACE_PROGRAM_TOOL, input, "local-existing"))) {
     return formatLocalToolResult({ errorCode: "tool_mode_denied", toolId: WORKSPACE_PROGRAM_TOOL, mode: "ask", action: input.action },
       false, "Ask workspace reads cannot modify a project or request remote diagnostics.", { retryable: false });
   }

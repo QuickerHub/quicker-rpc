@@ -1,4 +1,5 @@
 import { tool } from "ai";
+import { programToolExecutionPort } from "./program-tool-operation-facts";
 import { z } from "zod";
 import { qkrpcEditVersionSchema, type QkrpcEditVersion } from "@/lib/qkrpc-edit-version-schema";
 import { actionProjectBindingFailure, pinExistingActionProjectBinding } from "@/lib/action-project-host-binding.server";
@@ -42,7 +43,7 @@ import {
   formatQkrpcReadOnlyGetResultForAgent,
   qkrpcValidationError,
   runQkrpcForTool,
-  runQkrpcReadOnlyGetForTool,
+  runQkrpcProgramToolPort,
   runQkrpcWithXactionForTool,
 } from "@/lib/qkrpc";
 import { attachActionTraceArtifactToDebugResult } from "@/lib/action-trace-artifact.server";
@@ -533,9 +534,9 @@ export async function executeQkrpcActionGetReadOnly(
     const failure = actionProjectBindingFailure(error);
     return formatLocalToolResult({ success: false, errorMessage: failure.error, errorCode: failure.code, retryable: false }, false, failure.error, { retryable: false });
   }
-  const result = await runQkrpcReadOnlyGetForTool([
+  const result = await runQkrpcProgramToolPort([
     "action", "get", "--id", input.id, "--return-mode", input.returnMode ?? "structure",
-  ], options);
+  ], "connected-host", options);
   return formatToolResultForAgent(QKRPC_ACTION_GET_TOOL, input, formatQkrpcReadOnlyGetResultForAgent(result));
 }
 
@@ -550,7 +551,7 @@ export async function executeQkrpcActionIdTool(
   }
   switch (input.action) {
     case "get": {
-      if (getRequestChatMode() === "ask") return executeQkrpcActionGetReadOnly(input);
+      if (programToolExecutionPort(QKRPC_ACTION_GET_TOOL, getRequestChatMode() ?? "agent", true) === "connected-host") return executeQkrpcActionGetReadOnly(input);
       try { await pinExistingActionProjectBinding(input.id); }
       catch (error) {
         const failure = actionProjectBindingFailure(error);
@@ -558,7 +559,7 @@ export async function executeQkrpcActionIdTool(
       }
       const args = ["action", "get", "--id", input.id];
       args.push("--return-mode", input.returnMode ?? "structure");
-      const getResult = await runQkrpcForTool(args);
+      const getResult = await runQkrpcProgramToolPort(args, "compatibility-get");
       if (!getResult.ok) {
         return formatQkrpcResultForAgent(getResult);
       }

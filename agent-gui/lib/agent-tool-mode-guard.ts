@@ -1,11 +1,10 @@
 import type { Tool, ToolSet } from "ai";
 import type { ChatMode } from "@/lib/chat-mode";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { WORKSPACE_LOCAL_READ_ACTIONS, describeProgramToolOperations, isSideEffectFreeProgramRead, programToolExecutionPort, programToolOperationFacts } from "./program-tool-operation-facts";
 
 const ASK_READ_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
-  workspace_program: new Set([
-    "projects_list", "read_data", "file_read", "file_info", "file_search",
-  ]),
+  workspace_program: new Set(WORKSPACE_LOCAL_READ_ACTIONS),
   // Even observations currently ensure a runtime/session; Ask must not invoke it.
   browser: new Set(),
   // Source open writes bundle files; save includes host writes even though dry-run is offline.
@@ -70,22 +69,28 @@ export function getToolModeOperationDecision(toolId: string, mode: ChatMode, inp
   if (mode !== "ask") return availability;
   if (toolId === "workspace_program" && action === "read_live" && constraint?.allowedActions.includes("read_live")) return ALLOWED;
   const allowedActions = askReadActions(toolId);
-  if (!allowedActions) return ALLOWED;
-  if (typeof action === "string" && allowedActions.has(action)) return ALLOWED;
-  return {
+  if (allowedActions && !(typeof action === "string" && allowedActions.has(action))) return {
     allowed: false,
     reason: toolId === "workspace_program" && action === "diagnostics"
       ? "Diagnostics are unavailable in Ask mode because the current adapter may start Quicker. Local program and file reads remain available."
       : `Ask mode only permits read operations for ${toolId}. Switch to Agent mode to make changes.`,
   };
+  const port = programToolExecutionPort(toolId, mode, readOnlyExecutorAvailable, constraint?.allowedActions);
+  if (port && !isSideEffectFreeProgramRead(programToolOperationFacts(toolId, input, port))) return {
+    allowed: false,
+    reason: `Ask mode requires a known non-bootstrapping, non-persisting read operation for ${toolId}.`,
+  };
+  return ALLOWED;
 }
 
 /** Observed policy facts, not a replacement for execution-time validation. */
 export function describeToolModeOperations(toolId: string, mode: ChatMode, readOnlyExecutorAvailable = false, constraint?: ToolOperationConstraint) {
   const availability = getToolModeAvailability(toolId, mode, readOnlyExecutorAvailable);
   const actions = constraint?.allowedActions ?? (mode === "ask" ? askReadActions(toolId) : undefined);
+  const operationFacts = describeProgramToolOperations(toolId, mode, readOnlyExecutorAvailable, constraint?.allowedActions);
   return {
     ...availability,
+    ...(operationFacts ? { operationFacts } : {}),
     ...(actions ? { allowedActions: [...actions].filter(action =>
       getToolModeOperationDecision(toolId, mode, { action }, readOnlyExecutorAvailable, constraint).allowed) } : {}),
     runtimeChecksRequired: true as const,

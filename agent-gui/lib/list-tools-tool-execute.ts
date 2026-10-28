@@ -4,6 +4,7 @@ import { getToolBundle, listToolBundles, toolIdToBundleId, type ToolBundleId } f
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { LIST_TOOLS_TOOL } from "@/lib/list-tools-tool";
 import { describeToolModeOperations } from "./agent-tool-mode-guard";
+import { describeToolApproval } from "./program-tool-operation-facts";
 import type { CurrentToolCatalog } from "./current-tool-catalog";
 
 export type ListToolsToolInput = {
@@ -37,6 +38,7 @@ export async function executeListToolsTool(input: ListToolsToolInput, catalog?: 
       executionPort: definition.execute ? "server" : "renderer",
       operationPolicy: policy(toolId),
       risk: "unknown",
+      approval: describeToolApproval(definition.needsApproval),
     };
   };
   const schemas = async (toolIds: readonly string[]) => Promise.all(toolIds.filter(available).map(async toolId => ({
