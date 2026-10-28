@@ -552,6 +552,14 @@ live 自动续轮固定原始手动选择，客户端执行入口再次校验该
 计划矩阵通过定向回归及独立审查；这不是物理 Quicker 或真实 bootstrap 验收。
 renderer-live、外部及未建模操作保持 unknown，完整 R1 和长期重构仍未完成。
 
+R3 审批决定已绑定当前显示的请求集合：主聊天与 Launcher 传递 approval IDs，由同一会话
+controller 核验 AI SDK 实时 store 和 mounted owner，再沿用原审批与自动续轮。旧 A 卡仍
+显示而 SDK 已进入 B 时，点击 A 不批准 B；合法后台会话、批量拒绝和原续轮继续可用。
+定向真实 ChatPanel、Launcher、hook 与 SDK DOM 回归覆盖延迟展示、重复点击、无效集合、
+停止修复及卸载；模型 HTTP 使用隔离替身，没有执行真实模型或宿主操作。工作区附带删除
+尚有异步 hits/cwd 未绑定审批的既有缺口，正在单独修复；关闭/标签淘汰后的 stream
+持久化和完整会话控制器仍待整改，R3 未完成。
+
 聊天列已有独立的呈现约束：工具详情在切换会话或窄窗工作区占满正文时立即移除浮层，
 关闭原打开状态并释放 Escape 监听与滚动锁；返回聊天不自动重开。原会话、工具结果和
 输入草稿继续保留，workspace dock 不在该约束内。真实 Frame/Popup DOM 回归与工作台的

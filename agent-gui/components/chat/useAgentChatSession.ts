@@ -19,6 +19,7 @@ import {
 } from "@/lib/chat-store";
 import { isChatStoreHydrated } from "@/lib/use-chat-store";
 import { replaceChatMessagesIfCurrent } from "@/lib/chat-message-edit-branch";
+import { collectPendingApprovals } from "@/lib/collect-pending-approvals";
 import { createLiveProgramDocumentTurn } from "@/lib/live-program-document-turn";
 import type { LiveProgramDocumentRegistry, LiveProgramDocumentPin, LiveProgramDocumentRegistryFailure } from "@/lib/live-program-document";
 
@@ -140,6 +141,37 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     },
   });
   addLiveToolOutputRef.current = addToolOutput as typeof addLiveToolOutputRef.current;
+
+  const approvalOwner = useMemo(() => ({ active: false, claimed: new Set<string>() }), [threadId]);
+  useLayoutEffect(() => {
+    approvalOwner.active = true;
+    return () => { approvalOwner.active = false; };
+  }, [approvalOwner]);
+  const respondToPendingApprovals = useCallback((expectedIds: string[], approved: boolean): boolean => {
+    if (!approvalOwner.active || expectedIds.length === 0
+      || new Set(expectedIds).size !== expectedIds.length
+      || expectedIds.some(id => approvalOwner.claimed.has(id))) return false;
+
+    let matches = false;
+    // useChat's updater reads its live store synchronously; rendered messages
+    // may lag by 100ms. Return the snapshot unchanged and send only afterwards.
+    setMessages(current => {
+      const last = current.at(-1);
+      const pending = collectPendingApprovals(current);
+      const lastPending = last?.role === "assistant" ? collectPendingApprovals([last]) : [];
+      matches = pending.length === expectedIds.length && lastPending.length === expectedIds.length
+        && new Set(lastPending.map(approval => approval.id)).size === expectedIds.length
+        && lastPending.every(approval => expectedIds.includes(approval.id));
+      return current;
+    });
+    if (!matches) return false;
+    // A second click can arrive before the SDK's queued response has run.
+    for (const id of expectedIds) approvalOwner.claimed.add(id);
+    for (const id of expectedIds) {
+      void addToolApprovalResponse({ id, approved, reason: approved ? "用户点击批量确认" : "用户批量取消" });
+    }
+    return true;
+  }, [approvalOwner, setMessages, addToolApprovalResponse]);
 
   useLayoutEffect(() => () => liveTurn.dispose(), [liveTurn]);
   const registerLiveProgramDocumentRegistry = useCallback((registry: LiveProgramDocumentRegistry) => {
@@ -278,6 +310,7 @@ export function useAgentChatSession(options: UseAgentChatSessionOptions) {
     stop,
     clearError,
     addToolApprovalResponse,
+    respondToPendingApprovals,
     addToolOutput,
     repairToolCalls,
     busyPersist,

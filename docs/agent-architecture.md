@@ -686,6 +686,17 @@ artifact hydration 必须接收显式 view，读取前检查 cwd、有效代次�
 不发送。隐藏会话保留编辑状态；确认弹窗拥有自己的 pointer/Escape，避免点击确认先退出
 编辑。审批、Launcher、Agent loop 和持久化格式沿用既有实现，其他会话职责继续拆分。
 
+审批回调携带主聊天或 Launcher 当前展示的完整 approval IDs；bridge 不再接受没有请求
+身份的决定。`useAgentChatSession.respondToPendingApprovals` 先核对 mounted owner，再用
+AI SDK 同步 functional updater 读取实时消息，比较最后一条 assistant 的完整待审批集合。
+React 节流副本不能决定执行对象。认领成功后才调用原 SDK 审批 API，同 tick 的重复点击
+不能重复续轮；隐藏仍挂载的会话保留合法审批能力，卸载或停止修复后的旧状态被拒绝。
+已有 bench 使用的原始 SDK callback 仍保留；这不是第二个执行循环或历史格式变更。
+
+这条请求身份约束不证明附带文件操作的目标一致：工作区删除仍需把异步查询结果与审批、
+cwd 和动作身份绑定，不能沿用上一张卡片的 hits。该既有缺口单独修复；关闭或标签淘汰后
+卸载会话的后续 stream 持久化也仍待验收，不能以这次审批修复关闭完整 R3。
+
 DSH 参考固定为 [DeepSeek Harness `687f282`](https://github.com/deepseek-ai/deepseek-harness/tree/687f282e8625c6b8d11ff58211a90524be2e4317)：
 
 - [布局槽位](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/client/ui-layout/src/client/index.ts) 将框架几何与业务区域分开。

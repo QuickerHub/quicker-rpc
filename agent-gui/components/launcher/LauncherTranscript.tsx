@@ -125,10 +125,10 @@ export function LauncherTranscript({
             deleteWorkspaceToo={deleteWorkspaceToo}
             onDeleteWorkspaceTooChange={setDeleteWorkspaceToo}
             onApproveAll={(options) => {
-              postLauncherApprovalRespond(sessionId, true, options);
+              postLauncherApprovalRespond(sessionId, true, { ...options, approvalIds: pendingApprovals.map(approval => approval.id) });
             }}
             onDenyAll={() => {
-              postLauncherApprovalRespond(sessionId, false);
+              postLauncherApprovalRespond(sessionId, false, { approvalIds: pendingApprovals.map(approval => approval.id) });
             }}
           />
         ) : null}
