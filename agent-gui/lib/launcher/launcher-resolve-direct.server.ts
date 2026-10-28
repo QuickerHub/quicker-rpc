@@ -17,7 +17,10 @@ import { resolveLauncherCandidates } from "@/lib/launcher/launcher-resolve-core"
 
 async function canDirectExecuteSteps(
   steps: LauncherCachedToolStep[],
+  enabledToolIds: readonly string[],
 ): Promise<boolean> {
+  const enabled = new Set(enabledToolIds);
+  if (steps.some((step) => !enabled.has(step.toolName))) return false;
   for (const step of steps) {
     const pseudo = {
       id: "precheck",
@@ -27,7 +30,7 @@ async function canDirectExecuteSteps(
       updatedAt: "",
       useCount: 0,
     };
-    if (!(await canDirectExecuteLauncherCacheEntry(pseudo))) {
+    if (!(await canDirectExecuteLauncherCacheEntry(pseudo, enabledToolIds))) {
       return false;
     }
   }
@@ -38,7 +41,10 @@ export async function tryRespondWithLauncherResolveDirect(params: {
   userText: string;
   repairedMessages: AgentUIMessage[];
   cwd?: string;
+  enabledToolIds: readonly string[];
 }): Promise<Response | null> {
+  // Discovery may contact or bootstrap the host; it needs its own selection.
+  if (!params.enabledToolIds.includes("launcher_resolve")) return null;
   const query = params.userText.trim();
   if (!query) return null;
 
@@ -53,7 +59,7 @@ export async function tryRespondWithLauncherResolveDirect(params: {
   const steps: LauncherCachedToolStep[] = [
     { toolName: next.tool, input: next.input },
   ];
-  if (!(await canDirectExecuteSteps(steps))) {
+  if (!(await canDirectExecuteSteps(steps, params.enabledToolIds))) {
     return null;
   }
 
@@ -65,7 +71,7 @@ export async function tryRespondWithLauncherResolveDirect(params: {
   });
 }
 
-export function createLauncherResolveDirectStreamResponse(params: {
+function createLauncherResolveDirectStreamResponse(params: {
   query: string;
   steps: LauncherCachedToolStep[];
   originalMessages: AgentUIMessage[];

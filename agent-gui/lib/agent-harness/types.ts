@@ -28,6 +28,7 @@ export type ChatPostBody = {
   messages: AgentUIMessage[];
   /** Renderer-issued descriptor; validated against the original manual message. */
   liveProgramDocument?: unknown;
+  /** Built-in choices before mode filtering; absent uses defaults, [] disables all sources for the turn. */
   enabledTools?: string[];
   workingDirectory?: string;
   /** @deprecated use workingDirectory */

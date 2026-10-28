@@ -8,6 +8,14 @@ import { SET_THREAD_TITLE_TOOL } from "@/lib/thread-title-tool-messages";
 
 const SKILL_LOAD_TOOL = "skill_load";
 
+/** The wire empty choice disables every source; a filtered empty built-in list does not. */
+export function resolveTurnToolAllowlist(
+  requestedBuiltInTools: readonly string[] | undefined,
+  commandAllowlist: string[] | undefined,
+): string[] | undefined {
+  return requestedBuiltInTools?.length === 0 ? [] : commandAllowlist;
+}
+
 export type SelectChatToolsParams = {
   chatMode: ChatMode;
   enabledToolIds: string[];

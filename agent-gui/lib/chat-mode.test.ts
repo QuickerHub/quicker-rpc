@@ -37,18 +37,18 @@ describe("resolveEnabledToolsForChatMode", () => {
   it("keeps an explicitly empty Agent capability selection", () => {
     assert.deepEqual(resolveEnabledToolsForChatMode(CHAT_MODE_AGENT, [], () => ["Write"]), []);
   });
-  it("uses launcher tool set in launcher mode", () => {
+  it("intersects explicit launcher selection with its mode boundary", () => {
     assert.deepEqual(
       resolveEnabledToolsForChatMode(
         CHAT_MODE_LAUNCHER,
         ["docs", "Shell"],
         () => ["docs"],
       ),
-      defaultLauncherToolIds(),
+      ["docs", "Shell"],
     );
   });
 
-  it("uses ask tool set in ask mode", () => {
+  it("intersects explicit Ask selection with its read-only boundary", () => {
     assert.equal(defaultAskToolIds().includes("browser"), false);
     assert.deepEqual(
       resolveEnabledToolsForChatMode(
@@ -56,8 +56,19 @@ describe("resolveEnabledToolsForChatMode", () => {
         ["docs", "Shell"],
         () => ["docs"],
       ),
-      defaultAskToolIds(),
+      ["docs"],
     );
+  });
+
+  for (const mode of [CHAT_MODE_AGENT, CHAT_MODE_ASK, CHAT_MODE_LAUNCHER]) {
+    it(`${mode}: preserves empty selection without calling the fallback`, () => {
+      assert.deepEqual(resolveEnabledToolsForChatMode(mode, [], () => { throw Error("Unexpected fallback"); }), []);
+    });
+  }
+
+  it("keeps each mode default only when selection is absent", () => {
+    assert.deepEqual(resolveEnabledToolsForChatMode(CHAT_MODE_ASK, undefined, () => []), defaultAskToolIds());
+    assert.deepEqual(resolveEnabledToolsForChatMode(CHAT_MODE_LAUNCHER, undefined, () => []), defaultLauncherToolIds());
   });
 
   it("lists only local tools and explicit non-bootstrapping program getters in Ask", () => {

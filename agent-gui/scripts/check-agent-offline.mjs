@@ -99,6 +99,8 @@ const tests = [
   "lib/agent-mcp/load.server.test.ts",
   "lib/list-tools-tool.test.ts",
   "lib/chat-mode.test.ts",
+  "lib/agent-chat-transport.test.ts",
+  "lib/launcher/launcher-direct-selection.test.ts",
   "lib/chat-tool-selection.test.ts",
   "lib/tool-registry.test.ts",
   "lib/task-tool.test.ts",

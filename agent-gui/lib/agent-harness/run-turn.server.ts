@@ -26,7 +26,9 @@ async function tryLauncherDirectResponse(
   request: ResolvedAgentTurnRequest,
 ): Promise<Response | null> {
   if (request.chatMode !== CHAT_MODE_LAUNCHER || request.titleTest
-    || (request.liveProgramDocument && request.liveProgramDocument.state !== "none")) {
+    || (request.liveProgramDocument && request.liveProgramDocument.state !== "none")
+    || request.body.enabledTools?.length === 0
+    || request.enabledToolIds.length === 0) {
     return null;
   }
 
@@ -41,12 +43,14 @@ async function tryLauncherDirectResponse(
         userText: request.lastUserText,
         repairedMessages: request.repairedMessages,
         cwd: request.cwd,
+        enabledToolIds: request.enabledToolIds,
       });
       if (cacheDirect) return cacheDirect;
       return tryRespondWithLauncherResolveDirect({
         userText: request.lastUserText,
         repairedMessages: request.repairedMessages,
         cwd: request.cwd,
+        enabledToolIds: request.enabledToolIds,
       });
     },
   );

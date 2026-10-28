@@ -1,8 +1,6 @@
 import { DefaultChatTransport } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatMode } from "@/lib/chat-mode";
-import { resolveEnabledToolsForChatMode } from "@/lib/chat-mode";
-import { loadStoredEnabledTools } from "@/lib/tool-registry";
 import type { LiveProgramDocumentTurnBody } from "./live-program-document-turn";
 
 type RefLike<T> = { current: T };
@@ -32,11 +30,8 @@ export function createAgentChatTransport(refs: AgentChatTransportRefs): DefaultC
     body: () => ({
       threadId: refs.threadId,
       chatMode: refs.chatMode.current,
-      enabledTools: resolveEnabledToolsForChatMode(
-        refs.chatMode.current,
-        refs.enabledTools.current,
-        loadStoredEnabledTools,
-      ),
+      // Preserve the explicit wire choice; the server applies the mode boundary.
+      enabledTools: refs.enabledTools.current,
       llmSelection: refs.llmSelection.current,
       llmProvider: refs.llmSelection.current,
       workingDirectory: refs.workingDirectory.current?.trim() || undefined,

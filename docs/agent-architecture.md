@@ -783,6 +783,21 @@ context”。
 | UI 输出 | 原始 tool result / `displayData` | 不受模型视图裁剪影响 |
 | Schema 暴露 | `agent-harness/model-tool-definitions.ts` | 核心/当前 bundle/MCP 保留完整 schema，其余提供发现提示 |
 
+HTTP `enabledTools` 是模式过滤前的内置工具选择：字段缺省使用模式默认；非空数组与
+当前模式的允许项求交，正常内部支持工具及独立配置的 MCP 继续按原规则组合。
+显式 `[]` 则是本轮全部工具禁用，优先于标题测试、命令、内部工具、MCP 和 live pin。
+`resolveTurnToolAllowlist` 从原始请求识别空集，再于组合后应用最终限制；不能从归一化
+内置列表为空推断全部禁用，MCP-only 命令仍可能拥有合法外部工具。
+客户端普通发送和 live 手动快照均保留原始选择，由服务端统一执行模式交集。
+live 客户端执行入口另外校验该轮冻结选择和模式，不凭 pin 恢复被禁用的文档工具。
+
+Launcher direct 在模型 runtime 之前执行，因此单独消费同一归一化选择：空集不读缓存
+或调用 resolver；缓存整条链先校验所有步骤，避免部分执行；resolver 的预查询及返回的
+目标工具分别须已选中。原审批检查继续执行。显式空集的 pre-turn Designer 上下文只保留
+消息和 embed 的本地目标，不请求可能启动宿主的远端信息。
+工具 UI 仅展示模式可选项及其计数，关掉全部可见项时连同隐藏支持 ID 一并转为空集。
+现有刷新默认全开的行为保留，不将 localStorage 当作跨会话权限配置。
+
 runtime 在最终工具交集、模式门禁与调用策略组合后只解析一次 `TurnPlan`。计划和执行共用
 `agent-tool-mode-guard.ts` 的现有操作限制及显式只读端口事实；`workspace_program` 在 Ask
 可读本地数据，但 diagnostics 仍不可执行。历史反馈要求的步骤若不在最终工具集，或其操作

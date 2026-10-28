@@ -318,6 +318,7 @@ const ChatComposerFooterInner = forwardRef<
                 ) : null}
                 {devExperienceEnabled && !designerEmbed ? (
                   <ToolSelector
+                    chatMode={chatMode}
                     enabledTools={enabledTools}
                     onChange={onEnabledToolsChange}
                   />
