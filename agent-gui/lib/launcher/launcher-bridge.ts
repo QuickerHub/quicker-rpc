@@ -37,6 +37,7 @@ export type LauncherApprovalRespondMessage = {
   type: "launcher:approval-respond";
   sessionId: string;
   approved: boolean;
+  approvalIds: string[];
   deleteWorkspace?: boolean;
 };
 
@@ -114,12 +115,13 @@ export function postLauncherToolOutput(
 export function postLauncherApprovalRespond(
   sessionId: string,
   approved: boolean,
-  options?: { deleteWorkspace?: boolean },
+  options: { approvalIds: string[]; deleteWorkspace?: boolean },
 ): void {
   postLauncherMessage({
     type: "launcher:approval-respond",
     sessionId,
     approved,
+    approvalIds: options.approvalIds,
     deleteWorkspace: options?.deleteWorkspace,
   });
 }
@@ -213,13 +215,16 @@ export function subscribeLauncherBridge(
 
     if (data.type === "launcher:approval-respond") {
       const payload = data as LauncherApprovalRespondMessage;
-      if (typeof payload.sessionId !== "string" || typeof payload.approved !== "boolean") {
+      if (typeof payload.sessionId !== "string" || typeof payload.approved !== "boolean"
+        || !Array.isArray(payload.approvalIds) || payload.approvalIds.length === 0
+        || payload.approvalIds.some(id => typeof id !== "string" || !id)) {
         return;
       }
       handler({
         type: "launcher:approval-respond",
         sessionId: payload.sessionId,
         approved: payload.approved,
+        approvalIds: payload.approvalIds,
         deleteWorkspace:
           typeof payload.deleteWorkspace === "boolean"
             ? payload.deleteWorkspace

@@ -356,7 +356,7 @@ function ChatPanel({
     error,
     stop,
     clearError,
-    addToolApprovalResponse,
+    respondToPendingApprovals,
     addToolOutput,
     repairToolCalls,
     registerLiveProgramDocumentRegistry,
@@ -879,14 +879,8 @@ function ChatPanel({
   }, [clearQueue, interruptAgentRun]);
 
   const respondToAllPendingApprovals = useCallback(
-    (approved: boolean, options?: { deleteWorkspace?: boolean }) => {
-      for (const approval of pendingApprovals) {
-        addToolApprovalResponse({
-          id: approval.id,
-          approved,
-          reason: approved ? "用户点击批量确认" : "用户批量取消",
-        });
-      }
+    (approved: boolean, options: { approvalIds: string[]; deleteWorkspace?: boolean }) => {
+      if (!respondToPendingApprovals(options.approvalIds, approved)) return;
 
       if (
         approved
@@ -904,8 +898,7 @@ function ChatPanel({
       }
     },
     [
-      addToolApprovalResponse,
-      pendingApprovals,
+      respondToPendingApprovals,
       workspaceDeleteHits,
       workingDirectory,
     ],
@@ -1262,8 +1255,8 @@ function ChatPanel({
           deleteWorkspaceToo={deleteWorkspaceToo}
           onDeleteWorkspaceTooChange={setDeleteWorkspaceToo}
           onApproveAll={(options) =>
-            respondToAllPendingApprovals(true, options)}
-          onDenyAll={() => respondToAllPendingApprovals(false)}
+            respondToAllPendingApprovals(true, { ...options, approvalIds: pendingApprovals.map(approval => approval.id) })}
+          onDenyAll={() => respondToAllPendingApprovals(false, { approvalIds: pendingApprovals.map(approval => approval.id) })}
         />
       )}
 
@@ -1549,9 +1542,7 @@ export function Chat() {
         dispatchLauncherApprovalResponse(
           message.sessionId,
           message.approved,
-          message.deleteWorkspace !== undefined
-            ? { deleteWorkspace: message.deleteWorkspace }
-            : undefined,
+          { approvalIds: message.approvalIds, deleteWorkspace: message.deleteWorkspace },
         );
       }
     });
