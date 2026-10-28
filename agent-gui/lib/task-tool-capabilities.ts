@@ -7,7 +7,7 @@ export type TaskParentCapabilities = {
   toolCallId?: string;
   tools: ToolSet;
   abortSignal?: AbortSignal;
-  /** Re-project this turn's provider reference after the child has narrowed its tools. */
+  /** Re-project this turn's catalog/policy and provider reference after child narrowing. */
   knowledgeForTools?: (toolIds: readonly string[]) => string;
 };
 

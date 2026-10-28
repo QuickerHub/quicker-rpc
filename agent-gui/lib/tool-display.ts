@@ -1,4 +1,4 @@
-import { isStructuredToolResult } from "./tool-result";
+import { isStructuredToolResult, resolveToolResultForDisplay } from "./tool-result";
 import {
   parseStepRunnerGetFromQkrpcData,
   parseStepRunnerGetInput,
@@ -67,13 +67,40 @@ function readResultEntityId(data: Record<string, unknown>): string | null {
 }
 
 function isShallowCompactResultData(data: unknown): data is Record<string, unknown> {
-  if (data === null || data === undefined) return true;
+  if (data === null || data === undefined) return false;
   if (typeof data !== "object" || Array.isArray(data)) return false;
   const obj = data as Record<string, unknown>;
   if (Object.keys(obj).length > 12) return false;
   return Object.values(obj).every(
     (v) => v === null || v === undefined || typeof v !== "object",
   );
+}
+
+const SUMMARY_DATA_KEYS = new Set(["message", "actionId", "id", "action"]);
+const SUMMARY_ENVELOPE_KEYS = new Set(["ok", "exitCode", "source", "data"]);
+
+/** Unknown result fields always retain a body, including in compact layouts. */
+export function hasOnlyToolSummaryData(data: unknown): data is Record<string, unknown> {
+  return isShallowCompactResultData(data)
+    && Object.keys(data).every((key) => data[key] === undefined || SUMMARY_DATA_KEYS.has(key));
+}
+
+function hasDisplayValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value !== "object") return typeof value === "number" || typeof value === "boolean";
+  // A defined key still conveys a cleared value or an empty collection.
+  return Object.values(value).some((entry) => entry !== undefined);
+}
+
+/** Content available to the generic result renderer, beyond an omitted outcome. */
+export function hasGenericToolResultBody(input: unknown, output: unknown): boolean {
+  if (!isStructuredToolResult(output)) return hasDisplayValue(output);
+  if (shouldOmitCompactToolResultBody(input, output)) return false;
+  if (!output.ok || output.exitCode !== 0) return true;
+  if (hasDisplayValue(resolveToolResultForDisplay(output).data)) return true;
+  return Object.entries(output).some(([key, value]) =>
+    key !== "displayData" && !SUMMARY_ENVELOPE_KEYS.has(key) && hasDisplayValue(value));
 }
 
 /** Request is a single id already reflected in a successful result. */
@@ -122,7 +149,7 @@ export function isSummaryOnlyToolResult(
   const d = data as Record<string, unknown>;
 
   if (DELETE_TOOLS.has(toolName) && d.action === "delete") {
-    return typeof d.message === "string" && d.message.trim().length > 0;
+    return hasOnlyToolSummaryData(d) && typeof d.message === "string" && d.message.trim().length > 0;
   }
 
   if (toolName === "qkrpc_ping" && d.action === "ping" && d.pong) {
@@ -132,11 +159,7 @@ export function isSummaryOnlyToolResult(
   const message = typeof d.message === "string" ? d.message.trim() : "";
   if (!message) return false;
 
-  const skipKeys = new Set(["message", "actionId", "id", "action"]);
-  const extraKeys = Object.keys(d).filter(
-    (k) => !skipKeys.has(k) && d[k] !== undefined,
-  );
-  if (extraKeys.length > 0) return false;
+  if (!hasOnlyToolSummaryData(d)) return false;
 
   const inputId = parseSingleIdInput(input);
   const outId = readResultEntityId(d);
@@ -150,16 +173,21 @@ export function shouldOmitCompactToolResultBody(
   input: unknown,
   output: unknown,
 ): boolean {
-  if (!isStructuredToolResult(output) || !output.ok) return false;
+  if (!isStructuredToolResult(output) || !output.ok || output.exitCode !== 0) return false;
+  // Full UI payloads, warnings and future receipt fields are not summary facts.
+  if (Object.entries(output).some(([key, value]) => value !== undefined && !SUMMARY_ENVELOPE_KEYS.has(key))) {
+    return false;
+  }
   const data = output.data;
-  if (!isShallowCompactResultData(data)) return false;
+  if (!hasOnlyToolSummaryData(data)) return false;
   const d = data as Record<string, unknown>;
 
   const message = typeof d.message === "string" ? d.message.trim() : "";
   const inputId = parseSingleIdInput(input);
   const outId = readResultEntityId(d);
 
-  if (d.action === "delete" && message) return true;
+  if ([d.id, d.actionId].some((id) => id !== undefined
+    && (typeof id !== "string" || !id.trim() || id.trim() !== outId))) return false;
   if (message && (!outId || (inputId && outId === inputId))) return true;
 
   if (outId && inputId && outId === inputId && !message) {

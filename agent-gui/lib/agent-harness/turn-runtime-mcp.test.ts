@@ -7,14 +7,16 @@ import { build } from "esbuild";
 import type { ChatMode } from "@/lib/chat-mode";
 import type { PreparedAgentTurnRuntime } from "./turn-runtime.server";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { asSchema, type ToolExecutionOptions } from "ai";
+import { asSchema, ToolLoopAgent, type ToolExecutionOptions } from "ai";
+import { MockLanguageModelV3 } from "ai/test";
 import { formatLocalToolResult, isStructuredToolResult } from "@/lib/tool-result";
 import type { LiveProgramDocumentSelection } from "@/lib/live-program-document";
 import { mcpToolId } from "@/lib/agent-mcp/tool-id";
 
 type Probe = { loads: number; connections: number; disposals: number;
   plans: Array<{ enabledToolIds: readonly string[]; readOnlyExecutorToolIds?: readonly string[] }>;
-  baseCalls: unknown[]; readCalls: unknown[]; referenceText: string };
+  baseCalls: unknown[]; readCalls: unknown[]; referenceText: string; mcpDescription: string | undefined;
+  childModel?: MockLanguageModelV3; childTools?: string[] };
 type Prepare = typeof import("./turn-runtime.server").prepareAgentTurnRuntime;
 let compiled = "";
 
@@ -23,21 +25,28 @@ let compiled = "";
 // implementation is imported, and the connect fixture cannot open a transport.
 const resourcePorts: Record<string, string> = {
   "server-only": "",
-  "@/lib/agent-turn-runtime": `
+  "@/lib/select-chat-tools.server": `
     import { jsonSchema } from 'ai';
     import { LIST_TOOLS_TOOL_DEF } from '@/lib/list-tools-tool.server';
-    import { buildSystemInstructions } from '@/lib/instructions';
+    import { TASK_TOOL_DEF } from '@/lib/task-tool.server';
     import { selectChatToolsFromRegistry } from '@/lib/chat-tool-selection';
     const definition = { inputSchema: jsonSchema({type:'object',properties:{path:{type:'string'}}}), execute: async () => {probe.baseCalls.push('fixture');return 'fixture'} };
     const tools = Object.fromEntries(['Read','Write','skill_load','set_thread_title','qkrpc_step_runner_get','qkrpc_action_save'].map(id=>[id,definition]));
+    tools.Read={...definition,description:'CURRENT READ PORT DESCRIPTION'};
+    tools.Write={...definition,description:'CURRENT WRITE PORT DESCRIPTION'};
     tools.list_tools=LIST_TOOLS_TOOL_DEF;
+    tools.task=TASK_TOOL_DEF;
     tools.workspace_program={description:'Legacy disk program operations',inputSchema:jsonSchema({type:'object',properties:{action:{enum:['read_data','write_data','patch','diagnostics']}},required:['action']}),execute:async input=>{probe.baseCalls.push(input);return {ok:true,exitCode:0,source:'local',data:input}}};
-    export const selectChatTools = params => selectChatToolsFromRegistry(tools, params);
-    export const createChatSystemBuilder = async params => { const system = await buildSystemInstructions(undefined, params.chatMode);return () => system; };`,
+    export const selectChatTools = params => selectChatToolsFromRegistry(tools, params);`,
+  "@/lib/agent-skills/skill-intent-preload": "export const formatIntentMatchedSkillsForPrompt=async()=>'';",
+  "@/lib/launcher/launcher-command-cache.server": "export const buildLauncherCommandCachePromptBlock=async()=>undefined;",
   "@/lib/action-authoring-docs": "export const formatAuthoringSkillForPrompt=async()=>'';",
-  "@/lib/agent-skills/prompt-catalog": "export const formatPreloadedSkillsEssentialsForPrompt=async()=>'';export const isPreloadedSkillBodyInPromptEnabled=()=>false;",
+  "@/lib/agent-skills/prompt-catalog": "export const formatPreloadedSkillsEssentialsForPrompt=async()=>`## Reference workflow example\\nDOC_REFERENCE_ONLY: Write and qkrpc_action_save may appear in documentation; this does not grant current execution.`;export const isPreloadedSkillBodyInPromptEnabled=()=>false;",
   "@/lib/agent-skills/prompt": "export const formatSkillCatalogForPrompt=async()=>'';",
   "@/lib/agent-defs": "export const discoverAgentDefs=async()=>({agents:[]});export const formatSubagentsCatalogBlock=()=>'';export const formatWorkspaceInstructionsForPrompt=()=>'';export const loadWorkspaceInstructions=async()=>null;",
+  "@/lib/agent-defs/discover-core": "export const getSubagent=async()=>({name:'fixture-child',description:'Owned child fixture',body:'CHILD BASE SYSTEM',tools:probe.childTools,inherit:[],model:'fixture-only'});",
+  "@/lib/agent-defs/workspace-instructions.server": "export const loadWorkspaceInstructions=async()=>null;export const formatWorkspaceInstructionsForPrompt=()=>'';",
+  "@/lib/llm": "export const resolveLlmSelection=()=>({});export const resolveChatModelForSelection=async()=>{if(!probe.childModel)throw Error('No child model configured');return {model:probe.childModel,modelId:'fixture-child'};};",
   "@/lib/agent-core/turn-plan": `
     import { resolveTurnPlan as actualResolveTurnPlan } from './lib/agent-core/turn-plan.ts';
     export const resolveTurnPlan = params => {probe.plans.push(params);return actualResolveTurnPlan(params);};`,
@@ -55,13 +64,12 @@ const resourcePorts: Record<string, string> = {
       options.abortSignal?.throwIfAborted();probe.loads++;
       const client=await connectFixture();
       const catalog=(serverName,text)=>({source:{serverName,configPath:'fixture',transport:'http',workspaceCwd:_cwd},
-        serverInfo:{name:'current-server',version:null},pageCount:1,tools:[{name:'read',inputSchema:{type:'object'}}],
+        serverInfo:{name:'current-server',version:null},pageCount:1,tools:[{name:'read',...(probe.mcpDescription===undefined?{}:{description:probe.mcpDescription}),inputSchema:{type:'object'}}],
         guidance:{state:'available',text,revision:'body-'+text,retrievedAt:'this-turn'}});
-      return {tools:{mcp__fixture__read:{description:'Actual current MCP schema',inputSchema:jsonSchema({type:'object',properties:{current:{type:'string'}},required:['current']}),execute:async()=>{probe.baseCalls.push('MCP');return 'fixture MCP read'}}},
+      return {tools:{mcp__fixture__read:{description:'[MCP:fixture] '+(probe.mcpDescription??'read'),inputSchema:jsonSchema({type:'object',properties:{current:{type:'string'}},required:['current']}),execute:async()=>{probe.baseCalls.push('MCP');return 'fixture MCP read'}}},
         catalogs:[catalog('fixture',probe.referenceText),catalog('not_selected','HIDDEN SERVER INSTRUCTIONS')],
         callPolicyOverrides:{},diagnostics:[],dispose:()=>client.close()};
     }`,
-  "@/lib/task-tool.server": "export const TASK_TOOL='task';export const createTaskToolForParent=()=>{throw Error('No child loop in fixture')};",
   "@/lib/qkrpc-action-tool.server": "export const executeQkrpcActionGetReadOnly=()=>{throw Error('No host in fixture')};",
   "@/lib/qkrpc-subprogram-tool.server": "export const executeQkrpcSubprogramGetReadOnly=()=>{throw Error('No host in fixture')};",
   "@/lib/workspace-program-tool.server": "export const executeWorkspaceProgramReadOnly=input=>{probe.readCalls.push(input);return {ok:true,exitCode:0,source:'local',data:input}};",
@@ -89,8 +97,10 @@ before(async () => {
   compiled = result.outputFiles[0]!.text;
 });
 
-function fixture() {
-  const probe: Probe = { loads: 0, connections: 0, disposals: 0, plans: [], baseCalls: [], readCalls: [], referenceText: "CURRENT SERVER KNOWLEDGE" };
+function fixture({ omitMcpDescription = false, childTools }: { omitMcpDescription?: boolean; childTools?: string[] } = {}) {
+  const probe: Probe = { loads: 0, connections: 0, disposals: 0, plans: [], baseCalls: [], readCalls: [], referenceText: "CURRENT SERVER KNOWLEDGE",
+    mcpDescription: omitMcpDescription ? undefined : "Actual current MCP schema", childTools,
+    childModel: childTools === undefined ? undefined : offlineModel() };
   const module = { exports: {} as { prepareAgentTurnRuntime: Prepare;
     selectSubagentTools: typeof import("../task-tool-capabilities").selectSubagentTools } };
   vm.runInNewContext(compiled, {
@@ -114,6 +124,147 @@ function fixture() {
     } as Parameters<Prepare>[0]);
   };
   return { probe, prepare, selectChildTools: module.exports.selectSubagentTools };
+}
+
+function offlineModel() {
+  return new MockLanguageModelV3({ doGenerate: async () => ({
+    content: [{ type: "text", text: "offline catalog boundary" }],
+    finishReason: { unified: "stop", raw: "stop" },
+    usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
+    warnings: [],
+  }) });
+}
+
+async function captureModelBoundary(runtime: PreparedAgentTurnRuntime) {
+  const system = runtime.buildSystemForPreparedContext({});
+  const model = offlineModel();
+  const agent = new ToolLoopAgent({ model, instructions: system, tools: runtime.tools });
+  await agent.generate({ prompt: "Offline catalog probe. Do not call tools." });
+  assert.equal(model.doGenerateCalls.length, 1);
+  const call = model.doGenerateCalls[0]!;
+  assert.equal(call.prompt.find((message) => message.role === "system")?.content, system);
+  assert.deepEqual((call.tools ?? []).map((tool) => tool.name).sort(), Object.keys(runtime.tools).sort());
+  return { system, call };
+}
+
+type PromptCatalog = {
+  mode: string;
+  tools: Array<{ toolId: string; descriptionState: "provided" | "unknown";
+    operationPolicy: "unknown" | { allowed: boolean; allowedActions?: string[] } }>;
+};
+
+function readPromptCatalog(system: string): PromptCatalog {
+  assert.match(system, /## Current executable tools/);
+  const match = /<current-tool-catalog>\s*([\s\S]*?)\s*<\/current-tool-catalog>/.exec(system);
+  assert.ok(match, "The real system must identify the current per-turn catalog separately from reference workflows");
+  return JSON.parse(match[1]!) as PromptCatalog;
+}
+
+test("empty command selection reaches the real model boundary without advertising executable tools", async () => {
+  const run = fixture();
+  const runtime = await run.prepare({ allowlist: [] });
+  try {
+    const { system } = await captureModelBoundary(runtime);
+    assert.deepEqual(Object.keys(runtime.tools), []);
+    assert.equal(run.probe.connections, 0);
+    assert.deepEqual(run.probe.baseCalls, []);
+    assert.match(system, /## Current executable tools/);
+    assert.doesNotMatch(system, /\*\*Core\*\* \(full schema every turn\):/);
+    assert.match(system, /DOC_REFERENCE_ONLY: Write and qkrpc_action_save/);
+  } finally { await runtime.dispose(); }
+});
+
+for (const selected of [["Read", "list_tools"], [], ["mcp__fixture__read", "list_tools"]]) {
+  test(`the parent runtime projects its current catalog into an actual child task: ${JSON.stringify(selected)}`, async () => {
+    const run = fixture({ childTools: selected });
+    const parentIds = ["task", "Read", "list_tools", "mcp__fixture__read"];
+    const runtime = await run.prepare({ mode: "agent", enabledToolIds: ["task", "Read"], allowlist: parentIds });
+    try {
+      assert.deepEqual(Object.keys(runtime.tools).sort(), [...parentIds].sort());
+      assert.equal(run.probe.childModel!.doGenerateCalls.length, 0, "Preparing the parent must not run a child model");
+      const result = await runtime.tools.task.execute!({ agent: "fixture-child", prompt: "Return the offline fixture result." },
+        { toolCallId: "real-parent-task", messages: [] });
+      assert.ok(isStructuredToolResult(result)); assert.equal(result.ok, true);
+      assert.equal(run.probe.childModel!.doGenerateCalls.length, 1);
+      const call = run.probe.childModel!.doGenerateCalls[0]!;
+      const system = call.prompt.filter((message) => message.role === "system").map((message) => String(message.content)).join("\n\n");
+      assert.match(system, /CHILD BASE SYSTEM/);
+      const catalogs = [...system.matchAll(/<current-tool-catalog>\s*([\s\S]*?)\s*<\/current-tool-catalog>/g)];
+      assert.equal(catalogs.length, 1, "The actual parent callback supplies exactly one narrowed child catalog");
+      const catalog = readPromptCatalog(system);
+      const modelIds = (call.tools ?? []).map((tool) => tool.name).sort();
+      assert.deepEqual(modelIds, [...selected].sort());
+      assert.deepEqual(catalog.tools.map((tool) => tool.toolId).sort(), modelIds);
+      assert.equal(catalog.mode, "agent", "Only the actual parent runtime can supply its current policy to this child");
+      assert.ok(!modelIds.includes("task"), "Delegation cannot restore recursion");
+      if (selected.includes("mcp__fixture__read")) {
+        assert.match(system, /CURRENT SERVER KNOWLEDGE/);
+        assert.match(system, /"read":"mcp__fixture__read"/);
+        assert.equal(catalog.tools.find((tool) => tool.toolId === "mcp__fixture__read")?.descriptionState, "provided");
+        const remote = call.tools?.find((tool) => tool.name === "mcp__fixture__read");
+        assert.ok(remote?.type === "function");
+        assert.deepEqual(remote.inputSchema, await asSchema(runtime.tools.mcp__fixture__read.inputSchema).jsonSchema);
+      } else assert.doesNotMatch(system, /CURRENT SERVER KNOWLEDGE|MCP provider reference material/);
+      assert.doesNotMatch(system, /HIDDEN SERVER INSTRUCTIONS/);
+      assert.equal(run.probe.connections, 1); assert.deepEqual(run.probe.baseCalls, []); assert.deepEqual(run.probe.readCalls, []);
+    } finally { await runtime.dispose(); }
+    assert.equal(run.probe.disposals, 1);
+  });
+}
+
+for (const mode of ["agent", "ask"] as const) {
+  for (const row of [
+    { name: "omitted command restriction", allowlist: undefined, omitMcpDescription: false, mcp: true },
+    { name: "empty command restriction", allowlist: [], omitMcpDescription: false, mcp: false },
+    { name: "built-in command restriction", allowlist: ["Read", "list_tools"], omitMcpDescription: false, mcp: false },
+    { name: "unknown MCP without a source description", allowlist: ["list_tools", "mcp__fixture__read"], omitMcpDescription: true, mcp: true },
+  ]) {
+    test(`${mode}: the real model system and SDK tools agree for ${row.name}`, async () => {
+      const run = fixture({ omitMcpDescription: row.omitMcpDescription });
+      const runtime = await run.prepare({ mode, allowlist: row.allowlist,
+        messages: [{ id: "first-user", role: "user", parts: [{ type: "text", text: "hello" }] }] });
+      try {
+        const { system, call } = await captureModelBoundary(runtime);
+        const catalog = readPromptCatalog(system);
+        const runtimeIds = Object.keys(runtime.tools).sort();
+        assert.equal(catalog.mode, mode);
+        assert.deepEqual(catalog.tools.map((tool) => tool.toolId).sort(), runtimeIds);
+        assert.equal(new Set(catalog.tools.map((tool) => tool.toolId)).size, runtimeIds.length);
+        if (row.allowlist) assert.deepEqual(runtimeIds, [...row.allowlist].sort());
+        assert.equal(run.probe.connections, row.mcp ? 1 : 0);
+        assert.deepEqual(run.probe.baseCalls, []); assert.deepEqual(run.probe.readCalls, []);
+        assert.match(system, /DOC_REFERENCE_ONLY: Write and qkrpc_action_save/);
+        assert.doesNotMatch(system, /\*\*Core\*\* \(full schema every turn\):/);
+        assert.ok(!catalog.tools.some((tool) => ["Write", "qkrpc_action_save"].includes(tool.toolId)),
+          "Documentation references must not become current tool grants");
+        assert.equal(/## Thread title \(first user message only\)/.test(system), runtimeIds.includes("set_thread_title"),
+          "The first-message instruction cannot demand a tool removed by the command restriction");
+        if (runtime.tools.Read) {
+          assert.equal(catalog.tools.find((tool) => tool.toolId === "Read")?.descriptionState, "provided");
+          const read = call.tools?.find((tool) => tool.name === "Read");
+          assert.equal(read?.type === "function" ? read.description : undefined, "CURRENT READ PORT DESCRIPTION");
+        }
+        const mcp = catalog.tools.find((tool) => tool.toolId === "mcp__fixture__read");
+        if (row.mcp) assert.equal(mcp?.descriptionState, row.omitMcpDescription ? "unknown" : "provided");
+        if (row.omitMcpDescription) {
+          const unknown = call.tools?.find((tool) => tool.name === "mcp__fixture__read");
+          assert.equal(unknown?.type === "function" ? unknown.description : undefined, "[MCP:fixture] read",
+            "A wrapper label is present, so unknown must come from the raw MCP descriptor rather than an empty SDK description");
+          const discovery = await runtime.tools.list_tools.execute!({ action: "get", toolId: "mcp__fixture__read" }, { toolCallId: "unknown-description", messages: [] });
+          assert.ok(isStructuredToolResult(discovery)); assert.equal(discovery.ok, true);
+          const data = discovery.data as Record<string, unknown>;
+          assert.equal(data.risk, "unknown"); assert.equal(data.group, undefined);
+          assert.equal((data.operationPolicy as { runtimeChecksRequired: boolean }).runtimeChecksRequired, true);
+          assert.deepEqual(mcp?.operationPolicy, JSON.parse(JSON.stringify(data.operationPolicy)),
+            "Only current runtime guard facts may be reported, without inferring operations from the word read");
+          assert.ok(mcp?.operationPolicy && typeof mcp.operationPolicy === "object");
+          assert.equal(Object.hasOwn(mcp.operationPolicy, "allowedActions"), false);
+          assert.deepEqual(run.probe.baseCalls, []);
+        }
+      } finally { await runtime.dispose(); }
+      assert.equal(run.probe.disposals, row.mcp ? 1 : 0);
+    });
+  }
 }
 
 test("the actual live runtime prompt and client definition describe input edits while Ask remains read-only", async () => {
@@ -219,6 +370,15 @@ test("Ask discovery reports the same operation limits as execution and TurnPlan"
     const system = await runtime.buildSystemForPreparedContext(runtime.preparedContext);
     assert.match(system, /current execution catalog|current catalog/);
     assert.doesNotMatch(system, /read_data\/diagnostics only|quicker_settings list\/get\/search/);
+    const promptCatalog = readPromptCatalog(system);
+    const workspacePolicy = promptCatalog.tools.find((tool) => tool.toolId === "workspace_program")?.operationPolicy;
+    assert.ok(workspacePolicy && workspacePolicy !== "unknown");
+    assert.equal(workspacePolicy.allowed, true);
+    assert.deepEqual(workspacePolicy.allowedActions, Array.from(policy.allowedActions));
+    for (const id of ["qkrpc_step_runner_get", "qkrpc_action_save"]) {
+      const unavailable = promptCatalog.tools.find((tool) => tool.toolId === id)?.operationPolicy;
+      assert.ok(unavailable && unavailable !== "unknown"); assert.equal(unavailable.allowed, false);
+    }
   } finally { await runtime.dispose(); }
 });
 

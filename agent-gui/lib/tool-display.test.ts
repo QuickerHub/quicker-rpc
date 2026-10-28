@@ -172,3 +172,49 @@ test("isSummaryOnlyToolResult treats successful step runner get as summary-only"
     true,
   );
 });
+
+test("compact omission preserves every additional result field regardless of its name or value", () => {
+  const input = Object.freeze({ id: "original-id" });
+  for (const [key, value] of Object.entries({ answer: "Full answer", futureField: 0, enabled: false, empty: "", absent: null })) {
+    for (const action of ["inspect", "delete"]) {
+      const output = Object.freeze({ ok: true, exitCode: 0, data: Object.freeze({ action, id: input.id, message: "Done", [key]: value }) });
+      assert.equal(shouldOmitCompactToolResultBody(input, output), false, `${action}: ${key}`);
+      assert.equal(isSummaryOnlyToolResult("qkrpc_action_delete", input, output), false, `${action}: ${key}`);
+    }
+  }
+});
+
+test("compact omission preserves the full display payload and result-envelope details", () => {
+  const input = Object.freeze({ id: "original-id" });
+  const data = Object.freeze({ id: input.id, message: "Done" });
+  for (const detail of [
+    { displayData: { ...data, answer: "UI-only full answer" } },
+    { displayData: "Full display text" },
+    { stderr: "A warning after success" },
+    { truncated: true },
+    { nextActions: [{ tool: "inspect", reason: "Verify the receipt" }] },
+    { futureReceipt: "Unknown receipt detail" },
+  ]) {
+    const output = Object.freeze({ ok: true, exitCode: 0, data, ...detail });
+    const before = JSON.stringify(output);
+    assert.equal(shouldOmitCompactToolResultBody(input, output), false, JSON.stringify(detail));
+    assert.equal(JSON.stringify(output), before);
+    assert.equal(output.data, data);
+  }
+});
+
+test("compact omission accepts only a redundant successful outcome and consistent identity", () => {
+  const input = { id: "original-id" };
+  const result = (data: unknown) => ({ ok: true, exitCode: 0, data });
+  assert.equal(shouldOmitCompactToolResultBody(input, result({ id: input.id, message: "Done" })), true);
+  assert.equal(shouldOmitCompactToolResultBody(input, result({ id: input.id })), true);
+  assert.equal(shouldOmitCompactToolResultBody(input, result({ message: "Done" })), true);
+  assert.equal(shouldOmitCompactToolResultBody(input, result({ id: "different", message: "Done" })), false);
+  assert.equal(shouldOmitCompactToolResultBody(input, result({ id: "different", actionId: input.id, message: "Done" })), false);
+  assert.equal(shouldOmitCompactToolResultBody(input, result({ id: input.id, message: " \n\t ", answer: "Still meaningful" })), false);
+  for (const data of [null, undefined, " ", "Meaningful text", [], 0, false]) {
+    assert.equal(shouldOmitCompactToolResultBody(input, result(data)), false);
+    assert.equal(isSummaryOnlyToolResult("future_tool", input, result(data)), false);
+  }
+  assert.equal(shouldOmitCompactToolResultBody(input, { ...result({ message: "Done" }), ok: false, exitCode: 1 }), false);
+});

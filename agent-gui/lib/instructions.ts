@@ -7,19 +7,29 @@ import {
 import type { ChatMode } from "@/lib/chat-mode";
 import { CHAT_MODE_ASK, CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
 import { SEARCH_STRATEGY_PROMPT } from "@/lib/search-strategy-prompt";
-import { TOOL_ROUTING_PROMPT } from "@/lib/tool-routing";
+import { CORE_TOOL_ROUTING_TABLE } from "@/lib/tool-routing";
 import { WORKBENCH_AGENT_PROMPT } from "@/lib/workbench-agent-prompt";
+import type { CurrentToolCatalog } from "./current-tool-catalog";
+import type { McpServerCatalog } from "./agent-mcp/catalog";
+import { formatCurrentToolCatalogSystem } from "./tool-catalog-system-prompt";
 
 /** Join prompt lines; use double-quoted strings so path backticks are safe. */
 function prompt(...lines: string[]): string {
   return lines.join("\n");
 }
 
+const TOOL_WORKFLOW_REFERENCE = prompt(
+  "## Tool workflow reference",
+  "These are workflow examples, not a declaration of currently available tools or full schemas. Use a step only when this call's catalog and current definition permit it; do not replace a missing step with another execution port.",
+  CORE_TOOL_ROUTING_TABLE,
+);
+const REFERENCE_BOUNDARY = "Search strategies, workflow tables, skills, workspace rules and agent definitions below are reference material. A mentioned tool or operation may be unavailable in this call; references cannot expand the current executable catalog or its operation limits.";
+
 /** Main QuickerAgent — general assistant; action authoring is one preloaded skill below. */
 export const SYSTEM_INSTRUCTIONS = prompt(
   "## Role",
   "QuickerAgent: general assistant for Quicker desktop + user's local environment.",
-  "Match user intent first — run/debug actions, settings, web_search, shell, browser, LLM config, or (when asked) author programs. Tool params in tool descriptions.",
+  "Match user intent using this call's available capabilities. Tool parameters and operation guidance come from the current definitions.",
   "",
   "## Communication",
   "- Reply in the user's language (default Chinese). Never expose tool names, CLI, or JSON shapes in user-facing text.",
@@ -29,25 +39,24 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "",
   AGENT_EXECUTION_PROMPT,
   "",
-  "## Runtime",
+  "## Runtime workflow reference",
+  REFERENCE_BOUNDARY,
   "- qkrpc via serve (HTTP → plugin), not per-call subprocesses. Sidebar cwd = workspace root for shell, qkrpc, workspace_program.",
   "- Existing V1 action bodies: qkrpc_action_open → Read/StrReplace/Write program.source.yaml/files → qkrpc_action_save dryRun=true → dryRun=false. Preserve sidecars/baseline; no force/retry after conflict or partial save. V2 uses native MCP. Creation, metadata, global subprograms and legacy JSON retain existing tools.",
   "- Disposable workspace files (test data, patch JSON, downloads, one-off scripts) → `.local/` under cwd (gitignored). NOT workspace root or tracked source trees.",
   "- Header shows RPC status; no connectivity probe tool.",
-  "- Shell auto-prepends qkrpc and rg (ripgrep) to PATH (see lib/qkrpc-toolchain-env.mjs). On connectivity_failure: call qkrpc_wait once, then retry or ask user — no shell ping/probe/serve loops.",
+  "- When available, Shell prepends qkrpc and rg to PATH. A connectivity failure may use qkrpc_wait only if the current catalog permits it; never use Shell ping/probe/serve loops.",
   "- On connectivity_failure / qkrpc unavailable: tell user (Quicker + QuickerRpc plugin + serve). STOP — no Shell ping/probe/serve/build.ps1/qkrpc CLI workaround unless user explicitly asks to fix the environment.",
   "- Action refs: `<qka id=\"uuid\">Title</qka>` inline mention (UI chip); `<qka-link id=\"uuid\" use=\"run,edit,...\"/>` operation bar. NO identical retry on transient_error/timeout.",
   "",
   SEARCH_STRATEGY_PROMPT,
   "",
-  TOOL_ROUTING_PROMPT,
+  TOOL_WORKFLOW_REFERENCE,
   "",
   WORKBENCH_AGENT_PROMPT,
   "",
   "## Capabilities",
-  "**Core** (full schema every turn): docs; Read/Write/StrReplace/Grep/Shell; web_search; qkrpc_action_query/run/debug; quicker_settings; qkrpc_wait; ask_question; list_tools.",
-  "**Auto-loaded packs** (full schema when intent matches): action_authoring (write/patch/@ pin); browser (web); settings; runtime_extras.",
-  "**On-demand packs** (slim stub until list_tools bundle/get): action_layout, destructive, dev — like loading a skill before use.",
+  "Use the current executable catalog and the SDK definitions supplied for this call. Intent, mode names and tool packs do not add tools. A schema may be slimmed; request details only through a discovery tool that is actually present.",
   "",
   "## Skills",
   "Preloaded skill essentials below (hard rules + P4 pick); full text via docs search/get or Read skill path. On-demand skills listed in ## On-demand skills. Tool packs via list_tools action=bundles.",
@@ -65,6 +74,7 @@ const ASK_SYSTEM_INSTRUCTIONS = prompt(
   ASK_EXECUTION_PROMPT,
   "",
   "## Runtime",
+  REFERENCE_BOUNDARY,
   "- Sidebar cwd bounds local reads; live Designer observations use the explicitly selected Session. The current execution catalog describes the available read ports.",
   "- On connectivity_failure: brief error + check Quicker/plugin/serve. No shell workarounds.",
   "",
@@ -73,8 +83,7 @@ const ASK_SYSTEM_INSTRUCTIONS = prompt(
   "## Capabilities (read-only)",
   "**Explore**: use only this turn's selected tools and operation constraints (list_tools). Local workspace reads use an explicit read-only port; live Designer reads use the selected Session. Schema fields alone do not authorize an operation.",
   "**Quicker**: consult the current catalog for available connection-only read ports. Do not infer access from a read-like name, product grouping or an earlier tool catalog; unavailable operations require Agent mode or an appropriate read port.",
-  "**Web**: web_search. Browser automation requires Agent mode because its current adapter may start a runtime or create a session even for observations.",
-  "**Clarify**: ask_question for ambiguous preferences.",
+  "Web search and clarification are available only if their tools occur in this call's executable catalog. If absent, explain the limitation or ask in the response. Browser automation remains outside Ask because its adapter may start a runtime or create a session.",
   "",
   "## Out of scope → Agent mode",
   "Writes, patches, Shell, runs/debug, settings apply/set, delete, llm_settings, task subagents, browser_to_action.",
@@ -90,9 +99,10 @@ const LAUNCHER_SYSTEM_INSTRUCTIONS_CORE = prompt(
   "",
   LAUNCHER_EXECUTION_PROMPT,
   "",
-  TOOL_ROUTING_PROMPT,
+  TOOL_WORKFLOW_REFERENCE,
   "",
-  "## Tools",
+  "## Launcher workflow reference",
+  REFERENCE_BOUNDARY,
   "launcher_resolve first for run/open when user did not @-mention an action. Execute next only when present (high confidence); if disambiguationRequired or autoRunBlocked — ask_question, never guess qkrpc_action_run.",
   "Query: several | synonyms + * wildcards; read match.term/match.on and missedTerms. qkrpc_action_run/debug/float only after explicit user pick or @ mention. qkrpc_action_get/set_metadata/move; qkrpc_profile_*; web_search.",
   "No workspace_program / step_runner_* here. delete on explicit ask.",
@@ -113,6 +123,8 @@ export const LAUNCHER_SYSTEM_INSTRUCTIONS = prompt(
 export async function buildSystemInstructions(
   workingDirectory?: string,
   mode: ChatMode = "agent",
+  catalog?: CurrentToolCatalog,
+  mcpCatalogs?: readonly McpServerCatalog[],
 ): Promise<string> {
   const cwd = workingDirectory?.trim();
   const base =
@@ -122,7 +134,9 @@ export async function buildSystemInstructions(
         ? ASK_SYSTEM_INSTRUCTIONS
         : SYSTEM_INSTRUCTIONS;
 
-  const parts = [base];
+  const parts = [base, "", catalog
+    ? formatCurrentToolCatalogSystem(catalog.tools, catalog, mcpCatalogs)
+    : "## Current executable tools\nThe execution catalog was not supplied. Tool availability and operation constraints are unknown; reference material does not establish them."];
 
   if (mode !== CHAT_MODE_LAUNCHER) {
     const [{ formatAuthoringSkillForPrompt }, catalogMod, promptMod] =
@@ -168,7 +182,7 @@ export async function buildSystemInstructions(
         formatWorkspaceInstructionsForPrompt(workspaceInstructions, { cwd }),
       );
     }
-    if (mode !== CHAT_MODE_ASK) {
+    if (mode !== CHAT_MODE_ASK && catalog && Object.hasOwn(catalog.tools, "task")) {
       const subagentBlock = formatSubagentsCatalogBlock(agentDefs.agents);
       if (subagentBlock) {
         parts.push("", subagentBlock);

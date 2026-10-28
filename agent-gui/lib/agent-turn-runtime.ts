@@ -22,6 +22,8 @@ import {
   isDevAgentEnvironment,
 } from "@/lib/dev-agent-tools";
 import { selectChatTools } from "@/lib/select-chat-tools.server";
+import type { CurrentToolCatalog } from "./current-tool-catalog";
+import type { McpServerCatalog } from "./agent-mcp/catalog";
 
 export type PreparedChatContext = {
   systemSuffix?: string;
@@ -34,7 +36,8 @@ export async function createChatSystemBuilder(params: {
   chatMode: ChatMode;
   cwd: string;
   designerEmbedBlock?: string;
-  enabledToolIds: string[];
+  toolCatalog: CurrentToolCatalog;
+  mcpCatalogs?: readonly McpServerCatalog[];
   launcherUserText: string;
   modelId: string;
   repairedMessages: AgentUIMessage[];
@@ -45,7 +48,7 @@ export async function createChatSystemBuilder(params: {
 }) {
   const scopeBlock = formatActionScopeForSystem(params.actionScope);
   const [baseSystem, intentSkillBlock] = await Promise.all([
-    buildSystemInstructions(params.cwd, params.chatMode),
+    buildSystemInstructions(params.cwd, params.chatMode, params.toolCatalog, params.mcpCatalogs),
     formatIntentMatchedSkillsForPrompt({
       userText: params.launcherUserText,
       chatMode: params.chatMode,
@@ -59,13 +62,14 @@ export async function createChatSystemBuilder(params: {
     : baseSystem;
   const devUiBlock =
     isDevAgentEnvironment() && params.chatMode !== CHAT_MODE_LAUNCHER
+      && Object.hasOwn(params.toolCatalog.tools, "dev_frontend_check")
       ? DEV_AGENT_UI_SYSTEM_BLOCK
       : undefined;
   const launcherCacheBlock =
-    params.chatMode === CHAT_MODE_LAUNCHER
+    params.chatMode === CHAT_MODE_LAUNCHER && Object.hasOwn(params.toolCatalog.tools, "launcher_command_cache")
       ? await buildLauncherCommandCachePromptBlock(params.launcherUserText)
       : undefined;
-  const titleInstruction = params.titleTest
+  const titleInstruction = !Object.hasOwn(params.toolCatalog.tools, "set_thread_title") ? null : params.titleTest
     ? buildTitleTestChatInstruction()
     : params.chatMode === CHAT_MODE_LAUNCHER
       ? null

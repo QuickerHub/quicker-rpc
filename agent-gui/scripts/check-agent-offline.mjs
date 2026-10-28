@@ -132,6 +132,7 @@ const tests = [
   "lib/source-project-navigation.integration.test.ts",
   "lib/qkrpc-action-tool-display.test.ts",
   "lib/tool-output-source-summary.test.ts",
+  "lib/tool-display.test.ts",
   "lib/action-source-directory.test.ts",
   "lib/action-source-read-guard.test.ts",
   "lib/action-editor/programWire.test.ts",

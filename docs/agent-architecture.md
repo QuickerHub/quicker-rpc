@@ -29,6 +29,17 @@ UI / HTTP adapters
 | Domain | `lib/agent-core/`、`agent-recovery-policy.ts` | 无 IO 的决策与值对象 |
 | Tool adapters | `lib/tools.ts` 及各 `*-tool.server.ts` | 调用外部能力并返回统一结果 |
 
+模型的 system 工具目录由本轮最终组合生成：模式、命令 allowlist、live scope 与执行包装
+完成后，将同一工具定义和操作限制交给提示构造。显式空集合保持空，首轮标题、开发检查
+等操作指令也须有对应工具；静态 Core/工具包不承诺本轮完整 schema。实际 SDK 定义继续
+持有当前描述与参数 schema，system 不再复制一份完整描述。缺失说明、MCP 名称回退和
+未观测的风险保持 unknown，不从静态注册表补用途或权限。工作流、技能和工作区文档
+保留为参考，不能增加本轮能力。
+
+子代理在父包装工具上再次求交后重投同类目录、操作限制和当前 provider 引用，不复制
+主代理的静态能力表。原逐工具计数、审批与取消包装继续共享；此处不声称父子已有统一的
+模型步骤或 token 总账。未知 provider 说明不推断成只读许可，运行时门禁仍是执行依据。
+
 ### 框架去耦与目标运行边界
 
 Next.js 保留为开发和显式 legacy 的 HTTP/UI 宿主。主页面只组合客户端

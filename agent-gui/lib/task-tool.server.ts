@@ -22,6 +22,7 @@ import {
 } from "@/lib/task-tool-capabilities";
 import type { TaskToolStepSummary } from "@/lib/task-tool-display";
 import { TASK_TOOL } from "@/lib/task-tool-constants";
+import { formatCurrentToolCatalogSystem } from "./tool-catalog-system-prompt";
 
 export { TASK_TOOL };
 
@@ -142,7 +143,8 @@ export async function executeTaskTool(input: {
   }
 
   const tools = selectSubagentTools(parent.tools, subagent.tools);
-  const system = [await buildSubagentSystemPrompt(subagent, cwd), parent.knowledgeForTools?.(Object.keys(tools))]
+  const system = [await buildSubagentSystemPrompt(subagent, cwd),
+    parent.knowledgeForTools?.(Object.keys(tools)) ?? formatCurrentToolCatalogSystem(tools)]
     .filter(Boolean).join("\n\n");
 
   try {

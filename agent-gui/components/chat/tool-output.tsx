@@ -19,6 +19,7 @@ import { ToolJsonEditor } from "./ToolJsonEditor";
 import { FaSearchPlainText } from "./FaSearchPlainText";
 import { isStructuredToolResult, resolveToolResultForDisplay } from "@/lib/tool-result";
 import {
+  hasOnlyToolSummaryData,
   parseSingleIdInput,
   shouldOmitCompactToolResultBody,
   shouldSkipRedundantToolRequest,
@@ -233,6 +234,7 @@ function CompactSuccessBody({
   data: Record<string, unknown>;
   inputId?: string | null;
 }) {
+  if (!hasOnlyToolSummaryData(data)) return <ShallowObjectView data={data} />;
   const message =
     typeof data.message === "string" ? data.message.trim() : "";
   const actionId =
